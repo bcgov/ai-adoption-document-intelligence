@@ -4,7 +4,7 @@
  * Graph structure types are re-exported from @ai-di/graph-workflow.
  * Execution/workflow I/O types below are app-specific.
  */
-import type { GraphWorkflowConfig } from "@ai-di/graph-workflow";
+import type { GraphWorkflowConfig, RunTrigger } from "@ai-di/graph-workflow";
 import type { OcrPayloadRef } from "./ocr-payload-ref-types";
 
 export type {
@@ -71,16 +71,14 @@ export interface GraphWorkflowInput {
    */
   workflowRunId?: string;
   /**
-   * What started this run (G-021): `"try"` for an editor preview from the
-   * canvas, `"api"` for a production run. The activity-output cache is
-   * enabled only when `trigger === "try"` — production-scope caching is
-   * deferred (Phase 4.x) pending a GDPR review. Absence is treated as
-   * production (cache bypassed), the safe direction. Propagated into every
-   * child workflow (map fan-out and library children) so Try caching
-   * survives fan-out. Mirrors `GraphWorkflowInput.trigger` in
-   * `@ai-di/graph-workflow`.
+   * What started this run (see `RunTrigger` in `@ai-di/graph-workflow`). The
+   * activity-output cache is enabled only when `trigger === "try"` —
+   * production-scope caching is deferred (Phase 4.x) pending a GDPR review.
+   * Absence is treated as production (cache bypassed), the safe direction.
+   * Propagated into every child workflow (map fan-out and library children)
+   * so Try caching survives fan-out.
    */
-  trigger?: "try" | "api";
+  trigger?: RunTrigger;
   /**
    * How many child-workflow spawns deep this execution is. `0` (or absent)
    * for a run started from the API; each `executeChild` site passes the
