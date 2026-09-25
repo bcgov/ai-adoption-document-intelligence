@@ -29,7 +29,7 @@ Azure OCR graphs store **references** in workflow context, not full JSON:
 
 | Context variable (author names this) | Typical default name | Activity port |
 |--------------------------------------|----------------------|---------------|
-| Poll response ref | `ocrResponseRef` | `response` (poll) / `ocrResponse` (extract input) |
+| Poll response ref | `ocrResponseRef` | `ocrResponse` (poll output and extract input) |
 | Structured OCR ref | `ocrResultRef` | `ocrResult` |
 | Cleaned OCR ref | `cleanedResultRef` | `cleanedResult` |
 
@@ -239,10 +239,9 @@ Designer note: simple cases (a single comparison) should look as clean as possib
   - **File name** *(optional)* — If not provided, derived from the file reference.
   - **File type** *(optional)* — `pdf` or `image`. Auto-detected from extension if not provided.
   - **Content type (MIME)** *(optional)* — Auto-detected if not provided.
+  - **OCR model ID** *(optional)* — Which Azure Document Intelligence model the file is submitted to. Bind it to the same workflow variable as **Wait for OCR Result** and **Extract OCR Result**, so all three use one model; if unbound it defaults to `prebuilt-layout`.
 - **Outputs ("This step produces"):**
   - **Prepared file data** *(required)* — Name for the prepared metadata (becomes available downstream).
-- **Static parameters:**
-  - **OCR model ID** *(text or dropdown, optional, default `prebuilt-layout`)* — Which Azure Document Intelligence model the prepared data should be associated with. The dropdown should include the common Azure prebuilt models.
 
 ---
 
@@ -286,10 +285,9 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 - **Inputs ("This step reads"):**
   - **Request ID** *(required)* — From **Submit OCR**'s output.
   - **Document ID** *(required for blob refs)* — Usually wired from trigger/context (`documentId`).
+  - **OCR model ID** *(optional)* — The same workflow variable **Prepare File** reads, so the result is fetched under the model it was submitted to; if unbound it defaults to `prebuilt-layout`.
 - **Outputs ("This step produces"):**
-  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `response`). Used by the stop condition (`ocrResponseRef.status`).
-- **Static parameters:**
-  - **OCR model ID** *(required, defaults from upstream)*.
+  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `ocrResponse`). Used by the stop condition (`ocrResponseRef.status`).
 - **Wait & Retry settings (preconfigured but editable):**
   - **Stop condition**: pre-filled with "OCR poll response ref status not equals `running`" (`ocrResponseRef.status`) — the user shouldn't normally need to edit this.
   - **Interval between polls** *(default `10s`)*.
@@ -314,7 +312,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
   - **Request ID** *(required)*.
   - **File name** *(required)*.
   - **File type** *(required)* — `pdf` or `image`.
-  - **OCR model ID** *(required)*.
+  - **OCR model ID** *(optional)* — The same workflow variable **Prepare File** reads; if unbound it defaults to `prebuilt-layout`.
   - **OCR poll response ref** *(required)* — Context `ocrResponseRef` bound to port `ocrResponse`.
   - **Document ID** *(required for blob refs)*.
 - **Outputs ("This step produces"):**

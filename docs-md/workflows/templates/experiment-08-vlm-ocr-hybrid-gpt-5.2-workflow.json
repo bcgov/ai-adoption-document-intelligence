@@ -191,7 +191,7 @@
       ],
       "outputs": [
         {
-          "port": "response",
+          "port": "ocrResponse",
           "ctxKey": "ocrResponseRef"
         }
       ],
