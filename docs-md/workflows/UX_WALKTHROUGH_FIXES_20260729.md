@@ -1,9 +1,8 @@
 # Workflow Builder: 2026-07-29 UX Walkthrough Findings — Fix Batch 1
 
 Tracks the fixes for the issues a UX reviewer found manually walking Part 2/3
-of `docs-md/workflows/MANUAL_TEST_PLAN.md`, reviewed with Alex on 2026-07-29
-(transcript + summary in the notes corpus, `!Justin/SDPR workshop/`). Goal:
-all items done before the next batch-review meeting.
+of `docs-md/workflows/MANUAL_TEST_PLAN.md`, reviewed with Alex on 2026-07-29. Goal: all items done before the next
+batch-review meeting.
 
 ---
 
