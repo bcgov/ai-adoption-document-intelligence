@@ -50,6 +50,7 @@ function identityWithGroups(
     isSystemAdmin: false,
     groupRoles: groups,
     actorId: "user-1",
+    resolvedGroups: [],
   };
 }
 

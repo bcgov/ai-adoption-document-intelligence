@@ -1,6 +1,7 @@
 import { GroupRole } from "@/generated";
 
 // No need to include system-admin-only permissions here.
+// If you update these, update the reference in NoGroupGuard.tsx
 export enum Permission {
   // API-keys
   API_KEY_RETRIEVE,

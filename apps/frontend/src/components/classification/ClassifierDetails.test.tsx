@@ -57,7 +57,7 @@ const classifier: ClassifierModel = {
 const renderDetails = (
   overrides: {
     isSystemAdmin?: boolean;
-    myGroups?: { id: string; name: string; role: string }[];
+    canDeleteClassifier?: boolean;
     onDeleted?: () => void;
   } = {},
 ) => {
@@ -68,8 +68,12 @@ const renderDetails = (
     isSystemAdmin: overrides.isSystemAdmin ?? false,
     user: { sub: "user-1" },
   });
-  mockUseMyGroups.mockReturnValue({ data: overrides.myGroups ?? [] });
-  mockUseGroup.mockReturnValue({ activeGroup: null });
+  mockUseGroup.mockReturnValue({
+    activeGroup: null,
+    hasPermissionForGroup: vi
+      .fn()
+      .mockReturnValue(overrides.canDeleteClassifier ?? false),
+  });
   mockUseClassifier.mockReturnValue({
     updateClassifier: { mutate: vi.fn(), isPending: false },
     deleteClassifier: { mutate: vi.fn(), isPending: false },
@@ -100,37 +104,28 @@ describe("ClassifierDetails", () => {
   // -------------------------------------------------------------------------
   describe("Scenario 1 – Delete button visibility", () => {
     it("does not show Delete button for a regular member", () => {
-      renderDetails({
-        isSystemAdmin: false,
-        myGroups: [{ id: "group-abc", name: "Test", role: "MEMBER" }],
-      });
+      renderDetails();
       expect(
         screen.queryByRole("button", { name: /^delete$/i }),
       ).not.toBeInTheDocument();
     });
 
     it("shows Delete button for a group admin of the classifier's group", () => {
-      renderDetails({
-        isSystemAdmin: false,
-        myGroups: [{ id: "group-abc", name: "Test", role: "ADMIN" }],
-      });
+      renderDetails({ canDeleteClassifier: true });
       expect(
         screen.getByRole("button", { name: /^delete$/i }),
       ).toBeInTheDocument();
     });
 
     it("shows Delete button for a system admin", () => {
-      renderDetails({ isSystemAdmin: true, myGroups: [] });
+      renderDetails({ isSystemAdmin: true });
       expect(
         screen.getByRole("button", { name: /^delete$/i }),
       ).toBeInTheDocument();
     });
 
     it("does not show Delete button for admin of a different group", () => {
-      renderDetails({
-        isSystemAdmin: false,
-        myGroups: [{ id: "other-group", name: "Other", role: "ADMIN" }],
-      });
+      renderDetails();
       expect(
         screen.queryByRole("button", { name: /^delete$/i }),
       ).not.toBeInTheDocument();

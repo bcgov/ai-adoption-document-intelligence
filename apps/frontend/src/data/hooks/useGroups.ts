@@ -28,6 +28,7 @@ export interface GroupMember {
 export const GROUP_ROLE_OPTIONS = [
   { value: "EDITOR", label: "Editor" },
   { value: "ADMIN", label: "Admin" },
+  { value: "REVIEWER", label: "Reviewer" },
 ] as const;
 
 /** Membership request belonging to the authenticated caller, returned by GET /api/groups/requests/mine */

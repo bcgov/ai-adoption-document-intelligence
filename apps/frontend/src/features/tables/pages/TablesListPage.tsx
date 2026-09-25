@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
+import { Permission } from "@/auth/NoGroupGuard";
 import {
   Button,
   DataTable,
@@ -17,13 +18,16 @@ import { useTables } from "../hooks/useTables";
 
 export function TablesListPage() {
   const { isSystemAdmin } = useAuth();
-  const { activeGroup } = useGroup();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
   const navigate = useNavigate();
   const tables = useTables(activeGroup?.id ?? null);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
+  const isAdmin =
+    isSystemAdmin ||
+    (activeGroup != null &&
+      hasPermissionForGroup(activeGroup.id, [Permission.TABLE_CREATE]));
 
   const filtered = (tables.data ?? []).filter((t) =>
     t.label.toLowerCase().includes(search.toLowerCase()),

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { useGroup } from "@/auth/GroupContext";
+import { Permission } from "@/auth/NoGroupGuard";
 import {
   Button,
   Group,
@@ -28,7 +29,7 @@ import type { LookupDef, TableRow } from "../types";
 export function TableDetailPage() {
   const { tableId } = useParams<{ tableId: string }>();
   const { isSystemAdmin } = useAuth();
-  const { activeGroup } = useGroup();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
   const groupId = activeGroup?.id ?? null;
   const table = useTable(groupId, tableId ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -37,7 +38,10 @@ export function TableDetailPage() {
   const [rowFormOpen, setRowFormOpen] = useState(false);
   const [snippetLookup, setSnippetLookup] = useState<LookupDef | null>(null);
 
-  const isAdmin = isSystemAdmin || activeGroup?.role === "ADMIN";
+  const isAdmin =
+    isSystemAdmin ||
+    (activeGroup != null &&
+      hasPermissionForGroup(activeGroup.id, [Permission.TABLE_UPDATE]));
 
   const updateMeta = useUpdateTable(groupId, tableId);
   const deleteTable = useDeleteTable(groupId, tableId);
