@@ -857,8 +857,6 @@ describe("WorkflowController", () => {
 
         expect(result.uploadSpec).toEqual({
           sourceNodeId: "upload",
-          uploadUrl:
-            "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
           allowedMimeTypes: ["application/pdf"],
           maxFileSizeMB: 25,
           ctxKey: "myFile",
@@ -893,8 +891,6 @@ describe("WorkflowController", () => {
 
         expect(result.uploadSpec).toEqual({
           sourceNodeId: "upload",
-          uploadUrl:
-            "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
           allowedMimeTypes: ["application/pdf", "image/*"],
           maxFileSizeMB: 50,
           ctxKey: "documentUrl",
@@ -972,9 +968,9 @@ describe("WorkflowController", () => {
         expect(result.uploadSpec).toBeDefined();
         expect(result.uploadSpec?.sourceNodeId).toBe("upload");
         expect(result.uploadSpec?.ctxKey).toBe("myFile");
-        expect(result.uploadSpec?.uploadUrl).toBe(
-          "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
-        );
+        // No URL: the editor's upload endpoint starts a Try run, so the run
+        // spec must not offer it to outside systems as a way to send files.
+        expect(result.uploadSpec).not.toHaveProperty("uploadUrl");
         // Defaults still applied for omitted fields
         expect(result.uploadSpec?.allowedMimeTypes).toEqual([
           "application/pdf",
@@ -1318,37 +1314,32 @@ describe("WorkflowController", () => {
     });
 
     // -----------------------------------------------------------------------
-    // US-149 — `POST /runs` cancels in-flight Tries for the lineage before
-    // starting the new run. Mirrors US-146's upload-and-Try semantics; the
-    // helper is best-effort so cancel errors never block the new run.
+    // A real run (`POST /runs`) cancels nothing. Only a new Try replaces the
+    // editor's in-flight Try (covered under `startTry` below); if real runs
+    // cancelled Tries too, production traffic would keep cancelling whoever
+    // is testing the same workflow in the editor.
     // -----------------------------------------------------------------------
-    it("US-149: cancels in-flight Tries for the lineage BEFORE startGraphWorkflow", async () => {
+    it("a real run does not cancel the workflow's in-flight Tries", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         mockWorkflowInfo,
       );
       temporalClient.startGraphWorkflow.mockResolvedValue({
-        workflowId: "graph-adhoc-cancel",
-        runId: "run-cancel",
-      });
-
-      const callOrder: string[] = [];
-      temporalClient.cancelInFlightTriesForLineage.mockImplementation(
-        async () => {
-          callOrder.push("cancel");
-          return { cancelledCount: 2 };
-        },
-      );
-      temporalClient.startGraphWorkflow.mockImplementation(async () => {
-        callOrder.push("start");
-        return { workflowId: "graph-adhoc-cancel", runId: "run-cancel" };
+        workflowId: "graph-adhoc-real",
+        runId: "run-real",
       });
 
       await controller.startRun("wf-1", { initialCtx: {} }, mockReq());
 
-      expect(temporalClient.cancelInFlightTriesForLineage).toHaveBeenCalledWith(
-        "wf-1",
+      expect(
+        temporalClient.cancelInFlightTriesForLineage,
+      ).not.toHaveBeenCalled();
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        mockWorkflowInfo.workflowVersionId,
+        {},
+        mockWorkflowInfo.groupId,
+        "api",
       );
-      expect(callOrder).toEqual(["cancel", "start"]);
     });
 
     // -----------------------------------------------------------------------

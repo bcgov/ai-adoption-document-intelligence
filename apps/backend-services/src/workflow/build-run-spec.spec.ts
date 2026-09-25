@@ -185,10 +185,8 @@ describe("buildUploadSpec", () => {
     parameters,
   });
 
-  const baseUrl = "http://localhost:3002";
-
   it("Scenario 2: returns undefined when no source.upload node exists", () => {
-    const spec = buildUploadSpec(baseConfig, "wf-1", baseUrl, {
+    const spec = buildUploadSpec(baseConfig, {
       getSourceCatalogEntry: synthLookup,
     });
     expect(spec).toBeUndefined();
@@ -210,14 +208,12 @@ describe("buildUploadSpec", () => {
       },
     };
 
-    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+    const spec = buildUploadSpec(config, {
       getSourceCatalogEntry: synthLookup,
     });
 
     expect(spec).toEqual({
       sourceNodeId: "upload",
-      uploadUrl:
-        "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
       allowedMimeTypes: ["application/pdf"],
       maxFileSizeMB: 25,
       ctxKey: "myFile",
@@ -233,14 +229,12 @@ describe("buildUploadSpec", () => {
       },
     };
 
-    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+    const spec = buildUploadSpec(config, {
       getSourceCatalogEntry: synthLookup,
     });
 
     expect(spec).toEqual({
       sourceNodeId: "upload",
-      uploadUrl:
-        "http://localhost:3002/api/workflows/wf-1/sources/upload/upload",
       allowedMimeTypes: ["application/pdf", "image/*"],
       maxFileSizeMB: 50,
       ctxKey: "documentUrl",
@@ -261,7 +255,7 @@ describe("buildUploadSpec", () => {
       },
     };
 
-    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+    const spec = buildUploadSpec(config, {
       getSourceCatalogEntry: synthLookup,
     });
 
@@ -279,7 +273,7 @@ describe("buildUploadSpec", () => {
       },
     };
 
-    const spec = buildUploadSpec(config, "wf-1", baseUrl, {
+    const spec = buildUploadSpec(config, {
       getSourceCatalogEntry: () => undefined,
     });
 

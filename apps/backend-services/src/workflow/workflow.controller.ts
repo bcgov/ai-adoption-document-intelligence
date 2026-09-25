@@ -60,7 +60,6 @@ import {
   type TemporalExecutionStatusFilter,
 } from "@/temporal/temporal-client.service";
 import {
-  buildBaseUrl,
   buildRunSpec,
   buildTriggerUrl,
   buildUploadSpec,
@@ -484,7 +483,7 @@ export class WorkflowController {
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
     const triggerUrl = buildTriggerUrl(req, id);
     const runSpec = buildRunSpec(wf.config, triggerUrl);
-    const uploadSpec = buildUploadSpec(wf.config, id, buildBaseUrl(req));
+    const uploadSpec = buildUploadSpec(wf.config);
     // Omit `uploadSpec` entirely when absent (Scenario 2) — do NOT
     // include the key with `undefined`.
     if (uploadSpec) {
@@ -614,15 +613,16 @@ export class WorkflowController {
       });
     }
 
-    // Phase 4 (US-149): cancel any in-flight editor Try for this lineage
-    // BEFORE starting the new run, so a stale canvas preview doesn't keep
-    // running alongside it. G-021: only runs stamped `RunTrigger = "try"`
-    // are cancelled — production runs run to completion regardless of how
-    // many others are in flight for the same lineage (feeding 240 documents
-    // through must not have document #2 cancel document #1). Cancel is
-    // best-effort inside the helper (errors are swallowed there), so this
-    // never blocks the new run.
-    await this.temporalClient.cancelInFlightTriesForLineage(id);
+    // A new Try replaces the previous one: cancel any Try of this workflow
+    // that is still running BEFORE starting, so a stale canvas preview
+    // doesn't keep running alongside it. Only runs labelled "try" are ever
+    // cancelled, and only by another Try. A real run (`/runs`) cancels
+    // nothing, or production traffic would keep cancelling whoever is
+    // testing the same workflow in the editor. Cancel is best-effort inside
+    // the helper (errors are swallowed there), so it never blocks the run.
+    if (trigger === "try") {
+      await this.temporalClient.cancelInFlightTriesForLineage(id);
+    }
 
     // Item 4 (security): the caller's `x-api-key` is intentionally NOT
     // forwarded into the workflow input. Temporal persists workflow input in
@@ -673,8 +673,14 @@ export class WorkflowController {
   )
   @ApiOperation({
     summary:
-      "Upload a file to a `source.upload` node. Streams to blob storage " +
-      "and returns the ctxKey-keyed reference for the subsequent /runs call.",
+      "Upload a sample file to a `source.upload` node and start a Try run",
+    description:
+      "For testing a workflow in the editor. Streams the file to blob " +
+      "storage, records a Document, and starts a run with the file bound " +
+      "to the source's `ctxKey`. The run is labelled `try`, like the " +
+      "editor's Try button, so it replaces any Try of this workflow that " +
+      "is still running. It is not a way for outside systems to send " +
+      "files in as real work.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiParam({
