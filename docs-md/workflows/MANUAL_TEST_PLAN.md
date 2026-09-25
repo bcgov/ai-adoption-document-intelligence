@@ -647,7 +647,7 @@ One `source.api` and one `source.upload` max per workflow.
     -H "x-api-key: <KEY>" -F "file=@/path/to/test.pdf"
   ```
   **Pass:** `200 {"<ctxKey>":"<blobKey>", documentId, runId, workflowVersionId}` (default ctxKey `documentUrl`; the value is a blob **storage key**, not a URL). Note the upload also creates a Document and starts a Try run (hence `runId`). Negative: wrong subtype / MIME mismatch / oversize / unknown ids → 4xx.
-- [x] **13.5 run-spec upload block.** `GET /api/workflows/<WF>/run-spec` with a source.upload node. **Pass:** response includes `uploadSpec:{sourceNodeId, uploadUrl, allowedMimeTypes, maxFileSizeMB, ctxKey}`.
+- [ ] **13.5 run-spec upload block.** `GET /api/workflows/<WF>/run-spec` with a source.upload node. **Pass:** response includes `uploadSpec:{sourceNodeId, allowedMimeTypes, maxFileSizeMB, ctxKey}`, with no upload URL.
 - [x] **13.6 Run drawer sections.** **Pass:** source.api → API section (schema table, sample curl, JSON input); source.upload → Dropzone honoring MIME/size + Upload triggers upload-then-run; both present → both render.
 - [x] **13.7 Single-source validator.** Add a **second** source.api (or second source.upload) → Save. **Pass:** validator **error** (single-source restriction). source.api + legacy `isInput` together → **warning** (not a blocker). Kind mismatch from a source field to a downstream consumer → typed error anchored at the consumer port.
 
