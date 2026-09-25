@@ -1360,10 +1360,7 @@ export const ReviewWorkspacePage: FC = () => {
             </Accordion.Control>
             <Accordion.Panel>
               <ScrollArea.Autosize mah={320} type="auto">
-                <CorrectionHistory
-                  corrections={corrections}
-                  reviewerEmail={session?.reviewerEmail}
-                />
+                <CorrectionHistory corrections={corrections} />
               </ScrollArea.Autosize>
             </Accordion.Panel>
           </Accordion.Item>
