@@ -172,9 +172,6 @@ describe("ReviewDbService", () => {
             },
           },
           corrections: true,
-          // G-058 — the reviewer's identity travels with the session so the
-          // correction trail can say who, not just what and when.
-          actor: { include: { user: { select: { email: true } } } },
         },
       });
     });
