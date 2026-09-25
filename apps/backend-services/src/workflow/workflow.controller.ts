@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getSourceCatalogEntry } from "@ai-di/graph-workflow";
+import { getSourceCatalogEntry, type RunTrigger } from "@ai-di/graph-workflow";
 import {
   BadRequestException,
   Body,
@@ -56,7 +56,6 @@ import { DocumentStatus, GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   type ListRunsExecution,
-  type RunTrigger,
   TemporalClientService,
   type TemporalExecutionStatusFilter,
 } from "@/temporal/temporal-client.service";
@@ -1732,7 +1731,7 @@ export class WorkflowController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiConflictResponse({
     description:
-      "G-063 — the workflow's head has moved on since `expectedVersion`; another editor saved first. The caller should reload before saving again.",
+      "The workflow's head has moved on since `expectedVersion`; another editor saved first. The caller should reload before saving again.",
     type: WorkflowVersionConflictDto,
   })
   async updateWorkflow(
@@ -1767,7 +1766,7 @@ export class WorkflowController {
   @ApiOperation({
     summary: "What deleting this workflow would take with it",
     description:
-      "G-050 — deleting a lineage cascades to every version under it. Benchmark definitions and ground-truth jobs are protected by Restrict FKs and block the delete outright; documents are not — their pinned config link is set to NULL, erasing the record of which graph produced them with no error raised. This pre-flight read exists so a confirmation can name that cost. It never blocks the delete.",
+      "Deleting a lineage cascades to every version under it. Benchmark definitions and ground-truth jobs are protected by Restrict FKs and block the delete outright; documents are not — their pinned config link is set to NULL, erasing the record of which graph produced them with no error raised. This pre-flight read exists so a confirmation can name that cost. It never blocks the delete.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiOkResponse({

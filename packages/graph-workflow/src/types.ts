@@ -403,6 +403,23 @@ export type ValueRef =
 // Execution I/O
 // ---------------------------------------------------------------------------
 
+/**
+ * How a graph workflow run was started. The backend records it on every run
+ * as the `RunTrigger` search attribute and passes it to the worker in
+ * {@link GraphWorkflowInput.trigger}.
+ *
+ * - `"try"` — a preview started from the workflow editor. Try runs are
+ *   disposable: starting a new run of the same workflow from the editor or
+ *   the `/runs` API cancels any Try that is still running.
+ * - `"api"` — real work: a run started through the `/runs` API, or a
+ *   document uploaded for processing. These are never cancelled that way.
+ *
+ * Every call site must state its trigger explicitly — there is no default,
+ * because guessing wrong either cancels real work or leaves abandoned
+ * previews running.
+ */
+export type RunTrigger = "try" | "api";
+
 export interface GraphWorkflowInput {
   graph: GraphWorkflowConfig;
   initialCtx: Record<string, unknown>;
@@ -423,17 +440,14 @@ export interface GraphWorkflowInput {
    */
   workflowLineageId?: string | null;
   /**
-   * What started this run (G-021): `"try"` for an editor preview from the
-   * canvas, `"api"` for a production run (the `/runs` API or a document
-   * processed by `OcrService`). The worker uses it to gate the per-node
-   * activity-output cache to editor Try runs only — production-scope
-   * caching is deferred (Phase 4.x) pending a GDPR review, so a run
-   * without `trigger === "try"` must bypass cache reads AND writes.
-   * Optional because runs started before the field shipped carry no
-   * value; absence is treated as production (cache bypassed), the safe
-   * direction.
+   * What started this run (see {@link RunTrigger}). The worker uses it to
+   * gate the per-node activity-output cache to editor Try runs only —
+   * production-scope caching is deferred (Phase 4.x) pending a GDPR review,
+   * so a run without `trigger === "try"` must bypass cache reads AND writes.
+   * Optional because runs started before the field shipped carry no value;
+   * absence is treated as production (cache bypassed), the safe direction.
    */
-  trigger?: "try" | "api";
+  trigger?: RunTrigger;
 }
 
 export interface GraphWorkflowResult {

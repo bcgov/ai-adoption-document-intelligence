@@ -184,8 +184,9 @@ export class OcrService {
           workflowConfigId,
           initialCtx,
           document.group_id,
-          // G-021: document processing is production work, never an editor
-          // preview — it must never land in a cancel-on-new-Try set.
+          // Real document processing, not an editor Try. Starting a Try
+          // cancels the workflow's runs labelled "try"; labelling this one
+          // "api" is what keeps a Try from cancelling it mid-way.
           "api",
           workflowConfigOverrides,
         );
