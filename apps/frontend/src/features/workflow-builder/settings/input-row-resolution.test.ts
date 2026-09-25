@@ -135,7 +135,11 @@ describe("resolveWireableInputRows — de-placeholdered drop", () => {
 });
 
 describe("optional identifier ports (P-5)", () => {
-  /** `file.prepare` declares three optional base-`Artifact` ports. */
+  /**
+   * `file.prepare` declares three optional base-`Artifact` ports. Its optional
+   * `modelId` port has kind `ModelId`, which auto-wires, so it is listed with
+   * the required ports rather than folded.
+   */
   function loneprepare(): GraphWorkflowConfig {
     return {
       schemaVersion: "1.0",
@@ -159,7 +163,11 @@ describe("optional identifier ports (P-5)", () => {
 
   it("keeps them out of the DEFAULT population (what ConnectSummaryPopover reads)", () => {
     const rows = resolveWireableInputRows(loneprepare(), "prep_1");
-    expect(rows.map((r) => r.port.name)).toEqual(["documentId", "blobKey"]);
+    expect(rows.map((r) => r.port.name)).toEqual([
+      "documentId",
+      "blobKey",
+      "modelId",
+    ]);
   });
 
   it("returns them flagged `optional` when the caller opts in", () => {
@@ -171,6 +179,7 @@ describe("optional identifier ports (P-5)", () => {
     expect(rows.filter((r) => !r.optional).map((r) => r.port.name)).toEqual([
       "documentId",
       "blobKey",
+      "modelId",
     ]);
   });
 
