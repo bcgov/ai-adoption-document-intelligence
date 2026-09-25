@@ -2,6 +2,7 @@ import {
   IconAdjustments,
   IconChartBar,
   IconClipboardCheck,
+  IconCurrencyDollar,
   IconDatabase,
   IconFileText,
   IconFlagQuestion,
@@ -36,6 +37,7 @@ import {
 } from "./features/benchmarking/pages";
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
+import { BillingPage } from "./pages/BillingPage";
 import ClassifierPage from "./pages/ClassifierPage";
 import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
@@ -303,6 +305,19 @@ export const appRoutes: AppRouteConfig[] = [
     path: "benchmarking/projects/:id/compare",
     permissions: [Permission.BENCHMARK_RETRIEVE],
     element: <RunComparisonPage />,
+  },
+
+  // ── Billing section ──────────────────────────────────────────────────────────
+  {
+    path: "billing",
+    element: <BillingPage />,
+    permissions: [Permission.GROUP_BILLING],
+    nav: {
+      label: "Billing",
+      description: "Usage and billing",
+      icon: IconCurrencyDollar,
+      navSection: "bottom",
+    },
   },
 
   // ── Bottom nav item ──────────────────────────────────────────────────────────
