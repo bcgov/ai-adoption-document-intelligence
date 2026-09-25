@@ -1,0 +1,274 @@
+/**
+ * xyflow custom-node renderer for `SourceNode` (US-117).
+ *
+ * Source nodes are the workflow's edge to the outside world — they have
+ * NO input handle (no upstream connection ever) and a SINGLE typed
+ * output handle whose colour comes from the source catalog entry's
+ * `outputKind`.
+ *
+ * Visual shell mirrors the activity rectangle (same Mantine border /
+ * selection styling) so the canvas reads consistently. The differences:
+ *
+ *   - No `Handle type="target"` on the left.
+ *   - Catalog lookup uses `getSourceCatalogEntry` instead of
+ *     `getActivityCatalogEntry`.
+ *
+ * Icon / colour hints are resolved via `source-catalog-utils.ts`
+ * (US-118) so the palette + settings surfaces share the same mapping.
+ *
+ * See docs-md/workflows/DOCUMENT_SOURCES_DESIGN.md §7.2.
+ */
+
+import {
+  getSourceCatalogEntry,
+  type KindRef,
+  type SourceNode,
+} from "@ai-di/graph-workflow";
+import { Text, Tooltip } from "@mantine/core";
+import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import { memo } from "react";
+
+import { colorForKind, shapeForColor } from "../canvas/artifact-kind-colour";
+import { handleBackground, portShapeStyle } from "../canvas/handle-style";
+import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
+import { ValidationBadge } from "../canvas/ValidationBadge";
+import { ACTIVITY_ACCENT } from "../node-accents";
+import { NodePreviewOverlay } from "../preview/PreviewWidget";
+import type { PreviewOutputBinding } from "../preview/preview.types";
+import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
+import { getSourceVisualHints } from "./source-catalog-utils";
+
+/*
+ * This file used to carry its own `handleBackground`, a copy of the canvas
+ * helper that interpolated `var(--mantine-color-<token>-6)`. Once the port
+ * palette became literal hexes (item 20) that copy would have painted a source
+ * node's output dot a DIFFERENT colour from every other port dot of the same
+ * kind. It imports the real one now, and the family's shape with it.
+ *
+ * The header accent is no longer resolved from the entry's `colorHint` either:
+ * a source is a step that does work, and every working step takes one accent.
+ */
+
+/**
+ * xyflow node data for a `source` node — the projection layer passes
+ * the full `SourceNode` shape through under `data`. The renderer reads
+ * `sourceType` + `label` and resolves the rest through the catalog.
+ *
+ * `Record<string, unknown>` widening keeps the shape compatible with
+ * xyflow's `Node<Data>` constraint without an unsafe cast.
+ */
+export type SourceNodeData = SourceNode &
+  Record<string, unknown> & {
+    /** G-031 — validation counts, synced by the canvas's badge effect. */
+    errorCount?: number;
+    warningCount?: number;
+    onBadgeClick?: (nodeId: string) => void;
+  };
+
+type SourceFlowNode = Node<SourceNodeData, "source">;
+type SourceFlowNodeProps = NodeProps<SourceFlowNode>;
+
+/**
+ * Source node renderer. Receives the full `SourceNode` under `data`
+ * and looks the entry up in `SOURCE_CATALOG` to source displayName /
+ * description / icon / colour / outputKind.
+ *
+ * If the lookup misses (unregistered subtype), the node still renders
+ * with the user's `label` and a gray header — the validator surfaces
+ * the unknown-subtype error separately.
+ */
+export const SourceNodeRenderer = memo(function SourceNodeRenderer({
+  id,
+  data,
+  selected,
+}: SourceFlowNodeProps) {
+  const entry = getSourceCatalogEntry(data.sourceType);
+  const hints = getSourceVisualHints(data.sourceType);
+  const displayName = hints.displayName;
+  const accent = ACTIVITY_ACCENT;
+  const Icon = hints.Icon;
+  const outputKind: KindRef = entry?.outputKind ?? "Artifact";
+  const handleColor = colorForKind(outputKind);
+
+  // The ctx key this source writes its output to — where the preview value
+  // lives in the cached `outputCtx` delta. Only `source.upload` writes a single
+  // configurable key; `source.api` fans out per-field, so no single primary.
+  const outputCtxKey =
+    data.sourceType === "source.upload"
+      ? ((data.parameters as { ctxKey?: string } | undefined)?.ctxKey ??
+        "documentUrl")
+      : undefined;
+  // A source node has exactly one typed output, so the preview never renders a
+  // port selector for it — but it goes through the same multi-output contract
+  // as activity nodes (G-011).
+  const previewOutputs: PreviewOutputBinding[] =
+    outputCtxKey === undefined
+      ? []
+      : [
+          {
+            port: "out",
+            label: "out",
+            ctxKey: outputCtxKey,
+            kind: entry?.outputKind,
+          },
+        ];
+
+  // Phase 3 type pill — source nodes have a SINGLE typed output so the
+  // pill always renders the one-line shape. For source.api a small
+  // dimmed footnote sits under the pill (Scenario 3: "see Settings →
+  // Fields for typed field-level kinds").
+  const outputPillEntries: NodeTypePillEntry[] = entry
+    ? [{ portName: "out", kind: entry.outputKind }]
+    : [];
+  const showFieldsFootnote = data.sourceType === "source.api";
+
+  // User-authored label override: if `node.label` differs from the
+  // catalog's `displayName`, render it as a subtitle below the
+  // displayName.
+  const labelOverride =
+    data.label && data.label !== displayName ? data.label : null;
+
+  return (
+    <div
+      data-testid={`canvas-node-${id}`}
+      data-shape="rectangle"
+      data-node-type="source"
+      data-source-type={data.sourceType}
+      style={{
+        background: "var(--mantine-color-body, #fff)",
+        borderTopWidth: 2,
+        borderRightWidth: 2,
+        borderBottomWidth: 2,
+        borderLeftWidth: 6,
+        borderStyle: "solid",
+        borderTopColor: selected ? accent : "transparent",
+        borderRightColor: selected ? accent : "transparent",
+        borderBottomColor: selected ? accent : "transparent",
+        borderLeftColor: accent,
+        borderRadius: 10,
+        padding: "10px 14px",
+        minWidth: 200,
+        boxShadow: selected
+          ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+          : "0 2px 8px rgba(0,0,0,0.18)",
+        color: "var(--mantine-color-text, #f3f4f6)",
+        fontSize: 13,
+        lineHeight: 1.2,
+        position: "relative",
+      }}
+    >
+      {/*
+        G-031 — source nodes carry ERROR-severity rules
+        (`nodes.<id>.sourceType`, `nodes.<id>.parameters<suffix>`) that reached
+        the validation drawer and the top-bar count with NOTHING on the card.
+        They now mount the same corner badge every other node type does.
+      */}
+      <ValidationBadge
+        nodeId={id}
+        errorCount={data.errorCount ?? 0}
+        warningCount={data.warningCount ?? 0}
+        onBadgeClick={data.onBadgeClick}
+      />
+      <NodeStatusBadgeOverlay nodeId={id} />
+      <div
+        data-testid={`source-node-header-${id}`}
+        style={{
+          fontSize: 11,
+          color: "var(--mantine-color-dimmed, #9ca3af)",
+          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <span
+          style={{ color: accent, display: "inline-flex" }}
+          data-testid={`source-node-icon-${id}`}
+        >
+          <Icon size={14} />
+        </span>
+        <Text
+          component="span"
+          size="xs"
+          c={entry?.colorHint ?? undefined}
+          style={{ textTransform: "uppercase", letterSpacing: 0.4 }}
+          data-testid={`source-node-display-name-${id}`}
+        >
+          {displayName}
+        </Text>
+      </div>
+      {labelOverride !== null && (
+        <div
+          style={{ fontWeight: 600 }}
+          data-testid={`source-node-label-${id}`}
+        >
+          {labelOverride}
+        </div>
+      )}
+      <NodePreviewOverlay nodeId={id} outputs={previewOutputs} />
+      {/*
+        Output handle — coloured by the catalog entry's `outputKind`.
+        Hover tooltip reads the kind literal verbatim ("Document" /
+        "Artifact"). NO target handle on the left — that's the whole
+        point of US-117 Scenario 1.
+      */}
+      <Tooltip label={outputKind} withArrow position="right">
+        <span
+          data-testid={`source-output-handle-wrapper-${id}`}
+          data-port-direction="output"
+          data-port-color={handleColor}
+          data-port-tooltip={outputKind}
+        >
+          <Handle
+            id="out"
+            type="source"
+            position={Position.Right}
+            style={{
+              background: handleBackground(handleColor),
+              ...portShapeStyle(shapeForColor(handleColor), {
+                color: handleColor,
+                side: "right",
+              }),
+            }}
+          />
+        </span>
+      </Tooltip>
+      {/*
+        On-selection type pill — only the output side. Mirrors the
+        anchoring used by activity nodes' output pill (see
+        `WorkflowEditorCanvas.tsx` `NodeHandles`): pinned to the right
+        edge with a 14px gutter so it sits outside the node body. The
+        footnote (source.api only) renders under the pill within the
+        same wrapper.
+      */}
+      <div
+        data-pill-anchor="output"
+        style={{
+          position: "absolute",
+          right: -14,
+          top: "50%",
+          transform: "translate(100%, -50%)",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
+        <NodeTypePill
+          entries={outputPillEntries}
+          direction="output"
+          hidden={!selected}
+        />
+        {selected && showFieldsFootnote && (
+          <Text
+            size="xs"
+            c="dimmed"
+            data-testid={`source-node-fields-footnote-${id}`}
+            style={{ marginTop: 2, maxWidth: 160 }}
+          >
+            see Settings → Fields for typed field-level kinds
+          </Text>
+        )}
+      </div>
+    </div>
+  );
+});
+SourceNodeRenderer.displayName = "SourceNodeRenderer";
