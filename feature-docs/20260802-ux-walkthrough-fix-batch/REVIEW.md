@@ -33,7 +33,7 @@ Unit-delete on the chip is as approved: confirm names the step count, cancel lea
 
 ## Background
 
-The UX reviewer manually walked Part 2/3 of the [manual test plan](../../docs-md/workflows/MANUAL_TEST_PLAN.md) and reviewed findings with you on 2026-07-29 (transcript summarised in the notes corpus; tracked as a subtask of AI-1174). The batch fixes every agreed item from that call, plus the identifier retag you approved on 2026-08-02. Working checklist: [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md).
+The UX reviewer manually walked Part 2/3 of the [manual test plan](../../docs-md/workflows/MANUAL_TEST_PLAN.md) and reviewed findings with you on 2026-07-29 (tracked as a subtask of AI-1174). The batch fixes every agreed item from that call, plus the identifier retag you approved on 2026-08-02. Working checklist: [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md).
 
 ---
 
