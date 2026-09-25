@@ -1278,9 +1278,10 @@ function conditionStepRefConfig(name) {
  * A real OCR chain pre-organised into two groups, so grouping (6.2), exposed
  * params (6.4), simplified view (6.3), node-type swap (6.6) and auto-arrange
  * (6.7) can all be exercised from one workflow. The OCR Extraction group
- * exposes one parameter that a member node genuinely consumes (`prep`'s
- * `modelId`) — the exposed-param editor edits `nodes.prep.parameters.modelId`,
- * not a decorative ctx default nothing reads.
+ * exposes two settings the chain genuinely consumes: the default of the
+ * `modelId` variable, which Prepare and Extract both read so they use one
+ * model, and Submit's own `locale` parameter, which is tied to a member node
+ * and so is pruned when that node leaves the group.
  */
 function groupingConfig(name) {
   return {
@@ -1291,6 +1292,7 @@ function groupingConfig(name) {
       blobKey: { type: "string" },
       fileName: { type: "string" },
       documentId: { type: "string" },
+      modelId: { type: "string", defaultValue: "prebuilt-layout" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
       ocrResult: { type: "object" },
@@ -1306,10 +1308,8 @@ function groupingConfig(name) {
           { port: "documentId", ctxKey: "documentId" },
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
+          { port: "modelId", ctxKey: "modelId" },
         ],
-        // A real node parameter — the OCR model that rides inside the prepared
-        // file. This is what the "OCR Model" exposed param below edits.
-        parameters: { modelId: "prebuilt-layout" },
         outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
         ...pos(120, 80),
       },
@@ -1319,6 +1319,7 @@ function groupingConfig(name) {
         label: "Submit to Azure OCR",
         activityType: "azureOcr.submit",
         inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+        parameters: { locale: "en-US" },
         outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
         ...pos(420, 80),
       },
@@ -1327,7 +1328,10 @@ function groupingConfig(name) {
         type: "activity",
         label: "Extract OCR Result",
         activityType: "azureOcr.extract",
-        inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        inputs: [
+          { port: "apimRequestId", ctxKey: "apimRequestId" },
+          { port: "modelId", ctxKey: "modelId" },
+        ],
         outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
         ...pos(720, 80),
       },
@@ -1370,8 +1374,13 @@ function groupingConfig(name) {
         exposedParams: [
           {
             label: "OCR Model",
-            nodeId: "prep",
-            path: "nodes.prep.parameters.modelId",
+            path: "ctx.modelId.defaultValue",
+            type: "string",
+          },
+          {
+            label: "OCR Locale",
+            nodeId: "submit",
+            path: "nodes.submit.parameters.locale",
             type: "string",
           },
         ],
@@ -1600,9 +1609,9 @@ const DEMOS = [
     title: "Grouping, simplified view & node swap (Part 6)",
     config: groupingConfig,
     steps: [
-      "This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.",
-      "Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.",
-      "In the exposed-params editor, remove **Prepare File Data** from the group → the *OCR Model* param that referenced it is **pruned** with a toast.",
+      "This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes two **parameters**: *OCR Model*, the default of the workflow's `modelId` variable (Prepare and Extract both read it, so they always use one model), and *OCR Locale*, `Submit to Azure OCR`'s own `locale` parameter.",
+      "Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row has no member node and the path `ctx.modelId.defaultValue`; the *OCR Locale* row targets member node **Submit to Azure OCR**, path `nodes.submit.parameters.locale`.",
+      "In the exposed-params editor, remove **Submit to Azure OCR** from the group → the *OCR Locale* param that referenced it is **pruned** with a toast; *OCR Model* stays, because it belongs to the workflow rather than to one node.",
       "Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.",
       "**More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.",
     ],

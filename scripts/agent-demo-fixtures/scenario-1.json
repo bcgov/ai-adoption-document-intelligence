@@ -15,6 +15,11 @@
         "documentId": {
           "type": "string",
           "description": "Document identifier injected into initialCtx by the upload endpoint at run time."
+        },
+        "modelId": {
+          "type": "string",
+          "defaultValue": "prebuilt-layout",
+          "description": "OCR model that Prepare, Wait for OCR Result and Extract all read, so every step uses the same model."
         }
       },
       "edges": [
@@ -58,6 +63,10 @@
             {
               "port": "apimRequestId",
               "ctxKey": "__auto.submit1.apimRequestId"
+            },
+            {
+              "port": "modelId",
+              "ctxKey": "modelId"
             }
           ],
           "outputs": [
@@ -139,6 +148,10 @@
             {
               "port": "ocrResponse",
               "ctxKey": "__auto.poll1.ocrResponse"
+            },
+            {
+              "port": "modelId",
+              "ctxKey": "modelId"
             }
           ],
           "outputs": [
@@ -166,6 +179,10 @@
             {
               "port": "documentId",
               "ctxKey": "documentId"
+            },
+            {
+              "port": "modelId",
+              "ctxKey": "modelId"
             }
           ],
           "outputs": [
@@ -177,9 +194,6 @@
           "position": {
             "x": 350,
             "y": 100
-          },
-          "parameters": {
-            "modelId": "prebuilt-layout"
           },
           "activityType": "file.prepare"
         }
