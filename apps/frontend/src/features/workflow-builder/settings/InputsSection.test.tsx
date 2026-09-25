@@ -251,9 +251,10 @@ describe("InputsSection", () => {
           inputs: [
             { port: "documentId", ctxKey: "documentId" },
             { port: "blobKey", ctxKey: "blobKey" },
+            { port: "modelId", ctxKey: "modelId" },
           ],
-          // blobKey is locked/bound so documentId is the only port whose
-          // rendering is under test.
+          // blobKey is locked/bound and modelId is bound, so documentId is the
+          // only port whose rendering is under test.
           metadata: { lockedInputPorts: ["blobKey"] },
         },
       },
@@ -262,6 +263,7 @@ describe("InputsSection", () => {
       ctx: {
         documentId: { type: "string", isInput: true },
         blobKey: { type: "string", isInput: true },
+        modelId: { type: "string", isInput: true },
       },
     };
     mount(
@@ -288,13 +290,20 @@ describe("InputsSection", () => {
           type: "activity",
           activityType: "file.prepare",
           label: "A",
-          inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+          // modelId is bound so documentId is the only port with no source.
+          inputs: [
+            { port: "blobKey", ctxKey: "blobKey" },
+            { port: "modelId", ctxKey: "modelId" },
+          ],
           metadata: { lockedInputPorts: ["blobKey"] },
         },
       },
       edges: [],
       entryNodeId: "A",
-      ctx: { blobKey: { type: "string", isInput: true } },
+      ctx: {
+        blobKey: { type: "string", isInput: true },
+        modelId: { type: "string", isInput: true },
+      },
     };
     mount(
       <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
