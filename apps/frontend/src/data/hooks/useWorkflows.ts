@@ -400,13 +400,14 @@ export interface RunSpecInputSchema {
 }
 
 /**
- * Phase 8 — upload-source metadata surfaced by `/run-spec` when the
- * workflow contains a `source.upload` node. Mirrors backend's
- * `UploadSpecDto` (DOCUMENT_SOURCES_DESIGN.md §4.3 / US-112).
+ * Phase 8 — the workflow's upload step, surfaced by `/run-spec` when the
+ * workflow contains a `source.upload` node, for the Run drawer's test
+ * upload. Mirrors backend's `UploadSpecDto` (DOCUMENT_SOURCES_DESIGN.md
+ * §4.3 / US-112), which carries no URL: the upload endpoint starts a Try
+ * run, so it is not offered to outside systems.
  */
 export interface RunSpecUploadSpec {
   sourceNodeId: string;
-  uploadUrl: string;
   allowedMimeTypes: string[];
   maxFileSizeMB: number;
   ctxKey: string;
