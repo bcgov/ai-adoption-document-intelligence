@@ -953,7 +953,7 @@ Simplified view projects one chip per `config.nodeGroups` entry (`chipIdForGroup
 
 **Proposed disposition:** defer
 
-**RULED 2026-07-26 — FIXED** (`5b154167`). Most of the entry had already shipped: `CorrectionHistory` renders field, action, timestamp and before/after from a real query. What was genuinely missing was WHO — the session now returns `reviewerEmail` and the trail names the reviewer. Also deleted `useCorrections`, a dead stub returning an empty list.
+**RULED — PARTLY FIXED** (`5b154167`). `CorrectionHistory` renders field, action, timestamp and before/after from a real query, and `useCorrections`, a dead stub returning an empty list, is deleted. WHO made a correction is not shown yet. A review session can hold more than one reviewer's corrections — a flagged document that another reviewer takes over continues in the same session — so the author has to be recorded on each correction, which AI-2102 (#279) does. Showing it in the correction history follows once both are in develop.
 
 ### G-059 — J7.7 — two runs cannot be compared; Compare-to-head diffs configs, never run values
 
