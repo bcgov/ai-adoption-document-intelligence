@@ -62,7 +62,7 @@ export class ActivityOutputPreviewDto {
 
   @ApiPropertyOptional({
     description:
-      "G-022 — blob-backed values found in `outputCtx`, resolved server-side " +
+      "Blob-backed values found in `outputCtx`, resolved server-side " +
       "into BOUNDED excerpts and keyed by `blobPath`. `OcrResult`-kind values " +
       "are pointers by design (large payloads stay out of ctx), so without " +
       "this the preview could only show `blobPath` / `byteLength` / `status` " +
