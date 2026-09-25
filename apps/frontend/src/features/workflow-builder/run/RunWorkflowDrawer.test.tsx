@@ -456,8 +456,6 @@ describe("RunWorkflowDrawer", () => {
 
   const uploadSpec = {
     sourceNodeId: "src-upload-1",
-    uploadUrl:
-      "http://localhost:3002/api/workflows/wf-1/sources/src-upload-1/upload",
     allowedMimeTypes: ["application/pdf", "image/png"],
     maxFileSizeMB: 25,
     ctxKey: "documentUrl",
