@@ -18,13 +18,14 @@ export interface RunSpec {
 }
 
 /**
- * Phase 8 — upload-source metadata surfaced by `/run-spec` when a
- * `source.upload` node exists in the workflow. Matches
- * DOCUMENT_SOURCES_DESIGN.md §4.3.
+ * Phase 8 — the workflow's upload step, surfaced by `/run-spec` when a
+ * `source.upload` node exists, so the editor's Run drawer can offer a test
+ * upload. It deliberately carries no URL: the editor's upload endpoint
+ * starts a Try run, so it is not a route for outside systems to send files
+ * in as real work (DOCUMENT_SOURCES_DESIGN.md §4.3).
  */
 export interface UploadSpec {
   sourceNodeId: string;
-  uploadUrl: string;
   allowedMimeTypes: string[];
   maxFileSizeMB: number;
   ctxKey: string;
@@ -54,9 +55,8 @@ const AUTH_NOTES =
  * the request's `X-Forwarded-Proto` + `Host` headers (set by every
  * reverse proxy we run behind) with a local-dev fallback.
  *
- * Shared by `buildTriggerUrl` and the controller's `buildUploadSpec`
- * wiring so per-resource paths can be appended without duplicating the
- * proxy-header logic.
+ * Used by `buildTriggerUrl` so per-resource paths can be appended
+ * without duplicating the proxy-header logic.
  */
 export function buildBaseUrl(req: Request): string {
   const forwardedProto = req.headers["x-forwarded-proto"];
@@ -186,8 +186,6 @@ function findSourceUploadNode(
  */
 export function buildUploadSpec(
   config: GraphWorkflowConfig,
-  workflowId: string,
-  baseUrl: string,
   options: BuildUploadSpecOptions = {},
 ): UploadSpec | undefined {
   const sourceNode = findSourceUploadNode(config);
@@ -203,7 +201,6 @@ export function buildUploadSpec(
 
   return {
     sourceNodeId: sourceNode.id,
-    uploadUrl: `${baseUrl}/api/workflows/${workflowId}/sources/${sourceNode.id}/upload`,
     allowedMimeTypes: resolvedParams.allowedMimeTypes ?? [
       ...DEFAULT_ALLOWED_MIME_TYPES,
     ],

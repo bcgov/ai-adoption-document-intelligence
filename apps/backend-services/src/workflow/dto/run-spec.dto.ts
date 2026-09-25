@@ -73,10 +73,11 @@ export class RunSpecInputSchemaDto {
 }
 
 /**
- * Phase 8 — upload-source metadata surfaced by `/run-spec` when the
- * workflow contains a `source.upload` node. Drives the Run drawer's
- * Dropzone widget (MIME / size constraints) and tells the frontend
- * where to POST the file. Absent from the response otherwise.
+ * Phase 8 — the workflow's upload step, surfaced by `/run-spec` when the
+ * workflow contains a `source.upload` node. Drives the Run drawer's test
+ * upload (MIME / size constraints). Absent from the response otherwise.
+ * It carries no URL: the editor's upload endpoint starts a Try run, so it
+ * is not a route for outside systems.
  *
  * See DOCUMENT_SOURCES_DESIGN.md §4.3.
  */
@@ -86,16 +87,6 @@ export class UploadSpecDto {
     example: "src-upload-1",
   })
   sourceNodeId!: string;
-
-  @ApiProperty({
-    description:
-      "Absolute URL of the multipart upload endpoint for this source. " +
-      "POST a single file here; the response yields the ctx value used " +
-      "to seed `initialCtx[<ctxKey>]` on the subsequent `/runs` call.",
-    example:
-      "http://localhost:3002/api/workflows/wf-1/sources/src-upload-1/upload",
-  })
-  uploadUrl!: string;
 
   @ApiProperty({
     description:
@@ -170,11 +161,12 @@ export class RunSpecResponseDto {
   @ApiPropertyOptional({
     type: () => UploadSpecDto,
     description:
-      "Upload configuration when the workflow has a `source.upload` " +
-      "node. Absent (not `null`) when no such source exists. When both " +
-      "`inputSchema` (from `source.api`) and `uploadSpec` (from " +
-      "`source.upload`) are populated, the Run drawer renders both " +
-      "options.",
+      "The workflow's upload step (`source.upload`), for testing it in " +
+      "the editor's Run drawer. Absent (not `null`) when no such step " +
+      "exists. Outside systems can't yet send files into an upload step " +
+      "as real work, so no upload URL is given. When both `inputSchema` " +
+      "(from `source.api`) and `uploadSpec` are populated, the Run drawer " +
+      "renders both options.",
   })
   @IsOptional()
   @ValidateNested()
