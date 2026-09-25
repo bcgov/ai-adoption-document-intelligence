@@ -4,6 +4,7 @@
  * Shared state for graph workflow execution.
  */
 
+import type { RunTrigger } from "@ai-di/graph-workflow";
 import type { CachedActivityDeps } from "../cache/cached-activity";
 import type { NodeRunStatus } from "../graph-workflow-queries";
 import type { NodeStatus } from "../graph-workflow-types";
@@ -52,12 +53,12 @@ export interface ExecutionState {
   workflowLineageId?: string | null;
   cacheDeps?: CachedActivityDeps;
   /**
-   * What started this run (`"try"` = editor preview, `"api"` = production).
+   * What started this run (see `RunTrigger` in `@ai-di/graph-workflow`).
    * `graph-workflow.ts` only wires `cacheDeps` for `"try"` runs; the
    * executors forward the trigger into every child workflow so that gate
    * holds across map fan-out and library children (Change A/A+).
    */
-  trigger?: "try" | "api";
+  trigger?: RunTrigger;
   /**
    * Child-workflow nesting depth of THIS execution (0 = started from the
    * API). Both `executeChild` sites pass `childDepth + 1` and refuse to
