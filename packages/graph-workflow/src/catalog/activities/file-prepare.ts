@@ -11,36 +11,14 @@
 import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
-const AZURE_PREBUILT_MODELS = [
-  "prebuilt-layout",
-  "prebuilt-read",
-  "prebuilt-document",
-  "prebuilt-receipt",
-  "prebuilt-invoice",
-  "prebuilt-businessCard",
-  "prebuilt-tax.us.w2",
-  "prebuilt-tax.us.1098",
-  "prebuilt-tax.us.1099",
-  "prebuilt-idDocument",
-  "prebuilt-healthInsuranceCard.us",
-] as const;
-
-export const filePrepareParametersSchema = z.object({
-  modelId: z
-    .string()
-    .optional()
-    .meta({
-      title: "OCR model",
-      description:
-        "Which Azure Document Intelligence model the prepared data should be associated with.",
-      // Free-text fallback — the suggestions act as a combobox dropdown
-      // but custom model IDs are also accepted.
-      examples: [...AZURE_PREBUILT_MODELS],
-      "x-widget": "combobox",
-      "x-options": [...AZURE_PREBUILT_MODELS],
-      "x-default": "prebuilt-layout",
-    }),
-});
+/**
+ * No parameters. The OCR model is an input rather than a typed-in setting:
+ * Azure keeps an analysis under the model it was submitted to, so this step
+ * (whose output Submit OCR sends), Wait for OCR Result and Extract OCR Result
+ * must all use the same model. Binding all three to one workflow variable is
+ * what keeps them in step.
+ */
+export const filePrepareParametersSchema = z.object({});
 
 export const filePrepareCatalogEntry: ActivityCatalogEntry = {
   activityType: "file.prepare",
@@ -86,6 +64,14 @@ export const filePrepareCatalogEntry: ActivityCatalogEntry = {
       description: "Auto-detected from the file extension if omitted.",
       required: false,
       kind: "Artifact",
+    },
+    {
+      name: "modelId",
+      label: "OCR model ID",
+      description:
+        "Which Azure DI model the file is submitted to. Bind it to the same variable as Wait for OCR Result and Extract OCR Result. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
+      required: false,
+      kind: "ModelId",
     },
   ],
   outputs: [
