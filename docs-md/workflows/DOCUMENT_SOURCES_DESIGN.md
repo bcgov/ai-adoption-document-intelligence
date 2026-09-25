@@ -199,12 +199,12 @@ export interface FieldDescriptor {
 **`runtime: "manual"`.** When this source is present:
 
 - The Run drawer renders a file-picker widget instead of (or alongside, when source.api is ALSO present) the JsonInput.
-- The frontend POSTs the file as `multipart/form-data` to a **new endpoint** `POST /api/workflows/:id/sources/:sourceNodeId/upload` which:
+- The frontend POSTs the file as `multipart/form-data` to `POST /api/workflows/:id/sources/:sourceNodeId/upload`, which:
   1. Validates the source node exists, is of subtype `source.upload`, and the upload satisfies `allowedMimeTypes` / `maxFileSizeMB`.
-  2. Streams the file to blob storage (reuses the existing blob service).
-  3. Returns `{ [ctxKey]: <url> }` — using the source's configured `ctxKey` parameter (default `"documentUrl"`) as the response key, so the response shape matches what the source declares as its output. This keeps the endpoint authoritative about the mapping.
-  4. The frontend forwards that object verbatim as the `initialCtx` in the subsequent `POST /runs`.
+  2. Streams the file to blob storage (reuses the existing blob service) and records a Document.
+  3. Starts a Try run of the workflow with the file bound to the source's configured `ctxKey` (default `"documentUrl"`), and returns `{ [ctxKey]: <blob key>, runId, documentId, workflowVersionId }`.
 - The /run-spec endpoint surfaces the source.upload's schema separately from any source.api's schema (see §4.3).
+- **This is a test path, for the editor.** The run is labelled `try`, so a later Try of the same workflow cancels it, and it appears in the editor's Try history. Outside systems cannot yet send files into an upload step as real work: the platform's upload API (`POST /api/upload`) runs a workflow as real work but hands the file over as `documentId` / `blobKey`, not under the source's `ctxKey`. A real-work route is tracked as AI-2201.
 
 **`outputKind: "Document"`.** Single output handle is blue on the canvas. The configured `ctxKey` carries `kind: "Document"` for Phase 3 binding-walk purposes.
 
@@ -232,9 +232,8 @@ interface RunSpecResponse {
   inputSchema: JsonSchema7;            // unchanged shape; derivation now uses §4.1's precedence
   authNotes: string;
   sampleCurl: string;
-  uploadSpec?: {                       // NEW Phase 8
+  uploadSpec?: {                       // NEW Phase 8 — for the editor's test upload
     sourceNodeId: string;              // the source.upload node id
-    uploadUrl: string;                 // POST /api/workflows/:id/sources/:sourceNodeId/upload
     allowedMimeTypes: string[];        // resolved (defaults filled in)
     maxFileSizeMB: number;
     ctxKey: string;
@@ -242,7 +241,7 @@ interface RunSpecResponse {
 }
 ```
 
-A workflow may have both `inputSchema` (from source.api) AND `uploadSpec` (from source.upload) populated when both source nodes are present. The Run drawer renders both options.
+A workflow may have both `inputSchema` (from source.api) AND `uploadSpec` (from source.upload) populated when both source nodes are present. The Run drawer renders both options. `uploadSpec` carries no URL: the upload endpoint starts a Try run (§4.3), so it is not offered to outside systems.
 
 ### 4.2 `POST /api/workflows/:id/runs` (Phase 2 Track 2 — extended)
 
@@ -255,9 +254,9 @@ A workflow may have both `inputSchema` (from source.api) AND `uploadSpec` (from 
 - Accepts `multipart/form-data` with a single `file` part.
 - Resolves the source node, verifies subtype is `source.upload`, validates MIME + size.
 - Streams to blob storage. Storage location reuses the existing per-org blob bucket convention.
-- Returns `{ [ctxKey]: <url> }` — keyed by the source node's configured `ctxKey` parameter (default `"documentUrl"`). The value is a signed URL or blob key, matching whichever shape the existing OCR pipeline already consumes.
+- Records a Document and starts a **Try** run of the workflow with the file bound to the source's `ctxKey` (default `"documentUrl"`). Returns `{ [ctxKey]: <blob key>, runId, documentId, workflowVersionId }`.
 - 4xx on: unknown workflow / source / version, wrong source subtype, MIME mismatch, oversized file. 401/403 unchanged from existing auth.
-- This endpoint is **upload-only** — it does NOT trigger the workflow run. The frontend chains the upload result into a subsequent `POST /runs`. This keeps the upload concern separable from the run concern (and lets the frontend show the upload result to the user before they hit "Run").
+- **It is the editor's test upload, not an intake route.** The run is labelled `try`, like the Try button, so it replaces any Try of the workflow still running, uses the preview cache, and shows in the editor's Try history. `/run-spec` therefore gives outside callers no upload URL. Outside systems cannot yet send files into an upload step as real work; that route is tracked as AI-2201.
 
 ---
 
