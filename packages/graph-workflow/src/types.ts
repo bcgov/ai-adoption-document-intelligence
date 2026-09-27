@@ -409,8 +409,8 @@ export type ValueRef =
  * {@link GraphWorkflowInput.trigger}.
  *
  * - `"try"` — a preview started from the workflow editor. Try runs are
- *   disposable: starting a new run of the same workflow from the editor or
- *   the `/runs` API cancels any Try that is still running.
+ *   disposable: starting a new Try for the same workflow cancels any Try
+ *   that is still running.
  * - `"api"` — real work: a run started through the `/runs` API, or a
  *   document uploaded for processing. These are never cancelled that way.
  *
