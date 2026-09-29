@@ -1,22 +1,33 @@
-import { executeWithConcurrencyLimit, parseDurationToMs } from "./runner-utils";
+import {
+  type ConcurrentOutcome,
+  executeWithConcurrencyLimit,
+  fulfilledValues,
+  parseDurationToMs,
+  rejectedOutcomes,
+} from "./runner-utils";
+
+/** The fulfilled values, in original index order. */
+function values(outcomes: ConcurrentOutcome[]): unknown[] {
+  return fulfilledValues(outcomes);
+}
 
 describe("executeWithConcurrencyLimit", () => {
   it("should execute all items", async () => {
     const items = [1, 2, 3, 4, 5];
-    const results = await executeWithConcurrencyLimit(
+    const outcomes = await executeWithConcurrencyLimit(
       items,
       2,
       async (item) => item * 2,
     );
 
-    expect(results).toEqual([2, 4, 6, 8, 10]);
+    expect(values(outcomes)).toEqual([2, 4, 6, 8, 10]);
   });
 
   it("should preserve order of results", async () => {
     const items = [1, 2, 3, 4, 5];
     const delays = [50, 10, 30, 5, 20];
 
-    const results = await executeWithConcurrencyLimit(
+    const outcomes = await executeWithConcurrencyLimit(
       items,
       3,
       async (item, index) => {
@@ -25,7 +36,7 @@ describe("executeWithConcurrencyLimit", () => {
       },
     );
 
-    expect(results).toEqual([2, 4, 6, 8, 10]);
+    expect(values(outcomes)).toEqual([2, 4, 6, 8, 10]);
   });
 
   it("should limit concurrency", async () => {
@@ -47,32 +58,119 @@ describe("executeWithConcurrencyLimit", () => {
   });
 
   it("should handle empty array", async () => {
-    const results = await executeWithConcurrencyLimit(
+    const outcomes = await executeWithConcurrencyLimit(
       [],
       2,
       async (item) => item,
     );
-    expect(results).toEqual([]);
+    expect(outcomes).toEqual([]);
   });
 
   it("should handle single item", async () => {
-    const results = await executeWithConcurrencyLimit(
+    const outcomes = await executeWithConcurrencyLimit(
       [42],
       2,
       async (item) => item * 2,
     );
-    expect(results).toEqual([84]);
+    expect(values(outcomes)).toEqual([84]);
   });
 
   it("should handle concurrency limit greater than items", async () => {
     const items = [1, 2, 3];
-    const results = await executeWithConcurrencyLimit(
+    const outcomes = await executeWithConcurrencyLimit(
       items,
       10,
       async (item) => item * 2,
     );
 
-    expect(results).toEqual([2, 4, 6]);
+    expect(values(outcomes)).toEqual([2, 4, 6]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-026 — one failed item must not destroy the rest
+// ---------------------------------------------------------------------------
+
+describe("executeWithConcurrencyLimit — partial failure (G-026)", () => {
+  it("returns every successful result when one item fails", async () => {
+    const outcomes = await executeWithConcurrencyLimit(
+      [1, 2, 3, 4, 5],
+      2,
+      async (item: number) => {
+        if (item === 3) throw new Error("branch 3 exploded");
+        return item * 2;
+      },
+    );
+
+    // The four siblings survive, in original index order.
+    expect(values(outcomes)).toEqual([2, 4, 8, 10]);
+  });
+
+  it("reports which indices failed, with their errors", async () => {
+    const outcomes = await executeWithConcurrencyLimit(
+      [1, 2, 3, 4],
+      2,
+      async (item: number) => {
+        if (item % 2 === 1) throw new Error(`odd ${item}`);
+        return item;
+      },
+    );
+
+    const failures = rejectedOutcomes(outcomes);
+    expect(failures.map((f) => f.index)).toEqual([0, 2]);
+    expect((failures[0].reason as Error).message).toBe("odd 1");
+    expect((failures[1].reason as Error).message).toBe("odd 3");
+  });
+
+  it("still respects the concurrency limit when failures occur", async () => {
+    let current = 0;
+    let maxObserved = 0;
+
+    await executeWithConcurrencyLimit(
+      [1, 2, 3, 4, 5, 6],
+      2,
+      async (item: number) => {
+        current++;
+        maxObserved = Math.max(maxObserved, current);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        current--;
+        if (item % 2 === 0) throw new Error(`even ${item}`);
+        return item;
+      },
+    );
+
+    expect(maxObserved).toBeLessThanOrEqual(2);
+  });
+
+  it("surfaces the failure to the caller rather than swallowing it", async () => {
+    // The helper never rejects — it settles. The failure is not lost: it is
+    // reported as an outcome so the CALLER (the map executor) can apply the
+    // node's error policy. The helper itself decides no policy.
+    const outcomes = await executeWithConcurrencyLimit(
+      [1, 2],
+      2,
+      async (item: number) => {
+        if (item === 2) throw new Error("boom");
+        return item;
+      },
+    );
+
+    expect(outcomes).toHaveLength(2);
+    expect(outcomes[0]).toEqual({ status: "fulfilled", index: 0, value: 1 });
+    expect(outcomes[1].status).toBe("rejected");
+    expect(rejectedOutcomes(outcomes)).toHaveLength(1);
+  });
+
+  it("returns nothing fulfilled when every item fails", async () => {
+    const outcomes = await executeWithConcurrencyLimit(
+      [1, 2, 3],
+      2,
+      async () => {
+        throw new Error("all bad");
+      },
+    );
+    expect(values(outcomes)).toEqual([]);
+    expect(rejectedOutcomes(outcomes)).toHaveLength(3);
   });
 });
 

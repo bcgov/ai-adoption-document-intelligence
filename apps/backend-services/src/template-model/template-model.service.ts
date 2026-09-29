@@ -10,11 +10,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { AnalysisResponse, Page } from "@/ocr/azure-types";
+import { Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
 import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
@@ -25,17 +23,25 @@ import {
 import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
+  CreateFieldDefinitionsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import type {
   LabeledDocumentData,
   TemplateModelData,
 } from "./template-model-db.types";
+
+/** Trims a field description; blank becomes null, and an absent one stays absent. */
+function normalizeDescription(
+  value: string | undefined,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 @Injectable()
 export class TemplateModelService {
@@ -43,7 +49,6 @@ export class TemplateModelService {
     private readonly templateModelDb: TemplateModelDbService,
     private readonly templateModelOcrService: TemplateModelOcrService,
     private readonly logger: AppLoggerService,
-    private readonly suggestionService: SuggestionService,
     private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly prismaService: PrismaService,
     private readonly auditService: AuditService,
@@ -226,6 +231,7 @@ export class TemplateModelService {
         field_type: dto.field_type as unknown as FieldType,
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );
@@ -238,6 +244,74 @@ export class TemplateModelService {
       payload: { field_id: field.id, field_key: field.field_key },
     });
     return field;
+  }
+
+  async addFields(
+    templateModelId: string,
+    dto: CreateFieldDefinitionsDto,
+    actorId?: string,
+  ): Promise<FieldDefinition[]> {
+    this.logger.debug(
+      `Adding ${dto.fields.length} fields to template model: ${templateModelId}`,
+    );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
+    if (!templateModel) {
+      throw new NotFoundException(
+        `Template model with id ${templateModelId} not found`,
+      );
+    }
+
+    const existing = new Set(
+      templateModel.field_schema.map((f) => f.field_key),
+    );
+    const seen = new Set<string>();
+    const conflicts = new Set<string>();
+    for (const field of dto.fields) {
+      if (existing.has(field.field_key) || seen.has(field.field_key)) {
+        conflicts.add(field.field_key);
+      }
+      seen.add(field.field_key);
+    }
+    if (conflicts.size > 0) {
+      throw new ConflictException({
+        message: "These field keys already exist or repeat in the request",
+        field_keys: [...conflicts],
+      });
+    }
+
+    const firstOrder =
+      templateModel.field_schema.reduce(
+        (max, field) => Math.max(max, field.display_order),
+        -1,
+      ) + 1;
+
+    return this.prismaService.transaction(async (tx) => {
+      const created = await this.templateModelDb.createFieldDefinitions(
+        templateModelId,
+        dto.fields.map((field, index) => ({
+          field_key: field.field_key,
+          field_type: field.field_type as unknown as FieldType,
+          field_format: field.field_format,
+          format_spec: field.format_spec,
+          description: normalizeDescription(field.description),
+          display_order: firstOrder + index,
+        })),
+        tx,
+      );
+      await this.auditService.recordEvent(
+        created.map((field) => ({
+          event_type: "template_model_field_created",
+          resource_type: "template_model",
+          resource_id: templateModelId,
+          actor_id: actorId,
+          group_id: templateModel.group_id,
+          payload: { field_id: field.id, field_key: field.field_key },
+        })),
+        tx,
+      );
+      return created;
+    });
   }
 
   async updateField(
@@ -257,6 +331,7 @@ export class TemplateModelService {
       {
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );
@@ -542,50 +617,6 @@ export class TemplateModelService {
     }
 
     return labeledDoc.labeling_document.ocr_result;
-  }
-
-  async generateDocumentSuggestions(
-    templateModelId: string,
-    documentId: string,
-    identity: ResolvedIdentity,
-  ): Promise<LabelSuggestionDto[]> {
-    this.logger.debug(
-      `Generating suggestions for document ${documentId} in template model: ${templateModelId}`,
-    );
-
-    const labeledDoc = await this.templateModelDb.findLabeledDocument(
-      templateModelId,
-      documentId,
-    );
-    if (!labeledDoc) {
-      throw new NotFoundException(
-        `Document ${documentId} not found in template model ${templateModelId}`,
-      );
-    }
-
-    if (!labeledDoc.labeling_document?.ocr_result) {
-      throw new NotFoundException(
-        `OCR result not found for labeling document ${documentId}`,
-      );
-    }
-
-    const templateModel =
-      await this.templateModelDb.findTemplateModel(templateModelId);
-    if (!templateModel) {
-      throw new NotFoundException(
-        `Template model with id ${templateModelId} not found`,
-      );
-    }
-
-    identityCanAccessGroup(identity, templateModel.group_id);
-
-    const ocrResult = labeledDoc.labeling_document
-      .ocr_result as unknown as AnalysisResponse;
-    return this.suggestionService.generateSuggestions(
-      ocrResult,
-      templateModel.field_schema,
-      null,
-    );
   }
 
   // ========== EXPORT ==========

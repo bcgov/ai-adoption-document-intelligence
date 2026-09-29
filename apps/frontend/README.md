@@ -24,7 +24,7 @@ The frontend provides a comprehensive UI for managing the entire document intell
 - **React PDF** - PDF rendering and viewing
 - **TanStack Query** - Powerful data fetching and caching
 - **Axios** - HTTP client with interceptors
-- **CodeMirror** - JSON editor for workflow configuration
+- **Monaco Editor** - code editor for dynamic-node scripts
 
 ## Features
 
@@ -58,21 +58,23 @@ The frontend provides a comprehensive UI for managing the entire document intell
 
 **Pages:**
 - `WorkflowListPage` - List all user workflows
-- `WorkflowEditorPage` - Workflow editor (form editor or raw JSON) with read-only graph visualization
+- `WorkflowEditorV2Page` (`features/workflow-builder/`) - Visual drag-and-drop canvas editor, used for both create and edit
+- `WorkflowBySlugRedirect` - Stable `/workflows/by-slug/:slug/edit` entry link that resolves a slug to the canonical edit route
+- `DynamicNodesListPage` / `DynamicNodeNewPage` / `DynamicNodeEditPage` - Author, publish and version custom dynamic nodes
 
-**Components:**
-- `GraphConfigFormEditor` - Structured form editor for nodes and edges (default mode)
-- JSON editor (CodeMirror) - Raw workflow JSON editing, synced with the form editor
-- `GraphVisualization` - Read-only React Flow rendering (pan/zoom only; not editable)
+**Components** (under `features/workflow-builder/`):
+- `WorkflowEditorCanvas` - React Flow canvas with per-type node renderers, wiring, and group chips
+- Node palette / library - Add nodes from the activity catalog and published dynamic nodes
+- `NodeSettingsPanel` - Right-rail, schema-driven settings forms per node
 - Graph node types: `activity`, `switch`, `map`, `join`, `childWorkflow`, `pollUntil`, `humanGate`
-- Full drag-and-drop canvas authoring is a design target, not yet implemented
 
 **Capabilities:**
-- Create custom document processing workflows via the form editor or raw JSON
+- Create custom document processing workflows by placing and wiring nodes on the canvas
 - `activity` nodes invoke registered activity types (OCR, blob read, transform, classify, table lookup, etc.)
-- Workflow validation and execution via Temporal
-- Save and version workflows
-- Execute workflows on document upload
+- Live validation with issues anchored to the offending node or wire
+- Try runs with per-node output previews and run history
+- Save and version workflows, with conflict detection on concurrent edits
+- Execute workflows on document upload via Temporal
 
 ### 4. Labeling Workspace
 
@@ -134,7 +136,7 @@ src/
 │   ├── document/              # Document viewing
 │   ├── queue/                 # Processing queue
 │   ├── upload/                # Upload panel
-│   ├── workflow/              # Workflow editor
+│   ├── workflow/              # Workflow widgets (activity config forms, slug chip)
 │   └── [shared components]
 │
 ├── data/                      # Data layer
@@ -143,18 +145,20 @@ src/
 │   └── queryClient.ts         # TanStack Query client
 │
 ├── features/                  # Feature modules
-│   └── annotation/
-│       ├── core/              # Shared annotation components
-│       ├── labeling/          # Labeling workspace
-│       │   ├── components/
-│       │   └── pages/
-│       └── hitl/              # HITL review
-│           ├── components/
-│           └── pages/
+│   ├── annotation/
+│   │   ├── core/              # Shared annotation components
+│   │   ├── labeling/          # Labeling workspace
+│   │   │   ├── components/
+│   │   │   └── pages/
+│   │   └── hitl/              # HITL review
+│   │       ├── components/
+│   │       └── pages/
+│   ├── agent-chat/            # Workflow-builder agent chat
+│   └── workflow-builder/      # Visual editor (canvas, palette, settings, runs, versioning)
 │
 ├── pages/                     # Top-level pages
 │   ├── WorkflowListPage.tsx
-│   ├── WorkflowEditorPage.tsx
+│   ├── dynamic-nodes/
 │   └── SettingsPage.tsx
 │
 ├── shared/                    # Shared utilities
@@ -268,14 +272,15 @@ Full-screen modal for viewing documents with OCR overlays:
 
 ### Workflow Editor
 
-**Components:** `GraphConfigFormEditor`, JSON editor, `GraphVisualization`
+**Components:** `WorkflowEditorV2Page`, `WorkflowEditorCanvas`, `NodeSettingsPanel` (under `features/workflow-builder/`)
 
-Workflow editing via a structured form editor or raw JSON, with a read-only React Flow visualization:
-- Add/remove nodes and edges through the form editor
-- Raw JSON editing (CodeMirror), synced with the form
-- Read-only graph rendering with auto-layout (Dagre), zoom, and pan
-- Live validation
-- Drag-and-drop canvas node creation is a design target (not yet implemented)
+Visual workflow authoring on a drag-and-drop React Flow canvas:
+- Place nodes from the palette (activity catalog + published dynamic nodes) and wire their ports on the canvas
+- Right-rail settings panel with schema-driven forms per node type
+- Live validation, with issues anchored to the offending node or wire
+- Auto-layout (Dagre), zoom, pan, and collapsible node groups
+- Try runs with per-node output previews and run history
+- Save and version workflows, with conflict detection on concurrent edits
 
 **Graph Node Types:**
 - **`activity`** - Run a registered activity (OCR, blob read, transform, classify, table lookup, etc.)

@@ -15,11 +15,16 @@ const baseData: AuditEventCreateData = {
 
 describe("AuditDbService", () => {
   let service: AuditDbService;
-  let mockAuditEvent: { create: jest.Mock };
-  let mockPrisma: { auditEvent: { create: jest.Mock } };
+  let mockAuditEvent: { create: jest.Mock; createMany: jest.Mock };
+  let mockPrisma: {
+    auditEvent: { create: jest.Mock; createMany: jest.Mock };
+  };
 
   beforeEach(async () => {
-    mockAuditEvent = { create: jest.fn().mockResolvedValue(undefined) };
+    mockAuditEvent = {
+      create: jest.fn().mockResolvedValue(undefined),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    };
     mockPrisma = { auditEvent: mockAuditEvent };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +92,66 @@ describe("AuditDbService", () => {
 
       expect(mockAuditEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ payload: undefined }),
+      });
+    });
+  });
+
+  describe("createAuditEvents", () => {
+    it("should create every event in one createMany call using this.prisma when no tx is provided", async () => {
+      const second: AuditEventCreateData = {
+        ...baseData,
+        event_type: "SECOND_EVENT",
+        resource_id: "res-2",
+      };
+
+      await service.createAuditEvents([baseData, second]);
+
+      expect(mockAuditEvent.createMany).toHaveBeenCalledTimes(1);
+      expect(mockAuditEvent.create).not.toHaveBeenCalled();
+      expect(mockAuditEvent.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            event_type: "TEST_EVENT",
+            resource_id: "res-1",
+          }),
+          expect.objectContaining({
+            event_type: "SECOND_EVENT",
+            resource_id: "res-2",
+          }),
+        ],
+      });
+    });
+
+    it("should use the provided transaction client instead of this.prisma", async () => {
+      const txAuditEvent = {
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
+      };
+      const mockTx = { auditEvent: txAuditEvent } as unknown as Parameters<
+        typeof service.createAuditEvents
+      >[1];
+
+      await service.createAuditEvents([baseData, baseData], mockTx);
+
+      expect(txAuditEvent.createMany).toHaveBeenCalled();
+      expect(mockAuditEvent.createMany).not.toHaveBeenCalled();
+    });
+
+    it("should do nothing for an empty list", async () => {
+      await service.createAuditEvents([]);
+
+      expect(mockAuditEvent.createMany).not.toHaveBeenCalled();
+    });
+
+    it("should pass payload as-is per event, same as createAuditEvent", async () => {
+      const withPayload: AuditEventCreateData = {
+        ...baseData,
+        payload: { key: "value" },
+      };
+
+      await service.createAuditEvents([withPayload]);
+
+      expect(mockAuditEvent.createMany).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ payload: { key: "value" } })],
       });
     });
   });

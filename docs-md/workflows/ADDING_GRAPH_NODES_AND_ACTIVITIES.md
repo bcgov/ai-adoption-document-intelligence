@@ -149,8 +149,10 @@ Add validation for:
 
 ### Step B4: Update frontend rendering and editor assumptions
 
-Modify:
-- `apps/frontend/src/components/workflow/GraphVisualization.tsx`
+Modify the canvas editor module, `apps/frontend/src/features/workflow-builder/canvas/`:
+- `WorkflowEditorCanvas.tsx` — the node-type registry (`NODE_TYPES`) and per-type card rendering
+- `port-rows.ts` — `estimateNodeHeight`, so auto-layout reserves the right space for the new card
+- `workflow-editor-canvas.css` — any per-type styling
 
 At minimum, update node type maps:
 - dimensions
@@ -213,7 +215,7 @@ Relevant implementation:
 - [ ] Add node type/interface in `packages/graph-workflow/src/types.ts` (all three apps pick it up automatically via re-exports)
 - [ ] Implement executor behavior in `apps/temporal/src/graph-engine/node-executors.ts`
 - [ ] Extend the shared validator in `packages/graph-workflow/src/validator/validator.ts`
-- [ ] Update frontend graph visualization for new node type (`apps/frontend/src/components/workflow/GraphVisualization.tsx`)
+- [ ] Update the canvas editor for the new node type (`apps/frontend/src/features/workflow-builder/canvas/` — `WorkflowEditorCanvas.tsx`, `port-rows.ts`)
 - [ ] Add node-type-specific tests in temporal/backend/frontend
 - [ ] Update docs (`docs-md/workflows/GRAPH_TYPES.md` and this guide)
 

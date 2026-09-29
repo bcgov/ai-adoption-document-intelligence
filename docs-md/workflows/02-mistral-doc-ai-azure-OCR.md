@@ -16,7 +16,7 @@ For the public-API engine see [`MISTRAL_OCR.md`](MISTRAL_OCR.md).
 | [`apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts`](../../apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts) | The Temporal activity. Single HTTP call to the Foundry OCR endpoint. |
 | [`apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`](../../apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts) | Shared mapper (Mistral OCR JSON → canonical `OCRResult`). Patched in E02 to populate per-word/per-line polygons when bbox data is present. |
 | [`apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`](../../apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts) | Shared field-schema → `document_annotation_format` converter. |
-| [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](templates/experiment-02-mistral-doc-ai-azure-workflow.json) | The workflow template (`prepareFileData` → `mistralAzureOcr.process` → `ocr.cleanup` → `ocr.checkConfidence` → review-switch → `humanReview`/`storeResults`). |
+| [`docs-md/workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](templates/experiment-02-mistral-doc-ai-azure-workflow.json) | The workflow template (`prepareFileData` → `mistralAzureOcr.process` → `ocr.cleanup` → `ocr.checkConfidence` → review-switch → `humanReview`/`storeResults`). |
 
 ## Endpoint
 

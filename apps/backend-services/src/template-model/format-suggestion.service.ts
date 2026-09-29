@@ -13,6 +13,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { firstValueFrom } from "rxjs";
 import { PrismaService } from "@/database/prisma.service";
+import { DEFAULT_AZURE_OPENAI_API_VERSION } from "@/template-model/azure-openai-config";
 
 interface BenchmarkRunMetrics {
   perSampleResults?: Array<{
@@ -26,7 +27,6 @@ interface BenchmarkRunMetrics {
   }>;
 }
 
-const DEFAULT_API_VERSION = "2024-12-01-preview";
 const MAX_CORRECTIONS = 200;
 
 export interface FormatSpecValue {
@@ -418,7 +418,7 @@ export class FormatSuggestionService {
 
     const apiVersion =
       this.configService.get<string>("AZURE_OPENAI_API_VERSION") ??
-      DEFAULT_API_VERSION;
+      DEFAULT_AZURE_OPENAI_API_VERSION;
     const base = endpoint.replace(/\/$/, "");
     const url = `${base}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${apiVersion}`;
 

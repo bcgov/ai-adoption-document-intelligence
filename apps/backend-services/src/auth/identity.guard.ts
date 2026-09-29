@@ -89,6 +89,21 @@ export class IdentityGuard implements CanActivate {
           "API key authentication is not allowed for this endpoint",
         );
       }
+    } else if (request.internalToken) {
+      // Internal-token path (Change W): `InternalTokenAuthGuard` only
+      // attaches `request.internalToken` on endpoints that opted into
+      // machine auth (`allowApiKey: true`), so no re-check is needed here.
+      // The resolved identity is the same group-scoped MEMBER shape the
+      // API-key path produces. The actor is the minting identity's actor
+      // id when the token is bound to one (agent self-calls), else a
+      // synthetic internal actor labelled by the token's purpose, so audit
+      // rows always name a responsible party.
+      const { groupId, userId, purpose } = request.internalToken;
+      request.resolvedIdentity = {
+        isSystemAdmin: false,
+        groupRoles: { [groupId]: GroupRole.MEMBER },
+        actorId: userId ?? `internal:${purpose}`,
+      };
     } else if (request.user?.sub) {
       const userId = request.user.sub;
       // User guaranteed because they would be added during login process

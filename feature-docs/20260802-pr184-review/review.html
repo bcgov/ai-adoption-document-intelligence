@@ -1,0 +1,167 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR #184 — SDPR HITL inline editor</title><style>body{margin:0;padding:28px;background:#fbfbfa;color:#1d1c1a}@media(prefers-color-scheme:dark){body{background:#16181a;color:#e6e3df}.artifact{--a-line:#2c3033;--a-dim:#8f9297;--a-ink:#e6e3df;--a-panel:#1d2022;--a-accent:#6fbf8f}}
+.artifact{--a-line:var(--line,#e6e4e0);--a-dim:var(--dim,#79736c);
+  --a-ink:var(--ink,#1d1c1a);--a-panel:var(--panel,#fff);
+  --a-accent:var(--accent,#2f6f4f);--a-warn:var(--blocked,#b0413e);
+  color:var(--a-ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  max-width:860px}
+.artifact h2{font-size:13px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--a-dim);font-weight:560;margin:30px 0 10px}
+.artifact p{margin:0 0 10px}
+.a-ask{border:1px solid var(--a-line);border-left:3px solid var(--a-accent);
+  border-radius:8px;padding:14px 16px;background:var(--a-panel);margin-bottom:6px}
+.a-ask .q{font-size:18px;font-weight:600;letter-spacing:-.015em;margin-bottom:4px}
+.a-ask .ans{font-size:15px}
+.a-ask .ans b{color:var(--a-accent)}
+.a-ask .because{color:var(--a-dim);font-size:13.5px;margin-top:5px}
+.a-kind{color:var(--a-dim);font-size:12px;letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:8px}
+.a-bg{color:var(--a-ink);background:var(--a-panel);border:1px solid var(--a-line);
+  border-radius:8px;padding:13px 15px;font-size:14.5px}
+.a-dec{border:1px solid var(--a-line);border-left:3px solid var(--doing,#b06f2a);
+  border-radius:8px;padding:12px 15px;margin-bottom:9px;background:var(--a-panel)}
+.a-dec .q{font-weight:580;margin-bottom:4px}
+.a-dec .d{color:var(--a-dim);font-size:14px}
+.a-dec ul{margin:8px 0 0;padding-left:20px;font-size:14px}
+.a-chore{display:flex;gap:9px;align-items:baseline;padding:5px 0;
+  border-bottom:1px dotted var(--a-line);font-size:14.5px}
+.a-chore:last-child{border-bottom:0}
+.a-who{flex:none;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--a-dim);border:1px solid var(--a-line);border-radius:4px;
+  padding:1px 6px}
+.a-who.you{color:var(--doing,#b06f2a);border-color:currentColor}
+.a-chore.done .w{text-decoration:line-through;color:var(--a-dim)}
+.a-find{border:1px solid var(--a-line);border-radius:8px;padding:13px 15px;
+  margin-bottom:11px;background:var(--a-panel)}
+.a-find .t{font-weight:580;margin-bottom:3px}
+.a-verdict{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+  border-radius:4px;padding:1px 7px;border:1px solid currentColor;flex:none}
+.a-find .hd{display:flex;gap:9px;align-items:baseline;margin-bottom:5px}
+.a-snip{margin:10px 0 0;border:1px solid var(--a-line);border-radius:6px;
+  overflow:hidden;background:var(--bg,#fbfbfa)}
+.a-snip .f{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--a-dim);padding:5px 10px;border-bottom:1px solid var(--a-line)}
+.a-snip pre{margin:0;padding:10px 12px;overflow-x:auto;
+  font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+.a-snip .n{color:var(--a-dim);font-size:13.5px;padding:7px 12px;
+  border-top:1px solid var(--a-line)}
+.a-links{list-style:none;padding:0;margin:0}
+.a-links li{padding:4px 0;font-size:14.5px}
+.a-links a{color:var(--a-accent)}
+.a-links .n{color:var(--a-dim);font-size:13.5px}
+.a-checked{color:var(--a-dim);font-size:13.5px;padding-left:18px;margin:0}
+.a-fig{margin:0 0 8px;overflow-x:auto;background:var(--a-panel);
+  border:1px solid var(--a-line);border-radius:8px;padding:14px}
+.a-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.a-fig figcaption{color:var(--a-dim);font-size:13px;margin-top:9px;text-align:center}
+.a-warn{color:var(--a-warn);font-size:13.5px}
+.artifact code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--hover,#f3f2f0);border-radius:4px;padding:1px 4px}
+</style></head><body><div class="artifact">
+<div class="a-kind">PR review · PR #184 — SDPR HITL inline editor</div>
+<div class="a-ask">
+<div class="q">Take PR #184 out of draft and merge it?</div>
+<div class="ans"><b>Not yet — one decision is yours, two chores are mine.</b></div>
+<div class="because">The code is clean and CI is green apart from a failure that is already on develop. What is blocking is a design question about seeded workflows that nobody has ruled on, plus dbarkowsky&#x27;s #239 needing to land first.</div>
+</div>
+<h2>Background</h2>
+<div class="a-bg">This PR ships the human-in-the-loop inline editor for the SDPR pilot: the side-by-side screen where a reviewer confirms values the extractor already pulled off an HR0081 monthly report, instead of typing them out. It has been in draft since June while the E01–E08 extraction experiments landed ahead of it. GitHub shows the PR as 128 commits and +601k lines, which is why it looks unreviewable — that number is wrong. The experiment stack it was built on top of already merged into develop separately (via #221), so GitHub is comparing against a merge base from before all of that. Measured against develop as it stands today, the change is 75 files, +1,262 −393, and roughly 45 of those files are experiment notes. The code you would actually be merging is about a dozen files, listed below.</div>
+<h2>Why the diff looks enormous and is not</h2>
+<figure class="a-fig"><svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13"><defs><marker id="ah" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#79736c"/></marker><marker id="ag" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2f6f4f"/></marker></defs><line x1="60" y1="70" x2="660" y2="70" stroke="#c9c5bf" stroke-width="2"/><text x="60" y="48" fill="#79736c" font-size="11.5" letter-spacing="0.06em">DEVELOP</text><circle cx="120" cy="70" r="7" fill="#c9c5bf"/><text x="120" y="98" fill="#79736c" text-anchor="middle" font-size="12">old base</text><text x="120" y="113" fill="#79736c" text-anchor="middle" font-size="11">(June)</text><circle cx="400" cy="70" r="7" fill="#2f6f4f"/><text x="400" y="98" fill="#2f6f4f" text-anchor="middle" font-size="12">#221 merged</text><text x="400" y="113" fill="#79736c" text-anchor="middle" font-size="11">E01–E08 land here</text><circle cx="600" cy="70" r="7" fill="#c9c5bf"/><text x="600" y="98" fill="#79736c" text-anchor="middle" font-size="12">develop today</text><line x1="180" y1="185" x2="600" y2="185" stroke="#c9c5bf" stroke-width="2"/><text x="180" y="216" fill="#79736c" font-size="11.5" letter-spacing="0.06em">EXPERIMENT/09-SDPR-HITL-COMMITTED</text><circle cx="600" cy="185" r="7" fill="#2f6f4f"/><text x="600" y="165" fill="#2f6f4f" text-anchor="middle" font-size="12">#184 tip</text><path d="M120 78 C 120 140, 150 185, 172 185" stroke="#b0413e" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#ah)"/><text x="196" y="150" fill="#b0413e" font-size="12">what GitHub diffs: 128 commits, +601k</text><path d="M600 178 L 600 84" stroke="#2f6f4f" stroke-width="2" fill="none" marker-end="url(#ag)"/><text x="614" y="134" fill="#2f6f4f" font-size="12">real delta</text><text x="614" y="150" fill="#2f6f4f" font-size="12">75 files, +1,262 −393</text></svg><figcaption>GitHub diffs #184 from the old base (dashed), so the whole E01–E08 stack that already landed via #221 is counted a second time. The real delta is the short solid arrow.</figcaption></figure>
+<h2>Your call &mdash; 1 decision</h2>
+<div class="a-dec">
+<div class="q">Should committed workflow templates persist OCR results before the human gate?</div>
+<div class="d">Seeded OCR workflows order the nodes checkConfidence → reviewSwitch → humanGate → storeResults. Because storeResults runs last, a document sitting in the review queue has no ocr_results row yet, so HitlService.getQueue returns empty and the editor this PR ships is unreachable from a seeded workflow. It was rewired by hand for the demo and that rewiring was never committed. This is pre-existing and not caused by #184 — but #184 is the PR that makes it matter, because it is the first thing that needs the queue to be non-empty.</div>
+<ul><li>Move storeResults before humanGate in the committed templates — the editor works out of the box, at the cost of persisting results for documents that may still be rejected.</li><li>Leave the templates and have HitlService read from the in-flight workflow payload instead — no schema change, more moving parts in the service.</li><li>Ship #184 as-is and track the template question separately — the editor stays demo-only until it is answered.</li></ul>
+</div>
+<h2>Chores</h2>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Merge dbarkowsky&#x27;s #239, then re-merge develop into this branch <span class="a-dec-d" style="color:var(--a-dim)">— expect a second conflict on apps/temporal/package.json — #239 touches it too</span></span>
+</div>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Retitle the PR and rewrite its body <span class="a-dec-d" style="color:var(--a-dim)">— the title still advertises a timing-experiment harness that was dropped in the June rebase, and the body&#x27;s file inventory is stale</span></span>
+</div>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Write the docs-md page for the HITL canvas editor <span class="a-dec-d" style="color:var(--a-dim)">— wiki/hitl.md documents the architecture but not the editor; CLAUDE.md expects a feature doc in the same PR as the code</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Caught the branch up to develop (19 commits behind, incl. #169 and #221) <span class="a-dec-d" style="color:var(--a-dim)">— one conflict on apps/temporal/package.json — the branch side had a duplicate setupFilesAfterEnv key that was silently dropping jest.setup.ts under JSON last-key-wins. Resolved to develop&#x27;s file plus the branch&#x27;s one real change.</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Reverted b41214108 &#x27;Update frontend components and styles&#x27; <span class="a-dec-d" style="color:var(--a-dim)">— a stray commit from the reviewer that injected a third-party Figma capture script into apps/frontend/index.html. It existed only on this branch; index.html now matches develop exactly.</span></span>
+</div>
+<h2>What is actually in it</h2>
+<div class="a-find"><div class="hd">
+<span class="t">The HITL inline editor — the actual product change</span>
+<span class="a-verdict">reviewed</span>
+</div>
+<p>Eight files under apps/frontend/src/features/annotation/hitl, one of them new. Reviewed across earlier sessions; the five fixes that came out of those reviews (Tab focus order, a shared text-measure module, a rotation guard, and the coordinate-scale correction) are already committed on the branch. Nothing here is outstanding.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">Azure OpenAI deployments endpoint</span>
+<span class="a-verdict">clean</span>
+</div>
+<p>New read-only controller so the workflow editor can offer the deployments it is allowed to use. Authenticated, fully Swagger-annotated, has a unit spec, and degrades to the pre-existing single-deployment variable rather than to an error.</p>
+<div class="a-snip">
+<div class="f">apps/backend-services/src/azure/azure-openai.controller.ts:20-46</div>
+<pre>@ApiTags(&quot;Azure OpenAI&quot;)
+@Controller(&quot;api/azure-openai&quot;)
+export class AzureOpenAiController {
+  constructor(private readonly configService: ConfigService) {}
+
+  @Get(&quot;deployments&quot;)
+  @Identity({ allowApiKey: true })
+  async getDeployments(): Promise&lt;AzureOpenAiDeploymentsResponseDto&gt; {
+    const list = this.configService.get&lt;string&gt;(&quot;AZURE_OPENAI_DEPLOYMENTS&quot;);
+    if (list &amp;&amp; list.trim() !== &quot;&quot;) {
+      const deployments = list
+        .split(&quot;,&quot;)
+        .map((s) =&gt; s.trim())
+        .filter((s) =&gt; s.length &gt; 0);
+      return { deployments };
+    }
+
+    const fallback = this.configService.get&lt;string&gt;(&quot;AZURE_OPENAI_DEPLOYMENT&quot;);</pre>
+<div class="n">The allow-list is env-driven rather than queried from Azure, so this endpoint cannot leak deployments the operator did not name. The fallback to the older singular variable is what keeps existing environments working without a config change.</div>
+</div>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">Per-node deployment override in the enrichment activity</span>
+<span class="a-verdict">clean</span>
+</div>
+<p>An optional azureOpenAiDeployment parameter on the enrichment activity, falling back to the environment when absent, with a test covering both paths.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">Scripts reorganisation and experiment docs</span>
+<span class="a-verdict">mechanical — skip</span>
+</div>
+<p>apps/temporal/scripts/ moved to src/scripts/ with the matching tsconfig and package.json cleanup, plus about 45 markdown files of experiment results. Nothing here needs a reader.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">CI: green except Temporal QA, and that one is not this PR</span>
+<span class="a-verdict">not caused here</span>
+</div>
+<p>CodeQL now passes — the earlier three-high/ten-medium alerts were an artifact of the same stale merge base and disappeared when the branch caught up. Temporal QA fails, and develop&#x27;s own last two runs fail the same way: the docs-sync reorg renamed docs-md/graph-workflows/ to docs-md/workflows/, and five experiment test suites still hardcode the old template path, giving 89 ENOENT failures. The other 87 suites and 1,147 tests pass. #239 is the designated fix; do not duplicate it here.</p>
+</div>
+<h2>Links</h2><ul class="a-links">
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/184" target="_blank" rel="noopener">PR #184 — the pull request</a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/239" target="_blank" rel="noopener">PR #239 — dbarkowsky&#x27;s Temporal QA fix</a> <span class="n">— merge this first</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/221" target="_blank" rel="noopener">PR #221 — where the E01–E08 stack landed</a> <span class="n">— the reason the diff looks large</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/169" target="_blank" rel="noopener">PR #169 — zero-recovery, picked up in the catch-up merge</a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/develop/docs-md/wiki/hitl.md" target="_blank" rel="noopener">wiki/hitl.md — how HITL fits the system</a> <span class="n">— the page that still needs the editor added to it</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/develop/docs-md/wiki/index.md" target="_blank" rel="noopener">wiki/index.md — the repo routing map</a></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/releases/tag/archive%2Fsdpr-hitl-harness" target="_blank" rel="noopener">archive/sdpr-hitl-harness — the dropped DO-NOT-MERGE commit</a> <span class="n">— kept as a tag; no longer on the branch</span></li>
+</ul>
+<h2>What I checked</h2><ul class="a-checked">
+<li>Diffed the branch against develop directly rather than trusting the PR&#x27;s file count</li>
+<li>Read every non-experiment file in the merge delta</li>
+<li>Ran the conflicting package.json through both sides by hand and confirmed the duplicate JSON key</li>
+<li>Traced b41214108 to a single third-party script tag and confirmed index.html now matches develop byte for byte</li>
+<li>Compared this branch&#x27;s Temporal QA run against develop&#x27;s last two runs before calling the failure pre-existing</li>
+<li>Did NOT re-review the eight HITL frontend files — those were read in earlier sessions and their fix commits are on the branch</li>
+</ul>
+</div></body></html>

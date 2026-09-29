@@ -1,0 +1,99 @@
+=== PAGE 2 ===
+
+Workflow Review
+Gallery.md Notes
+Comments are numbered based on their numbered steps in the GALLERY.md file.
+1. A workflow, end to end
+1. No issues here.
+2. Reading a step
+1. Inputs listed as Pinned don't have any input edges, so who is choosing this
+connection? The docs say someone chose it deliberately, but is that someone the user
+or a developer?
+3. Drop a step on the canvas
+1. No issues.
+4. Wiring
+1. "- Hover a label: a sentence explains what that input or output is, and names its kind."
+Names its kind of what? Should this be names its type?
+5. When something's wrong
+1. No issues.
+6. Choosing a path
+1. I think this has to be clearer. It wasn't immediately apparent that the Ref options were
+previous nodes and their outputs.
+2. The dropdown of operators currently contains things like gte, which I imagine would be
+confusing if users weren't familiar with that shorthand. Maybe use the symbols
+instead?
+7. Doing it for every page
+1. It's strange that connecting the Split Document to the Run for Each Item nodes creates
+the edge between the order-of-operation connectors, even if I start it from the
+Segments output.
+2. Why currentSegment? Is this what the node looks for? That should be made clear to
+the user, and if it's always this, why do we specify it?
+3. Typing in the field is very laggy. I suspect it's the same problem as the HITL page,
+where updates are causing a lot of the page to re-render when it really shouldn't if
+broken up.
+4. The wire is not green, it is purple, but so is the Run for Each Item node, so maybe
+that's just an expected change.
+8. Try it, and watch
+=== PAGE 10 ===
+
+1. The first quote reads: *This stop needs the engine running. If Try is greyed out,
+hover it — it will say why. If nothing happens at all, the engine isn't up: skip to stop 11.*
+1. Is it meant to be stop, not step?
+2. The first actual instruction here is just Do this. What is it asking someone to do?
+3. There aren't any instructions on what it wants from a user in the Run sidebar. Not sure
+what to do with this text field when it's just an unpopulated {}.
+4. There is no Try button, only Run.
+5. Ended up running the workflow through the Upload page instead.
+9. Reading the results
+1. Could not complete because standard workflow is failing at Poll OCR step. What has
+changed since the develop branch that would affect this?
+10. What ran, and when
+1. Same issue as #9
+11. Versions
+1. The Compare to Head feature could be clearer if it showed an actual diff, not just both
+versions in full.
+2. It did not appear to bring back the old version as a new version in the UI as the
+instructions suggest. It looks like it just tags it as the HEAD.
+12. Turn it into an API
+1. Instructions outdated. It is the Run button, followed by the Call from outside tab.
+2. Otherwise makes sense
+13. Let people upload files
+1. Run this workflow doesn't exist. It's just Run.
+2. Works otherwise.
+14. Write your own step
+1. The editor occasionally forces the cursor to the end of the last line. Maybe this is
+happening when it reloads? Makes it very frustrating to type.
+2. Instructions make it sound like the green tick should be on the right, but it's below.
+1. Couldn't get it to turn red. What's it looking for?
+3. How can a user know what the Document type contains?
+4. Trying to publish gives this error:
+15. When a step goes missing
+=== PAGE 16 ===
+
+Misc Notes
+1. Appropriate name, because the Demo - Deleted custom node doesn't appear to have
+been seeded.
+16. Ask the assistant to build it
+1. I don't think I have the credentials for this. Which subscription is it meant to be using?
+1. Dynamic nodes page. Button contains two + symbols:
+2. Turning Simplified view on and off does some weird things to the formatting.
+3. Why do some nodes connect with the run-order connections, but others don't?
+These connector nodes also appear at different heights on the nodes.
+Is there meaning behind the difference in the size of the Poll status connector?
+=== PAGE 21 ===
+
+4. Could we use these colours in the sidebar list of nodes?
+Some of the categories in this legend could be more intuitive. Like, what's a "Judgement
+about a document"?
+5. Why does a node like Poll OCR Results have so many more fields than something like
+Extract OCR Results?
+=== PAGE 25 ===
+
+6. It should be clearer where the Demo workflows come from and how to load them. I needed
+to find a separate file about seeding this separate demo data, then figure out that I had to
+generate an API key in the app and update some ENVs.
+7. What do the parts reference on the demo workflow names? They don't correspond with the
+parts of the walkthrough seemingly.
+8. Cannot seem to manually connect order-of-operations edges. Is this intentional?
+9. We might need a search bar for the workflow list. Even with this number of workflows, it can
+be hard to find the one you want.

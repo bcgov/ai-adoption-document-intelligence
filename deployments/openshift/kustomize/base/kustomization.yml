@@ -5,6 +5,7 @@ resources:
 - backend-services
 - temporal
 - frontend
+- deno-runner
 commonLabels:
   env: base
 

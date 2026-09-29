@@ -1,3 +1,4 @@
+import type { GraphValidationError } from "@ai-di/graph-workflow";
 import { Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -7,14 +8,62 @@ import {
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
+import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { computeConfigHash, stampConfigWithPersistedHash } from "./config-hash";
-import { validateGraphConfig } from "./graph-schema-validator";
+import { validateGraphConfigWithDynamicNodes } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
 /** Max slug suffix probes (`-2`, `-3`, …) before giving up on auto-naming. */
 const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
+/**
+ * Retries of a create transaction when a concurrent create commits the same
+ * slug first. `resolveUniqueSlug` runs inside its own transaction and cannot
+ * see another in-flight transaction's uncommitted row, so two same-named
+ * creates can both resolve the same slug and race the `@@unique([group_id,
+ * slug])` index. On the loser's Postgres unique violation we re-run the whole
+ * transaction; the second pass sees the now-committed row and advances to the
+ * next free suffix.
+ */
+const WORKFLOW_SLUG_CREATE_MAX_RETRIES = 5;
+
+/**
+ * Max referencing workflow names listed in the G-019 refusal before the
+ * message collapses to "…and N more".
+ */
+const MAX_LISTED_REFERENCING_WORKFLOWS = 5;
+
+/**
+ * Walk a `WorkflowVersion.config` and collect every library child
+ * reference in it — the `workflowId` of each `{ type: "library",
+ * workflowId }` shape, at any depth.
+ *
+ * Recursive rather than a `config.nodes` scan on purpose: a library ref
+ * can also sit inside an inline child graph (`workflowRef.graph`), and a
+ * structural walk cannot be defeated by a nesting shape we didn't
+ * anticipate. The `type === "library"` + string-`workflowId` test keeps
+ * it precise — it never fires on an id that merely appears somewhere in
+ * the config text.
+ */
+function collectLibraryWorkflowRefs(value: unknown, out: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectLibraryWorkflowRefs(item, out);
+    }
+    return;
+  }
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.type === "library" && typeof record.workflowId === "string") {
+    out.add(record.workflowId);
+  }
+  for (const child of Object.values(record)) {
+    collectLibraryWorkflowRefs(child, out);
+  }
+}
 
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
@@ -51,11 +100,91 @@ export interface WorkflowVersionSummary {
   createdAt: Date;
 }
 
+/**
+ * Public-facing workflow kinds for list-API filtering. Maps to the
+ * Prisma `WorkflowKind` enum: `"workflow"` ↔ `primary`,
+ * `"library"` ↔ `library`. Internal `benchmark_candidate` is reached
+ * via the orthogonal `includeBenchmarkCandidates` flag.
+ *
+ * `"all"` is a special value used by the workflow-list page's filter
+ * chip — it disables both the kind filter AND the default library
+ * exclusion, returning every lineage (still respecting
+ * `includeBenchmarkCandidates`).
+ */
+export type WorkflowKindFilter = "workflow" | "library" | "all";
+
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
   config: GraphWorkflowConfig;
   groupId: string;
+  /**
+   * Workflow kind. `"workflow"` (or absent) creates a regular
+   * `primary` lineage; `"library"` creates a reusable building-block
+   * whose declared `metadata.inputs[]` / `metadata.outputs[]` define
+   * its signature. (`"all"` is a list-filter-only value, not a
+   * creatable kind.)
+   */
+  kind?: "workflow" | "library";
+}
+
+/**
+ * G-063 — the service-level shape of a workflow update. `expectedVersion` is
+ * the version the caller's edits were based on; a write whose base is no
+ * longer the head is refused with 409 instead of silently becoming the head.
+ * Mirrors `UpdateWorkflowDto` (the HTTP body), kept here so in-process callers
+ * (the agent tools) are held to the same contract.
+ */
+export interface UpdateWorkflowDto {
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  config?: GraphWorkflowConfig;
+}
+
+/** Options for the three workflow-listing service methods. */
+export interface ListWorkflowsOptions {
+  /** Include `workflow_kind: benchmark_candidate` rows; default false. */
+  includeBenchmarkCandidates?: boolean;
+  /**
+   * When set, filter strictly to this kind (overrides
+   * `includeBenchmarkCandidates`). When unset, the default behavior
+   * applies: `primary` only, optionally with benchmark candidates,
+   * and library rows are always excluded.
+   */
+  kind?: WorkflowKindFilter;
+}
+
+/**
+ * Build the Prisma `workflow_kind` `where` clause for the listing
+ * methods. Pulled out so the three list methods stay in lock-step.
+ */
+function buildWorkflowKindWhere(
+  options?: ListWorkflowsOptions,
+):
+  | { workflow_kind: "primary" | "library" }
+  | { workflow_kind: { not: "library" } }
+  | { workflow_kind: "primary" | "benchmark_candidate" }
+  | {} {
+  if (options?.kind === "library") {
+    return { workflow_kind: "library" };
+  }
+  if (options?.kind === "workflow") {
+    return options.includeBenchmarkCandidates
+      ? { workflow_kind: { not: "library" } as const }
+      : { workflow_kind: "primary" };
+  }
+  if (options?.kind === "all") {
+    // Return everything (no filter), still honoring includeBenchmarkCandidates
+    // by default. When false, benchmark candidates are excluded.
+    return options.includeBenchmarkCandidates
+      ? {}
+      : { workflow_kind: { not: "benchmark_candidate" } as const };
+  }
+  if (options?.includeBenchmarkCandidates) {
+    return { workflow_kind: { not: "library" } };
+  }
+  return { workflow_kind: "primary" };
 }
 
 @Injectable()
@@ -63,6 +192,7 @@ export class WorkflowService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly logger: AppLoggerService,
+    private readonly dynamicNodeRepository: DynamicNodeRepository,
     private readonly auditService: AuditService,
   ) {}
 
@@ -183,6 +313,51 @@ export class WorkflowService {
       counter++;
     }
     return candidate;
+  }
+
+  /**
+   * True when {@link err} is a Postgres unique-constraint violation (P2002) on
+   * the workflow slug index. Distinguishes the recoverable slug race from any
+   * other unique violation, which should still surface as an error.
+   */
+  private isSlugUniqueViolation(err: unknown): boolean {
+    if (
+      !(err instanceof Prisma.PrismaClientKnownRequestError) ||
+      err.code !== "P2002"
+    ) {
+      return false;
+    }
+    const target = err.meta?.target;
+    const asText = Array.isArray(target)
+      ? target.join(",")
+      : String(target ?? "");
+    return asText.includes("slug");
+  }
+
+  /**
+   * Runs a create transaction, retrying when a concurrent create wins the slug
+   * race (see {@link WORKFLOW_SLUG_CREATE_MAX_RETRIES}). The transaction body
+   * must call {@link resolveUniqueSlug} so each retry re-derives a free slug.
+   */
+  private async runCreateWithSlugRetry<T>(
+    run: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        // Go through PrismaService.transaction (a thin wrapper over
+        // `$transaction`) rather than the raw client, so this shares one
+        // transaction seam with the rest of the service.
+        return await this.prismaService.transaction(run);
+      } catch (err) {
+        if (
+          attempt < WORKFLOW_SLUG_CREATE_MAX_RETRIES &&
+          this.isSlugUniqueViolation(err)
+        ) {
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   /**
@@ -332,12 +507,12 @@ export class WorkflowService {
 
   async getUserWorkflows(
     actorId: string,
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
       where: {
         actor_id: actorId,
-        ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
+        ...buildWorkflowKindWhere(options),
       },
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
@@ -355,12 +530,12 @@ export class WorkflowService {
 
   async getGroupWorkflows(
     groupIds: string[],
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
       where: {
         group_id: { in: groupIds },
-        ...(includeBenchmarkCandidates ? {} : { workflow_kind: "primary" }),
+        ...buildWorkflowKindWhere(options),
       },
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
@@ -380,10 +555,10 @@ export class WorkflowService {
    * All workflow lineages (system admin listing).
    */
   async getAllWorkflowLineages(
-    includeBenchmarkCandidates = false,
+    options?: ListWorkflowsOptions,
   ): Promise<WorkflowInfo[]> {
     const lineages = await this.prisma.workflowLineage.findMany({
-      where: includeBenchmarkCandidates ? {} : { workflow_kind: "primary" },
+      where: buildWorkflowKindWhere(options),
       include: this.lineageWithHead,
       orderBy: { created_at: "desc" },
     });
@@ -415,20 +590,154 @@ export class WorkflowService {
     return this.mapLineageAndVersion(lineage, lineage.headVersion);
   }
 
+  /**
+   * Resolve a workflow lineage by its stable `slug` (unique per group)
+   * and return the head version — the by-slug twin of {@link getWorkflow}.
+   *
+   * Backs the shareable/stable editor links: a slug survives reseeds (it
+   * is derived deterministically from the name) even though the lineage
+   * `id` churns, so a `/workflows/by-slug/<slug>/edit` link keeps working
+   * after the demo data is re-created.
+   *
+   * @param slug      The lineage slug to resolve.
+   * @param groupIds  The caller's accessible group ids, scoping the lookup
+   *                  (slug is only unique *within* a group). `undefined`
+   *                  means an unrestricted caller (admin / API key) and
+   *                  drops the group filter entirely; an empty array
+   *                  matches nothing (caller belongs to no group).
+   */
+  async getWorkflowBySlug(
+    slug: string,
+    groupIds: string[] | undefined,
+    actorId: string,
+  ): Promise<WorkflowInfo> {
+    const lineage = await this.prisma.workflowLineage.findFirst({
+      where: {
+        slug,
+        ...(groupIds ? { group_id: { in: groupIds } } : {}),
+      },
+      include: this.lineageWithHead,
+      orderBy: { created_at: "asc" },
+    });
+
+    if (!lineage?.headVersion) {
+      throw new NotFoundException(`Workflow not found: slug "${slug}"`);
+    }
+
+    this.logger.debug(
+      `getWorkflowBySlug: "${slug}" resolved to ${lineage.id} by actor ${actorId}`,
+    );
+
+    return this.mapLineageAndVersion(lineage, lineage.headVersion);
+  }
+
+  /**
+   * Resolve a lineage + a specific or head version for the run-spec /
+   * runs endpoints. Splits the 404 (lineage not found) vs 409 (lineage
+   * exists but has no published version) cases so the API can return
+   * useful status codes.
+   */
+  async resolveLineageAndVersion(
+    lineageId: string,
+    workflowVersionId?: string,
+  ): Promise<WorkflowInfo> {
+    const lineage = await this.prisma.workflowLineage.findUnique({
+      where: { id: lineageId },
+      include: this.lineageWithHead,
+    });
+    if (!lineage) {
+      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    }
+
+    if (workflowVersionId) {
+      const version = await this.prisma.workflowVersion.findUnique({
+        where: { id: workflowVersionId },
+      });
+      if (!version) {
+        throw new NotFoundException(
+          `Workflow version not found: ${workflowVersionId}`,
+        );
+      }
+      if (version.lineage_id !== lineageId) {
+        throw new BadRequestException(
+          `workflowVersionId does not belong to this workflow`,
+        );
+      }
+      return this.mapLineageAndVersion(lineage, version);
+    }
+
+    if (!lineage.headVersion) {
+      throw new ConflictException(`Workflow has no published version yet`);
+    }
+    return this.mapLineageAndVersion(lineage, lineage.headVersion);
+  }
+
+  /**
+   * Static validation of a graph config against the group's catalog +
+   * dynamic nodes. Returns hard errors and warnings without running the
+   * workflow. Backs the agent's `validateWorkflow` tool.
+   */
+  async validateWorkflowConfig(
+    config: GraphWorkflowConfig,
+    groupId: string,
+  ): Promise<{ valid: boolean; errors: GraphValidationError[] }> {
+    return validateGraphConfigWithDynamicNodes(
+      config,
+      groupId,
+      this.dynamicNodeRepository,
+    );
+  }
+
+  /**
+   * Draft-save (UX walkthrough item 3, 2026-08-02): saving and running
+   * are different things — save persists whatever the author has, and the
+   * semantic-validity gate lives at run start instead. This is that gate.
+   * Warnings stay advisory (`valid` counts only severity "error").
+   */
+  async assertConfigRunnable(
+    config: GraphWorkflowConfig,
+    groupId: string,
+  ): Promise<void> {
+    const validation = await this.validateWorkflowConfig(config, groupId);
+    if (!validation.valid) {
+      throw new BadRequestException({
+        message:
+          "Workflow has validation errors and cannot run. Fix them in the editor, save, and run again.",
+        errors: validation.errors,
+      });
+    }
+  }
+
+  /**
+   * The one thing draft-save still refuses: a config the store itself cannot
+   * hold. Hashing (`stampConfigWithPersistedHash`) and lineage mapping walk
+   * `config.nodes`, so an object with a `nodes` map is the structural floor —
+   * everything semantic (unknown activity types, unbound ports, no entry
+   * node…) saves fine and is reported in the save response instead.
+   */
+  private assertConfigStorable(config: unknown): void {
+    const nodes = (config as GraphWorkflowConfig | null | undefined)?.nodes;
+    if (
+      !config ||
+      typeof config !== "object" ||
+      typeof nodes !== "object" ||
+      nodes === null
+    ) {
+      throw new BadRequestException({
+        message:
+          "Workflow config is not storable: expected an object with a `nodes` map.",
+      });
+    }
+  }
+
   async createWorkflow(
     actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
-    const validation = validateGraphConfig(dto.config);
-    if (!validation.valid) {
-      throw new BadRequestException({
-        message: "Invalid workflow configuration",
-        errors: validation.errors,
-      });
-    }
+    this.assertConfigStorable(dto.config);
     const configToPersist = stampConfigWithPersistedHash(dto.config);
 
-    const full = await this.prismaService.transaction(async (tx) => {
+    const full = await this.runCreateWithSlugRetry(async (tx) => {
       const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
       const lineageRow = await tx.workflowLineage.create({
         data: {
@@ -437,6 +746,7 @@ export class WorkflowService {
           description: dto.description ?? null,
           actor_id: actorId,
           group_id: dto.groupId,
+          ...(dto.kind === "library" ? { workflow_kind: "library" } : {}),
         },
       });
       const versionRow = await tx.workflowVersion.create({
@@ -493,10 +803,35 @@ export class WorkflowService {
     return this.mapLineageAndVersion(full, full.headVersion);
   }
 
+  /**
+   * G-063 — every write states the version it was based on, and a write based
+   * on a stale head is refused with 409 rather than silently becoming the head.
+   *
+   * The check is repeated INSIDE the append transaction as well as here: this
+   * first read is only an early exit for the common case, and the head can
+   * still move between the two. The transactional one is the one that decides.
+   */
+  private assertExpectedVersion(
+    lineageId: string,
+    expectedVersion: number,
+    currentVersion: number,
+  ): void {
+    if (expectedVersion === currentVersion) return;
+    this.logger.warn(
+      `Rejecting stale write to ${lineageId}: caller had v${expectedVersion}, head is v${currentVersion}`,
+    );
+    throw new ConflictException({
+      error: "workflow_version_conflict",
+      message: `This workflow was saved by someone else (version ${currentVersion}). Reload to see their changes before saving yours.`,
+      expectedVersion,
+      currentVersion,
+    });
+  }
+
   async updateWorkflow(
     lineageId: string,
     actorId: string,
-    dto: Partial<CreateWorkflowDto>,
+    dto: UpdateWorkflowDto,
   ): Promise<WorkflowInfo> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
@@ -506,6 +841,12 @@ export class WorkflowService {
     if (!existing?.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    this.assertExpectedVersion(
+      lineageId,
+      dto.expectedVersion,
+      existing.headVersion.version_number,
+    );
 
     this.logger.debug(`updateWorkflow: ${lineageId} by actor ${actorId}`);
 
@@ -521,13 +862,9 @@ export class WorkflowService {
     }
 
     if (dto.config) {
-      const validation = validateGraphConfig(dto.config);
-      if (!validation.valid) {
-        throw new BadRequestException({
-          message: "Invalid workflow configuration",
-          errors: validation.errors,
-        });
-      }
+      // Draft-save: no semantic gate here — see assertConfigStorable /
+      // assertConfigRunnable for where each half of the old check went.
+      this.assertConfigStorable(dto.config);
 
       const nextConfig = dto.config as GraphWorkflowConfig;
 
@@ -552,6 +889,13 @@ export class WorkflowService {
             if (!current?.headVersion) {
               throw new NotFoundException(`Workflow not found: ${lineageId}`);
             }
+            // The head can move between the pre-flight read and this
+            // transaction, so the decisive check is the one in here.
+            this.assertExpectedVersion(
+              lineageId,
+              dto.expectedVersion,
+              current.headVersion.version_number,
+            );
             const headConfig = this.asGraphConfig(current.headVersion.config);
             if (!this.configChanged(headConfig, nextConfig)) {
               return null;
@@ -709,7 +1053,11 @@ export class WorkflowService {
     const baseLineageId = source.lineage.id;
     const candidateNameSuffix = source.lineage.headVersion.version_number + 1;
 
-    const validation = validateGraphConfig(candidateConfig);
+    const validation = await validateGraphConfigWithDynamicNodes(
+      candidateConfig,
+      source.lineage.group_id,
+      this.dynamicNodeRepository,
+    );
     if (!validation.valid) {
       throw new BadRequestException({
         message: "Invalid candidate workflow configuration",
@@ -717,7 +1065,7 @@ export class WorkflowService {
       });
     }
 
-    const full = await this.prismaService.transaction(async (tx) => {
+    const full = await this.runCreateWithSlugRetry(async (tx) => {
       const candidateName = `${source.lineage.name} (candidate v${candidateNameSuffix})`;
       const slug = await this.resolveUniqueSlug(
         source.lineage.group_id,
@@ -788,6 +1136,191 @@ export class WorkflowService {
     return this.mapLineageAndVersion(full, full.headVersion);
   }
 
+  /**
+   * G-019 — refuse to delete a lineage that other workflows still call as
+   * a library child.
+   *
+   * `workflowRef.workflowId` lives inside the `WorkflowVersion.config`
+   * JSON column, so there is no foreign key and the `P2003` catch in
+   * `deleteWorkflow` can never fire for it. Without this scan the parent
+   * keeps validating green and only fails at run time — with a RETRYABLE
+   * error, so it burns its whole retry budget against a condition that can
+   * never resolve.
+   *
+   * Two-stage, mirroring `DynamicNodeRepository.countWorkflowsReferencingSlug`
+   * (`dynamic-node.repository.ts`):
+   *   1. a parameterised `wv.config::text LIKE ${needle}` prefilter — the
+   *      same `Prisma.sql` interpolation, so the needle is bound as a
+   *      parameter and cannot be injected;
+   *   2. an exact structural check of each candidate config in JS. The
+   *      `LIKE` alone would be over-broad — an id that merely appears in
+   *      some unrelated `metadata` string would block a legitimate delete.
+   *
+   * The needles cover EVERY identifier `getWorkflowGraphConfig` accepts for
+   * a ref: a `WorkflowVersion.id`, the `WorkflowLineage.id`, or the lineage
+   * NAME. Scanning only for the lineage id would miss real references.
+   *
+   * ## Tenancy — read both halves before changing either
+   *
+   * **The SCAN is deliberately NOT scoped to the lineage's group**, unlike
+   * the dynamic-node precedent. `getWorkflowGraphConfig` resolves refs
+   * without a group filter, so a cross-group reference is a real (if
+   * unusual) reference; adding `AND wl.group_id = …` here would make us miss
+   * exactly the case this guard exists to protect. **Do not "fix" the
+   * missing group scope — it is the point.**
+   *
+   * **The MESSAGE, however, only names referrers in the target's own
+   * group.** Naming another tenant's workflow would leak its existence and
+   * title to anyone who merely attempted a delete. Out-of-group referrers
+   * are reported as a bare count. If every referrer is out-of-group the
+   * delete is still refused and still says why — it just names nothing.
+   *
+   * Not transactional with the delete: this is a read, and a workflow saved
+   * between the scan and the delete would race any check we could write
+   * short of a real foreign key. The window is narrow and the failure mode
+   * is the pre-existing one.
+   */
+  private async assertNotReferencedAsLibrary(lineage: {
+    id: string;
+    name: string;
+    group_id: string;
+  }): Promise<void> {
+    const versions = await this.prisma.workflowVersion.findMany({
+      where: { lineage_id: lineage.id },
+      select: { id: true },
+    });
+    const identifiers = new Set<string>([
+      lineage.id,
+      lineage.name,
+      ...versions.map((v) => v.id),
+    ]);
+
+    const needleClauses = [...identifiers].map(
+      (identifier) => Prisma.sql`wv.config::text LIKE ${`%"${identifier}"%`}`,
+    );
+
+    // RULING (G-019): references from NON-HEAD versions count. A superseded
+    // version is still reachable — a caller can pin it via
+    // `workflowRef.version`, documents carry `workflow_version_id`, and
+    // benchmark definitions pin versions — so deleting the child would break
+    // a run that is still perfectly launchable. Only the target lineage's OWN
+    // versions are excluded, since they cascade away with it.
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        lineage_id: string;
+        lineage_name: string;
+        group_id: string;
+        version_number: number;
+        config: unknown;
+      }>
+    >(
+      Prisma.sql`
+        SELECT wl.id AS lineage_id,
+               wl.name AS lineage_name,
+               wl.group_id AS group_id,
+               wv.version_number AS version_number,
+               wv.config AS config
+          FROM "workflow_versions" wv
+          JOIN "workflow_lineages" wl ON wl.id = wv."lineage_id"
+         WHERE wv."lineage_id" <> ${lineage.id}
+           AND (${Prisma.join(needleClauses, " OR ")})
+      `,
+    );
+
+    const referencing = new Map<string, { name: string; groupId: string }>();
+    for (const row of rows) {
+      const refs = new Set<string>();
+      collectLibraryWorkflowRefs(row.config, refs);
+      for (const ref of refs) {
+        if (identifiers.has(ref)) {
+          referencing.set(row.lineage_id, {
+            name: row.lineage_name,
+            groupId: row.group_id,
+          });
+          break;
+        }
+      }
+    }
+
+    if (referencing.size === 0) {
+      return;
+    }
+
+    // Tenancy split — see the doc comment. Same-group referrers are named;
+    // out-of-group ones are counted only, so a delete attempt cannot be used
+    // to discover another tenant's workflow titles.
+    const sameGroup: string[] = [];
+    let otherGroupCount = 0;
+    for (const referrer of referencing.values()) {
+      if (referrer.groupId === lineage.group_id) {
+        sameGroup.push(referrer.name);
+      } else {
+        otherGroupCount += 1;
+      }
+    }
+
+    const total = referencing.size;
+    const clauses: string[] = [];
+    if (sameGroup.length > 0) {
+      const listed = sameGroup.slice(0, MAX_LISTED_REFERENCING_WORKFLOWS);
+      const remainder = sameGroup.length - listed.length;
+      clauses.push(
+        remainder > 0
+          ? `${listed.join(", ")} and ${remainder} more`
+          : listed.join(", "),
+      );
+    }
+    if (otherGroupCount > 0) {
+      clauses.push(
+        `${otherGroupCount} workflow${
+          otherGroupCount === 1 ? "" : "s"
+        } in other groups`,
+      );
+    }
+
+    throw new ConflictException(
+      `This workflow cannot be deleted because ${total} other workflow${
+        total === 1 ? "" : "s"
+      } still call${total === 1 ? "s" : ""} it as a library child: ${clauses.join(
+        " and ",
+      )}. Remove or repoint those child-workflow steps first.`,
+    );
+  }
+
+  /**
+   * G-050 — what deleting this lineage would take with it.
+   *
+   * `WorkflowVersion.lineage` cascades, so deleting a lineage deletes every
+   * version under it. Most things that pin a version are protected by a
+   * `Restrict` FK (benchmark definitions, ground-truth jobs) or by the
+   * library-reference guard, and the delete simply fails. Documents are the
+   * exception: `Document.workflowVersion` is `onDelete: SetNull`, so the
+   * record of WHICH graph produced a document is erased — silently, with no
+   * error and nothing in the audit trail to reconstruct it from.
+   *
+   * Nothing here refuses the delete. A workflow that has processed documents
+   * has to remain deletable; what it must not do is take their provenance
+   * without saying so.
+   */
+  async describeDeleteImpact(
+    lineageId: string,
+  ): Promise<{ documentCount: number; versionCount: number }> {
+    const lineage = await this.prisma.workflowLineage.findUnique({
+      where: { id: lineageId },
+      select: { id: true },
+    });
+    if (!lineage) {
+      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    }
+    const [versionCount, documentCount] = await Promise.all([
+      this.prisma.workflowVersion.count({ where: { lineage_id: lineageId } }),
+      this.prisma.document.count({
+        where: { workflowVersion: { lineage_id: lineageId } },
+      }),
+    ]);
+    return { documentCount, versionCount };
+  }
+
   async deleteWorkflow(lineageId: string, actorId: string): Promise<void> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
@@ -796,6 +1329,13 @@ export class WorkflowService {
     if (!existing) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    await this.assertNotReferencedAsLibrary(existing);
+
+    // Counted BEFORE the delete — afterwards the versions are gone and the
+    // documents' `workflow_config_id` has already been nulled, so "how many
+    // lost their provenance" is no longer answerable from the data.
+    const impact = await this.describeDeleteImpact(lineageId);
 
     try {
       await this.prisma.workflowLineage.delete({
@@ -822,11 +1362,17 @@ export class WorkflowService {
       payload: {
         slug: existing.slug,
         name: existing.name,
+        // G-050 — the delete nulls these documents' pinned config. Recording
+        // the counts is what makes the loss attributable afterwards; without
+        // them the audit trail says a workflow was deleted and nothing about
+        // the provenance that went with it.
+        version_count: impact.versionCount,
+        detached_document_count: impact.documentCount,
       },
     });
 
     this.logger.log(
-      `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
+      `Workflow lineage deleted: ${lineageId} by actor ${actorId} (${impact.versionCount} versions, ${impact.documentCount} documents detached)`,
     );
   }
 
@@ -850,54 +1396,115 @@ export class WorkflowService {
   }
 
   /**
-   * Moves lineage head to an existing version (defaults for new uploads; does not change benchmark pins).
+   * Restores an older version by **appending its config as a new version** and
+   * pointing head at that new row (does not change benchmark definition pins).
+   *
+   * D11 — this used to move `head_version_id` back onto the old row and write
+   * nothing else, which contradicted the walkthrough ("brings an old one back
+   * as a *new* version") and, more seriously, left the lineage unsaveable: the
+   * append path numbers a new version `head.version_number + 1`, so with head
+   * parked on v1 while v2 existed, the next save asked Postgres for a second
+   * `(lineage_id, version_number) = (…, 2)` and lost to
+   * `workflow_versions_lineage_id_version_number_key` on all three attempts —
+   * a 500 to the user, reproduced against the dev stack on 2026-08-14.
+   * Appending keeps head on the highest version number, which is the invariant
+   * the rest of the versioning code already assumes.
+   *
+   * The restored config is copied verbatim (re-stamped, so the persisted hash
+   * matches the bytes we store); the source version row is left untouched, so
+   * run counts stay attached to the version that actually produced them.
    */
   async revertHeadToVersion(
     lineageId: string,
     workflowVersionId: string,
     actorId: string,
   ): Promise<WorkflowInfo> {
-    const version = await this.prisma.workflowVersion.findUnique({
+    const source = await this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
     });
-    if (!version || version.lineage_id !== lineageId) {
+    if (!source || source.lineage_id !== lineageId) {
       throw new BadRequestException(
         `Version ${workflowVersionId} does not belong to lineage ${lineageId}`,
       );
     }
 
-    const lineage = await this.prisma.workflowLineage.findUnique({
-      where: { id: lineageId },
-    });
-    if (!lineage) {
-      throw new NotFoundException(`Workflow not found: ${lineageId}`);
-    }
-
-    this.logger.log(
-      `revertHeadToVersion: lineage ${lineageId} -> version ${workflowVersionId} by ${actorId}`,
+    const restoredConfig = stampConfigWithPersistedHash(
+      this.asGraphConfig(source.config),
     );
 
-    const updated = await this.prisma.workflowLineage.update({
-      where: { id: lineageId },
-      data: { head_version_id: workflowVersionId },
-      include: this.lineageWithHead,
-    });
-    if (!updated.headVersion) {
-      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    // Same retry shape as the append path in `updateWorkflow`: a concurrent
+    // save can commit `head + 1` between our read and our insert, and the
+    // second pass simply numbers off the new head.
+    for (
+      let attempt = 1;
+      attempt <= WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS;
+      attempt++
+    ) {
+      try {
+        return await this.prismaService.transaction(async (tx) => {
+          const current = await tx.workflowLineage.findUnique({
+            where: { id: lineageId },
+            include: this.lineageWithHead,
+          });
+          if (!current?.headVersion) {
+            throw new NotFoundException(`Workflow not found: ${lineageId}`);
+          }
+
+          const nextNum = current.headVersion.version_number + 1;
+          this.logger.log(
+            `revertHeadToVersion: lineage ${lineageId} restoring v${source.version_number} as v${nextNum} by ${actorId}`,
+          );
+
+          const versionRow = await tx.workflowVersion.create({
+            data: {
+              lineage_id: lineageId,
+              version_number: nextNum,
+              config: restoredConfig as object,
+            },
+          });
+          const updated = await tx.workflowLineage.update({
+            where: { id: lineageId },
+            data: { head_version_id: versionRow.id },
+            include: this.lineageWithHead,
+          });
+          if (!updated.headVersion) {
+            throw new NotFoundException(`Workflow not found: ${lineageId}`);
+          }
+
+          await this.auditService.recordEvent(
+            {
+              event_type: "workflow_head_reverted",
+              resource_type: "workflow_lineage",
+              resource_id: lineageId,
+              actor_id: actorId,
+              group_id: updated.group_id,
+              payload: {
+                workflow_version_id: versionRow.id,
+                version_number: nextNum,
+                restored_from_version_id: source.id,
+                restored_from_version_number: source.version_number,
+              },
+            },
+            tx,
+          );
+
+          return this.mapLineageAndVersion(updated, updated.headVersion);
+        });
+      } catch (err) {
+        if (
+          isWorkflowVersionUniqueConflict(err) &&
+          attempt < WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS
+        ) {
+          this.logger.warn(
+            `Restore hit unique constraint (concurrent update); retrying (${attempt}/${WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS})`,
+          );
+          continue;
+        }
+        throw err;
+      }
     }
-
-    await this.auditService.recordEvent({
-      event_type: "workflow_head_reverted",
-      resource_type: "workflow_lineage",
-      resource_id: lineageId,
-      actor_id: actorId,
-      group_id: lineage.group_id,
-      payload: {
-        workflow_version_id: workflowVersionId,
-        version_number: version.version_number,
-      },
-    });
-
-    return this.mapLineageAndVersion(updated, updated.headVersion);
+    throw new ConflictException(
+      `Could not restore version ${workflowVersionId}: the workflow was changed concurrently. Reopen the history and try again.`,
+    );
   }
 }

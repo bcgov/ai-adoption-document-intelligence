@@ -18,10 +18,29 @@ export interface WorkflowInfo {
   updatedAt: string;
 }
 
+/**
+ * G-063 — `expectedVersion` is the `version` the edits were based on. The
+ * backend refuses a write whose base is no longer the head, so a second editor
+ * cannot silently overwrite the first.
+ */
+export interface UpdateWorkflowDto {
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  config?: GraphWorkflowConfig;
+}
+
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
   config: GraphWorkflowConfig;
+  /**
+   * Workflow kind: "workflow" (or absent) creates a regular primary
+   * workflow; "library" creates a library workflow whose top-level
+   * `metadata.inputs[]` / `metadata.outputs[]` define its signature
+   * for use as a `childWorkflow` target.
+   */
+  kind?: "workflow" | "library";
 }
 
 interface WorkflowsResponse {
@@ -32,28 +51,66 @@ interface WorkflowResponse {
   workflow: WorkflowInfo;
 }
 
+/**
+ * Draft-save (2026-08-02): the save endpoints persist semantically-invalid
+ * configs and answer with the validator's verdict instead of a 400. `valid`
+ * counts only severity-`error` findings — warnings never block anything.
+ */
+export interface WorkflowSaveValidation {
+  valid: boolean;
+  errors: WorkflowValidationIssue[];
+}
+
+interface WorkflowSaveResponse {
+  workflow: WorkflowInfo;
+  validation?: WorkflowSaveValidation;
+}
+
+export interface WorkflowSaveResult {
+  workflow: WorkflowInfo;
+  validation: WorkflowSaveValidation;
+}
+
+/** Tolerate an absent verdict (older backend) by reading it as clean. */
+function saveResultFrom(data: WorkflowSaveResponse): WorkflowSaveResult {
+  return {
+    workflow: data.workflow,
+    validation: data.validation ?? { valid: true, errors: [] },
+  };
+}
+
 export function useWorkflows(options?: {
   includeBenchmarkCandidates?: boolean;
+  /**
+   * Filter by workflow kind:
+   * - `"workflow"` — primary lineages only (current default behavior)
+   * - `"library"` — library workflows only
+   * - `"all"` — every kind, still honoring `includeBenchmarkCandidates`
+   * - omitted — primary lineages only (default; libraries excluded)
+   */
+  kind?: "workflow" | "library" | "all";
 }) {
   const { activeGroup } = useGroup();
   const includeBenchmarkCandidates = Boolean(
     options?.includeBenchmarkCandidates,
   );
+  const kind = options?.kind;
 
   return useQuery({
-    queryKey: includeBenchmarkCandidates
-      ? ["workflows", activeGroup?.id, true]
-      : ["workflows", activeGroup?.id],
+    queryKey: ["workflows", activeGroup?.id, includeBenchmarkCandidates, kind],
     queryFn: async (): Promise<WorkflowInfo[]> => {
-      let url = activeGroup?.id
-        ? `/workflows?groupId=${activeGroup.id}`
-        : "/workflows";
-
-      if (includeBenchmarkCandidates) {
-        url += activeGroup?.id
-          ? "&includeBenchmarkCandidates=true"
-          : "?includeBenchmarkCandidates=true";
+      const params: string[] = [];
+      if (activeGroup?.id) {
+        params.push(`groupId=${activeGroup.id}`);
       }
+      if (includeBenchmarkCandidates) {
+        params.push("includeBenchmarkCandidates=true");
+      }
+      if (kind) {
+        params.push(`kind=${kind}`);
+      }
+      const url =
+        params.length > 0 ? `/workflows?${params.join("&")}` : "/workflows";
       const response = await apiService.get<WorkflowsResponse>(url);
       if (!response.success) {
         throw new Error(response.message || "Failed to fetch workflows");
@@ -79,23 +136,147 @@ export function useWorkflow(id: string) {
   });
 }
 
+/**
+ * Resolve a workflow by its stable `slug` (unique within a group) rather
+ * than its churn-prone `id`. Backs the stable/shareable editor links: a
+ * slug survives reseeds (derived deterministically from the name) even
+ * though the lineage id changes, so a `/workflows/by-slug/<slug>/edit`
+ * link keeps working after demo data is re-created. Scopes the lookup to
+ * the active group.
+ */
+export function useWorkflowBySlug(slug: string) {
+  const { activeGroup } = useGroup();
+  return useQuery({
+    queryKey: ["workflow-by-slug", activeGroup?.id, slug],
+    queryFn: async (): Promise<WorkflowInfo> => {
+      const params = activeGroup?.id
+        ? `?groupId=${encodeURIComponent(activeGroup.id)}`
+        : "";
+      const response = await apiService.get<WorkflowResponse>(
+        `/workflows/by-slug/${encodeURIComponent(slug)}${params}`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to resolve workflow");
+      }
+      return response.data.workflow;
+    },
+    enabled: !!slug,
+  });
+}
+
+/** One anchored problem from the backend graph validator. */
+export interface WorkflowValidationIssue {
+  path: string;
+  message: string;
+  severity?: string;
+}
+
+/**
+ * A save rejection that keeps the validator's anchors.
+ *
+ * The API answers a bad graph with the exact node and field it objected to
+ * (`nodes.switch_1.defaultEdge — Switch node "switch_1" must have a
+ * defaultEdge`). Throwing a bare Error discarded all of that and left the
+ * author a generic "Invalid workflow configuration" plus a hunt.
+ */
+/**
+ * G-063 — the workflow's head moved on before this save landed: another
+ * editor (another tab, another person, the agent) saved first. Distinct from
+ * `WorkflowSaveError` because the remedy is different — nothing about the
+ * config is wrong, the author just needs to see the other changes first.
+ */
+export class WorkflowVersionConflictError extends Error {
+  readonly expectedVersion: number;
+  readonly currentVersion: number;
+
+  constructor(
+    message: string,
+    expectedVersion: number,
+    currentVersion: number,
+  ) {
+    super(message);
+    this.name = "WorkflowVersionConflictError";
+    this.expectedVersion = expectedVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
+/** Reads the 409 body the backend's `WorkflowVersionConflictDto` describes. */
+function versionConflictFrom(
+  payload: unknown,
+): { expectedVersion: number; currentVersion: number; message: string } | null {
+  if (!payload || typeof payload !== "object") return null;
+  const body = payload as Record<string, unknown>;
+  if (body.error !== "workflow_version_conflict") return null;
+  if (
+    typeof body.expectedVersion !== "number" ||
+    typeof body.currentVersion !== "number"
+  ) {
+    return null;
+  }
+  return {
+    expectedVersion: body.expectedVersion,
+    currentVersion: body.currentVersion,
+    message:
+      typeof body.message === "string"
+        ? body.message
+        : "This workflow was saved by someone else.",
+  };
+}
+
+export class WorkflowSaveError extends Error {
+  readonly issues: WorkflowValidationIssue[];
+
+  constructor(message: string, issues: WorkflowValidationIssue[]) {
+    super(message);
+    this.name = "WorkflowSaveError";
+    this.issues = issues;
+  }
+}
+
+/** Pull `errors[]` off a 400 body, tolerating any other shape. */
+function validationIssuesFrom(payload: unknown): WorkflowValidationIssue[] {
+  if (!payload || typeof payload !== "object") return [];
+  const errors = (payload as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return [];
+  return errors.flatMap((entry): WorkflowValidationIssue[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const { path, message, severity } = entry as Record<string, unknown>;
+    if (typeof path !== "string" || typeof message !== "string") return [];
+    return [
+      {
+        path,
+        message,
+        ...(typeof severity === "string" ? { severity } : {}),
+      },
+    ];
+  });
+}
+
 export function useCreateWorkflow() {
   const queryClient = useQueryClient();
   const { activeGroup } = useGroup();
 
   return useMutation({
-    mutationFn: async (dto: CreateWorkflowDto): Promise<WorkflowInfo> => {
+    mutationFn: async (dto: CreateWorkflowDto): Promise<WorkflowSaveResult> => {
       if (!activeGroup) {
         throw new Error("No active group selected");
       }
-      const response = await apiService.post<WorkflowResponse>("/workflows", {
-        ...dto,
-        groupId: activeGroup.id,
-      });
+      const response = await apiService.post<WorkflowSaveResponse>(
+        "/workflows",
+        {
+          ...dto,
+          groupId: activeGroup.id,
+        },
+      );
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to create workflow");
+        throw new WorkflowSaveError(
+          response.message || "Failed to create workflow",
+          // On failure apiService puts the raw error body in `data`.
+          validationIssuesFrom(response.data),
+        );
       }
-      return response.data.workflow;
+      return saveResultFrom(response.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
@@ -112,22 +293,67 @@ export function useUpdateWorkflow() {
       dto,
     }: {
       id: string;
-      dto: Partial<CreateWorkflowDto>;
-    }): Promise<WorkflowInfo> => {
-      const response = await apiService.put<WorkflowResponse>(
+      dto: UpdateWorkflowDto;
+    }): Promise<WorkflowSaveResult> => {
+      const response = await apiService.put<WorkflowSaveResponse>(
         `/workflows/${id}`,
         dto,
       );
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to update workflow");
+        // G-063 — a stale-base rejection is not a validation failure; it needs
+        // its own error so the editor can offer "reload" rather than sending
+        // the author hunting for a config problem that does not exist.
+        const conflict = versionConflictFrom(response.data);
+        if (conflict) {
+          throw new WorkflowVersionConflictError(
+            conflict.message,
+            conflict.expectedVersion,
+            conflict.currentVersion,
+          );
+        }
+        throw new WorkflowSaveError(
+          response.message || "Failed to update workflow",
+          validationIssuesFrom(response.data),
+        );
       }
-      return response.data.workflow;
+      return saveResultFrom(response.data);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["workflow", variables.id] });
     },
   });
+}
+
+/**
+ * G-050 — what deleting a workflow would take with it.
+ *
+ * Deleting a lineage cascades to every version under it, and each document
+ * pinned to one of those versions has its config link set to NULL — the record
+ * of which graph produced it is erased, with no error. This reads the counts so
+ * the confirmation can name that cost instead of a generic "cannot be undone".
+ *
+ * `enabled` is the caller's gate: the confirmation fetches it only while open.
+ */
+export function useWorkflowDeleteImpact(id: string | null) {
+  return useQuery({
+    queryKey: ["workflow", id, "delete-impact"],
+    enabled: id !== null,
+    queryFn: async (): Promise<WorkflowDeleteImpact> => {
+      const response = await apiService.get<WorkflowDeleteImpact>(
+        `/workflows/${id}/delete-impact`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to read delete impact");
+      }
+      return response.data;
+    },
+  });
+}
+
+export interface WorkflowDeleteImpact {
+  versionCount: number;
+  documentCount: number;
 }
 
 export function useDeleteWorkflow() {
@@ -152,6 +378,154 @@ export interface WorkflowVersionSummary {
   createdAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 2 Track 2 — Workflow-as-API
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirror of backend's `RunSpecInputSchemaPropertyDto`. Minimal subset of
+ * JSON Schema used by the Run drawer.
+ */
+export interface RunSpecInputSchemaProperty {
+  type: "string" | "number" | "boolean" | "object" | "array";
+  title?: string;
+  description?: string;
+  default?: unknown;
+}
+
+export interface RunSpecInputSchema {
+  type: "object";
+  properties: Record<string, RunSpecInputSchemaProperty>;
+  required: string[];
+}
+
+/**
+ * Phase 8 — upload-source metadata surfaced by `/run-spec` when the
+ * workflow contains a `source.upload` node. Mirrors backend's
+ * `UploadSpecDto` (DOCUMENT_SOURCES_DESIGN.md §4.3 / US-112).
+ */
+export interface RunSpecUploadSpec {
+  sourceNodeId: string;
+  uploadUrl: string;
+  allowedMimeTypes: string[];
+  maxFileSizeMB: number;
+  ctxKey: string;
+}
+
+export interface WorkflowRunSpec {
+  triggerUrl: string;
+  inputSchema: RunSpecInputSchema;
+  authNotes: string;
+  sampleCurl: string;
+  /**
+   * Present only when the workflow has a `source.upload` node
+   * (US-112). Absent entirely otherwise — drives the Run drawer's
+   * Upload section.
+   */
+  uploadSpec?: RunSpecUploadSpec;
+}
+
+export interface StartRunRequest {
+  initialCtx?: Record<string, unknown>;
+  workflowVersionId?: string;
+}
+
+export interface StartRunResponse {
+  workflowId: string;
+  workflowVersionId: string;
+  status: "started";
+}
+
+export function useWorkflowRunSpec(
+  workflowId: string | undefined,
+  options?: { workflowVersionId?: string },
+) {
+  const versionId = options?.workflowVersionId;
+  return useQuery({
+    queryKey: ["workflow-run-spec", workflowId, versionId ?? null],
+    queryFn: async (): Promise<WorkflowRunSpec> => {
+      const url = versionId
+        ? `/workflows/${workflowId}/run-spec?workflowVersionId=${encodeURIComponent(versionId)}`
+        : `/workflows/${workflowId}/run-spec`;
+      const response = await apiService.get<WorkflowRunSpec>(url);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch run-spec");
+      }
+      return response.data;
+    },
+    enabled: !!workflowId,
+  });
+}
+
+export function useStartWorkflowRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      body,
+    }: {
+      workflowId: string;
+      body: StartRunRequest;
+    }): Promise<StartRunResponse> => {
+      const response = await apiService.post<StartRunResponse>(
+        `/workflows/${workflowId}/runs`,
+        body,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to start workflow run");
+      }
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      // Surface the just-started run in the run-history drawer without a
+      // manual page refresh. The runs list is keyed
+      // `["workflow-runs", workflowId, filters]`; invalidating the
+      // `workflowId` prefix refetches every filter view.
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-runs", variables.workflowId],
+      });
+    },
+  });
+}
+
+/**
+ * Starts a canvas Try via `POST /workflows/:id/tries` (D-17).
+ *
+ * Identical wire body to {@link useStartWorkflowRun} — the difference is the
+ * endpoint, which is what stamps `RunTrigger = "try"` server-side. The editor
+ * MUST use this and not `/runs`: a run stamped `"api"` is invisible to
+ * `cancelInFlightTriesForLineage`, so before this existed a second Try left
+ * the first one running to completion on the worker.
+ */
+export function useStartWorkflowTry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      body,
+    }: {
+      workflowId: string;
+      body: StartRunRequest;
+    }): Promise<StartRunResponse> => {
+      const response = await apiService.post<StartRunResponse>(
+        `/workflows/${workflowId}/tries`,
+        body,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to start Try");
+      }
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      // A Try shows up in run history like any other run — same
+      // invalidation as the production path.
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-runs", variables.workflowId],
+      });
+    },
+  });
+}
+
 export function useWorkflowVersions(lineageId: string | undefined) {
   return useQuery({
     queryKey: ["workflow-versions", lineageId],
@@ -167,6 +541,31 @@ export function useWorkflowVersions(lineageId: string | undefined) {
       return response.data.versions || [];
     },
     enabled: !!lineageId,
+  });
+}
+
+/**
+ * Fetches the full `WorkflowInfo` (config + metadata) for a specific
+ * version within a lineage. Backs the version-history drawer's
+ * "Compare to head" action and per-version run-spec refetches that need
+ * the raw config (US-079 / US-081).
+ */
+export function useWorkflowVersion(
+  lineageId: string | undefined,
+  versionId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["workflow-version", lineageId, versionId],
+    queryFn: async (): Promise<WorkflowInfo> => {
+      const response = await apiService.get<WorkflowResponse>(
+        `/workflows/${lineageId}/versions/${versionId}`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch workflow version");
+      }
+      return response.data.workflow;
+    },
+    enabled: !!lineageId && !!versionId,
   });
 }
 

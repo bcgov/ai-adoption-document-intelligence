@@ -9,6 +9,8 @@ on:
       - 'apps/backend-services/**'
       - 'apps/shared/**'
       - 'packages/**'
+      - 'docs-md/workflows/templates/**'
+      - 'scripts/lint-workflows.mjs'
       - '.github/workflows/backend-qa.yml'
   workflow_dispatch:
 
@@ -39,6 +41,17 @@ jobs:
         run: npm run db:generate
         env:
           DATABASE_URL: "postgresql://localhost:5432/dummy"
+      # Validates every shipped workflow template against the CURRENT catalog and
+      # kind taxonomy. A catalog or taxonomy change can silently invalidate a
+      # template that no test opens — which is what the 2026-07-18 kind wave did.
+      # Runs after build:packages because it loads the built validator.
+      #
+      # Templates only: the seeded demos live in the database, so shape coverage
+      # here is partial and the script reports it as informational. `--strict`
+      # therefore gates on document validity alone — which is the part that can
+      # regress from a code change. Judging shape gaps needs `--db`, locally.
+      - name: Lint shipped workflows
+        run: npm run workflows:lint -- --strict
       - name: Lint
         working-directory: apps/backend-services
         run: npm run lint

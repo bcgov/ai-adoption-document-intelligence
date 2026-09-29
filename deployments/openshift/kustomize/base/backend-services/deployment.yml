@@ -244,6 +244,38 @@ spec:
             secretKeyRef:
               name: backend-services-secrets
               key: AZURE_STORAGE_ACCOUNT_KEY
+        # Azure OpenAI — the workflow chat agent (src/agent) runs in THIS
+        # process, not in the worker, along with AI format suggestion and
+        # benchmark recommendations. Without these the assistant is permanently
+        # "not configured" on every deployed instance.
+        # All four are optional: a missing key disables the assistant (the app
+        # boots normally and the chat drawer says so) whereas a required ref
+        # against a secret that predates this change would leave the pod in
+        # CreateContainerConfigError.
+        - name: AZURE_OPENAI_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_ENDPOINT
+              optional: true
+        - name: AZURE_OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_OPENAI_API_KEY
+              optional: true
+        - name: AZURE_OPENAI_DEPLOYMENT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_DEPLOYMENT
+              optional: true
+        - name: AZURE_OPENAI_API_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_API_VERSION
+              optional: true
         - name: BODY_LIMIT
           valueFrom:
             configMapKeyRef:
@@ -284,6 +316,20 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: DB_POOL_MAX
+        # Phase 6 dynamic nodes — the publish-time /check call POSTs to the
+        # deno-runner. Without these the client defaults to localhost:9099 and
+        # DYNAMIC_NODE_ALLOW_NET (enforced at publish time) is empty, so
+        # publishing any dynamic node fails.
+        - name: DENO_RUNNER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DENO_RUNNER_URL
+        - name: DYNAMIC_NODE_ALLOW_NET
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DYNAMIC_NODE_ALLOW_NET
         volumeMounts:
         - name: logs
           mountPath: /var/log/app

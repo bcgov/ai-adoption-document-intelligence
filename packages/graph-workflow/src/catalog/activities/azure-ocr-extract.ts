@@ -1,0 +1,66 @@
+import { z } from "zod/v4";
+import type { ActivityCatalogEntry } from "../types";
+
+export const azureOcrExtractParametersSchema = z.object({});
+
+export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
+  activityType: "azureOcr.extract",
+  displayName: "Extract OCR Result",
+  category: "OCR (Azure)",
+  description:
+    "Parses the raw Azure response into a structured OCR result with fields, key-value pairs, and confidence scores.",
+  iconHint: "document",
+  colorHint: "blue",
+  // Benchmark runs inject the OCR replay cache AND the cached `ocrResponse` so
+  // extract parses the replayed response instead of a live Azure call.
+  benchmarkOcrCacheRole: "extract",
+  inputs: [
+    {
+      name: "apimRequestId",
+      label: "APIM request ID",
+      description: "Azure request tracking ID.",
+      required: true,
+      kind: "RequestId",
+    },
+    {
+      name: "fileName",
+      label: "File name",
+      description: "Original file name. Optional — used only for logging.",
+      required: false,
+      kind: "Artifact",
+    },
+    {
+      name: "fileType",
+      label: "File type",
+      description: "`pdf` or `image`. Optional — used only for logging.",
+      required: false,
+      kind: "Artifact",
+    },
+    {
+      name: "modelId",
+      label: "OCR model ID",
+      description:
+        "Model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
+      required: false,
+      kind: "ModelId",
+    },
+    {
+      name: "ocrResponse",
+      label: "OCR response",
+      description: "Raw OCR response. Refetched if omitted.",
+      required: false,
+      kind: "Artifact",
+    },
+  ],
+  outputs: [
+    {
+      name: "ocrResult",
+      label: "OCR result",
+      description:
+        "Structured OCR result with pages, paragraphs, key-value pairs, confidence scores.",
+      required: true,
+      kind: "OcrResult",
+    },
+  ],
+  parametersSchema: azureOcrExtractParametersSchema,
+};

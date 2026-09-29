@@ -9,9 +9,11 @@ import {
   CreateTemplateModelDto,
   UpdateTemplateModelDto,
 } from "./dto/create-template-model.dto";
+import { FieldType } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { FormatSuggestionService } from "./format-suggestion.service";
+import { LabelSuggestionService } from "./label-suggestions/label-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelController } from "./template-model.controller";
 import { TemplateModelService } from "./template-model.service";
@@ -20,6 +22,7 @@ describe("TemplateModelController", () => {
   let controller: TemplateModelController;
   let templateModelService: jest.Mocked<TemplateModelService>;
   let labelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
+  let labelSuggestionService: jest.Mocked<LabelSuggestionService>;
   let mockBlobStorage: { read: jest.Mock };
   let mockAuditService: { recordEvent: jest.Mock };
 
@@ -87,16 +90,21 @@ describe("TemplateModelController", () => {
       addDocumentToTemplateModel: jest.fn(),
       getFieldSchema: jest.fn(),
       addField: jest.fn(),
+      addFields: jest.fn(),
       updateField: jest.fn(),
       deleteField: jest.fn(),
       getTemplateModelDocuments: jest.fn(),
       exportTemplateModel: jest.fn(),
-      generateDocumentSuggestions: jest.fn(),
     } as unknown as jest.Mocked<TemplateModelService>;
 
     labelingDocumentDbService = {
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
     } as unknown as jest.Mocked<LabelingDocumentDbService>;
+
+    labelSuggestionService = {
+      suggestLabels: jest.fn(),
+      suggestFields: jest.fn(),
+    } as unknown as jest.Mocked<LabelSuggestionService>;
 
     mockBlobStorage = { read: jest.fn() };
     mockAuditService = { recordEvent: jest.fn().mockResolvedValue(undefined) };
@@ -119,6 +127,10 @@ describe("TemplateModelController", () => {
         {
           provide: FormatSuggestionService,
           useValue: { suggestFormats: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: LabelSuggestionService,
+          useValue: labelSuggestionService,
         },
         {
           provide: AuditService,
@@ -945,6 +957,144 @@ describe("TemplateModelController", () => {
           req,
         ),
       ).rejects.toThrow(ForbiddenException);
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addFields", () => {
+    it("checks group access and passes the actor to the service", async () => {
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      templateModelService.addFields.mockResolvedValue([]);
+      const req = {
+        resolvedIdentity: {
+          actorId: "actor-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const dto = {
+        fields: [{ field_key: "a", field_type: FieldType.STRING }],
+      };
+
+      await controller.addFields("tm-1", dto, req);
+
+      expect(templateModelService.addFields).toHaveBeenCalledWith(
+        "tm-1",
+        dto,
+        "actor-1",
+      );
+    });
+
+    it("refuses a caller outside the template model's group", async () => {
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+      const req = {
+        resolvedIdentity: {
+          actorId: "actor-2",
+          isSystemAdmin: false,
+          groupRoles: { "group-2": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+
+      await expect(
+        controller.addFields(
+          "tm-1",
+          { fields: [{ field_key: "a", field_type: FieldType.STRING }] },
+          req,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(templateModelService.addFields).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("label suggestions", () => {
+    const memberReq = {
+      resolvedIdentity: {
+        actorId: "actor-1",
+        isSystemAdmin: false,
+        groupRoles: { "group-1": GroupRole.MEMBER },
+      },
+    } as unknown as Request;
+    const outsiderReq = {
+      resolvedIdentity: {
+        actorId: "actor-2",
+        isSystemAdmin: false,
+        groupRoles: { "group-2": GroupRole.MEMBER },
+      },
+    } as unknown as Request;
+
+    beforeEach(() => {
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+    });
+
+    it("suggests labels after checking group access", async () => {
+      labelSuggestionService.suggestLabels.mockResolvedValue([]);
+      await expect(
+        controller.generateDocumentSuggestions(memberReq, "tm-1", "doc-1"),
+      ).resolves.toEqual([]);
+      expect(labelSuggestionService.suggestLabels).toHaveBeenCalledWith(
+        "tm-1",
+        "doc-1",
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "ocr_result",
+        resource_id: "doc-1",
+        actor_id: "actor-1",
+        document_id: "doc-1",
+        group_id: "group-1",
+        payload: {
+          action: "ocr",
+          template_model_id: "tm-1",
+          endpoint: "suggestions",
+        },
+      });
+    });
+
+    it("refuses label suggestions outside the group", async () => {
+      await expect(
+        controller.generateDocumentSuggestions(outsiderReq, "tm-1", "doc-1"),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelSuggestionService.suggestLabels).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
+    });
+
+    it("suggests fields from the chosen document", async () => {
+      labelSuggestionService.suggestFields.mockResolvedValue([]);
+      await controller.suggestFields(
+        "tm-1",
+        { document_id: "doc-1" },
+        memberReq,
+      );
+      expect(labelSuggestionService.suggestFields).toHaveBeenCalledWith(
+        "tm-1",
+        "doc-1",
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "ocr_result",
+        resource_id: "doc-1",
+        actor_id: "actor-1",
+        document_id: "doc-1",
+        group_id: "group-1",
+        payload: {
+          action: "ocr",
+          template_model_id: "tm-1",
+          endpoint: "field-suggestions",
+        },
+      });
+    });
+
+    it("refuses field suggestions outside the group", async () => {
+      await expect(
+        controller.suggestFields("tm-1", { document_id: "doc-1" }, outsiderReq),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelSuggestionService.suggestFields).not.toHaveBeenCalled();
       expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
   });

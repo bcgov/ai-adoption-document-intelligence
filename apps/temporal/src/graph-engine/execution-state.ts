@@ -4,6 +4,8 @@
  * Shared state for graph workflow execution.
  */
 
+import type { CachedActivityDeps } from "../cache/cached-activity";
+import type { NodeRunStatus } from "../graph-workflow-queries";
 import type { NodeStatus } from "../graph-workflow-types";
 
 /**
@@ -13,6 +15,18 @@ export interface ExecutionState {
   currentNodes: string[];
   completedNodeIds: Set<string>;
   nodeStatuses: Map<string, NodeStatus>;
+  /**
+   * Phase 4 (US-135) per-node live run status surfaced through the
+   * `getNodeStatusesQuery` Temporal query handler. The map shares its
+   * object identity with the workflow body's `nodeStatuses` constant
+   * (passed in by `graph-workflow.ts`) so the query handler returns a
+   * live snapshot — mutations made here are visible to the next query.
+   *
+   * Distinct from `nodeStatuses` (the legacy `getStatus` map): the
+   * legacy shape uses `"completed"` and has no concept of cache-hit /
+   * skipped semantics. Both maps are maintained side-by-side.
+   */
+  nodeRunStatuses: Record<string, NodeRunStatus>;
   cancelled: () => boolean;
   cancelMode: () => "graceful" | "immediate";
   ctx: Record<string, unknown>;
@@ -27,6 +41,41 @@ export interface ExecutionState {
   // the workflow JSON. Lives outside ctx so graph-workflow authors cannot
   // forge or override it via ctx defaults.
   groupId?: string | null;
+  /**
+   * Phase 4 try-in-place cache scope. When both `workflowLineageId` and
+   * `cacheDeps` are present, the per-node activity dispatch goes through
+   * `executeCachedActivity` (US-133). When either is omitted, the
+   * decorator is bypassed and activities execute uncached — preserving
+   * the historical behaviour for tests / callers that don't wire the
+   * cache plumbing.
+   */
+  workflowLineageId?: string | null;
+  cacheDeps?: CachedActivityDeps;
+  /**
+   * What started this run (`"try"` = editor preview, `"api"` = production).
+   * `graph-workflow.ts` only wires `cacheDeps` for `"try"` runs; the
+   * executors forward the trigger into every child workflow so that gate
+   * holds across map fan-out and library children (Change A/A+).
+   */
+  trigger?: "try" | "api";
+  /**
+   * Child-workflow nesting depth of THIS execution (0 = started from the
+   * API). Both `executeChild` sites pass `childDepth + 1` and refuse to
+   * spawn beyond `MAX_CHILD_WORKFLOW_DEPTH` — the runtime backstop for
+   * cross-workflow reference cycles (Change M).
+   */
+  childDepth?: number;
+  /**
+   * Phase 6 Milestone C (US-170) — workflow-run identifier injected into
+   * `dyn.run` as `AI_DI_WORKFLOW_RUN_ID`. Typically `workflowInfo().workflowId`.
+   *
+   * Item 4 (security): the caller's `x-api-key` is NO LONGER threaded through
+   * the workflow/activity input chain (it would otherwise be persisted in
+   * Temporal's durable history in cleartext). The `dyn.run` activity now
+   * sources the platform API key server-side from worker config — see
+   * `dyn-run.activity.ts`.
+   */
+  workflowRunId?: string;
   workflowConfigOverrides?: Record<string, unknown>;
   lastError: {
     current?: {

@@ -15,7 +15,7 @@
 		"start:prod": "node dist/main",
 		"lint": "npx @biomejs/biome check",
 		"lint:fix": "npm run lint -- --write",
-		"type-check": "tsc --noEmit",
+		"type-check": "NODE_OPTIONS=--max-old-space-size=16384 tsc --noEmit",
 		"test": "jest --passWithNoTests",
 		"test:watch": "jest --watch",
 		"test:int": "./integration-tests/run.sh",
@@ -41,6 +41,8 @@
 		"@ai-di/temporal-payload-codec": "file:../../packages/temporal-payload-codec",
 		"@ai-di/monitoring": "file:../../packages/monitoring",
 		"@ai-di/shared-logging": "file:../../packages/logging",
+		"@ai-sdk/anthropic": "3.0.79",
+		"@ai-sdk/azure": "3.0.66",
 		"@aws-sdk/client-s3": "3.990.0",
 		"@azure-rest/ai-document-intelligence": "1.1.0",
 		"@azure/storage-blob": "12.30.0",
@@ -56,6 +58,7 @@
 		"@prisma/adapter-pg": "7.2.0",
 		"@prisma/client": "7.2.0",
 		"@temporalio/client": "1.10.0",
+		"ai": "6.0.191",
 		"ajv": "8.18.0",
 		"axios": "1.17.0",
 		"bcrypt": "6.0.0",
@@ -88,6 +91,7 @@
 		"@nestjs/testing": "11.1.19",
 		"@swc/cli": "0.8.1",
 		"@swc/core": "1.15.3",
+		"@swc/jest": "0.2.39",
 		"@testcontainers/postgresql": "11.10.0",
 		"@types/bcrypt": "6.0.0",
 		"@types/cookie-parser": "1.4.10",
@@ -123,6 +127,26 @@
 		"rootDir": "src",
 		"testRegex": ".*\\.spec\\.ts$",
 		"transform": {
+			"src/agent/.*\\.(t|j)s$": [
+				"@swc/jest",
+				{
+					"jsc": {
+						"parser": {
+							"syntax": "typescript",
+							"decorators": true,
+							"dynamicImport": true
+						},
+						"transform": {
+							"legacyDecorator": true,
+							"decoratorMetadata": true
+						},
+						"target": "es2022"
+					},
+					"module": {
+						"type": "commonjs"
+					}
+				}
+			],
 			"^.+\\.(t|j)s$": "ts-jest"
 		},
 		"collectCoverageFrom": [
@@ -134,6 +158,8 @@
 		],
 		"coverageDirectory": "../coverage",
 		"testEnvironment": "node",
+		"maxWorkers": 4,
+		"workerIdleMemoryLimit": "2GB",
 		"transformIgnorePatterns": [
 			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose))"
 		],

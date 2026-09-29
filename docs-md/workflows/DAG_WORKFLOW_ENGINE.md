@@ -17,14 +17,14 @@ This document is the architecture reference for the DAG (Directed Acyclic Graph)
 - **Temporal workflow**: `graphWorkflow()` -- a generic graph interpreter that reads a DAG definition and executes nodes in topological order with parallel branches
 - **Config format**: `GraphWorkflowConfig` -- typed nodes, directed edges with port bindings, and a workflow-scoped context (`ctx`). Stored as JSONB in the database.
 - **Shared types/validator**: `packages/graph-workflow` (`@ai-di/graph-workflow`) -- single source of truth for all TypeScript interfaces and the shared `validateGraphConfig()` function. Backend, temporal, and frontend all import from this package via thin re-export shims.
-- **Frontend**: JSON text editor (CodeMirror) with React Flow (`@xyflow/react`) read-only visualization, auto-synced with debounce
+- **Frontend**: the workflow-builder canvas editor (`WorkflowEditorV2Page` + `WorkflowEditorCanvas`, `@xyflow/react`) — drag-and-drop authoring, typed port wiring, validation surfacing and Try-in-place. See [WORKFLOW_BUILDER_GUIDE.md](./WORKFLOW_BUILDER_GUIDE.md).
 - **Backend**: NestJS CRUD endpoints (`/api/workflows`) with Prisma-backed database. Save-time validation via thin wrapper in `apps/backend-services/src/workflow/graph-schema-validator.ts`.
 
 ### Replaced / Legacy
 
 - `ocrWorkflow()` -- replaced by `graphWorkflow()`
 - `WorkflowStepsConfig` -- replaced by `GraphWorkflowConfig`
-- Form-based workflow builder (toggle switches per step) -- replaced by JSON editor + React Flow visualization
+- Form-based workflow builder (toggle switches per step) -- replaced by the canvas editor (an interim CodeMirror JSON editor with read-only React Flow visualization has also been retired)
 - `TemporalClientService.startOCRWorkflow()` -- replaced by `startGraphWorkflow()`
 
 ---
@@ -271,6 +271,15 @@ interface ChildWorkflowNode extends GraphNodeBase {
 - `outputMappings` read from the child workflow `ctx` and write to the parent ctx.
 - The child input includes `parentWorkflowId` set to the parent workflow ID.
 
+**Referential integrity (G-019)** — `workflowRef.workflowId` lives inside the `WorkflowVersion.config` JSON column, so the database cannot enforce it with a foreign key. Two guards stand in for one:
+
+- **Delete-time.** `WorkflowService.deleteWorkflow` refuses to delete a lineage that any other workflow still calls as a library child, with a `ConflictException` naming the callers. The scan is a parameterised `wv.config::text LIKE` prefilter (mirroring `DynamicNodeRepository.countWorkflowsReferencingSlug`) followed by an exact structural check of each candidate config, so an id that merely appears in some unrelated string cannot block a legitimate delete. Needles cover every identifier `getWorkflowGraphConfig` accepts — `WorkflowVersion.id`, `WorkflowLineage.id`, and the lineage name. **References from non-head versions count**: a superseded version is still reachable via `workflowRef.version` pinning, `Document.workflow_version_id`, and benchmark definitions. Only the target lineage's own versions are excluded, since they cascade away with it.
+  - **Tenancy, both halves.** The *scan* is intentionally **not** group-scoped, unlike the dynamic-node precedent: `getWorkflowGraphConfig` resolves refs without a group filter, so a cross-group reference is a real reference and scoping would miss exactly the case the guard protects. The *message*, by contrast, names only same-group referrers; out-of-group ones are reported as a bare count (`…and 2 workflows in other groups`), so a delete attempt cannot be used to enumerate another tenant's workflow titles. If every referrer is out-of-group the delete is still refused and still explains why — it just names nothing.
+- **Run-time.** When `getWorkflowGraphConfig` still cannot resolve a ref, it throws a **non-retryable** `ApplicationFailure` of type `LIBRARY_WORKFLOW_NOT_FOUND` naming the missing ref and the calling node id. As a plain `Error` this was retryable, so the `childWorkflow` node burned its entire retry budget against a condition that can never resolve.
+- **Authoring-time.** `apps/backend-services/src/workflow/shipped-template-library-refs.spec.ts` walks every template in `docs-md/workflows/templates/`, collects every `workflowRef` with `type: "library"`, and asserts each names something resolvable — a shipped template's `metadata.name` (which the seeder uses verbatim as the lineage name) or a seeded lineage id. Pure JSON inspection, no database. This is the regression floor for broken shipped content, which otherwise only fails at run time.
+
+> **A template can only portably name a lineage by NAME.** Version ids and lineage ids are minted at seed/save time, so a template authored before either exists cannot reference them. All four `childWorkflow` nodes in `multi-page-report-workflow.json` originally named `"standard-ocr-workflow"` — the template's own *filename* — which matched no lineage id (`seed-workflow-standard-ocr`), name (`Standard OCR Workflow`) or slug (`standard-ocr`), and had therefore never resolved. They now name `Standard OCR Workflow`. Note that `getWorkflowGraphConfig` does **not** resolve by slug; whether it should is an open design question, not a licence to widen the resolver to accommodate a broken reference.
+
 #### 4.2.6 PollUntil Node
 
 Repeatedly executes an activity until a condition is met.
@@ -434,7 +443,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
         { "port": "modelId", "ctxKey": "modelId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "outputs": [{ "port": "ocrResponse", "ctxKey": "ocrResponse" }],
       "condition": {
         "operator": "not-equals",
         "left": { "ref": "ctx.ocrResponse.status" },
@@ -684,7 +693,7 @@ Large Azure OCR JSON must not flow through Temporal event history. The footprint
 
 | Legacy ctx key | Current ctx key | Activity port (unchanged) |
 |----------------|-----------------|-----------------------------|
-| `ocrResponse` | `ocrResponseRef` | `response` on poll; `ocrResponse` on extract |
+| `ocrResponse` | `ocrResponseRef` | `ocrResponse` on poll and on extract |
 | `ocrResult` | `ocrResultRef` | `ocrResult` |
 | `cleanedResult` | `cleanedResultRef` | `cleanedResult` |
 
@@ -823,6 +832,22 @@ The `map` node handles fan-out:
 2. For each item, create a parallel execution context (shallow copy of ctx with `itemCtxKey` set to the current item)
 3. Execute the body subgraph (from `bodyEntryNodeId` to `bodyExitNodeId`) for each item
 4. Respect `maxConcurrency` -- if set, use a semaphore pattern to limit parallel branches
+
+**Partial failure (G-026).** Branches are collected by a helper that *settles*
+rather than rejecting, so a failing branch no longer discards the siblings that
+already completed -- the successful subset is always recorded in
+`mapBranchResults`. What a failure then means is the map node's
+`errorPolicy.onError`:
+
+| `onError` | Map outcome | What the join sees |
+|---|---|---|
+| absent / `"fail"` | throws, naming the failed branch indices and preserving the first failure's error type + retryability | join does not run |
+| `"skip"` | completes | the successful subset, in original branch order (no holes, no placeholders) |
+| `"fallback"` | throws; node-level fallback routing is then applied by `handleNodeError` (a map body has no per-branch error edge) | only if the error edge leads there |
+
+Failures are recorded on `state.lastError.current` on every path, so a
+downstream condition can see *which* branches failed rather than only that the
+map as a whole did or did not complete.
 
 The `join` node handles fan-in:
 
@@ -1081,6 +1106,15 @@ Other large payloads (binary data, page PDFs) use blob paths (`pageBlobPath`, `b
 
 ## 8. Frontend Requirements
 
+> **Scope of this section.** These are the requirements for the engine's first
+> frontend — a CodeMirror JSON editor with a read-only React Flow panel. The
+> shipped editor is the visual canvas under
+> `apps/frontend/src/features/workflow-builder/` (`WorkflowEditorV2Page`,
+> `WorkflowEditorCanvas`), documented in
+> [WORKFLOW_BUILDER_GUIDE.md](./WORKFLOW_BUILDER_GUIDE.md); the component names
+> and layouts below are not what runs today. The engine-facing contracts in
+> this section (config format, validation surface, API hooks) still hold.
+
 ### 8.1 Pages
 
 The three existing workflow pages are replaced/updated:
@@ -1277,6 +1311,16 @@ Validation rules:
 6. **Expression validation** (for `switch` conditions):
    - Operators are valid
    - Referenced variables exist in ctx declarations
+7. **Inline child graphs** (G-015): a `childWorkflow` node with
+   `workflowRef.type === "inline"` embeds a complete `GraphWorkflowConfig`, and the validator
+   **descends into it with the same rules and the same injected options**. Inner errors are
+   re-anchored as `nodes.<parentId>.inline.<inner path>` (e.g.
+   `nodes.child_1.inline.nodes.sw.defaultEdge`) and their messages are prefixed
+   `Inline child graph: …`. The anchor names the parent first so the editor's per-node badge,
+   drawer bucketing and click-to-navigate all land on the `childWorkflow` node holding the JSON
+   — the inner graph has no canvas of its own — while the inner node id stays in the path.
+   Nesting recurses; a graph that (transitively) embeds itself is reported as a recursive
+   reference rather than looping.
 
 ### 9.3 TemporalClientService Changes
 
@@ -1413,6 +1457,24 @@ Behavior:
 - `"fail"` (default): The node failure propagates to the workflow, which fails
 - `"fallback"`: The graph runner follows the `fallbackEdgeId` edge instead of failing. This is represented as an explicit `error` type edge in the graph.
 - `"skip"`: The node is marked as skipped and execution continues to the next node(s). Output ports are not written (ctx keys retain their previous values or defaults).
+
+`retryable` is read only in the `"fail"` branch: `retryable: false` converts the
+failure into a non-retryable `ApplicationFailure`. An absent policy therefore
+behaves exactly as `{ onError: "fail", retryable: true }`.
+
+> ⚠️ **`maxRetries` is inert.** It is declared on the type but no engine code
+> reads it — an activity's retry count comes from `ActivityNode.retry.maximumAttempts`.
+> The visual builder deliberately does not offer it (G-001).
+
+**Authoring (visual builder).** The node settings panel's **Error handling**
+section writes this policy: *If this step fails* → **Stop the workflow**
+(`fail`) / **Follow the error path** (`fallback`) / **Skip this step and
+continue** (`skip`), plus the retryable toggle and — for `fallback` only — an
+**Error path** picker limited to `error`-typed edges leaving that node.
+Drawing an edge from the node's bottom `error` handle records it as
+`fallbackEdgeId` when the node has none yet, so a `fallback` policy never sits
+in the unclearable "requires fallbackEdgeId" state. `switch` and `source`
+nodes are excluded: neither canvas renderer mounts an `error` handle.
 
 ### 11.2 Fallback Edge Example
 

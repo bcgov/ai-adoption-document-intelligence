@@ -32,6 +32,9 @@ images:
   - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
     newName: "__FRONTEND_IMAGE__"
     newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner
+    newName: "__DENO_RUNNER_IMAGE__"
+    newTag: "__IMAGE_TAG__"
 
 # Patches for resources that contain hardcoded service references or hostnames.
 # Kustomize namePrefix updates metadata.name and cross-references (secretKeyRef,
@@ -143,6 +146,18 @@ patches:
         DOCUMENT_INTELLIGENCE_MODE: "__DOCUMENT_INTELLIGENCE_MODE__"
         MINIO_ENDPOINT: "__MINIO_ENDPOINT__"
         MINIO_DOCUMENT_BUCKET: "__MINIO_DOCUMENT_BUCKET__"
+        # namePrefix renames the Service to __INSTANCE_NAME__-deno-runner, so
+        # the base ConfigMap's bare http://deno-runner:9090 resolves to nothing
+        # on an instance — same rule as TEMPORAL_ADDRESS above.
+        DENO_RUNNER_URL: "http://__INSTANCE_NAME__-deno-runner:9090"
+        # Same three placeholders the temporal-worker ConfigMap patch below
+        # uses — one Azure OpenAI subscription feeds both deployments.
+        # backend-services needs them for the workflow chat agent, AI format
+        # suggestion and benchmark recommendations. generate-overlay.sh already
+        # substitutes these tokens file-wide, so no new flag is required.
+        AZURE_OPENAI_ENDPOINT: "__AZURE_OPENAI_ENDPOINT__"
+        AZURE_OPENAI_DEPLOYMENT: "__AZURE_OPENAI_DEPLOYMENT__"
+        AZURE_OPENAI_API_VERSION: "__AZURE_OPENAI_API_VERSION__"
 
   # --- Temporal worker ConfigMap: update Temporal server address ---
   - target:
@@ -168,6 +183,11 @@ patches:
         MOCK_AZURE_OCR: "__MOCK_AZURE_OCR__"
         MINIO_ENDPOINT: "__MINIO_ENDPOINT__"
         MINIO_DOCUMENT_BUCKET: "__MINIO_DOCUMENT_BUCKET__"
+        # namePrefix renames the Services, so the base ConfigMap's bare
+        # http://deno-runner:9090 / http://backend-services:3002 resolve to
+        # nothing on an instance — same rule as TEMPORAL_ADDRESS above.
+        DENO_RUNNER_URL: "http://__INSTANCE_NAME__-deno-runner:9090"
+        AI_DI_API_BASE_URL: "http://__INSTANCE_NAME__-backend-services:3002"
 
   # --- Frontend: set backend proxy target for nginx reverse proxy ---
   - target:

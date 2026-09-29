@@ -6,6 +6,8 @@ export class FieldDefinitionResponseDto {
   @ApiProperty() field_key!: string;
   @ApiProperty() field_type!: string;
   @ApiPropertyOptional() field_format?: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  description?: string | null;
   @ApiProperty() display_order!: number;
   @ApiProperty() created_at!: Date;
   @ApiProperty() updated_at!: Date;

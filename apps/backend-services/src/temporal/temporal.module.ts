@@ -1,10 +1,10 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { WorkflowModule } from "../workflow/workflow.module";
 import { TemporalClientService } from "./temporal-client.service";
 
 @Module({
-  imports: [ConfigModule, WorkflowModule],
+  imports: [ConfigModule, forwardRef(() => WorkflowModule)],
   providers: [TemporalClientService],
   exports: [TemporalClientService],
 })

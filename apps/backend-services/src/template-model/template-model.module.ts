@@ -6,8 +6,9 @@ import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { DatabaseModule } from "../database/database.module";
 import { DocumentModule } from "../document/document.module";
 import { FormatSuggestionService } from "./format-suggestion.service";
+import { LabelSuggestionService } from "./label-suggestions/label-suggestion.service";
+import { SuggestionLlmService } from "./label-suggestions/suggestion-llm";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelController } from "./template-model.controller";
 import { TemplateModelService } from "./template-model.service";
 import { TemplateModelDbService } from "./template-model-db.service";
@@ -28,7 +29,8 @@ import { TemplateModelOcrService } from "./template-model-ocr.service";
     TemplateModelDbService,
     LabelingDocumentDbService,
     TemplateModelOcrService,
-    SuggestionService,
+    LabelSuggestionService,
+    SuggestionLlmService,
     FormatSuggestionService,
   ],
   exports: [TemplateModelService],

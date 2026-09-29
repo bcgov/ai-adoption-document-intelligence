@@ -119,3 +119,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: split the reopen transition in two — an approved session reopens for its own reviewer within five minutes, a flagged session is taken over by any group member with no time limit — and documented the Flagged tab's View/Take actions.
 - `hitl.md`: flagging is a hand-off rather than a terminal state; editing always holds a lock.
 
+## [2026-09-19] ingest | Label suggestions move from rules to an LLM
+
+- `architecture/TEMPLATE_MODELS.md`: documented the `label-suggestions/` module (tagged-text rendering, the Azure OpenAI call, ref resolution), the bulk field-create and field-suggestion endpoints, the optional `FieldDefinition.description` column, and the new Field schema "Suggest fields" UI. The rule-based `suggestion.service.ts` this replaces is gone from the tree and the doc.
+- `extraction.md`: added a Design Notes bullet distinguishing label/field suggestions (one-shot, per-document) from the confusion-profile/format-suggestion feedback loops next to it.
+

@@ -308,8 +308,10 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       const graph = loadTemplate();
       const node = graph.nodes?.pollOcrResults as PollUntilNode | undefined;
       const outputs = (node?.outputs ?? []).map((o) => o.port);
-      expect(outputs).toContain("response");
-      const responseOutput = node?.outputs?.find((o) => o.port === "response");
+      expect(outputs).toContain("ocrResponse");
+      const responseOutput = node?.outputs?.find(
+        (o) => o.port === "ocrResponse",
+      );
       expect(responseOutput?.ctxKey).toBe("ocrResponseRef");
       expect(graph.ctx?.ocrResponseRef).toBeDefined();
     });

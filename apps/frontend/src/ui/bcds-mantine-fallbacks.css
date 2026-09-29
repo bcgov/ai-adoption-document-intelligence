@@ -46,6 +46,25 @@
 
 .mantine-ActionIcon-root {
   border-radius: var(--layout-border-radius-medium);
+}
+
+/*
+ * The BC DS icon colour is the right default for the app's chrome — subtle and
+ * default ActionIcons are bare glyphs on the page background, and they should
+ * be the token's near-black.
+ *
+ * A FILLED ActionIcon is a different thing: it paints its own saturated
+ * background and takes its foreground from Mantine's variant (white). This
+ * rule used to be unqualified, so it beat Mantine's own
+ * `color: var(--ai-color)` on specificity-plus-order and stamped near-black
+ * over every filled icon button in the app. Measured 2026-08-07 on the agent
+ * chat's send button: background rgb(85,149,217), glyph rgb(45,45,45).
+ *
+ * That is the defect Inderdeep reported on 2026-08-06 — "black on purple, not
+ * very accessible" — and it was never specific to the chat. Anything filled
+ * had it.
+ */
+.mantine-ActionIcon-root:not([data-variant="filled"]) {
   color: var(--icons-color-primary);
 }
 

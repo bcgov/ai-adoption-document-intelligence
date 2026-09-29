@@ -18,6 +18,7 @@ import {
   getStatus,
   graphWorkflow,
 } from "./graph-workflow";
+import type { NodeRunStatus } from "./graph-workflow-queries";
 import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
@@ -955,7 +956,7 @@ describe("Graph Workflow", () => {
           receivedRequestId = params.apimRequestId as string;
           const status = pollCount < 2 ? "running" : "succeeded";
           pollCount += 1;
-          return { response: { status } };
+          return { ocrResponse: { status } };
         },
       };
 
@@ -973,7 +974,7 @@ describe("Graph Workflow", () => {
             label: "Poll OCR",
             activityType: "azureOcr.poll",
             inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1012,7 +1013,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when maxAttempts exceeded", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 
@@ -1029,7 +1030,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1068,7 +1069,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when overall timeout elapses", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 
@@ -1085,7 +1086,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1123,6 +1124,17 @@ describe("Graph Workflow", () => {
     });
   });
 
+  // §5.3: the three "continue" paths below (approval-continue, timeout-
+  // continue, timeout-fallback) are skipped because they HANG in the
+  // TestWorkflowEnvironment — the workflow blocks in the humanGate
+  // `condition(() => payload !== null, timeout)` and neither the buffered
+  // signal nor the timer reliably resolves it under this harness (the local
+  // env doesn't time-skip, and the signal ordering deadlocks `runUntil`).
+  // The handler itself (`executeHumanGateNode`) IS exercised: the rejection
+  // path below passes, covering signal delivery + payload→ctx write + the
+  // HUMAN_GATE_REJECTED throw. Re-enabling these requires a time-skipping
+  // TestWorkflowEnvironment + a signal-after-gate-reached barrier — tracked
+  // as follow-up rather than left as a silently-green false positive.
   describe("US-011: HumanGate Node Handler", () => {
     it.skip("continues on approval and writes payload to ctx", async () => {
       const graph: GraphWorkflowConfig = {
@@ -1978,6 +1990,132 @@ describe("Graph Workflow", () => {
     });
   });
 
+  describe("US-135: getNodeStatusesQuery and nodeStatuses map", () => {
+    it("3-node workflow — mid-execution query reports running + post-execution reports succeeded (Scenarios 2 + 4 + 5 + 6a)", async () => {
+      // Two gates: (1) wait for node A's activity to enter; (2) wait
+      // for node C's activity to enter. While node C is in-flight we
+      // can query the workflow and see node A already succeeded, node
+      // C running, and no other entries — this exercises mid-execution
+      // querying + Scenario 5 (untouched nodes absent) in a way that
+      // keeps the worker alive (queries against a completed workflow
+      // need a replay-capable worker, which `runUntil` shuts down).
+      let aStartedResolve: (() => void) | undefined;
+      let cStartedResolve: (() => void) | undefined;
+      let finishCResolve: (() => void) | undefined;
+      const aStarted = new Promise<void>((resolve) => {
+        aStartedResolve = resolve;
+      });
+      const cStarted = new Promise<void>((resolve) => {
+        cStartedResolve = resolve;
+      });
+      const finishC = new Promise<void>((resolve) => {
+        finishCResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "NodeRunStatus 3-node Test",
+          description: "Test getNodeStatusesQuery across a 3-node linear graph",
+          version: "1.0.0",
+        },
+        nodes: {
+          a: {
+            id: "a",
+            type: "activity",
+            label: "Node A",
+            activityType: "file.prepare",
+            inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+            outputs: [{ port: "preparedData", ctxKey: "preparedData" }],
+          },
+          b: {
+            id: "b",
+            type: "activity",
+            label: "Node B",
+            activityType: "document.updateStatus",
+            parameters: { status: "middle" },
+          },
+          c: {
+            id: "c",
+            type: "activity",
+            label: "Node C",
+            activityType: "azureOcr.submit",
+            outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+          },
+        },
+        edges: [
+          { id: "e1", source: "a", target: "b", type: "normal" },
+          { id: "e2", source: "b", target: "c", type: "normal" },
+        ],
+        entryNodeId: "a",
+        ctx: {
+          blobKey: { type: "string", defaultValue: "blobs/test.pdf" },
+          preparedData: { type: "object" },
+          apimRequestId: { type: "string" },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        "file.prepare": async () => {
+          aStartedResolve?.();
+          return { preparedData: { blobKey: "blobs/test.pdf" } };
+        },
+        "azureOcr.submit": async () => {
+          cStartedResolve?.();
+          await finishC;
+          return { apimRequestId: "req-final" };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        "test-node-run-statuses-linear",
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      // Wait until node A's activity has fired (so the workflow has
+      // started and the query handler is registered).
+      await aStarted;
+      // Wait until node C's activity is in-flight — by that point A+B
+      // have already succeeded.
+      await cStarted;
+
+      // Scenario 4 + 2 + 5 — query mid-execution: A + B are succeeded,
+      // C is running, no other nodes present.
+      const midStatuses = (await handle.query("getNodeStatuses")) as Record<
+        string,
+        NodeRunStatus
+      >;
+      expect(midStatuses.a).toBeDefined();
+      expect(midStatuses.a.status).toBe("succeeded");
+      expect(midStatuses.a.startedAt).toBeDefined();
+      expect(midStatuses.a.endedAt).toBeDefined();
+      expect(midStatuses.b).toBeDefined();
+      expect(midStatuses.b.status).toBe("succeeded");
+      expect(midStatuses.c).toBeDefined();
+      expect(midStatuses.c.status).toBe("running");
+      expect(midStatuses.c.startedAt).toBeDefined();
+      expect(midStatuses.c.endedAt).toBeUndefined();
+
+      // Release node C so the workflow can complete.
+      if (!finishCResolve) {
+        throw new Error("finishCResolve not set");
+      }
+      finishCResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe("completed");
+      expect(result.completedNodes).toEqual(
+        expect.arrayContaining(["a", "b", "c"]),
+      );
+    });
+  });
+
   describe("workflowConfigOverrides at load time", () => {
     it("completes when configHash matches merged config (ctx override)", async () => {
       const graph = makeModelIdCtxGraph();
@@ -2033,6 +2171,85 @@ describe("Graph Workflow", () => {
       expect(updateStatusSpy).toHaveBeenCalledWith(
         expect.objectContaining({ status: "overridden" }),
       );
+    });
+  });
+
+  describe("Change A: activity-output cache gated to editor Try runs", () => {
+    // The cache proxy is only wired when BOTH `workflowLineageId` and
+    // `trigger === "try"` are set — production-scope caching is deferred
+    // (Phase 4.x) pending a GDPR review. These tests register spy
+    // implementations for the two cache activities and check whether the
+    // workflow schedules them at all.
+    function makeCacheSpies() {
+      const findFresh = jest.fn().mockResolvedValue(null);
+      const upsert = jest.fn().mockResolvedValue(undefined);
+      return {
+        findFresh,
+        upsert,
+        activities: {
+          "activityOutputCache.findFresh": findFresh,
+          "activityOutputCache.upsert": upsert,
+        } as unknown as ActivityMap,
+      };
+    }
+
+    it("a Try run with a lineage goes through findFresh + upsert", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+        trigger: "try",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-try",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).toHaveBeenCalled();
+      expect(spies.upsert).toHaveBeenCalled();
+    });
+
+    it("a production ('api') run with the SAME lineage bypasses cache reads AND writes", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+        trigger: "api",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-api",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).not.toHaveBeenCalled();
+      expect(spies.upsert).not.toHaveBeenCalled();
+    });
+
+    it("an absent trigger is treated as production — the safe direction", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-untriggered",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).not.toHaveBeenCalled();
+      expect(spies.upsert).not.toHaveBeenCalled();
     });
   });
 });

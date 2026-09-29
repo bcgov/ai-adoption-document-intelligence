@@ -27,6 +27,14 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
+  # Azure OpenAI — the non-secret half. Consumed by the workflow chat agent
+  # (apps/backend-services/src/agent), AI format suggestion and benchmark
+  # recommendations. These are the SAME values as temporal-worker-config: one
+  # subscription, two deployments. The API key lives in backend-services-secrets.
+  # Empty endpoint = the assistant reports itself unconfigured (it does not crash).
+  AZURE_OPENAI_ENDPOINT: ""
+  AZURE_OPENAI_DEPLOYMENT: ""
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
   # Database Connection Pool (Prisma/pg via DB_POOL_MAX; default 10 — safe at HPA max scale)
   DB_POOL_MAX: "10"
   # Request body limit
@@ -38,3 +46,11 @@ data:
   THROTTLE_AUTH_LIMIT: "10"
   THROTTLE_AUTH_REFRESH_TTL_MS: "60000"
   THROTTLE_AUTH_REFRESH_LIMIT: "5"
+  # Phase 6 dynamic nodes — deno-runner sidecar (internal ClusterIP service).
+  # The backend POSTs /check here at publish time; without it the client
+  # defaults to localhost:9099 and publish-time type-checking fails.
+  DENO_RUNNER_URL: "http://deno-runner:9090"
+  # Global egress allowlist for dynamic-node scripts (comma-separated hosts),
+  # enforced at publish time. MUST stay identical to temporal-worker-config.
+  # Empty = scripts may reach only the platform API.
+  DYNAMIC_NODE_ALLOW_NET: ""
