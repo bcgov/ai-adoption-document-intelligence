@@ -204,8 +204,7 @@
         {
           "label": "Review Timeout",
           "path": "nodes.humanReview.timeout",
-          "type": "duration",
-          "default": "24h"
+          "type": "duration"
         }
       ]
     },

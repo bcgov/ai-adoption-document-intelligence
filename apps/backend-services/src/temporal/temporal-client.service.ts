@@ -240,7 +240,6 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         ],
         taskQueue: this.taskQueue,
         workflowId: workflowExecutionId,
-        workflowExecutionTimeout: "30 minutes",
         searchAttributes: {
           DocumentId: [documentId],
           FileName: [String(initialCtx.fileName ?? "")],
