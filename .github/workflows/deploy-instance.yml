@@ -172,27 +172,59 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          build-args: |
-            VITE_API_BASE_URL=/api
-            VITE_SSO_AUTH_SERVER_URL=${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
-            VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
-            VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
-            VITE_APP_NAME=${{ secrets.VITE_APP_NAME }}
-            VITE_ENV=${{ secrets.VITE_ENV }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+        env:
+          VITE_SSO_AUTH_SERVER_URL: ${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
+          VITE_SSO_REALM: ${{ secrets.VITE_SSO_REALM }}
+          VITE_SSO_CLIENT_ID: ${{ secrets.VITE_SSO_CLIENT_ID }}
+          VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
+          VITE_ENV: ${{ secrets.VITE_ENV }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/retry.sh
+
+          # Artifactory occasionally returns transient push errors ("There was
+          # an error processing the upload", "manifest invalid"); retry the
+          # whole build+push rather than failing the job on the first blip.
+          tag_args=()
+          while IFS= read -r t; do
+            [[ -z "${t}" ]] && continue
+            tag_args+=(--tag "${t}")
+          done <<< "${TAGS}"
+
+          with_retries 3 20 docker buildx build \
+            --build-arg VITE_API_BASE_URL=/api \
+            --build-arg "VITE_SSO_AUTH_SERVER_URL=${VITE_SSO_AUTH_SERVER_URL}" \
+            --build-arg "VITE_SSO_REALM=${VITE_SSO_REALM}" \
+            --build-arg "VITE_SSO_CLIENT_ID=${VITE_SSO_CLIENT_ID}" \
+            --build-arg "VITE_APP_NAME=${VITE_APP_NAME}" \
+            --build-arg "VITE_ENV=${VITE_ENV}" \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            --file "${{ matrix.dockerfile }}" \
+            "${tag_args[@]}" \
+            --push \
+            "${{ matrix.context }}"
 
       - name: Rotate cache
         if: always()
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+      - name: Record failed service
+        if: failure()
+        run: |
+          mkdir -p /tmp/failure-marker
+          touch "/tmp/failure-marker/${{ matrix.service }}"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-service-${{ matrix.service }}
+          path: /tmp/failure-marker/
+          retention-days: 1
 
   deploy:
     name: Deploy to OpenShift
@@ -615,6 +647,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Download failure markers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/failed-services
+          pattern: failed-service-*
+          merge-multiple: true
+
       - name: Delete staged run tags and reclaim orphans
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
@@ -627,4 +666,22 @@ jobs:
             echo "No SHA tag to clean up."
             exit 0
           fi
-          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete
+
+          # Only delete the tag for services whose build actually failed, so a
+          # single flaky image push doesn't wipe already-pushed sibling images
+          # (which would otherwise force rebuilding everything on retry).
+          FAILED_SERVICES=()
+          if [[ -d /tmp/failed-services ]]; then
+            while IFS= read -r -d '' f; do
+              FAILED_SERVICES+=("$(basename "$f")")
+            done < <(find /tmp/failed-services -maxdepth 1 -type f -print0)
+          fi
+
+          if [[ "${#FAILED_SERVICES[@]}" -eq 0 ]]; then
+            echo "No failure markers found; skipping targeted cleanup."
+            exit 0
+          fi
+
+          echo "Failed services: ${FAILED_SERVICES[*]}"
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
+
