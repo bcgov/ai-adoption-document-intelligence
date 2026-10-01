@@ -2,19 +2,18 @@ import { GroupRole } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
-import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { AuthController } from "./auth.controller";
 import { AuthService, LoginUrlResult } from "./auth.service";
 import { AUTH_COOKIE_NAMES } from "./cookie-auth.utils";
 import { OAuthCallbackQueryDto } from "./dto";
 import { TokenResponseDto } from "./dto/token-response.dto";
+import { RoleClaimsMap } from "./role-permissions";
 import { User } from "./types";
 
 describe("AuthController", () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
-  let groupService: jest.Mocked<GroupService>;
   let res: jest.Mocked<Response>;
   let req: Partial<Request>;
 
@@ -29,11 +28,6 @@ describe("AuthController", () => {
       decodeIdToken: jest.fn().mockReturnValue({}),
       upsertUserFromToken: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuthService>;
-
-    groupService = {
-      getUserGroups: jest.fn().mockResolvedValue([]),
-      getAllGroups: jest.fn().mockResolvedValue([]),
-    } as unknown as jest.Mocked<GroupService>;
 
     res = {
       redirect: jest.fn(),
@@ -52,7 +46,6 @@ describe("AuthController", () => {
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authService },
-        { provide: GroupService, useValue: groupService },
         { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
@@ -338,28 +331,30 @@ describe("AuthController", () => {
         userId: user.sub,
         isSystemAdmin: false,
         groupRoles: {},
+        resolvedGroups: [
+          { id: "group-1", name: "Group One", role: GroupRole.EDITOR },
+        ],
         actorId: "actor-id",
       };
-      const userGroups = [
-        { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
-      ];
-      groupService.getUserGroups.mockResolvedValue(userGroups);
 
       const result = await controller.getMe(req as Request);
 
-      expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "user-123", isSystemAdmin: false }),
-        "user-123",
-      );
       expect(result).toEqual({
         sub: "user-123",
         name: "Test User",
         preferred_username: "testuser",
+        actorId: "actor-id",
         email: "test@example.com",
         isAdmin: false,
         expires_in: expect.any(Number),
-        groups: userGroups,
-        actorId: "actor-id",
+        groups: [
+          expect.objectContaining({
+            id: "group-1",
+            name: "Group One",
+            role: GroupRole.EDITOR,
+            permissions: RoleClaimsMap[GroupRole.EDITOR],
+          }),
+        ],
       });
       expect(result.expires_in).toBeGreaterThan(0);
       expect(result.expires_in).toBeLessThanOrEqual(3600);
@@ -375,9 +370,9 @@ describe("AuthController", () => {
         userId: user.sub,
         isSystemAdmin: false,
         groupRoles: {},
+        resolvedGroups: [],
         actorId: "actor-id",
       };
-      groupService.getUserGroups.mockResolvedValue([]);
 
       const result = await controller.getMe(req as Request);
 
@@ -400,22 +395,26 @@ describe("AuthController", () => {
         userId: user.sub,
         isSystemAdmin: true,
         groupRoles: {},
+        resolvedGroups: [
+          { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
+        ],
         actorId: "actor-id",
       };
-      const adminGroups = [
-        { id: "group-1", name: "Group One", role: GroupRole.ADMIN },
-      ];
-      groupService.getUserGroups.mockResolvedValue(adminGroups);
 
       const result = await controller.getMe(req as Request);
 
-      expect(groupService.getUserGroups).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "admin-user", isSystemAdmin: true }),
-        "admin-user",
-      );
-      expect(groupService.getAllGroups).not.toHaveBeenCalled();
       expect(result.isAdmin).toBe(true);
-      expect(result.groups).toEqual(adminGroups);
+      expect(result.groups).toEqual([
+        expect.objectContaining({
+          id: "group-1",
+          name: "Group One",
+          role: GroupRole.ADMIN,
+          permissions: RoleClaimsMap[GroupRole.ADMIN],
+        }),
+      ]);
+      expect(result.groups[0].permissions).not.toEqual(
+        RoleClaimsMap[GroupRole.EDITOR],
+      );
     });
 
     it("should return 0 expires_in if token is expired", async () => {
@@ -428,6 +427,7 @@ describe("AuthController", () => {
         userId: user.sub,
         isSystemAdmin: false,
         groupRoles: {},
+        resolvedGroups: [],
         actorId: "actor-id",
       };
 

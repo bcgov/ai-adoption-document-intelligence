@@ -25,6 +25,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "@/document/document.service";
 import { ReprocessDocumentResponseDto } from "@/document/dto/reprocess-document-response.dto";
 import { TrainingService } from "@/training/training.service";
@@ -96,7 +97,9 @@ export class OcrController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.OCR_REPROCESS,
+    ]);
 
     const { workflowExecutionId, status } =
       await this.ocrService.reprocessDocument(document);

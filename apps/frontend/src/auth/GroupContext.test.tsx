@@ -148,4 +148,34 @@ describe("GroupContext", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Scenario 8: activeGroup is set in the same render as the user's groups
+  // ---------------------------------------------------------------------------
+  describe("Scenario 8 – activeGroup arrives in the same render as the groups", () => {
+    it("never renders the user's groups alongside a null activeGroup", () => {
+      // The provider mounts before /me returns, then the user arrives.
+      mockUseAuth.mockReturnValue({ user: null });
+      const renders: { groups: number; activeGroupId: string | null }[] = [];
+      const { rerender } = renderHook(
+        () => {
+          const context = useGroup();
+          renders.push({
+            groups: context.availableGroups.length,
+            activeGroupId: context.activeGroup?.id ?? null,
+          });
+          return context;
+        },
+        { wrapper },
+      );
+
+      mockUseAuth.mockReturnValue({ user: { groups: [groupA, groupB] } });
+      rerender();
+
+      expect(renders.some((r) => r.groups > 0)).toBe(true);
+      expect(
+        renders.filter((r) => r.groups > 0 && r.activeGroupId === null),
+      ).toEqual([]);
+    });
+  });
 });

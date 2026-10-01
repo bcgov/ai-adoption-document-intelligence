@@ -1,6 +1,20 @@
 # Group Resource Authorization
 
-This document describes how group membership is enforced when creating or accessing top-level resources in the system.
+This document describes how group membership and permissions are enforced when creating or accessing top-level resources in the system.
+
+## Roles and Permissions
+
+Group members are assigned one of three roles defined in the `GroupRole` enum. Permissions are granular capabilities defined in the `Permission` enum (`apps/backend-services/src/auth/role-permissions.ts`) and mapped to roles via `RoleClaimsMap`:
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| `ADMIN` | Full access to all group operations, including member management, API keys, billing and table schemas | All permissions |
+| `EDITOR` | Standard contributor access — can create, read, update, and delete resources, but cannot manage the group or its members, API keys, billing or table schemas, or delete classifiers | All permissions except the group-admin-only set: `API_KEY_*`, `CLASSIFIER_DELETE`, `GROUP_UPDATE`, `GROUP_REQUESTS_RETRIEVE`, `GROUP_REQUESTS_APPROVE_DENY`, `GROUP_USER_ADD`, `GROUP_USER_REMOVE`, `GROUP_USER_ROLE_UPDATE`, `GROUP_BILLING`, `USAGE_RETRIEVE`, `TABLE_CREATE`, `TABLE_UPDATE`, `TABLE_DELETE`, `TABLE_COLUMN_*` |
+| `REVIEWER` | Limited access focused on HITL review workflows | `HITL_QUEUE_RETRIEVE`, `HITL_SESSION_*`, `HITL_CORRECTION_*`, `HITL_APPROVE_DENY`, `DOCUMENT_VIEW`, `DOCUMENT_DOWNLOAD`, `GROUP_RETRIEVE`, `GROUP_LEAVE` |
+
+New members are assigned `EDITOR` by default. API keys are always granted `EDITOR` within their scoped group.
+
+The frontend reads each group's permissions from `GET /api/auth/me` to decide which pages and sidebar entries to show; see [FRONTEND_ROUTE_PERMISSIONS.md](./FRONTEND_ROUTE_PERMISSIONS.md). Those checks only shape the UI — the backend enforcement described below is what authorizes each request.
 
 ## Overview
 
@@ -34,7 +48,7 @@ A system admin can create a group with `POST /api/groups` and body `{ "name": "G
 
 Group membership is enforced through two mechanisms, both at the HTTP boundary:
 
-1. **Declarative** — when the group ID is present directly in the request (route param, query param, or body field), the controller method declares it via `@Identity({ groupIdFrom: { param | query | body }, minimumRole? })` and `IdentityGuard` performs the membership/role check before the handler runs. Most creation endpoints use this (e.g. `POST /api/template-models`, `POST /api/api-key`, `POST /api/benchmark/projects`, `POST /api/benchmark/datasets`).
+1. **Declarative** — when the group ID is present directly in the request (route param, query param, or body field), the controller method declares it via `@Identity({ groupPermissions: { groupIdFrom: { param | query | body }, requiredPermissions: [...] } })` and `IdentityGuard` performs the membership/permission check before the handler runs. Most creation endpoints use this (e.g. `POST /api/template-models`, `POST /api/api-key`, `POST /api/benchmark/projects`, `POST /api/benchmark/datasets`).
 2. **Imperative** — when the group ID must be derived from a fetched resource, the controller calls `identityCanAccessGroup` from `apps/backend-services/src/auth/identity.helpers.ts` before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling. (A few service methods also call the helper directly where the resource lookup lives in the service: group membership-request approval/denial in `GroupService`, and labeling-document suggestion generation in `TemplateModelService`.)
 
 ## Covered Endpoints
@@ -129,7 +143,7 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | BenchmarkRun | `POST/GET/DELETE /api/benchmark/projects/:pid/runs/**` | `BenchmarkRunController.*` |
 | ClassifierModel | `GET/POST/PATCH/DELETE /api/azure/classifier/**` (group from query/body) and `DELETE /api/azure/classifiers/:groupId/:classifierName` | `AzureController.*` |
 | ConfusionProfile | `POST/GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/**` (group from route param) | `ConfusionProfileController.*` |
-| ReferenceTable | `GET/POST/PATCH/DELETE /api/tables/**` (table/column/lookup mutations require `GroupRole.ADMIN`; row reads/writes require `MEMBER`) | `TablesController.*` |
+| ReferenceTable | `GET/POST/PATCH/DELETE /api/tables/**` (table/column/lookup mutations require `GroupRole.ADMIN`; row reads/writes require `EDITOR`) | `TablesController.*` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
@@ -151,13 +165,13 @@ List endpoints (e.g. `GET /api/documents`, `GET /api/workflows`, `GET /api/templ
 
 ## Authorization Logic
 
-The `identityCanAccessGroup(identity, groupId, minimumRole?)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
+The `identityCanAccessGroup(identity, groupId, requiredPermissions)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
 
 1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
 2. If `identity` is `undefined`, throws `403 Forbidden`.
 3. If `identity.isSystemAdmin` is `true`, access is always allowed (system admins bypass group checks).
-4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` via a `findUserWithGroups` DB lookup for JWT, or directly from the key's scoped group with role `MEMBER` for API keys).
-5. Checks that the identity's role within the group meets `minimumRole` (default `GroupRole.MEMBER`; role order `MEMBER` < `ADMIN`, see `src/auth/role-order.ts`). Throws `403 Forbidden` if insufficient.
+4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` via a `findUserWithGroups` DB lookup for JWT, or directly from the key's scoped group with role `EDITOR` for API keys).
+5. Checks that the identity's role grants all `requiredPermissions` (defined per endpoint via `@Identity({ groupPermissions })` or passed directly to `identityCanAccessGroup`). Throws `403 Forbidden` if any permission is missing. See `src/auth/role-permissions.ts` for the full `RoleClaimsMap`.
 
 ## Request DTOs
 
@@ -181,7 +195,7 @@ All creation DTOs include a `group_id` (or `groupId`) field. Except for `UploadD
 | Status | Condition |
 |---|---|
 | `400 Bad Request` | `group_id` is missing or empty in the request body (for `POST /api/upload`, only when no API-key group can be inferred) |
-| `403 Forbidden` | Requestor identity is absent, identity does not belong to the specified group, or the identity's role is below the endpoint's `minimumRole` |
+| `403 Forbidden` | Requestor identity is absent, identity does not belong to the specified group, or the identity's role does not grant the required permissions |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
 ## Auditing

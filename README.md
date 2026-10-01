@@ -785,7 +785,7 @@ docker run \
 Kubernetes manifests are provided in `deployments/openshift/kustomize/`. Deployments are
 driven by the **Deploy Instance** GitHub Actions workflow, which renders an instance-specific
 overlay from `overlays/instance-template` and applies it (pushes to `develop` deploy to
-`fd34fb-test`, pushes to `main` deploy to `fd34fb-prod`). See
+`fd34fb-test`; production in `fd34fb-prod` is deployed by a manual run from `main`). See
 [docs-md/operations/AUTO_DEPLOY.md](docs-md/operations/AUTO_DEPLOY.md) and
 [docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md](docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md).
 

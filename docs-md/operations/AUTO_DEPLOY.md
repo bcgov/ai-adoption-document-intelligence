@@ -1,20 +1,31 @@
-# Auto-Deploy on push to `develop` and `main`
+# Deploy Instance: test on push to `develop`, production on a manual run from `main`
 
 ## Overview
 
-The `Deploy Instance` workflow automatically builds images and deploys them to the appropriate OpenShift instance whenever a commit lands on `develop` or `main`:
+The `Deploy Instance` workflow (`.github/workflows/deploy-instance.yml`) builds images and deploys them to an OpenShift instance. A commit landing on `develop` deploys the shared test instance automatically. Production is deployed only by a manual run of the workflow from `main` with the `prod` environment selected; a push to `main` does not deploy.
 
-| Branch | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
-|---|---|---|---|---|---|
-| `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |
-| `main` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` | `bcgov-di-<sha12>` |
+| Target | Started by | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
+|---|---|---|---|---|---|---|
+| Test | Push to `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |
+| Production | Manual run from `main`, environment `prod` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` | `bcgov-di-<sha12>` |
 
-This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via the now-retired `build-apps.yml`) for test and production deployments.
+Test and production deployments go through this workflow; the local scripts in `scripts/` are for extra stacks (see [MANUAL_LOAD_TEST_INSTANCE.md](MANUAL_LOAD_TEST_INSTANCE.md)).
 
-## What happens on a push
+## Releasing to production
 
-1. **Trigger**: `push` to `develop` or `main`.
-2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment.
+1. Get the changes onto `main` (a pull request from `develop`). The push to `main` does not start a deployment.
+2. In GitHub, open **Actions → Deploy Instance → Run workflow**, choose the `main` branch and the `prod` environment, and leave `namespace` and `instance_name` empty.
+3. The run builds the tip of `main` and deploys `bcgov-di` in `fd34fb-prod`, as described in the next section.
+
+Two guards keep production runs on `main`:
+
+- The metadata job fails the run when `prod` is selected on any other branch, or when `namespace` or `instance_name` is set.
+- The `prod` GitHub environment has a deployment branch rule that allows only `main`, so GitHub refuses any job that uses production's secrets from another branch, whatever that branch's copy of the workflow contains.
+
+## What happens on a run
+
+1. **Trigger**: a push to `develop`, or a manual run (`workflow_dispatch`).
+2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment, and stops a `prod` run that is not on `main` or that sets an override.
 3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
 4. **Deploy job**:
    - Verifies all four staged images exist in Artifactory at the SHA tag.
@@ -42,20 +53,20 @@ flowchart LR
 
 ## Concurrency
 
-The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on the same branch in rapid succession, the older run is cancelled and the newer commit is deployed. Pushes to `develop` and `main` run independently.
+The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on `develop` in rapid succession, the older run is cancelled and the newer commit is deployed; the same applies to two manual runs started on one branch, including two production runs from `main`. Runs on different branches run independently.
 
 ## Image tagging strategy
 
 | Target | Staged tag | Floating tag | Rollback | Rotation |
 |---|---|---|---|---|
-| Test (`develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
-| Prod (`main`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
-| Manual (`workflow_dispatch`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
+| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
+| Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
+| Other manual runs (`dev`/`test`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
 
-Rotation matches `<instance>-????????????`, and on `develop`/`main` the instance name and the floating
-tag are the same string, so those SHA tags rotate. On `workflow_dispatch` they are not: the instance
-name is capped at 20 characters and strips `.`/`_`, while the tag keeps them, so a branch such as
-`feature/visual-workflow-builder` stages `feature-visual-workflow-builder-<sha12>` against a
+Rotation matches `<instance>-????????????`, and for the test and production targets the instance name
+and the floating tag are the same string, so those SHA tags rotate. On other manual runs they are not:
+the instance name is capped at 20 characters and strips `.`/`_`, while the tag keeps them, so a branch
+such as `feature/visual-workflow-builder` stages `feature-visual-workflow-builder-<sha12>` against a
 `feature-visual-workf-????????????` glob that never matches, and those manifests accumulate.
 Left as-is deliberately: the manual pathway is being retired under
 [AI-1207](https://citz-do.atlassian.net/browse/AI-1207).
@@ -83,7 +94,7 @@ Namespace capacity is not pre-checked before the restart: in a shared namespace 
 ### GitHub environments
 
 - `test` — populated by `scripts/gh-setup-test-env.sh` (see below). All shared secrets mirror `dev`, with `OPENSHIFT_*` overridden for `fd34fb-test`.
-- `prod` — already configured with production OpenShift and Azure/SSO secrets. Secrets sourced from `deployments/openshift/config/prod.env` + the `fd34fb-prod` SA token.
+- `prod` — already configured with production OpenShift and Azure/SSO secrets. Secrets sourced from `deployments/openshift/config/prod.env` + the `fd34fb-prod` SA token. Its deployment branch rule (**Settings → Environments → prod → Deployment branches and tags**) allows only `main`.
 
 Both environments should have:
 - `OPENSHIFT_TOKEN` — service-account token for the matching namespace
@@ -119,17 +130,23 @@ The script:
 
 Secret values never touch stdout.
 
-## `workflow_dispatch` path
+## Manual runs (`workflow_dispatch`)
 
-The workflow supports manual dispatch from any branch with explicit inputs:
+The workflow can be run manually (**Actions → Deploy Instance → Run workflow**) with these inputs:
 
-- `environment` (`dev|test`, default `dev`)
+- `environment` (`dev|test|prod`, default `dev`)
 - `namespace` (optional OpenShift namespace override)
 - `instance_name` (optional instance name override)
 
-Manual-dispatch behavior:
+With `environment` set to `prod`:
 
-- By default, instance and floating image tag are branch-derived (same as before).
+- The run must start from `main`; on any other branch the metadata job fails before anything is built.
+- `namespace` and `instance_name` must be empty; the metadata job fails if either is set.
+- It deploys the production target from the table above (see [Releasing to production](#releasing-to-production)).
+
+With `dev` or `test`, from any branch (including `main`):
+
+- By default, instance and floating image tag are branch-derived.
 - SHA tag is `<floating-tag>-<sha12>`.
 - If `instance_name` is provided, it overrides the branch-derived instance name.
 - The selected `environment` is used as the GitHub environment for both build and deploy jobs, so environment-specific secrets (including `test`) are honored.
