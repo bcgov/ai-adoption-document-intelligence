@@ -604,9 +604,24 @@ jobs:
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
-      - name: Artifactory cleanup (reclaim storage)
-        if: success()
-        continue-on-error: true
+
+  artifactory-cleanup:
+    name: Artifactory cleanup
+    # Rotates old SHA tags and reclaims unreferenced manifests after a
+    # successful deploy. It is a separate job so that a failure (Artifactory
+    # lookups or deletes that still fail after retries) shows as a red job
+    # without marking the deploy failed, and can be re-run on its own with
+    # "Re-run failed jobs"; the script is safe to repeat.
+    needs: [metadata, deploy]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Rotate SHA tags and reclaim storage
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
