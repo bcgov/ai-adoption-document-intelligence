@@ -172,39 +172,21 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
-        env:
-          VITE_SSO_AUTH_SERVER_URL: ${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
-          VITE_SSO_REALM: ${{ secrets.VITE_SSO_REALM }}
-          VITE_SSO_CLIENT_ID: ${{ secrets.VITE_SSO_CLIENT_ID }}
-          VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
-          VITE_ENV: ${{ secrets.VITE_ENV }}
-          TAGS: ${{ steps.tags.outputs.tags }}
-        run: |
-          set -euo pipefail
-          source scripts/lib/retry.sh
-
-          # Artifactory occasionally returns transient push errors ("There was
-          # an error processing the upload", "manifest invalid"); retry the
-          # whole build+push rather than failing the job on the first blip.
-          tag_args=()
-          while IFS= read -r t; do
-            [[ -z "${t}" ]] && continue
-            tag_args+=(--tag "${t}")
-          done <<< "${TAGS}"
-
-          with_retries 3 20 docker buildx build \
-            --build-arg VITE_API_BASE_URL=/api \
-            --build-arg "VITE_SSO_AUTH_SERVER_URL=${VITE_SSO_AUTH_SERVER_URL}" \
-            --build-arg "VITE_SSO_REALM=${VITE_SSO_REALM}" \
-            --build-arg "VITE_SSO_CLIENT_ID=${VITE_SSO_CLIENT_ID}" \
-            --build-arg "VITE_APP_NAME=${VITE_APP_NAME}" \
-            --build-arg "VITE_ENV=${VITE_ENV}" \
-            --cache-from type=local,src=/tmp/.buildx-cache \
-            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
-            --file "${{ matrix.dockerfile }}" \
-            "${tag_args[@]}" \
-            --push \
-            "${{ matrix.context }}"
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_SSO_AUTH_SERVER_URL=${{ secrets.VITE_SSO_AUTH_SERVER_URL }}
+            VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
+            VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
+            VITE_APP_NAME=${{ secrets.VITE_APP_NAME }}
+            VITE_ENV=${{ secrets.VITE_ENV }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
       - name: Rotate cache
         if: always()
@@ -212,6 +194,11 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
+      # Marks this service as failed so cleanup-on-failure deletes only failed
+      # services' tags. Siblings that pushed stay in Artifactory, so "Re-run
+      # failed jobs" rebuilds just the failures and the deploy still finds every
+      # staged image. The attempt number keeps a re-run from reading markers
+      # left by an earlier attempt.
       - name: Record failed service
         if: failure()
         run: |
@@ -222,7 +209,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: failed-service-${{ matrix.service }}
+          name: failed-service-${{ matrix.service }}-${{ github.run_attempt }}
           path: /tmp/failure-marker/
           retention-days: 1
 
@@ -651,10 +638,10 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: /tmp/failed-services
-          pattern: failed-service-*
+          pattern: failed-service-*-${{ github.run_attempt }}
           merge-multiple: true
 
-      - name: Delete staged run tags and reclaim orphans
+      - name: Delete staged run tags for failed services
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}

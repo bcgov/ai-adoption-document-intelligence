@@ -36,7 +36,7 @@ Two guards keep production runs on `main`:
    - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out (including when namespace resources are exhausted and the new pods cannot schedule); the backend's `migrate-db` init container runs `prisma migrate deploy` on fresh-pod start (no separate migrate step).
    - **Promotes** staged SHA tags to the floating tag via `docker buildx imagetools create` (only after rollouts succeed).
    - Runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim orphan manifests (non-blocking).
-5. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags and reclaims orphans via `scripts/artifactory-delete-run-tags.sh`. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
+5. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags via `scripts/artifactory-delete-run-tags.sh`, **only for the services whose build failed**. Each failed build job uploads a marker artifact named for its service and run attempt, and the cleanup reads only the current attempt's markers. Images that pushed successfully stay staged, so **Re-run failed jobs** rebuilds just the failures and the deploy still finds all four staged images. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
 
 ## Staging model
 
