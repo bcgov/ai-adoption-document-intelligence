@@ -78,9 +78,13 @@ Throws an error if called outside of a `GroupProvider`.
 
 `activeGroup` is computed from these rules on every render rather than held in state, so it is set in the same render in which the user's groups arrive from `/me`. Route guards depend on this: they run on that first render after a page load, and an empty active group there would redirect the user to `/`.
 
+## System admins and non-member groups
+
+For a system admin, the group selector lists every group, not only the admin's memberships. When an admin picks a group they are not a member of, `setActiveGroup` keeps that `Group` object as well as its id, and `activeGroup` resolves to it for the rest of the session. A full page load resolves only against memberships, so the stored id of a non-member group falls back to the first entry in `availableGroups` (the stale-id row above).
+
 ## Persistence
 
-`setActiveGroup(group)` updates `localStorage.activeGroupId` to the group's `id`. On next load, `GroupProvider` restores this selection automatically.
+`setActiveGroup(group)` updates `localStorage.activeGroupId` to the group's `id`. On next load, `GroupProvider` restores this selection automatically when the id matches a membership.
 
 ## Related changes
 
