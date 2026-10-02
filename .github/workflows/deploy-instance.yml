@@ -194,6 +194,25 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
+      # Marks this service as failed so cleanup-on-failure deletes only failed
+      # services' tags. Siblings that pushed stay in Artifactory, so "Re-run
+      # failed jobs" rebuilds just the failures and the deploy still finds every
+      # staged image. The attempt number keeps a re-run from reading markers
+      # left by an earlier attempt.
+      - name: Record failed service
+        if: failure()
+        run: |
+          mkdir -p /tmp/failure-marker
+          touch "/tmp/failure-marker/${{ matrix.service }}"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-service-${{ matrix.service }}-${{ github.run_attempt }}
+          path: /tmp/failure-marker/
+          retention-days: 1
+
   deploy:
     name: Deploy to OpenShift
     needs: [metadata, build]
@@ -623,7 +642,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Delete staged run tags and reclaim orphans
+      - name: Download failure markers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/failed-services
+          pattern: failed-service-*-${{ github.run_attempt }}
+          merge-multiple: true
+
+      - name: Delete staged run tags for failed services
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -635,4 +661,22 @@ jobs:
             echo "No SHA tag to clean up."
             exit 0
           fi
-          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete
+
+          # Only delete the tag for services whose build actually failed, so a
+          # single flaky image push doesn't wipe already-pushed sibling images
+          # (which would otherwise force rebuilding everything on retry).
+          FAILED_SERVICES=()
+          if [[ -d /tmp/failed-services ]]; then
+            while IFS= read -r -d '' f; do
+              FAILED_SERVICES+=("$(basename "$f")")
+            done < <(find /tmp/failed-services -maxdepth 1 -type f -print0)
+          fi
+
+          if [[ "${#FAILED_SERVICES[@]}" -eq 0 ]]; then
+            echo "No failure markers found; skipping targeted cleanup."
+            exit 0
+          fi
+
+          echo "Failed services: ${FAILED_SERVICES[*]}"
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
+
