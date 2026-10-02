@@ -26,6 +26,7 @@ import {
 } from "./metrics/metrics.service";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { RetentionModule } from "./retention/retention.module";
 import { TablesModule } from "./tables/tables.module";
 import { TemplateModelModule } from "./template-model/template-model.module";
 import { TemporalModule } from "./temporal/temporal.module";
@@ -62,6 +63,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     ConfusionProfileModule,
     DatabaseModule,
     DocumentModule,
+    RetentionModule,
     QueueModule,
     UploadModule,
     TemporalModule,

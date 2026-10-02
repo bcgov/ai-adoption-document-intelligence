@@ -194,6 +194,25 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
+      # Marks this service as failed so cleanup-on-failure deletes only failed
+      # services' tags. Siblings that pushed stay in Artifactory, so "Re-run
+      # failed jobs" rebuilds just the failures and the deploy still finds every
+      # staged image. The attempt number keeps a re-run from reading markers
+      # left by an earlier attempt.
+      - name: Record failed service
+        if: failure()
+        run: |
+          mkdir -p /tmp/failure-marker
+          touch "/tmp/failure-marker/${{ matrix.service }}"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-service-${{ matrix.service }}-${{ github.run_attempt }}
+          path: /tmp/failure-marker/
+          retention-days: 1
+
   deploy:
     name: Deploy to OpenShift
     needs: [metadata, build]
@@ -295,6 +314,10 @@ jobs:
           BENCHMARK_TASK_QUEUE: ${{ secrets.BENCHMARK_TASK_QUEUE }}
           ENABLE_BENCHMARK_QUEUE: ${{ secrets.ENABLE_BENCHMARK_QUEUE }}
           BODY_LIMIT: ${{ secrets.BODY_LIMIT }}
+          DOCUMENT_RETENTION_DAYS: ${{ secrets.DOCUMENT_RETENTION_DAYS }}
+          AUDIT_EVENT_RETENTION_DAYS: ${{ secrets.AUDIT_EVENT_RETENTION_DAYS }}
+          BENCHMARK_AUDIT_LOG_RETENTION_DAYS: ${{ secrets.BENCHMARK_AUDIT_LOG_RETENTION_DAYS }}
+          REVIEW_SESSION_RETENTION_DAYS: ${{ secrets.REVIEW_SESSION_RETENTION_DAYS }}
           THROTTLE_GLOBAL_TTL_MS: ${{ secrets.THROTTLE_GLOBAL_TTL_MS }}
           THROTTLE_GLOBAL_LIMIT: ${{ secrets.THROTTLE_GLOBAL_LIMIT }}
           THROTTLE_AUTH_TTL_MS: ${{ secrets.THROTTLE_AUTH_TTL_MS }}
@@ -330,6 +353,10 @@ jobs:
             --benchmark-task-queue "${BENCHMARK_TASK_QUEUE:-benchmark-processing}" \
             --enable-benchmark-queue "${ENABLE_BENCHMARK_QUEUE:-true}" \
             --body-limit "${BODY_LIMIT:-50mb}" \
+            --document-retention-days "${DOCUMENT_RETENTION_DAYS:-}" \
+            --audit-event-retention-days "${AUDIT_EVENT_RETENTION_DAYS:-}" \
+            --benchmark-audit-log-retention-days "${BENCHMARK_AUDIT_LOG_RETENTION_DAYS:-}" \
+            --review-session-retention-days "${REVIEW_SESSION_RETENTION_DAYS:-}" \
             --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS:-60000}" \
             --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT:-100}" \
             --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS:-60000}" \
@@ -577,9 +604,24 @@ jobs:
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
-      - name: Artifactory cleanup (reclaim storage)
-        if: success()
-        continue-on-error: true
+
+  artifactory-cleanup:
+    name: Artifactory cleanup
+    # Rotates old SHA tags and reclaims unreferenced manifests after a
+    # successful deploy. It is a separate job so that a failure (Artifactory
+    # lookups or deletes that still fail after retries) shows as a red job
+    # without marking the deploy failed, and can be re-run on its own with
+    # "Re-run failed jobs"; the script is safe to repeat.
+    needs: [metadata, deploy]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Rotate SHA tags and reclaim storage
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -615,7 +657,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Delete staged run tags and reclaim orphans
+      - name: Download failure markers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/failed-services
+          pattern: failed-service-*-${{ github.run_attempt }}
+          merge-multiple: true
+
+      - name: Delete staged run tags for failed services
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -627,4 +676,22 @@ jobs:
             echo "No SHA tag to clean up."
             exit 0
           fi
-          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete
+
+          # Only delete the tag for services whose build actually failed, so a
+          # single flaky image push doesn't wipe already-pushed sibling images
+          # (which would otherwise force rebuilding everything on retry).
+          FAILED_SERVICES=()
+          if [[ -d /tmp/failed-services ]]; then
+            while IFS= read -r -d '' f; do
+              FAILED_SERVICES+=("$(basename "$f")")
+            done < <(find /tmp/failed-services -maxdepth 1 -type f -print0)
+          fi
+
+          if [[ "${#FAILED_SERVICES[@]}" -eq 0 ]]; then
+            echo "No failure markers found; skipping targeted cleanup."
+            exit 0
+          fi
+
+          echo "Failed services: ${FAILED_SERVICES[*]}"
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
+

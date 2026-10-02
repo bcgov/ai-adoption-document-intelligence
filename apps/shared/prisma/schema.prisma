@@ -508,6 +508,8 @@ model ReviewSession {
   corrections  FieldCorrection[]
   lock         DocumentLock?
 
+  @@index([document_id])
+  @@index([status, completed_at])
   @@map("review_sessions")
 }
 
@@ -537,6 +539,7 @@ model FieldCorrection {
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
 
+  @@index([session_id])
   @@map("field_corrections")
 }
 

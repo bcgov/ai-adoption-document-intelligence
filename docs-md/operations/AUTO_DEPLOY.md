@@ -35,8 +35,8 @@ Two guards keep production runs on `main`:
    - Generates Prometheus alert rules (`npm run generate:alert-rules`), creates the `<instance>-ches-adapter-secrets` and `<instance>-plg-alertmanager-adapter-secret` secrets, then Helm-installs the per-instance PLG monitoring stack (Grafana/Loki/Prometheus/Alertmanager + CHES adapter). Gated by the workflow-level `DEPLOY_PLG` env (currently `"true"`); immutable Loki/Prometheus/Alertmanager StatefulSets are deleted (`--cascade=orphan`, PVCs preserved) before the Helm upgrade. Sizing and retention come from `deployments/openshift/helm/plg/values-<environment>.yaml`, layered on top of `values-openshift.yaml`; only credentials and Alertmanager routing are passed as `--set` flags from environment secrets.
    - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out (including when namespace resources are exhausted and the new pods cannot schedule); the backend's `migrate-db` init container runs `prisma migrate deploy` on fresh-pod start (no separate migrate step).
    - **Promotes** staged SHA tags to the floating tag via `docker buildx imagetools create` (only after rollouts succeed).
-   - Runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim orphan manifests (non-blocking).
-5. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags and reclaims orphans via `scripts/artifactory-delete-run-tags.sh`. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
+5. **Artifactory cleanup job** (after a successful deploy): runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim unreferenced manifests and leftover upload blobs. It is its own job so that a failure turns that job red without marking the deploy failed; see [Artifactory cleanup](#artifactory-cleanup).
+6. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags via `scripts/artifactory-delete-run-tags.sh`, **only for the services whose build failed**. Each failed build job uploads a marker artifact named for its service and run attempt, and the cleanup reads only the current attempt's markers. Images that pushed successfully stay staged, so **Re-run failed jobs** rebuilds just the failures and the deploy still finds all four staged images. The layers the deleted tags leave behind are reclaimed by the next successful run's cleanup job. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
 
 ## Staging model
 
@@ -79,6 +79,23 @@ To handle intermittent `Client.Timeout exceeded` errors against the registry, re
 - The deploy job's staged-image existence check and the `docker buildx imagetools create` promotion, via a shared `with_retries` helper (`scripts/lib/retry.sh`). The existence check only accepts HTTP 200, so a transient timeout (`000`) or `5xx` is retried while a genuinely-missing image still fails after the attempts are exhausted.
 
 All Artifactory REST/registry `curl` calls additionally use `--connect-timeout 30 --max-time 120`.
+
+## Artifactory cleanup
+
+Test and production images share one Artifactory repository (`kfd3-fd34fb-local`), so any cleanup run sees production's tags too.
+
+`scripts/artifactory-cleanup.sh` runs in three phases: optional tag rotation (`--keep N --match GLOB`), orphan reclamation, and `_uploads` cleanup. Orphan reclamation deletes a stored manifest only if no remaining named tag references it, so before deleting it resolves every named tag of an image to its manifest digest and, for an image index, each child digest.
+
+Artifactory intermittently drops requests after about 15 seconds with no response (logged as HTTP `000`), well inside `--max-time`, so a longer timeout does not help. Instead:
+
+- Every request is retried three times with a 10-second wait, and a failed request logs curl's exit code and error.
+- If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
+- Deletes are retried; a `404` counts as already deleted.
+- Any lookup or delete that still fails makes the script exit `1`, which turns the **Artifactory cleanup** job red.
+
+**When the cleanup job fails**, the deploy itself succeeded. Use **Re-run failed jobs** on the run to retry just the cleanup; it is safe to repeat. If it keeps failing, run the script locally in dry-run mode (`./scripts/artifactory-cleanup.sh --env dev`) to see which lookups fail.
+
+`scripts/artifactory-delete-run-tags.sh` deletes only the named run tag from each image (retried, `404` counts as done) and exits `1` if a delete still fails.
 
 ## Rollout failure handling
 
