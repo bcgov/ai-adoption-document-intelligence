@@ -173,27 +173,3 @@ export async function recordLedgerRead(
     );
   }
 }
-
-/**
- * Sets deleted_at on all GroupStorageLedger rows whose blob_key begins with
- * the given prefix. Uses a single bulk UPDATE query.
- *
- * @param prisma - Prisma client instance
- * @param prefix - The blob key prefix used for deletion
- */
-export async function recordLedgerDeleteByPrefix(
-  prisma: PrismaClient,
-  prefix: string,
-): Promise<void> {
-  try {
-    await prisma.groupStorageLedger.updateMany({
-      where: { blob_key: { startsWith: prefix }, deleted_at: null },
-      data: { deleted_at: new Date() },
-    });
-  } catch (error: unknown) {
-    const err = error as Error;
-    log.error(
-      `Failed to record ledger deleteByPrefix for prefix "${prefix}": ${err.message}`,
-    );
-  }
-}
