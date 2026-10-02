@@ -2,7 +2,9 @@
 #
 # artifactory-delete-run-tags.sh — Delete run-specific SHA tags from Artifactory.
 #
-# Used when a CI build or deploy fails to avoid leaving staged artifacts behind.
+# Used when a CI build fails to avoid leaving staged artifacts behind. Deletes
+# only the given tag; each delete is retried and a 404 counts as done, so a
+# failed run (exit 1) can be re-run safely.
 #
 # Usage:
 #   ./scripts/artifactory-delete-run-tags.sh --tag bcgov-di-test-abc123def456 --delete
@@ -13,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/config-loader.sh"
+source "${SCRIPT_DIR}/lib/retry.sh"
 
 ARTIFACTORY_REPO="kfd3-fd34fb-local"
 DEFAULT_SERVICES=(backend-services frontend temporal ches-adapter)
@@ -26,8 +29,8 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") --tag <sha-tag> [--delete] [--env <dev|prod>] [service...]
 
-Delete named tags for the given SHA tag from all (or specified) images, then run
-orphan/uploads cleanup via artifactory-cleanup.sh.
+Delete named tags for the given SHA tag from all (or specified) images. Layers
+they leave unreferenced are reclaimed later by artifactory-cleanup.sh.
 
 Options:
   --tag, -t <tag>   SHA tag to delete (required)
@@ -85,23 +88,44 @@ BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
 
 log_info "Deleting run tag '${RUN_TAG}' from ${#SERVICES[@]} image(s)..."
 
+# delete_tag_once <image> — one DELETE of the run tag; prints the outcome
+# word on success. Artifactory intermittently drops requests with no response
+# (HTTP 000), so the caller retries.
+delete_tag_once() {
+  local code
+  code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+    "${BASE_URL}/${ARTIFACTORY_REPO}/$1/${RUN_TAG}" 2>/dev/null) || true
+  case "${code}" in
+    200|202|204) echo "deleted" ;;
+    404) echo "absent" ;;
+    *) log_warn "  DELETE $1:${RUN_TAG} returned HTTP ${code:-000}" >&2; return 1 ;;
+  esac
+}
+
+FAILED=false
 for image in "${SERVICES[@]}"; do
   if [[ "${DO_DELETE}" == "true" ]]; then
-    http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
-      "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${RUN_TAG}" 2>/dev/null || echo "000")
-    if [[ "${http_code}" == "202" || "${http_code}" == "200" || "${http_code}" == "204" ]]; then
-      log_info "  Deleted ${image}:${RUN_TAG}"
-    elif [[ "${http_code}" == "404" ]]; then
-      log_info "  Tag not found (skip): ${image}:${RUN_TAG}"
+    if outcome=$(with_retries 3 10 delete_tag_once "${image}"); then
+      if [[ "${outcome}" == "deleted" ]]; then
+        log_info "  Deleted ${image}:${RUN_TAG}"
+      else
+        log_info "  Tag not found (skip): ${image}:${RUN_TAG}"
+      fi
     else
-      log_warn "  Failed to delete ${image}:${RUN_TAG} (HTTP ${http_code})"
+      log_warn "  Failed to delete ${image}:${RUN_TAG}"
+      FAILED=true
     fi
   else
     echo "  [DRY RUN] Would delete ${image}:${RUN_TAG}"
   fi
 done
 
-if [[ "${DO_DELETE}" == "true" ]]; then
-  log_info "Running orphan/uploads cleanup..."
-  bash "${SCRIPT_DIR}/artifactory-cleanup.sh" --delete
+# Only this run's tags are removed. Layers they leave unreferenced are reclaimed
+# by the routine rotation after the next successful deploy, which resolves
+# every remaining tag before deleting anything; a repo-wide sweep here would
+# run that resolution on every failed build, against prod's tags too.
+
+if [[ "${FAILED}" == "true" ]]; then
+  log_error "Some run tags could not be deleted. Re-run to retry; it is safe to repeat."
+  exit 1
 fi

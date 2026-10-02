@@ -19,6 +19,12 @@
 #   ./scripts/artifactory-cleanup.sh --keep 10 --match 'bcgov-di-*' --delete
 #                                                                      # Rotation + orphan cleanup
 #
+# Failure handling: every Artifactory call is retried. If a named tag still
+# cannot be resolved, that image's orphan cleanup is skipped (an incomplete
+# reference set would make in-use manifests look unreferenced). Any failed
+# lookup or delete makes the script exit 1 after finishing what it safely can;
+# re-running is safe because a 404 on delete counts as already deleted.
+#
 # Prerequisites:
 #   - Artifactory credentials configured in deployments/openshift/config/<env>.env
 #     OR set via env vars ARTIFACTORY_URL / ARTIFACTORY_SA_USERNAME / ARTIFACTORY_SA_PASSWORD
@@ -29,6 +35,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/config-loader.sh"
+source "${SCRIPT_DIR}/lib/retry.sh"
 
 ARTIFACTORY_REPO="kfd3-fd34fb-local"
 
@@ -124,15 +131,77 @@ BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
 DOCKER_API="${BASE_URL}/api/docker/${ARTIFACTORY_REPO}/v2"
 CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
+# Artifactory intermittently drops a request after ~15s with no HTTP response
+# (logged as HTTP 000), well inside --max-time, so a longer timeout does not
+# help. af_request logs curl's exit code and error to show why. Every call
+# is retried, and a lookup that still fails is treated as a failure, never as
+# "this tag references nothing" — an empty answer would make the manifests a
+# running image depends on look unreferenced, and they would be deleted.
+API_ATTEMPTS=3
+API_RETRY_WAIT=10
+
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "${WORK_DIR}"' EXIT
+
+# Set to true by any failed lookup or delete; the script exits non-zero at the
+# end so the CI job shows as failed and can be re-run (every step is safe to
+# repeat: deletes treat 404 as already done).
+HAD_FAILURE=false
+
+# af_request <out-file> <curl args...> — one authenticated request, failing on
+# HTTP errors. Credentials stay inside this function so a retry message, which
+# echoes its command, never contains them.
+af_request() {
+  local out="$1"; shift
+  local err="${out}.err"
+  curl "${CURL_OPTS[@]}" -sS -f -u "${AUTH}" -o "${out}" "$@" 2>"${err}" && return 0
+  local rc=$?
+  log_warn "  Artifactory request failed (curl exit ${rc}): $(tr -d '\n' < "${err}")" >&2
+  return "${rc}"
+}
+
+# af_fetch <out-file> <curl args...> — af_request with retries.
+af_fetch() {
+  with_retries "${API_ATTEMPTS}" "${API_RETRY_WAIT}" af_request "$@"
+}
+
+# af_delete_once <url> — one DELETE; 200/202/204 and 404 (already gone) succeed.
+af_delete_once() {
+  local code
+  code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE "$1" 2>/dev/null) || true
+  case "${code}" in
+    200|202|204|404) return 0 ;;
+    *) log_warn "  DELETE returned HTTP ${code:-000}" >&2; return 1 ;;
+  esac
+}
+
+# af_delete <url> <label> — DELETE with retries; records a failure if it never succeeds.
+af_delete() {
+  if with_retries "${API_ATTEMPTS}" "${API_RETRY_WAIT}" af_delete_once "$1"; then
+    log_ok "  Deleted $2"
+  else
+    log_warn "  Failed to delete $2"
+    HAD_FAILURE=true
+  fi
+}
+
+MANIFEST_ACCEPT=(
+  -H "Accept: application/vnd.docker.distribution.manifest.v2+json"
+  -H "Accept: application/vnd.oci.image.manifest.v1+json"
+  -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json"
+  -H "Accept: application/vnd.oci.image.index.v1+json"
+)
+
 # ---------- discover images ----------
 
 log_info "Discovering images in '${ARTIFACTORY_REPO}'..."
 
-IMAGES=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" "${DOCKER_API}/_catalog" \
-  | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin).get('repositories',[])))" 2>/dev/null) || {
+af_fetch "${WORK_DIR}/catalog.json" "${DOCKER_API}/_catalog" || {
   log_error "Failed to list repositories. Check credentials."
   exit 1
 }
+IMAGES=$(python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin).get('repositories',[])))" \
+  < "${WORK_DIR}/catalog.json")
 
 if [[ -z "${IMAGES}" ]]; then
   log_info "No images found."
@@ -149,12 +218,13 @@ if [[ -n "${KEEP_N}" ]]; then
 
   # Match both `manifest.json` (legacy single-platform) and `list.manifest.json`
   # (OCI image index — what buildx writes for multi-platform pushes).
-  ROTATION_AQL=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+  af_fetch "${WORK_DIR}/rotation-aql.json" -X POST "${BASE_URL}/api/search/aql" \
     -H "Content-Type: text/plain" \
-    -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"\$or\":[{\"name\":\"manifest.json\"},{\"name\":\"list.manifest.json\"}]}).include(\"repo\",\"path\",\"name\",\"created\")" 2>&1) || {
+    -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"\$or\":[{\"name\":\"manifest.json\"},{\"name\":\"list.manifest.json\"}]}).include(\"repo\",\"path\",\"name\",\"created\")" || {
     log_error "Rotation AQL query failed."
     exit 1
   }
+  ROTATION_AQL=$(cat "${WORK_DIR}/rotation-aql.json")
 
   ROTATION_TAGS=$(echo "${ROTATION_AQL}" | python3 -c "
 import sys, json, fnmatch
@@ -199,13 +269,7 @@ for image, tags in by_image.items():
     ROT_COUNT=$((ROT_COUNT + 1))
     if [[ "${DO_DELETE}" == "true" ]]; then
       log_info "  Deleting named tag ${image}:${tag}..."
-      http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
-        "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${tag}" 2>/dev/null || echo "000")
-      if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
-        log_ok "  Deleted ${image}:${tag}"
-      else
-        log_warn "  Failed to delete ${image}:${tag} (HTTP ${http_code})"
-      fi
+      af_delete "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${tag}" "${image}:${tag}"
     else
       echo "    [DRY RUN] Would delete named tag ${image}:${tag}"
     fi
@@ -219,12 +283,13 @@ fi
 
 log_info "Querying all stored manifests via AQL..."
 
-AQL_RESULT=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+af_fetch "${WORK_DIR}/aql.json" -X POST "${BASE_URL}/api/search/aql" \
   -H "Content-Type: text/plain" \
-  -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\",\"created\")" 2>&1) || {
+  -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\",\"created\")" || {
   log_error "AQL query failed."
   exit 1
 }
+AQL_RESULT=$(cat "${WORK_DIR}/aql.json")
 
 # Use python to do all the analysis: find SHA folders, resolve named tag digests, compute unreferenced
 CLEANUP_PLAN=$(echo "${AQL_RESULT}" | python3 -c "
@@ -251,7 +316,7 @@ sha_tags = {}     # image -> [(tag, size), ...]
 for (image, tag), size in tag_sizes.items():
     if tag.startswith('sha256__') or tag.startswith('sha256:'):
         sha_tags.setdefault(image, []).append((tag, size))
-    else:
+    elif tag != '_uploads':  # upload staging area (phase 3), not a tag
         named_tags.setdefault(image, []).append(tag)
 
 # Output as JSON for the shell to process
@@ -296,39 +361,53 @@ for tag, size in data.get('sha_tags', {}).get('${image}', []):
   log_info "  Named tags: ${NAMED_COUNT}, SHA manifests: ${SHA_COUNT}"
 
   # For each named tag, resolve its content digest to find which SHA it references
+  # Resolve every named tag to the digests it keeps alive: the tag's own
+  # manifest plus, for an image index, each child manifest. If any tag cannot
+  # be resolved, skip deletions for this image — an incomplete reference set
+  # would make in-use manifests look unreferenced.
   REFERENCED_DIGESTS=()
+  LOOKUP_FAILED=false
   while IFS= read -r tag; do
     [[ -z "${tag}" ]] && continue
-    # Get the manifest digest via HEAD request
-    digest=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -I \
-      -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-      -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-      -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-      -H "Accept: application/vnd.oci.image.index.v1+json" \
-      "${DOCKER_API}/${image}/manifests/${tag}" 2>/dev/null \
-      | grep -i "docker-content-digest" \
-      | sed 's/.*: *//;s/\r//' || true)
-
-    if [[ -n "${digest}" ]]; then
-      REFERENCED_DIGESTS+=("${digest}")
-      # Check if manifest list with child manifests
-      manifest_body=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" \
-        -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-        -H "Accept: application/vnd.oci.image.index.v1+json" \
-        "${DOCKER_API}/${image}/manifests/${tag}" 2>/dev/null || true)
-      while IFS= read -r child; do
-        [[ -n "${child}" ]] && REFERENCED_DIGESTS+=("${child}")
-      done < <(echo "${manifest_body}" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    for m in data.get('manifests', []):
-        d = m.get('digest', '')
-        if d: print(d)
-except: pass
-" 2>/dev/null || true)
+    if ! af_fetch "${WORK_DIR}/head" -I "${MANIFEST_ACCEPT[@]}" "${DOCKER_API}/${image}/manifests/${tag}"; then
+      log_error "  Could not resolve ${image}:${tag}"
+      LOOKUP_FAILED=true
+      break
     fi
+    digest=$(grep -i "^docker-content-digest:" "${WORK_DIR}/head" | sed 's/.*: *//;s/\r//' || true)
+    if [[ -z "${digest}" ]]; then
+      log_error "  No digest returned for ${image}:${tag}"
+      LOOKUP_FAILED=true
+      break
+    fi
+    REFERENCED_DIGESTS+=("${digest}")
+
+    if ! af_fetch "${WORK_DIR}/manifest.json" "${MANIFEST_ACCEPT[@]}" "${DOCKER_API}/${image}/manifests/${tag}"; then
+      log_error "  Could not read manifest for ${image}:${tag}"
+      LOOKUP_FAILED=true
+      break
+    fi
+    if ! children=$(python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for m in data.get('manifests', []):
+    if m.get('digest'):
+        print(m['digest'])
+" < "${WORK_DIR}/manifest.json"); then
+      log_error "  Unreadable manifest for ${image}:${tag}"
+      LOOKUP_FAILED=true
+      break
+    fi
+    while IFS= read -r child; do
+      [[ -n "${child}" ]] && REFERENCED_DIGESTS+=("${child}")
+    done <<< "${children}"
   done <<< "${IMAGE_NAMED_TAGS}"
+
+  if [[ "${LOOKUP_FAILED}" == "true" ]]; then
+    log_error "  Skipping orphan cleanup for ${image}: its named tags could not all be resolved."
+    HAD_FAILURE=true
+    continue
+  fi
 
   log_info "  Resolved ${#REFERENCED_DIGESTS[@]} referenced digest(s) from named tags"
 
@@ -360,14 +439,7 @@ except: pass
 
     if [[ "${DO_DELETE}" == "true" ]]; then
       log_info "  Deleting ${image}/${storage_tag} (${size_mb} MB)..."
-      http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
-        "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${storage_tag}" 2>/dev/null || echo "000")
-
-      if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
-        log_ok "  Deleted ${image}/${storage_tag}"
-      else
-        log_warn "  Failed to delete ${image}/${storage_tag} (HTTP ${http_code})"
-      fi
+      af_delete "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${storage_tag}" "${image}/${storage_tag}"
     else
       echo "    [DRY RUN] Would delete ${image}/${storage_tag} (${size_mb} MB)"
     fi
@@ -431,13 +503,7 @@ while IFS=$'\t' read -r upath uname usize ureason; do
   size_mb=$(python3 -c "print(f'{${usize}/1048576:.1f}')" 2>/dev/null || echo "?")
   if [[ "${DO_DELETE}" == "true" ]]; then
     log_info "  Deleting ${upath}/${uname} (${size_mb} MB, ${ureason})..."
-    http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
-      "${BASE_URL}/${ARTIFACTORY_REPO}/${upath}/${uname}" 2>/dev/null || echo "000")
-    if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
-      log_ok "  Deleted ${upath}/${uname}"
-    else
-      log_warn "  Failed to delete ${upath}/${uname} (HTTP ${http_code})"
-    fi
+    af_delete "${BASE_URL}/${ARTIFACTORY_REPO}/${upath}/${uname}" "${upath}/${uname}"
   else
     echo "    [DRY RUN] Would delete ${upath}/${uname} (${size_mb} MB, ${ureason})"
   fi
@@ -471,4 +537,11 @@ else
   echo "  To actually delete, run:"
   echo "    ./scripts/artifactory-cleanup.sh --env ${ENV_PROFILE} --delete"
   echo "============================================================"
+fi
+
+if [[ "${HAD_FAILURE}" == "true" ]]; then
+  echo ""
+  log_error "Some Artifactory lookups or deletes failed after ${API_ATTEMPTS} attempts (see warnings above)."
+  log_error "Images whose tags could not be resolved were left untouched. Re-run to retry; it is safe to repeat."
+  exit 1
 fi
