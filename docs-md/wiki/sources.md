@@ -52,6 +52,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 - Tables and extension pattern: `docs-md/architecture/TABLES.md`, `docs-md/architecture/PATTERNS_NODE_AND_UI.md` — wiki: [Tables and extensions](tables-and-extensions.md)
 - Load testing: `docs-md/benchmarking/LOAD_TESTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - Monitoring and alerting: `docs-md/monitoring/LOCAL_MONITORING_STACK.md`, `docs-md/monitoring/ALERTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
+- Azure Log Analytics mirror: `docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - OpenShift deployment: `docs-md/operations/` — wiki: [Deployment and ops](deployment-and-ops.md)
 - Usage metering and billing: `docs-md/architecture/USAGE_METERING_AND_BILLING.md` — wiki: [Billing](billing.md)
 

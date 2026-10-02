@@ -30,6 +30,7 @@ declare global {
   namespace Express {
     interface Request {
       _loggingStartTime?: number;
+      _loggingCompleted?: boolean;
     }
   }
 }
@@ -76,6 +77,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     const durationMs = start != null ? Date.now() - start : undefined;
     const requestId = request.headers["x-request-id"] as string | undefined;
     const statusCode = request.res.statusCode;
+    request._loggingCompleted = true;
     const context = {
       requestId,
       method: request.method,

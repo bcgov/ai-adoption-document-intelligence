@@ -277,6 +277,27 @@ services:
         condition: service_healthy
     profiles: [monitoring]
 
+  # Mirrors the same log files to Azure Log Analytics; independent of the Loki pipeline.
+  # Host networking is required so the plugin can reach the loopback token broker.
+  # 5.1+ is required: auth_url does not exist in earlier releases.
+  fluent-bit:
+    image: fluent/fluent-bit:5.1.2
+    container_name: fluent-bit
+    restart: unless-stopped
+    network_mode: host
+    command: --config=/fluent-bit/etc/fluent-bit.yaml
+    environment:
+      AZURE_LOGS_AUTH_URL: ${AZURE_LOGS_AUTH_URL:-http://127.0.0.1:8899/token}
+      AZURE_LOGS_DCE_URL: ${AZURE_LOGS_DCE_URL}
+      AZURE_LOGS_DCR_ID: ${AZURE_LOGS_DCR_ID}
+      AZURE_LOGS_TABLE_NAME: ${AZURE_LOGS_TABLE_NAME:-DocIntelLocal_CL}
+    volumes:
+      - ./deployments/local/fluent-bit:/fluent-bit/etc:ro
+      - ./logs:/var/log/host-apps:ro
+      - ches_adapter_logs:/var/log/ches-adapter:ro
+      - fluent_bit_data:/var/lib/fluent-bit
+    profiles: [monitoring]
+
   alertmanager:
     image: prom/alertmanager:v0.28.1
     container_name: alertmanager
@@ -378,3 +399,4 @@ volumes:
   alertmanager_data:
   grafana_data:
   ches_adapter_logs:
+  fluent_bit_data:

@@ -1,0 +1,107 @@
+# Mirrors local app logs to Azure Log Analytics via the Logs Ingestion API.
+# Runs alongside Promtail; it reads the same files but does not alter the Loki pipeline.
+
+service:
+  flush: 5
+  log_level: info
+  storage.path: /var/lib/fluent-bit/storage
+  storage.sync: normal
+  storage.backlog.mem_limit: 32M
+
+pipeline:
+  inputs:
+    - name: tail
+      alias: backend-services
+      path: /var/log/host-apps/backend-services.log
+      tag: app.backend-services
+      key: RawData
+      path_key: source_file
+      db: /var/lib/fluent-bit/positions.db
+      db.sync: normal
+      refresh_interval: 5
+      skip_long_lines: true
+      buffer_chunk_size: 64k
+      buffer_max_size: 512k
+      mem_buf_limit: 16M
+      storage.type: filesystem
+
+    - name: tail
+      alias: temporal-worker
+      path: /var/log/host-apps/temporal-worker.log
+      tag: app.temporal-worker
+      key: RawData
+      path_key: source_file
+      db: /var/lib/fluent-bit/positions.db
+      db.sync: normal
+      refresh_interval: 5
+      skip_long_lines: true
+      buffer_chunk_size: 64k
+      buffer_max_size: 512k
+      mem_buf_limit: 16M
+      storage.type: filesystem
+
+    - name: tail
+      alias: frontend
+      path: /var/log/host-apps/frontend.log
+      tag: app.frontend
+      key: RawData
+      path_key: source_file
+      db: /var/lib/fluent-bit/positions.db
+      db.sync: normal
+      refresh_interval: 5
+      skip_long_lines: true
+      mem_buf_limit: 8M
+      storage.type: filesystem
+
+    - name: tail
+      alias: ches-adapter
+      path: /var/log/ches-adapter/*.log
+      tag: app.ches-adapter
+      key: RawData
+      path_key: source_file
+      db: /var/lib/fluent-bit/positions.db
+      db.sync: normal
+      refresh_interval: 5
+      skip_long_lines: true
+      mem_buf_limit: 8M
+      storage.type: filesystem
+
+  filters:
+    - name: lua
+      match: app.backend-services
+      script: /fluent-bit/etc/filters.lua
+      call: structured
+
+    - name: lua
+      match: app.temporal-worker
+      script: /fluent-bit/etc/filters.lua
+      call: structured
+
+    - name: lua
+      match: app.frontend
+      script: /fluent-bit/etc/filters.lua
+      call: frontend
+
+    - name: lua
+      match: app.ches-adapter
+      script: /fluent-bit/etc/filters.lua
+      call: passthrough
+
+  outputs:
+    # auth_url points at the local token broker (scripts/azure-token-broker.js), which
+    # serves the developer's own Entra token so no app registration is needed. The
+    # plugin only permits plain HTTP here because the address is loopback, which in
+    # turn requires the container to run with host networking.
+    - name: azure_logs_ingestion
+      match: app.*
+      auth_url: ${AZURE_LOGS_AUTH_URL}
+      client_id: unused-with-auth-url
+      client_secret: unused-with-auth-url
+      dce_url: ${AZURE_LOGS_DCE_URL}
+      dcr_id: ${AZURE_LOGS_DCR_ID}
+      table_name: ${AZURE_LOGS_TABLE_NAME}
+      time_key: TimeGenerated
+      time_generated: true
+      compress: true
+      workers: 1
+      retry_limit: 5

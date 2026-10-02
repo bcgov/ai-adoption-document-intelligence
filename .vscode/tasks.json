@@ -5,7 +5,15 @@
       "label": "docker: infra up",
       "type": "shell",
       "command": "docker",
-      "args": ["compose", "--profile", "infra", "--profile", "temporal", "up", "-d"],
+      "args": [
+        "compose",
+        "--profile",
+        "infra",
+        "--profile",
+        "temporal",
+        "up",
+        "-d"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -19,7 +27,10 @@
       "label": "temporal: dev",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "dev"],
+      "args": [
+        "run",
+        "dev"
+      ],
       "options": {
         "cwd": "${workspaceFolder}/apps/temporal"
       },
@@ -30,7 +41,6 @@
         "reveal": "always"
       }
     },
-
     {
       "label": "wait: temporal ready",
       "type": "shell",
@@ -98,7 +108,10 @@
       "label": "root: frontend dev",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "dev:frontend"],
+      "args": [
+        "run",
+        "dev:frontend"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -113,7 +126,10 @@
       "label": "root: backend dev",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "dev:backend"],
+      "args": [
+        "run",
+        "dev:backend"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -139,8 +155,11 @@
     {
       "label": "monitoring: docker up",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "--profile", "monitoring", "up", "-d"],
+      "command": "bash",
+      "args": [
+        "-lc",
+        "mkdir -p logs && docker compose --profile monitoring up -d"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -151,11 +170,38 @@
       }
     },
     {
+      "label": "token-broker: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "token-broker"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: runtime + token broker",
+      "dependsOn": [
+        "Dev: runtime",
+        "token-broker: dev"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
       "label": "Dev: all + monitoring",
       "dependsOn": [
         "Dev: prerequisites",
         "monitoring: docker up",
-        "Dev: runtime"
+        "Dev: runtime + token broker"
       ],
       "dependsOrder": "sequence",
       "problemMatcher": []
