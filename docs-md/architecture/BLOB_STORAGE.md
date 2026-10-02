@@ -51,6 +51,10 @@ Set `BLOB_STORAGE_PROVIDER` in your environment:
 
 Default: `minio`
 
+### `deleteByPrefix` on Azure
+
+`AzureBlobProvider.deleteByPrefix` lists every blob under the prefix, then deletes them in reverse lexicographic order, so each path goes before its parent directory. On a storage account with a hierarchical namespace, directories are listed as entries of their own ahead of their contents, and Azure rejects deleting a non-empty directory; on a flat account the order makes no difference.
+
 ## Container / Bucket Structure
 
 ### Primary container: `document-blobs`
