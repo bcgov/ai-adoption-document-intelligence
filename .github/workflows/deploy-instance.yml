@@ -247,7 +247,6 @@ jobs:
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
         run: |
           set -euo pipefail
-          source scripts/lib/oc-retry.sh
           source scripts/lib/openshift-login.sh
           openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
 

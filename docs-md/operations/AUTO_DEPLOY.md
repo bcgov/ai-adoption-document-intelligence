@@ -83,9 +83,9 @@ Every deploy-job step that talks to the cluster sources `scripts/lib/oc-retry.sh
 - One-shot `oc` calls (`get`, `apply`, `create`, `label`, `patch`, `delete`, ...) get `--request-timeout=60s` (`OC_REQUEST_TIMEOUT`), so a stalled request fails and is retried instead of hanging; `oc rollout status` keeps its own `--timeout`.
 - `helm upgrade` handles a release left pending. An upgrade that loses its connection mid-way cannot record its outcome, so the release's latest revision stays `pending-upgrade` and every later upgrade fails with `another operation (install/upgrade/rollback) is in progress`, blocking all deploys until it is cleared. Before upgrading, the wrapper rolls such a release back to its last deployed revision if the pending revision is at least 10 minutes old (`HELM_PENDING_MIN_AGE_SECONDS`; older than any live upgrade, whose `--wait` is 5 minutes). After one of its own attempts fails on a connection error, it clears the pending revision regardless of age and retries, including when the retry reports `another operation ... is in progress`. A pending first install with no earlier revision is left alone.
 
-`openshift_login` (`scripts/lib/openshift-login.sh`) keeps its own three attempts around `oc login`, on top of the wrapper.
+Login (`openshift_login` in `scripts/lib/openshift-login.sh`) makes up to six attempts 10 seconds apart and calls `oc` directly, without the wrapper, so a runner that cannot reach the API at all fails in about four minutes. From some Azure regions the API is unreachable for a whole job (runners in `mexicocentral` and `chilecentral` failed every login attempt while runners in US regions got through), so the final error names the runner's Azure region, read from the instance metadata service. **Re-run failed jobs** gets a different runner.
 
-Tests: `bash scripts/lib/oc-retry.test.sh`.
+Tests: `bash scripts/lib/oc-retry.test.sh`, `bash scripts/lib/openshift-login.test.sh`.
 
 ## Artifactory retries
 
