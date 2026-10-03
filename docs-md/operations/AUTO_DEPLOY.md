@@ -106,6 +106,7 @@ Artifactory intermittently drops requests after about 15 seconds with no respons
 - Every request is retried three times with a 10-second wait, and a failed request logs curl's exit code and error.
 - If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
 - Deletes are retried; a `404` counts as already deleted.
+- `_uploads` blobs younger than an hour are left for a later run. The cleanup job runs straight after a deploy, when the run's own pushes have just finished: Artifactory still holds those blobs, so a delete hangs until it times out, and deleting a blob a concurrent push is still writing would break that push.
 - Any lookup or delete that still fails makes the script exit `1`, which turns the **Artifactory cleanup** job red.
 
 **When the cleanup job fails**, the deploy itself succeeded. Use **Re-run failed jobs** on the run to retry just the cleanup; it is safe to repeat. If it keeps failing, run the script locally in dry-run mode (`./scripts/artifactory-cleanup.sh --env dev`) to see which lookups fail.

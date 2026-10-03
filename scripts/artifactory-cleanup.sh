@@ -10,8 +10,9 @@
 #      sha256__* folders) that are not referenced by any named tag and deletes
 #      them.
 #   3. Uploads cleanup — under <image>/_uploads/, delete blob files that are
-#      either (a) duplicates of layers already stored in tag folders, or
-#      (b) older than 24 hours (stale upload sessions that didn't get GC'd).
+#      at least an hour old and either (a) duplicates of layers already stored
+#      in tag folders, or (b) older than 24 hours (stale upload sessions that
+#      didn't get GC'd).
 #
 # Usage:
 #   ./scripts/artifactory-cleanup.sh --env dev                        # Orphan cleanup, dry run
@@ -58,7 +59,8 @@ Phases:
   - Orphan cleanup (always): delete SHA-tagged manifests not referenced by any
     named tag.
   - Uploads cleanup (always): delete leftover blobs under <image>/_uploads/
-    that are duplicates of stored layers or older than 24 hours.
+    that are duplicates of stored layers or older than 24 hours, leaving any
+    younger than an hour (a push may still own them).
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
@@ -449,10 +451,14 @@ done
 echo ""
 
 # ---------- phase 3: uploads cleanup ----------
-# Under <image>/_uploads/, delete blob files that are either:
+# Under <image>/_uploads/, delete blob files that are at least an hour old and
+# either:
 #   (a) duplicates of layers already stored in tag folders, OR
 #   (b) older than 24 hours (stale upload sessions never GC'd)
 # These are leftover chunked-upload blobs that should not persist post-push.
+# Younger blobs may belong to a push that is still running or has just
+# finished; Artifactory can hold those, so a delete hangs until it times out,
+# and deleting a live one would break that push. They are left for a later run.
 
 log_info "Phase 3: cleaning _uploads (duplicate and stale blobs)..."
 
@@ -461,7 +467,9 @@ import sys, json
 from datetime import datetime, timezone, timedelta
 
 data = json.load(sys.stdin)
-cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+now = datetime.now(timezone.utc)
+stale_cutoff = now - timedelta(hours=24)
+young_cutoff = now - timedelta(hours=1)
 
 # Build set of (image, sha-blob-name) referenced as layer files in non-_uploads folders
 layer_blobs = set()
@@ -481,23 +489,30 @@ for r in data['results']:
             layer_blobs.add((image, name))
 
 for image, path, name, size, created in uploads:
+    try:
+        t = datetime.fromisoformat(created.replace('Z', '+00:00'))
+    except Exception:
+        continue  # no usable timestamp: leave it
     is_duplicate = (image, name) in layer_blobs
-    is_stale = False
-    if created:
-        try:
-            t = datetime.fromisoformat(created.replace('Z', '+00:00'))
-            is_stale = t < cutoff
-        except Exception:
-            pass
-    if is_duplicate or is_stale:
-        reason = 'dup' if is_duplicate else 'stale'
-        print(f'{path}\t{name}\t{size}\t{reason}')
+    is_stale = t < stale_cutoff
+    if not (is_duplicate or is_stale):
+        continue
+    if t > young_cutoff:
+        print(f'{path}\t{name}\t{size}\tyoung')
+        continue
+    reason = 'dup' if is_duplicate else 'stale'
+    print(f'{path}\t{name}\t{size}\t{reason}')
 " 2>/dev/null) || true
 
 UP_COUNT=0
 UP_SIZE=0
+UP_YOUNG=0
 while IFS=$'\t' read -r upath uname usize ureason; do
   [[ -z "${upath}" || -z "${uname}" ]] && continue
+  if [[ "${ureason}" == "young" ]]; then
+    UP_YOUNG=$((UP_YOUNG + 1))
+    continue
+  fi
   UP_COUNT=$((UP_COUNT + 1))
   UP_SIZE=$((UP_SIZE + usize))
   size_mb=$(python3 -c "print(f'{${usize}/1048576:.1f}')" 2>/dev/null || echo "?")
@@ -510,6 +525,9 @@ while IFS=$'\t' read -r upath uname usize ureason; do
 done <<< "${UPLOADS_PLAN}"
 
 UP_SIZE_MB=$(python3 -c "print(f'{${UP_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
+if [[ "${UP_YOUNG}" -gt 0 ]]; then
+  log_info "Uploads cleanup: left ${UP_YOUNG} blob(s) younger than an hour for a later run."
+fi
 if [[ "${DO_DELETE}" == "true" ]]; then
   log_ok "Uploads cleanup: deleted ${UP_COUNT} blob(s) (${UP_SIZE_MB} MB)."
 else
