@@ -247,6 +247,7 @@ jobs:
           OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/openshift-login.sh
           openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
 
@@ -326,6 +327,7 @@ jobs:
           THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           source scripts/lib/instance-name.sh
           source scripts/lib/generate-overlay.sh
@@ -396,6 +398,7 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           echo "::group::Artifactory image pull secret"
           # Create an instance-owned docker-registry pull secret with the same
@@ -471,6 +474,7 @@ jobs:
           CHES_TO_EMAILS: ${{ secrets.CHES_TO_EMAILS }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           CHES_SECRET="${INSTANCE_NAME}-ches-adapter-secrets"
 
@@ -504,6 +508,7 @@ jobs:
           ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_RELEASE="${INSTANCE_NAME}-plg"
           # Secret name must match the default produced by the plg.alertmanager.adapterSecretName
@@ -531,6 +536,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/plg-pre-delete.sh
           delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 
@@ -546,6 +552,7 @@ jobs:
           ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
@@ -575,6 +582,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/wait-for-rollouts.sh
           SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
           wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"

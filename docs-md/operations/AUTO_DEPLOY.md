@@ -71,6 +71,21 @@ such as `feature/visual-workflow-builder` stages `feature-visual-workflow-builde
 Left as-is deliberately: the manual pathway is being retired under
 [AI-1207](https://citz-do.atlassian.net/browse/AI-1207).
 
+## OpenShift API retries
+
+GitHub-hosted runners reach the cluster API over the public internet, where a share of new connections is refused (`connect: connection refused`) or stalls (`i/o timeout`, `context deadline exceeded`) for periods of minutes to hours. The same API stays reachable from the BC Gov network during those periods, and a retry a few seconds later almost always gets through.
+
+Every deploy-job step that talks to the cluster sources `scripts/lib/oc-retry.sh`, which wraps `oc` and `helm`:
+
+- A call that fails with a connection error is retried up to six times, 10 seconds apart (`CLUSTER_RETRY_ATTEMPTS`, `CLUSTER_RETRY_WAIT_SECONDS`). Each attempt's error output stays in the log, followed by a `[WARN] ... retrying` line.
+- Any other failure (`NotFound`, `Forbidden`, validation, a rollout or Helm `--wait` timeout) fails at once with its own exit code, so existence checks such as `if oc get deployment ...` still read a missing resource as missing rather than retrying it.
+- A manifest piped in with `-f -` is buffered to a file, so a retry re-sends all of it.
+- One-shot `oc` calls (`get`, `apply`, `create`, `label`, `patch`, `delete`, ...) get `--request-timeout=60s` (`OC_REQUEST_TIMEOUT`), so a stalled request fails and is retried instead of hanging; `oc rollout status` keeps its own `--timeout`.
+
+`openshift_login` (`scripts/lib/openshift-login.sh`) keeps its own three attempts around `oc login`, on top of the wrapper.
+
+Tests: `bash scripts/lib/oc-retry.test.sh`.
+
 ## Artifactory retries
 
 To handle intermittent `Client.Timeout exceeded` errors against the registry, registry operations retry up to three times with a 15-second backoff:
