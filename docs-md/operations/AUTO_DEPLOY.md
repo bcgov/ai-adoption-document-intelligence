@@ -89,7 +89,7 @@ Tests: `bash scripts/lib/oc-retry.test.sh`, `bash scripts/lib/openshift-login.te
 
 ## Artifactory retries
 
-To handle intermittent `Client.Timeout exceeded` errors against the registry, registry operations retry up to three times with a 15-second backoff:
+To handle intermittent `Client.Timeout exceeded` errors and connection timeouts against the registry from GitHub runners, registry operations make up to six attempts with a 15-second backoff:
 
 - `docker login` in the build and promote steps (`scripts/lib/artifactory-login.sh`).
 - The deploy job's staged-image existence check and the `docker buildx imagetools create` promotion, via a shared `with_retries` helper (`scripts/lib/retry.sh`). The existence check only accepts HTTP 200, so a transient timeout (`000`) or `5xx` is retried while a genuinely-missing image still fails after the attempts are exhausted.
@@ -104,7 +104,7 @@ Test and production images share one Artifactory repository (`kfd3-fd34fb-local`
 
 Artifactory intermittently drops requests after about 15 seconds with no response (logged as HTTP `000`), well inside `--max-time`, so a longer timeout does not help. Instead:
 
-- Every request is retried three times with a 10-second wait, and a failed request logs curl's exit code and error.
+- Every request gets up to six attempts with a 10-second wait, and a failed request logs curl's exit code and error. From GitHub runners a connection can also time out outright (`curl: (28) Failed to connect`) for a while.
 - If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
 - Deletes are retried; a `404` counts as already deleted.
 - `_uploads` blobs younger than an hour are left for a later run. The cleanup job runs straight after a deploy, when the run's own pushes have just finished: Artifactory still holds those blobs, so a delete hangs until it times out, and deleting a blob a concurrent push is still writing would break that push.

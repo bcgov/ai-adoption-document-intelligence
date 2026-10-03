@@ -135,11 +135,12 @@ CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
 # Artifactory intermittently drops a request after ~15s with no HTTP response
 # (logged as HTTP 000), well inside --max-time, so a longer timeout does not
-# help. af_request logs curl's exit code and error to show why. Every call
+# help; from GitHub runners a connection can also time out outright for a
+# while. af_request logs curl's exit code and error to show why. Every call
 # is retried, and a lookup that still fails is treated as a failure, never as
 # "this tag references nothing" — an empty answer would make the manifests a
 # running image depends on look unreferenced, and they would be deleted.
-API_ATTEMPTS=3
+API_ATTEMPTS=6
 API_RETRY_WAIT=10
 
 WORK_DIR=$(mktemp -d)

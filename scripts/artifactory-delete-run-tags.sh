@@ -105,7 +105,7 @@ delete_tag_once() {
 FAILED=false
 for image in "${SERVICES[@]}"; do
   if [[ "${DO_DELETE}" == "true" ]]; then
-    if outcome=$(with_retries 3 10 delete_tag_once "${image}"); then
+    if outcome=$(with_retries 6 10 delete_tag_once "${image}"); then
       if [[ "${outcome}" == "deleted" ]]; then
         log_info "  Deleted ${image}:${RUN_TAG}"
       else

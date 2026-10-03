@@ -285,7 +285,7 @@ jobs:
 
           for svc in "${SERVICES[@]}"; do
             echo "Checking ${svc}:${SHA_TAG}..."
-            if ! with_retries 3 15 check_manifest "${svc}"; then
+            if ! with_retries 6 15 check_manifest "${svc}"; then
               echo "::error::Missing staged image ${svc}:${SHA_TAG}"
               exit 1
             fi
@@ -606,7 +606,7 @@ jobs:
           SERVICES=(backend-services frontend temporal ches-adapter)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
-            with_retries 3 15 docker buildx imagetools create \
+            with_retries 6 15 docker buildx imagetools create \
               --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
