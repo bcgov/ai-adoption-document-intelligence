@@ -6,8 +6,11 @@
 #
 # Puts fake `oc` and `helm` executables first on PATH. Each fake records its
 # arguments, fails the first FAKE_FAIL_TIMES calls with FAKE_FAIL_MSG on stderr
-# and exit code FAKE_FAIL_RC, then succeeds, printing the contents of any
-# `-f <file>` it was given followed by "ok".
+# (a "|"-separated list gives one message per failing call, the last one
+# repeating) and exit code FAKE_FAIL_RC, then succeeds, printing the contents
+# of any `-f <file>` it was given followed by "ok". `helm history` prints
+# FAKE_HELM_HISTORY and `helm rollback` succeeds; neither counts as a call for
+# the failure sequence.
 #
 
 set -euo pipefail
@@ -76,9 +79,15 @@ trap 'rm -rf "${FAKE_DIR}"' EXIT
 cat > "${FAKE_DIR}/fake-cli" <<'FAKE'
 #!/usr/bin/env bash
 echo "$*" >> "${FAKE_CALLS_FILE}"
-calls=$(wc -l < "${FAKE_CALLS_FILE}")
+case "$1" in
+  history) echo "${FAKE_HELM_HISTORY:-[]}"; exit 0 ;;
+  rollback) exit 0 ;;
+esac
+echo "$*" >> "${FAKE_CALLS_FILE}.main"
+calls=$(wc -l < "${FAKE_CALLS_FILE}.main")
 if (( calls <= ${FAKE_FAIL_TIMES:-0} )); then
-  echo "${FAKE_FAIL_MSG}" >&2
+  msg=$(cut -d'|' -f"${calls}" <<< "${FAKE_FAIL_MSG}")
+  echo "${msg:-${FAKE_FAIL_MSG##*|}}" >&2
   exit "${FAKE_FAIL_RC:-1}"
 fi
 prev=""
@@ -105,14 +114,30 @@ NOT_FOUND='Error from server (NotFound): deployments.apps "x" not found'
 
 reset_fake() {
   : > "${FAKE_CALLS_FILE}"
+  : > "${FAKE_CALLS_FILE}.main"
   export FAKE_FAIL_TIMES="${1:-0}"
   export FAKE_FAIL_MSG="${2:-}"
   export FAKE_FAIL_RC="${3:-1}"
+  export FAKE_HELM_HISTORY="[]"
 }
 
+# Calls other than helm history/rollback.
 call_count() {
-  wc -l < "${FAKE_CALLS_FILE}" | tr -d ' '
+  wc -l < "${FAKE_CALLS_FILE}.main" | tr -d ' '
 }
+
+# A helm history timestamp N minutes ago, with nanoseconds like helm prints.
+helm_time() {
+  python3 -c "from datetime import datetime, timedelta, timezone; print((datetime.now(timezone.utc) - timedelta(minutes=$1)).strftime('%Y-%m-%dT%H:%M:%S.%f') + '123Z')"
+}
+
+# A history whose latest revision (67) is pending-upgrade, updated N minutes ago.
+pending_history() {
+  echo "[{\"revision\":66,\"updated\":\"$(helm_time 60)\",\"status\":\"deployed\"},{\"revision\":67,\"updated\":\"$(helm_time "$1")\",\"status\":\"pending-upgrade\"}]"
+}
+
+IN_PROGRESS='Error: UPGRADE FAILED: another operation (install/upgrade/rollback) is in progress'
+MID_UPGRADE="Error: UPGRADE FAILED: could not get information about the resource: ${REFUSED}"
 
 # ---------- tests ----------
 
@@ -194,6 +219,41 @@ assert_eq "its own --wait timeout is not retried" "1" "$(call_count)"
 reset_fake 0
 helm upgrade --install x chart >/dev/null 2>&1
 assert_not_contains "helm gets no --request-timeout" "--request-timeout" "$(cat "${FAKE_CALLS_FILE}")"
+echo ""
+
+echo "=== helm upgrade and a pending release ==="
+
+reset_fake 0
+FAKE_HELM_HISTORY="$(pending_history 20)"
+helm upgrade --install rel chart --namespace ns >/dev/null 2>&1
+assert_eq "a pending release older than 10 minutes is rolled back before the upgrade" \
+  "history rel -n ns --max 20 -o json|rollback rel 66 -n ns|upgrade --install rel chart --namespace ns" \
+  "$(paste -sd'|' "${FAKE_CALLS_FILE}")"
+
+reset_fake 5 "${IN_PROGRESS}"
+FAKE_HELM_HISTORY="$(pending_history 1)"
+rc=0; helm upgrade --install rel chart --namespace ns >/dev/null 2>&1 || rc=$?
+assert_eq "a recently pending release (another run may own it) fails the upgrade" "1" "${rc}"
+assert_not_contains "a recently pending release is not rolled back" "rollback" "$(cat "${FAKE_CALLS_FILE}")"
+assert_eq "\"in progress\" without an earlier connection error is not retried" "1" "$(call_count)"
+
+reset_fake 2 "${MID_UPGRADE}|${IN_PROGRESS}"
+FAKE_HELM_HISTORY="$(pending_history 0)"
+rc=0; output=$(helm upgrade --install rel chart --namespace ns 2>&1 >/dev/null) || rc=$?
+assert_eq "recovers from its own mid-upgrade connection failure" "0" "${rc}"
+assert_eq "made three upgrade attempts" "3" "$(call_count)"
+assert_contains "rolls its own pending revision back before retrying" "rollback rel 66 -n ns" "$(cat "${FAKE_CALLS_FILE}")"
+assert_contains "logs the rollback" "revision 67 is pending-upgrade; rolling back to revision 66" "${output}"
+
+reset_fake 0
+FAKE_HELM_HISTORY="$(pending_history 20)"
+helm upgrade -n ns --install rel chart -f values.yaml --set a=b >/dev/null 2>&1
+assert_contains "finds the release and namespace around value flags" "rollback rel 66 -n ns" "$(cat "${FAKE_CALLS_FILE}")"
+
+reset_fake 0
+FAKE_HELM_HISTORY="$(pending_history 20)"
+helm upgrade --install rel chart >/dev/null 2>&1
+assert_not_contains "without a namespace the release history is not touched" "history" "$(cat "${FAKE_CALLS_FILE}")"
 echo ""
 
 # ---------- summary ----------
