@@ -117,8 +117,11 @@ Artifactory intermittently drops requests after about 15 seconds with no respons
 
 The deploy job uses `scripts/lib/wait-for-rollouts.sh`, which:
 
+- Restarts the deployments one at a time and waits for each rollout (`oc rollout status`, 300 s) before restarting the next. A rolling update creates a surge pod before removing an old one, and the test namespace's CPU-request quota (4 CPU, about 3.5 in use at rest) leaves room for roughly one surge pod at a time; restarting them all at once makes the surge pods queue on the quota until the later rollouts time out.
 - Fails the workflow (not just a warning) when `oc rollout status` times out — including when the namespace lacks the resources to schedule the new pods, which surfaces as a rollout timeout rather than a silent success.
-- Emits pod status, `FailedScheduling` events, and resource-quota details on failure.
+- Emits pod status, `FailedScheduling` events, `FailedCreate` events (pods refused, for example `exceeded quota`), and resource-quota details on failure. The deploy service account cannot read resource quotas, so in practice the `FailedCreate` events are what show a quota limit.
+
+Tests: `bash scripts/lib/wait-for-rollouts.test.sh`.
 
 Namespace capacity is not pre-checked before the restart: in a shared namespace a quota can be at its limit because of other instances, and a rollout-restart of already-sized deployments requests no new storage, so a pre-flight quota gate produced false blocks. Resource exhaustion is instead caught by the rollout-status timeout above. Right-sizing capacity (HPA tuning) is tracked separately.
 
