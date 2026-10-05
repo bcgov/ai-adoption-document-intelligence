@@ -3,6 +3,7 @@ import {
   DocumentStatus,
   Prisma,
   PrismaClient,
+  RejectionReason,
   ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
@@ -328,6 +329,8 @@ export class ReviewDbService {
       status?: ReviewStatus;
       completed_at?: Date | null;
       flag_note?: string | null;
+      rejection_reason?: RejectionReason | null;
+      rejection_comment?: string | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {

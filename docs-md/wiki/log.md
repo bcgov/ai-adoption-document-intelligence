@@ -130,3 +130,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `groups/GROUP_CONTEXT.md`: `Group.role` and `permissions`, `hasPermissionForGroup`, and the active group derived during render.
 - `groups/DELETE_GROUP.md`, `auth/AUTHENTICATION.md`: memberships in soft-deleted groups grant no access.
 - `auth-and-groups.md`: new canonical source, and the drift risk of the frontend's copy of the `Permission` enum.
+
+## [2026-10-05] ingest | HITL rejection marks the document rejected
+
+- `architecture/HITL_ARCHITECTURE.md`: the reject transition stores the reason and comment on the session and marks the document `rejected`; added the reject path, how the workflow's failure hook leaves `rejected` alone, who the approval and rejection name, and that Reject is hidden while labelling a dataset.
+- `extraction/OCR_FAILURE_HANDLING.md`, `architecture/DOCUMENT_RETENTION.md`, `architecture/EPHEMERAL_DOCUMENT_CLEANUP.md`, `operations/ENVIRONMENT_CONFIGURATION.md`: `rejected` is a terminal, purgeable document status, and rejected sessions age out like approved ones.
+- `hitl.md`: four session outcomes, rejection is final, and the drift risk of the rejection reasons being defined in both the schema and the frontend.

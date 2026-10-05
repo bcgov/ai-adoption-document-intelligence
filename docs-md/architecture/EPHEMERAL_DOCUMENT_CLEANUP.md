@@ -88,7 +88,7 @@ log that it is already running and skip (see
 None of the purge steps uses the lock transaction. Each run:
 
 1. Queries `documents` that are in a terminal status (`complete`, `failed`,
-   `conversion_failed`), not yet purged, **and** whose workflow version config
+   `conversion_failed`, `rejected`), not yet purged, **and** whose workflow version config
    opts in to at least one ephemeral target (`metadata.ephemeral` is `true`, or
    an object with `files`/`temporalRecord` set) — via a Prisma relation filter
    on `workflowVersion.config`. Each result carries its workflow's policy

@@ -508,6 +508,9 @@ model ReviewSession {
   completed_at DateTime?
   // Short note captured when the session is flagged, shown to the next reviewer.
   flag_note    String?
+  /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
+  rejection_reason  RejectionReason?
+  rejection_comment String?
   corrections  FieldCorrection[]
   lock         DocumentLock?
 
@@ -585,6 +588,20 @@ enum ReviewStatus {
   rejected
   flagged
   abandoned
+}
+
+/// Why a reviewer rejected a document, chosen from a fixed list in the review workspace.
+enum RejectionReason {
+  /// The scan is unreadable, cut off or skewed.
+  INPUT_QUALITY
+  /// Extraction missed fields or returned values that aren't on the page.
+  OCR_FAILURE
+  /// The document isn't the type or template the model expects.
+  MODEL_MISMATCH
+  /// Confidence is too low to trust the extracted values.
+  CONFIDENCE_TOO_LOW
+  /// A fault in the processing pipeline.
+  SYSTEMIC_ERROR
 }
 
 enum CorrectionAction {
@@ -730,6 +747,8 @@ enum DocumentStatus {
   failed
   /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
   conversion_failed
+  /// A reviewer rejected the document at the human review step; processing stopped there.
+  rejected
 }
 
 // ========== BENCHMARKING MODELS ==========

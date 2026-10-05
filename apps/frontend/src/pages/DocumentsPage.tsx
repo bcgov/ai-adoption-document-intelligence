@@ -47,6 +47,7 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "awaiting_review", label: "Awaiting review" },
   { value: "complete", label: "Complete" },
   { value: "failed", label: "Failed" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 const statusStyles: Record<string, { color: string; label: string }> = {
@@ -57,6 +58,7 @@ const statusStyles: Record<string, { color: string; label: string }> = {
   complete: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
   conversion_failed: { color: "red", label: "Conversion failed" },
+  rejected: { color: "grape", label: "Rejected" },
 };
 
 const PAGE_SIZE = 50;
