@@ -217,7 +217,7 @@ Rotating requires editing the `PostgresCluster` `users` field.
 ## Related
 
 - [docs-md/archive/local-dev-secrets.md](../archive/local-dev-secrets.md) — retired local dev override layer
-  (same `~/.config/bcgov-di` directory, different files for app runtime).
+  that also used `~/.config/bcgov-di`; app runtime now reads only the repo-root `.env`.
 - [scripts/oc-deploy-instance.sh](../../scripts/oc-deploy-instance.sh) — full
   deploy that seeds both secrets from `prod.env`.
 - [scripts/gh-load-secrets.sh](../../scripts/gh-load-secrets.sh) — bulk push of
