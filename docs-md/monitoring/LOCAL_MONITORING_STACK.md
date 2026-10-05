@@ -61,12 +61,15 @@ These scripts tee process output to `logs/` directory files (`backend-services.l
 
 The logs appear in Grafana under the `backend-services`, `frontend`, and `temporal-worker` service labels (same as they would in OpenShift).
 
+To additionally mirror a filtered subset of these logs to an Azure Log Analytics workspace (for example to let an Azure SRE Agent monitor app health), see [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md).
+
 ## Architecture
 
 ### Components
 
 - **Loki** (grafana/loki:3.4.0) - Receives and stores logs. Configured with filesystem storage and 30-day retention.
 - **Promtail** (grafana/promtail:3.4.0) - Tails the host process log files under `logs/` (mounted at `/var/log/host-apps`) and the ches-adapter log volume, and forwards them to Loki with `service` and `project` labels.
+- **Fluent Bit** (fluent/fluent-bit:5.1.2) - Optional Azure Log Analytics mirror. Tails the same files and ships a health-filtered subset to an Azure workspace via the Logs Ingestion API, leaving the Loki pipeline untouched. Authenticates through a local token broker (`npm run token-broker`) rather than an app registration, which is why it runs with host networking and requires Fluent Bit 5.1+. Inactive until the `AZURE_LOGS_*` variables are set; see [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md).
 - **Alertmanager** (prom/alertmanager:v0.28.1) - Receives alerts fired by Prometheus rules and routes them to the ches-adapter webhook. See [ALERTING.md](ALERTING.md).
 - **ches-adapter** - Built from `apps/ches-adapter`; translates Alertmanager webhook payloads into CHES email. Requires `CHES_*` environment variables (see `docker-compose.yml`).
 - **Prometheus** (prom/prometheus:v3.2.1) - Scrapes metrics from backend-services (`host.containers.internal:3002/metrics`) and the Temporal worker (`host.containers.internal:9091/metrics`), and evaluates alert rules from `deployments/local/prometheus/rules/`. Data is retained for 15 days.

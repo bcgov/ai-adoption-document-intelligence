@@ -130,3 +130,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `groups/GROUP_CONTEXT.md`: `Group.role` and `permissions`, `hasPermissionForGroup`, and the active group derived during render.
 - `groups/DELETE_GROUP.md`, `auth/AUTHENTICATION.md`: memberships in soft-deleted groups grant no access.
 - `auth-and-groups.md`: new canonical source, and the drift risk of the frontend's copy of the `Permission` enum.
+
+## [2026-10-02] ingest | Azure Log Analytics log mirror
+
+- `monitoring/AZURE_LOG_ANALYTICS_MIRROR.md`: new — Fluent Bit mirrors local logs to Log Analytics for an Azure SRE Agent, alongside the unchanged Promtail/Loki pipeline.
+- `deployment-and-ops.md`: new canonical source, plus the drift risk that the mirror ships a filtered subset (`deployments/local/fluent-bit/filters.lua`) while Loki keeps everything.
+- `sources.md`: registered the mirror under Stable Docs.
