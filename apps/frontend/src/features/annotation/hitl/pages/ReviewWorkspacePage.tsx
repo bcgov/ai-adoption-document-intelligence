@@ -15,7 +15,10 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { RejectionReason } from "../../../../shared/types";
+import {
+  REJECTION_REASON_LABELS,
+  RejectionReason,
+} from "../../../../shared/types";
 import {
   Accordion,
   ActionIcon,
@@ -757,14 +760,34 @@ export const ReviewWorkspacePage: FC = () => {
     }
   };
 
+  // The review actions throw when the server refuses one, most often because
+  // the lock lapsed or another reviewer finished the session. Say so and stay
+  // on the document instead of reporting a success.
+  const notifyActionFailed = (title: string, error: unknown) => {
+    notifications.show({
+      title,
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Please try again.",
+      color: "red",
+      autoClose: 5000,
+    });
+  };
+
   const handleApprove = async () => {
     const payload = Object.values(correctionMap).filter(
       (correction) => correction.action === CorrectionAction.CORRECTED,
     );
-    if (payload.length > 0) {
-      await submitCorrectionsAsync(payload);
+    try {
+      if (payload.length > 0) {
+        await submitCorrectionsAsync(payload);
+      }
+      await approveSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not approve", error);
+      return;
     }
-    await approveSessionAsync();
 
     notifications.show({
       title: "Document approved",
@@ -779,7 +802,12 @@ export const ReviewWorkspacePage: FC = () => {
   };
 
   const handleSkip = async () => {
-    await skipSessionAsync();
+    try {
+      await skipSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not skip", error);
+      return;
+    }
 
     notifications.show({
       title: "Document skipped",
@@ -794,7 +822,12 @@ export const ReviewWorkspacePage: FC = () => {
   };
 
   const handleFlag = useCallback(async () => {
-    await flagSessionAsync();
+    try {
+      await flagSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not flag", error);
+      return;
+    }
 
     notifications.show({
       title: "Document flagged",
@@ -822,11 +855,17 @@ export const ReviewWorkspacePage: FC = () => {
   const handleConfirmReject = async () => {
     if (!rejectionReason) return;
 
-    await rejectSessionAsync({
-      rejectionReason,
-      comments: rejectionComments.trim() || undefined,
-      annotations: rejectionAnnotations.trim() || undefined,
-    });
+    try {
+      await rejectSessionAsync({
+        rejectionReason,
+        comments: rejectionComments.trim() || undefined,
+        annotations: rejectionAnnotations.trim() || undefined,
+      });
+    } catch (error) {
+      // Keep the dialog open so the reviewer's reason and comment survive.
+      notifyActionFailed("Could not reject", error);
+      return;
+    }
 
     notifications.show({
       title: "Document rejected",
@@ -1120,7 +1159,7 @@ export const ReviewWorkspacePage: FC = () => {
             onApprove={handleApprove}
             onFlag={handleFlag}
             onSkip={handleSkip}
-            onReject={handleReject}
+            onReject={benchmarkMatch ? undefined : handleReject}
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
@@ -1422,7 +1461,8 @@ export const ReviewWorkspacePage: FC = () => {
         >
           <Stack gap="md">
             <Text size="sm" c="dimmed">
-              Rejecting sends this document back for reprocessing. A reason is
+              Rejecting ends processing for this document. It is marked Rejected
+              on the Documents page, with your reason and comment. A reason is
               required.
             </Text>
 
@@ -1435,28 +1475,10 @@ export const ReviewWorkspacePage: FC = () => {
               </Text>
               <Select
                 placeholder="Select a rejection reason"
-                data={[
-                  {
-                    value: RejectionReason.INPUT_QUALITY,
-                    label: "Input quality (scan unreadable, cutoff, skew)",
-                  },
-                  {
-                    value: RejectionReason.OCR_FAILURE,
-                    label: "OCR failure (missing fields, hallucinations)",
-                  },
-                  {
-                    value: RejectionReason.MODEL_MISMATCH,
-                    label: "Model mismatch (wrong document type/template)",
-                  },
-                  {
-                    value: RejectionReason.CONFIDENCE_TOO_LOW,
-                    label: "Confidence too low (too low to trust)",
-                  },
-                  {
-                    value: RejectionReason.SYSTEMIC_ERROR,
-                    label: "Systemic error (pipeline bug)",
-                  },
-                ]}
+                data={Object.values(RejectionReason).map((reason) => ({
+                  value: reason,
+                  label: REJECTION_REASON_LABELS[reason],
+                }))}
                 value={rejectionReason}
                 onChange={(value) =>
                   setRejectionReason(value as RejectionReason | null)

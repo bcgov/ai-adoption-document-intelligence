@@ -18,7 +18,8 @@ interface ReviewToolbarProps {
   onBack: () => void;
   onApprove: () => void;
   onFlag: () => void;
-  onReject: () => void;
+  /** Omit to hide Reject, as when labelling a dataset: there is no workflow to reject. */
+  onReject?: () => void;
   onSkip: () => void;
   isApproving?: boolean;
   isFlagging?: boolean;
@@ -76,15 +77,17 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         >
           Flag
         </Button>
-        <Button
-          variant="light"
-          color="red"
-          leftSection={<IconX size={16} />}
-          onClick={onReject}
-          loading={isRejecting}
-        >
-          Reject
-        </Button>
+        {onReject && (
+          <Button
+            variant="light"
+            color="red"
+            leftSection={<IconX size={16} />}
+            onClick={onReject}
+            loading={isRejecting}
+          >
+            Reject
+          </Button>
+        )}
       </Group>
 
       <Group>
