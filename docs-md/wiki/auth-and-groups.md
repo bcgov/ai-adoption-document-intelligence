@@ -1,9 +1,10 @@
 ---
 status: active
-updated: 2026-06-17
+updated: 2026-09-29
 canonical_sources:
   - docs-md/auth/AUTHENTICATION.md
   - docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md
+  - docs-md/auth/FRONTEND_ROUTE_PERMISSIONS.md
   - docs-md/groups/
   - apps/backend-services/src/actor/
   - apps/backend-services/src/auth/
@@ -24,6 +25,7 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 
 - Authentication details live in `docs-md/auth/AUTHENTICATION.md`.
 - Group-scoped authorization behavior lives in `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`.
+- Which pages and sidebar entries each role sees lives in `docs-md/auth/FRONTEND_ROUTE_PERMISSIONS.md` (code: `apps/frontend/src/routes.config.tsx`).
 - Group UI and workflow context docs live under `docs-md/groups/`.
 - Backend auth implementation, including API key guards, lives in `apps/backend-services/src/auth/`.
 - API key management (controller, service, DB) lives in `apps/backend-services/src/actor/`.
@@ -44,6 +46,6 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 
 ## Common Drift Risks
 
-- Frontend group context can drift from backend group membership and authorization checks.
+- Frontend group context can drift from backend group membership and authorization checks. In particular, the frontend keeps its own copy of the `Permission` enum (`apps/frontend/src/auth/permissions.ts`) and `/api/auth/me` sends permissions by position, so the two enums must stay in the same order.
 - Documentation for group management pages can become endpoint-level; keep detailed API behavior in canonical docs or Swagger/OpenAPI.
 - Local development auth shortcuts should not leak into production-oriented guidance.

@@ -20,7 +20,7 @@
  * Usage (infra up; run AFTER the base seed so the target group exists):
  *   npm run test:db:reset && npm run seed:hitl-demo
  *
- * Env (loaded from apps/backend-services/.env, never printed):
+ * Env (loaded from the repo-root .env, never printed):
  *   DATABASE_URL (required); BLOB_STORAGE_PROVIDER (azure | minio);
  *   Azure: AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME;
  *   MinIO: MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_DOCUMENT_BUCKET;
@@ -37,10 +37,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 const FIXTURES_DIR = resolve(REPO_ROOT, "data/hitl-demo");
 
-const BACKEND_ENV = resolve(REPO_ROOT, "apps/backend-services/.env");
-if (existsSync(BACKEND_ENV)) {
+const ROOT_ENV = resolve(REPO_ROOT, ".env");
+if (existsSync(ROOT_ENV)) {
   try {
-    process.loadEnvFile(BACKEND_ENV);
+    process.loadEnvFile(ROOT_ENV);
   } catch {
     // ignore — fall back to shell env + defaults
   }

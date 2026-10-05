@@ -1,6 +1,6 @@
-import { GroupRole } from "@generated/client";
 import { applyDecorators, SetMetadata } from "@nestjs/common";
 import { ApiBearerAuth, ApiSecurity } from "@nestjs/swagger";
+import { Permission } from "./role-permissions";
 
 /** Metadata key used to store {@link IdentityOptions} on a route handler. */
 export const IDENTITY_KEY = "identity";
@@ -20,6 +20,20 @@ export interface GroupIdFrom {
   body?: string;
 }
 
+interface GroupPermissions {
+  /**
+   * Specifies where in the request to locate the group ID for group-scoped
+   * authorization checks. Leave unset when no group check is needed.
+   */
+  groupIdFrom: GroupIdFrom;
+  /**
+   * The permissions ({@link Permission}) the caller's role in the resolved
+   * group must hold. Must list at least one: `IdentityGuard` rejects an empty
+   * list with a 500 rather than silently skipping the role check.
+   */
+  requiredPermissions: Permission[];
+}
+
 /**
  * Options accepted by the {@link Identity} decorator to declaratively
  * configure authentication and authorization requirements for a controller
@@ -32,15 +46,11 @@ export interface IdentityOptions {
    */
   requireSystemAdmin?: boolean;
   /**
-   * Specifies where in the request to locate the group ID for group-scoped
-   * authorization checks. Leave unset when no group check is needed.
+   * An optional object that defines where to find the group ID in the request
+   * and what the required role permissions are to access this endpoint.
+   * Only used if there are restrictions needed.
    */
-  groupIdFrom?: GroupIdFrom;
-  /**
-   * The minimum {@link GroupRole} the authenticated identity must hold within
-   * the resolved group. Leave unset when no role check is required.
-   */
-  minimumRole?: GroupRole;
+  groupPermissions?: GroupPermissions;
   /**
    * When `true`, API-key-authenticated requests are allowed in addition to
    * JWT-authenticated requests. Defaults to `false`.
@@ -58,7 +68,12 @@ export interface IdentityOptions {
  *
  * @example
  * ```typescript
- * @Identity({ minimumRole: GroupRole.ADMIN, groupIdFrom: { param: 'groupId' } })
+ * @Identity({
+ *   groupPermissions: {
+ *     groupIdFrom: { param: 'groupId' },
+ *     requiredPermissions: [Permission.WORKFLOW_CREATE],
+ *   },
+ * })
  * @Get(':groupId/resource')
  * getResource() { ... }
  * ```

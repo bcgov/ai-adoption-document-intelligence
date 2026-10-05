@@ -12,7 +12,7 @@ export interface QueueDocument {
   original_filename: string;
   status: string;
   model_id?: string;
-  workflow_id?: string;
+  workflow_name: string | null;
   created_at: string;
   updated_at: string;
   average_confidence: number;

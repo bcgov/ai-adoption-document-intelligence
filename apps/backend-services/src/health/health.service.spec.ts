@@ -27,7 +27,10 @@ describe("HealthService", () => {
       expect(result.errors).toBeUndefined();
     });
 
-    it("should return unhealthy when database fails", async () => {
+    it("should return unhealthy when database fails, logging the sanitized DATABASE_URL", async () => {
+      const originalDatabaseUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL =
+        "postgresql://postgres:secret@localhost:5432/ai_doc_intelligence?schema=public";
       const dbError = new Error("Connection refused");
       mockPrismaService.prisma.$queryRaw.mockRejectedValue(dbError);
 
@@ -42,7 +45,26 @@ describe("HealthService", () => {
         {
           category: "health",
           error: "Connection refused",
+          errorCode: undefined,
+          databaseUrl:
+            "postgresql://postgres:***@localhost:5432/ai_doc_intelligence?schema=public",
         },
+      );
+
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    });
+
+    it("includes the error code from Postgres errors", async () => {
+      const dbError = Object.assign(new Error("terminating connection"), {
+        code: "57P01",
+      });
+      mockPrismaService.prisma.$queryRaw.mockRejectedValue(dbError);
+
+      await service.checkHealth();
+
+      expect(mockAppLogger.error).toHaveBeenCalledWith(
+        "Health check - database failed",
+        expect.objectContaining({ errorCode: "57P01" }),
       );
     });
 

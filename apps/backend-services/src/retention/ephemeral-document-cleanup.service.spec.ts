@@ -5,10 +5,11 @@ import {
   buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
+import { DocumentDbService } from "@/document/document-db.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import { DocumentDbService } from "./document-db.service";
 import { EphemeralDocumentCleanupService } from "./ephemeral-document-cleanup.service";
+import { RetentionDbService } from "./retention-db.service";
 
 const mockDocumentDb = {
   findPurgeableEphemeralDocuments: jest.fn(),
@@ -30,6 +31,14 @@ const mockLogger = {
   warn: jest.fn(),
 };
 
+const mockRetentionDbService = {
+  runWithDatabaseLock: jest
+    .fn()
+    .mockImplementation(async (_label: string, fn: () => Promise<void>) => {
+      await fn();
+    }),
+};
+
 // A cuid-like group id used for blob-path construction.
 const GROUP_A = "clh7z2xk00000356u8e3h1234";
 
@@ -44,6 +53,7 @@ describe("EphemeralDocumentCleanupService", () => {
         { provide: TemporalClientService, useValue: mockTemporalClient },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
         { provide: AppLoggerService, useValue: mockLogger },
+        { provide: RetentionDbService, useValue: mockRetentionDbService },
       ],
     }).compile();
 
@@ -182,6 +192,29 @@ describe("EphemeralDocumentCleanupService", () => {
       expect.stringContaining("docccccccccccccccccccccccc"),
       expect.objectContaining({ documentId: "docccccccccccccccccccccccc" }),
     );
+  });
+
+  it("runs under the purgeEphemeralDocuments lock", async () => {
+    mockDocumentDb.findPurgeableEphemeralDocuments.mockResolvedValue([]);
+
+    await service.purgeEphemeralDocuments();
+
+    expect(mockRetentionDbService.runWithDatabaseLock).toHaveBeenCalledWith(
+      "purgeEphemeralDocuments",
+      expect.any(Function),
+    );
+  });
+
+  it("does nothing when another container holds the lock", async () => {
+    mockRetentionDbService.runWithDatabaseLock.mockImplementationOnce(
+      async () => {},
+    );
+
+    await service.purgeEphemeralDocuments();
+
+    expect(
+      mockDocumentDb.findPurgeableEphemeralDocuments,
+    ).not.toHaveBeenCalled();
   });
 
   it("aborts the run if the query fails", async () => {

@@ -31,12 +31,9 @@ import {
 import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
-import { GroupRole } from "@/generated/edge";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -88,7 +85,13 @@ export class TemplateModelController {
   // ========== TEMPLATE MODEL ENDPOINTS ==========
 
   @Get()
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.TEMPLATE_MODEL_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get all template models" })
   @ApiOkResponse({
     description: "List of template models with their field schemas",
@@ -96,28 +99,22 @@ export class TemplateModelController {
   })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description:
-      "Filter template models by group ID. When provided, only template models for that group are returned and group membership is verified.",
+      "Filter template models by group ID. Only template models for that group are returned and group membership is verified.",
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async getTemplateModels(
-    @Req() req: Request,
-    @Query("group_id") groupId?: string,
-  ) {
-    if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      return this.templateModelService.getTemplateModels([groupId]);
-    }
-    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    return this.templateModelService.getTemplateModels(groupIds);
+  async getTemplateModels(@Query("group_id") groupId: string) {
+    return this.templateModelService.getTemplateModels([groupId]);
   }
 
   @Post()
   @Identity({
     allowApiKey: true,
-    groupIdFrom: { body: "group_id" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.TEMPLATE_MODEL_CREATE],
+    },
   })
   @ApiOperation({ summary: "Create a new template model" })
   @ApiCreatedResponse({
@@ -146,7 +143,9 @@ export class TemplateModelController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getTemplateModel(@Param("id") id: string, @Req() req: Request) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return templateModel;
   }
 
@@ -166,7 +165,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_UPDATE,
+    ]);
     return this.templateModelService.updateTemplateModel(
       id,
       dto,
@@ -186,7 +187,9 @@ export class TemplateModelController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async deleteTemplateModel(@Param("id") id: string, @Req() req: Request) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_DELETE,
+    ]);
     return this.templateModelService.deleteTemplateModel(
       id,
       req.resolvedIdentity.actorId,
@@ -207,7 +210,9 @@ export class TemplateModelController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async getFieldSchema(@Param("id") id: string, @Req() req: Request) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_FIELDS_RETRIEVE,
+    ]);
     return this.templateModelService.getFieldSchema(id);
   }
 
@@ -227,7 +232,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_FIELDS_CREATE,
+    ]);
     return this.templateModelService.addField(
       id,
       dto,
@@ -253,7 +260,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_FIELDS_UPDATE,
+    ]);
     return this.templateModelService.updateField(
       id,
       fieldId,
@@ -279,7 +288,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_FIELDS_DELETE,
+    ]);
     return this.templateModelService.deleteField(
       id,
       fieldId,
@@ -304,7 +315,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_DOCUMENT_RETRIEVE,
+    ]);
     const documents =
       await this.templateModelService.getTemplateModelDocuments(id);
     await this.auditService.recordEvent({
@@ -346,7 +359,9 @@ export class TemplateModelController {
         `Labeling document with id ${dto.labelingDocumentId} not found`,
       );
     }
-    identityCanAccessGroup(req.resolvedIdentity, labelingDoc.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, labelingDoc.group_id, [
+      Permission.TEMPLATE_MODEL_DOCUMENT_CREATE,
+    ]);
     return this.templateModelService.addDocumentToTemplateModel(
       id,
       dto,
@@ -358,8 +373,10 @@ export class TemplateModelController {
   @HttpCode(HttpStatus.CREATED)
   @Identity({
     allowApiKey: true,
-    groupIdFrom: { body: "group_id" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.TEMPLATE_MODEL_DOCUMENT_CREATE],
+    },
   })
   @ApiOperation({
     summary: "Upload a document into a template model",
@@ -385,7 +402,6 @@ export class TemplateModelController {
     @Body() dto: LabelingUploadDto,
     @Req() req: Request,
   ) {
-    identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
     return this.templateModelService.uploadLabelingDocument(
       id,
       dto,
@@ -417,6 +433,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_DOCUMENT_RETRIEVE],
     );
     await this.auditService.recordEvent({
       event_type: "document_accessed",
@@ -458,6 +475,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_LABEL_RETRIEVE],
     );
     const labelingDocument = labeledDoc.labeling_document;
     if (!labelingDocument.normalized_file_path) {
@@ -512,6 +530,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_LABEL_RETRIEVE],
     );
     const labelingDocument = labeledDoc.labeling_document;
     const fileBuffer = await this.blobStorage.read(
@@ -561,6 +580,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_DOCUMENT_DELETE],
     );
     return this.templateModelService.removeDocumentFromTemplateModel(
       id,
@@ -594,6 +614,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_LABEL_RETRIEVE],
     );
     const labels = await this.templateModelService.getDocumentLabels(
       id,
@@ -635,6 +656,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_LABEL_CREATE],
     );
     return this.templateModelService.saveDocumentLabels(
       id,
@@ -669,6 +691,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.TEMPLATE_MODEL_LABEL_DELETE],
     );
     return this.templateModelService.deleteLabel(
       id,
@@ -702,6 +725,7 @@ export class TemplateModelController {
     identityCanAccessGroup(
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
+      [Permission.OCR_RESULTS_RETRIEVE],
     );
     const ocr = await this.templateModelService.getDocumentOcr(id, documentId);
     await this.auditService.recordEvent({
@@ -764,7 +788,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ): Promise<FormatSuggestionResponseDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_SUGGESTIONS,
+    ]);
     return this.formatSuggestionService.suggestFormats(id, dto.benchmarkRunIds);
   }
 
@@ -792,7 +818,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return this.templateModelService.exportTemplateModel(id, options);
   }
 }

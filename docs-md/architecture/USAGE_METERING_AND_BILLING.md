@@ -135,7 +135,7 @@ nav item and page are hidden/redirected for non-admins.
 
 ## API
 
-All routes are group-scoped (`minimumRole: ADMIN`) unless noted. Base prefix `/api`.
+All group-scoped routes require the `USAGE_RETRIEVE` or `GROUP_BILLING` permission (both granted only to `ADMIN` in the default `RoleClaimsMap`) unless noted. Base prefix `/api`.
 
 | Method & path | Access | Purpose |
 | --- | --- | --- |

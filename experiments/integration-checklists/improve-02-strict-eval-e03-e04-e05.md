@@ -84,9 +84,8 @@ PREREQUISITES (confirm at session start):
   - Azure DI resource (E05)
   - CU defaults patched (E03 — run `setup-cu-defaults.ts` if you've
     rotated the resource)
-- TEST_API_KEY auto-loaded by trigger script from
-  `apps/backend-services/.env` (or the override file). Don't read
-  the value yourself; the script handles it.
+- TEST_API_KEY auto-loaded by trigger script from the repo-root
+  `.env`. Don't read the value yourself; the script handles it.
 
 KNOWN-HARD SAMPLES (treat as floor, not signal):
 - `"81 blank"` and `"81 coffee"` are low-resolution / obscured forms.

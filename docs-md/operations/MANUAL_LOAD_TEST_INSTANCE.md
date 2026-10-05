@@ -244,7 +244,7 @@ This deletes labeled resources including PostgresClusters for that instance.
 
 ## Operational notes
 
-- **`Deploy Instance`** on **`workflow_dispatch`** still targets the **`dev`** GitHub environment / **`fd34fb-dev`**; this manual path is how you land an extra stack in **`fd34fb-test`** without changing CI.
+- **`Deploy Instance`** on **`workflow_dispatch`** deploys into the GitHub environment picked in its form: **`dev`** (the default, **`fd34fb-dev`**) or **`test`** (**`fd34fb-test`**); **`prod`** is accepted only from **`main`**, as the production instance **`bcgov-di`** (see [AUTO_DEPLOY.md](./AUTO_DEPLOY.md)). The scripts on this page build and deploy from your machine, with options the workflow does not expose: per-instance `.env` overrides and the flags below.
 - Registry paths remain **`${ARTIFACTORY_URL}/kfd3-fd34fb-local/<service>:<tag>`**, identical to CI.
 - Overlay placeholders **`DOCUMENT_INTELLIGENCE_MODE`** and **`MOCK_AZURE_OCR`** are substituted by [`scripts/lib/generate-overlay.sh`](../../scripts/lib/generate-overlay.sh); CI defaults stay **`live`** / **`false`** when those flags are omitted.
-- The **`minio`** Kustomize component lives at [`deployments/openshift/kustomize/components/minio`](../../deployments/openshift/kustomize/components/minio) and is opt-in. CI’s **`Deploy Instance`** workflow does **not** pass **`--blob-storage-provider minio`**, so it has no effect on the **`bcgov-di-test`** or **`bcgov-di-prod`** stacks.
+- The **`minio`** Kustomize component lives at [`deployments/openshift/kustomize/components/minio`](../../deployments/openshift/kustomize/components/minio) and is opt-in. CI’s **`Deploy Instance`** workflow does **not** pass **`--blob-storage-provider minio`**, so it has no effect on the **`bcgov-di-test`** or **`bcgov-di`** (production) stacks.

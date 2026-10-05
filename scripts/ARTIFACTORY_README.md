@@ -122,10 +122,10 @@ This deletes the named tag from all four images (`backend-services`, `frontend`,
 
 ### Routine cleanup
 
-After successful prod deploys, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image. Test/dev keeps 10. Manual cleanup:
+After successful prod deploys, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image. Test/dev keeps only the newest (the build the instance is running). Manual cleanup:
 
 ```bash
-./scripts/artifactory-cleanup.sh --env dev --delete --keep 10 --match 'bcgov-di-test-????????????'
+./scripts/artifactory-cleanup.sh --env dev --delete --keep 1 --match 'bcgov-di-test-????????????'
 ./scripts/artifactory-cleanup.sh --env prod --delete --keep 3 --match 'bcgov-di-????????????'
 ```
 

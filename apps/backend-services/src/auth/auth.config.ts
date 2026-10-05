@@ -2,9 +2,9 @@
  * Centralized auth-related configuration constants.
  *
  * Values are read from `process.env` at module load time with sensible defaults.
- * For local development with a `.env` file, `import 'dotenv/config'` is called
- * at the top of `main.ts` to ensure environment variables are populated before
- * module resolution (and therefore before decorator evaluation).
+ * For local development, `main.ts` imports `./env-loader` first, which loads the
+ * repo-root `.env` before module resolution (and therefore before decorator
+ * evaluation).
  *
  * In production (Docker, k8s, systemd) environment variables are set externally,
  * so they are available before the process starts.

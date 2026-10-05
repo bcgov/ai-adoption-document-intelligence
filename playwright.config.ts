@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load environment variables from backend .env file
-dotenv.config({ path: path.resolve(__dirname, 'apps/backend-services/.env') });
+// Load environment variables from the repo-root .env file
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 // Set default TEST_API_KEY if not provided (matches seed.ts default)
 if (!process.env.TEST_API_KEY) {

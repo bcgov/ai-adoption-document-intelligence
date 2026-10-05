@@ -27,7 +27,7 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
-import { ReviewDbService } from "./review-db.service";
+import { ReviewDbService, type ReviewQueueDocument } from "./review-db.service";
 
 describe("HitlService", () => {
   let service: HitlService;
@@ -203,6 +203,7 @@ describe("HitlService", () => {
   describe("getQueue", () => {
     it("should return documents from the queue with their computed average confidence", async () => {
       const filters: QueueFilterDto = {
+        group_id: "group-1",
         limit: 50,
         offset: 0,
       };
@@ -230,6 +231,28 @@ describe("HitlService", () => {
       expect(result.total).toBe(137);
     });
 
+    it("should name each document's workflow, or give null when it was uploaded without one", async () => {
+      const queueRow: ReviewQueueDocument = {
+        ...mockDocument,
+        ocr_result: { keyValuePairs: mockOcrResult.keyValuePairs },
+        lock: null,
+        workflowVersion: { lineage: { name: "Invoice intake" } },
+        review_sessions: [],
+      };
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        queueRow,
+        { ...queueRow, id: "doc-2", workflowVersion: null },
+      ]);
+      mockReviewDbService.countReviewQueue.mockResolvedValueOnce(2);
+
+      const result = await service.getQueue({ group_id: "group-1" });
+
+      expect(result.documents.map((doc) => doc.workflow_name)).toEqual([
+        "Invoice intake",
+        null,
+      ]);
+    });
+
     it("should not filter documents by confidence — that is the workflow's job", async () => {
       const docWithHighConfidence = {
         ...mockDocumentWithOcr,
@@ -247,7 +270,7 @@ describe("HitlService", () => {
       ]);
       mockReviewDbService.countReviewQueue.mockResolvedValueOnce(1);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents).toHaveLength(1);
       expect(result.total).toBe(1);
@@ -271,7 +294,7 @@ describe("HitlService", () => {
         docWithSession as any,
       ]);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents[0].lastSession).toEqual({
         id: "session-1",
@@ -287,7 +310,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ status: DocumentStatusFilter.ALL });
+      await service.getQueue({
+        group_id: "group-1",
+        status: DocumentStatusFilter.ALL,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -301,7 +327,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -316,7 +345,7 @@ describe("HitlService", () => {
       ]);
 
       await service.getQueue(
-        { reviewStatus: ReviewStatusFilter.CLAIMED },
+        { group_id: "group-1", reviewStatus: ReviewStatusFilter.CLAIMED },
         undefined,
         "reviewer-1",
       );
@@ -334,7 +363,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -346,7 +378,10 @@ describe("HitlService", () => {
     it("should NOT include complete documents in the pending filter", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.PENDING });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.PENDING,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -358,7 +393,7 @@ describe("HitlService", () => {
     it("should use default values for optional filters", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({});
+      await service.getQueue({ group_id: "group-1" });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
@@ -436,6 +471,43 @@ describe("HitlService", () => {
       expect(since.getHours()).toBe(0);
       expect(since.getMinutes()).toBe(0);
       expect(since.toDateString()).toBe(new Date().toDateString());
+    });
+
+    it("should average confidence over exactly the documents the four tabs list", async () => {
+      mockReviewDbService.countReviewQueue.mockResolvedValue(0);
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([]);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
+
+      await service.getQueueStats(["group-1"], "reviewer-1");
+
+      // The same per-tab filters as the counts, so a document a workflow
+      // completed without routing to review is left out of the average too.
+      expect(mockReviewDbService.findQueueFieldPayloads).toHaveBeenCalledWith([
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "pending",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "claimed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "flagged",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "reviewed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+      ]);
     });
 
     it("should report zero average confidence when no document carries field confidence", async () => {
@@ -1177,6 +1249,7 @@ describe("HitlService", () => {
       mockAnalyticsService.getAnalytics.mockResolvedValueOnce(mockAnalytics);
 
       const filters = {
+        group_id: "group-1",
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-12-31"),
       };
@@ -1631,6 +1704,59 @@ describe("HitlService", () => {
       });
       expect(result).not.toBeNull();
       expect(result?.id).toBe("session-1");
+    });
+
+    it("should handle CLAIMED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.CLAIMED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "claimed",
+          currentReviewerId: "reviewer-1",
+        }),
+      );
+    });
+
+    it("should handle FLAGGED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.FLAGGED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "flagged",
+        }),
+      );
     });
 
     it("should return null when no eligible documents", async () => {

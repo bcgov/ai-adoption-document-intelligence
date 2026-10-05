@@ -156,7 +156,14 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 Prod backup PVC sizes are hardcoded in `deployments/openshift/kustomize/components/prod-resources/kustomization.yml`. Test instances use the base manifest values (10Gi for both). These values are not environment variables and cannot be overridden without editing the kustomize component.
 
-pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
+pgBackRest retention differs between the two PostgresClusters (set in the base manifests, not via env overlay):
+
+| Cluster | Retention | Full backup | Incremental |
+|---------|-----------|-------------|-------------|
+| `app-pg` | **2 most recent fulls** (`repo1-retention-full: '2'` / `repo1-retention-full-type: count`) | Weekly, Sunday 02:00 | Every 4 hours |
+| `temporal-pg` | **14 days** (`repo1-retention-full: '14'` / `repo1-retention-full-type: time`) | Daily 02:00 | Hourly |
+
+On `app-pg`, count-based retention bounds the repo size even if a scheduled full is missed; a time-based window would keep growing until the next full succeeded. Incrementals newer than the oldest retained full are kept, so the recoverable window is roughly two weeks. `app-pg` also compresses with zstd (`compress-type: zst`, `compress-level: '3'`) rather than the pgBackRest gz default.
 
 ### Database SSL
 
@@ -178,6 +185,21 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 | Variable | Description |
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
+
+### Retention
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. A positive integer is required to enable it (e.g. `90`). |
+| `AUDIT_EVENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `audit_events` rows are deleted. Confirm statutory retention requirements before setting this in a regulated environment. |
+| `BENCHMARK_AUDIT_LOG_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `benchmark_audit_logs` rows are deleted. |
+| `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `approved` or `abandoned` `review_sessions` are deleted, once their document has finished processing, along with their cascading `field_corrections` (reviewer edits read by confusion profiles, HITL aggregation and format suggestions). `in_progress` and `flagged` sessions are never deleted. |
+
+All four janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
+
+For the document janitor: deletion cascades from the `documents` row to `ocr_results`, `review_sessions`, `field_corrections`, and `document_locks`. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review`, or `extracted` are never deleted at any age.
+
+All values are supplied by repository secrets and substituted by `generate_instance_overlay`. See [DOCUMENT_RETENTION.md](../architecture/DOCUMENT_RETENTION.md) for full details.
 
 ### Database Connection Pool
 

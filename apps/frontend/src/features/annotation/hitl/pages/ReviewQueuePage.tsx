@@ -475,7 +475,7 @@ export const ReviewQueuePage: FC = () => {
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
-                            {doc.workflow_id || "N/A"}
+                            {doc.workflow_name ?? "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
@@ -626,7 +626,7 @@ export const ReviewQueuePage: FC = () => {
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
-                            {doc.workflow_id || "N/A"}
+                            {doc.workflow_name ?? "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>

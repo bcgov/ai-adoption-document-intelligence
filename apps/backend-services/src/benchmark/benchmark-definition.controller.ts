@@ -37,6 +37,7 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
@@ -65,10 +66,11 @@ export class BenchmarkDefinitionController {
   private async assertProjectGroupAccess(
     projectId: string,
     req: Request,
+    permissions: Permission[],
   ): Promise<void> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId, permissions);
   }
 
   @Post()
@@ -94,7 +96,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions - name: ${createDefinitionDto.name}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_CREATE,
+    ]);
     return this.benchmarkDefinitionService.createDefinition(
       projectId,
       createDefinitionDto,
@@ -117,7 +121,9 @@ export class BenchmarkDefinitionController {
     @Req() req: Request,
   ): Promise<DefinitionSummaryDto[]> {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/definitions`);
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkDefinitionService.listDefinitions(projectId);
   }
 
@@ -140,7 +146,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkDefinitionService.getDefinitionById(
       projectId,
       definitionId,
@@ -173,7 +181,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `PUT /api/benchmark/projects/${projectId}/definitions/${definitionId}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_UPDATE,
+    ]);
     return this.benchmarkDefinitionService.updateDefinition(
       projectId,
       definitionId,
@@ -210,7 +220,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_SCHEDULE,
+    ]);
     return this.benchmarkDefinitionService.configureSchedule(
       projectId,
       definitionId,
@@ -238,7 +250,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/schedule`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_SCHEDULE,
+    ]);
     return this.benchmarkDefinitionService.getScheduleInfo(
       projectId,
       definitionId,
@@ -274,7 +288,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/promote-candidate-workflow`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_UPDATE,
+    ]);
     return this.benchmarkDefinitionService.promoteCandidateWorkflow(
       projectId,
       definitionId,
@@ -301,7 +317,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/baseline-history`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     // Query audit logs for baseline_promoted events
     const auditLogs = await this.auditLogService.queryAuditLogs({
@@ -352,7 +370,9 @@ export class BenchmarkDefinitionController {
     this.logger.log(
       `DELETE /api/benchmark/projects/${projectId}/definitions/${definitionId}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_DELETE,
+    ]);
     return this.benchmarkDefinitionService.deleteDefinition(
       projectId,
       definitionId,

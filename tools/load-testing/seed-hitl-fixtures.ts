@@ -4,7 +4,11 @@
  * Documents are synthetic, source="api", awaiting_review, and use id prefix "ldt-hitl-".
  * Deleting by prefix cascades review sessions, locks, corrections, and OCR results.
  */
-import "dotenv/config";
+import { config as dotenvConfig } from "dotenv";
+import { resolve } from "node:path";
+
+dotenvConfig({ path: resolve(__dirname, "../../.env") });
+
 import pg from "pg";
 
 const ID_PREFIX = "ldt-hitl-";
