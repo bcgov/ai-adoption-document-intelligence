@@ -28,17 +28,6 @@ export class QueueFilterDto {
   @IsString()
   modelId?: string;
 
-  @ApiPropertyOptional({
-    description: "Maximum confidence threshold (show fields below this)",
-    default: 0.9,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(1)
-  maxConfidence?: number;
-
   @ApiPropertyOptional({ description: "Limit results", default: 50 })
   @IsOptional()
   @Type(() => Number)

@@ -88,7 +88,7 @@ Environment:
 | `LOAD_TEST_BLOB_LABEL` | sanitized `LOAD_TEST_RUN_ID` | Prefix-scoped classifier document label/folder used for generated blobs |
 | `LOAD_TEST_BLOB_CLEANUP` | `true` | Delete the generated label/folder during k6 teardown |
 | `LOAD_TEST_BLOB_DELETE_BEFORE_RUN` | `false` | Delete the generated label/folder in setup before writing new blobs |
-| `LOAD_TEST_HITL_MAX_CONFIDENCE` | `0.9` | Maximum confidence filter for review queue/session selection |
+| `LOAD_TEST_HITL_MAX_CONFIDENCE` | `0.9` | Maximum confidence filter sent when claiming the next review session (the queue read no longer accepts one) |
 | `LOAD_TEST_HITL_QUEUE_LIMIT` | `20` | Queue and eligible-document page size for `review-hitl` |
 | `LOAD_TEST_HITL_SESSION_MODE` | `skip` | Session action after correction: `off`, `skip`, `submit`, or `flag` |
 | `LOAD_TEST_HITL_REVIEW_STATUS` | `pending` | Review status filter for queue reads |
@@ -247,7 +247,7 @@ Routes used by the default scenario:
 
 | Route | Purpose |
 |-------|---------|
-| `GET /api/hitl/queue?group_id=<group>&reviewStatus=<status>&maxConfidence=<n>&limit=<n>&offset=<n>` | Paginated review queue read. |
+| `GET /api/hitl/queue?group_id=<group>&reviewStatus=<status>&limit=<n>&offset=<n>` | Paginated review queue read. |
 | `GET /api/hitl/queue/stats?group_id=<group>&reviewStatus=<status>` | Queue statistics read. |
 | `GET /api/hitl/analytics?group_id=<group>` | Review analytics read. |
 | `GET /api/benchmark/datasets/from-hitl/eligible-documents?group_id=<group>&page=<n>&limit=<n>` | Paginated list of HITL-approved documents eligible for dataset creation. |

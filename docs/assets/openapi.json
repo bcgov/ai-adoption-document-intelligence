@@ -8099,16 +8099,6 @@
             }
           },
           {
-            "name": "maxConfidence",
-            "required": false,
-            "in": "query",
-            "description": "Maximum confidence threshold (show fields below this)",
-            "schema": {
-              "default": 0.9,
-              "type": "number"
-            }
-          },
-          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -8246,6 +8236,7 @@
               "type": "string",
               "enum": [
                 "pending",
+                "claimed",
                 "reviewed",
                 "flagged",
                 "all"
@@ -16150,22 +16141,10 @@
         "type": "string",
         "enum": [
           "pending",
+          "claimed",
           "reviewed",
           "flagged",
           "all"
-        ]
-      },
-      "QueueDocumentOcrDto": {
-        "type": "object",
-        "properties": {
-          "fields": {
-            "type": "object",
-            "description": "Extracted key-value pairs with confidence scores",
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "fields"
         ]
       },
       "QueueSessionSummaryDto": {
@@ -16209,6 +16188,11 @@
           "model_id": {
             "type": "object"
           },
+          "workflow_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Name of the workflow the document was uploaded through, or null when it was uploaded without one"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -16217,8 +16201,8 @@
             "format": "date-time",
             "type": "string"
           },
-          "ocr_result": {
-            "$ref": "#/components/schemas/QueueDocumentOcrDto"
+          "average_confidence": {
+            "type": "number"
           },
           "lastSession": {
             "$ref": "#/components/schemas/QueueSessionSummaryDto"
@@ -16228,9 +16212,10 @@
           "id",
           "original_filename",
           "status",
+          "workflow_name",
           "created_at",
           "updated_at",
-          "ocr_result"
+          "average_confidence"
         ]
       },
       "QueueResponseDto": {
@@ -16257,7 +16242,7 @@
         "properties": {
           "totalDocuments": {
             "type": "number",
-            "description": "Total documents in the review queue"
+            "description": "Documents that have entered the review pipeline (pending, claimed, flagged, or reviewed) — excludes documents a workflow completed without ever routing them to review"
           },
           "requiresReview": {
             "type": "number",
@@ -16277,6 +16262,19 @@
           "requiresReview",
           "averageConfidence",
           "reviewedToday"
+        ]
+      },
+      "QueueDocumentOcrDto": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "object",
+            "description": "Extracted key-value pairs with confidence scores",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "fields"
         ]
       },
       "SessionDocumentDto": {

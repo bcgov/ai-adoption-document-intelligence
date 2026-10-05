@@ -1,5 +1,4 @@
 import {
-  Document,
   DocumentLock,
   DocumentStatus,
   Prisma,
@@ -16,13 +15,40 @@ export interface ReviewQueueFilters {
   statuses: DocumentStatus[];
   modelId?: string;
   minConfidence?: number;
-  maxConfidence?: number;
   limit?: number;
   offset?: number;
-  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
+  reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   groupIds?: string[];
   currentReviewerId?: string;
 }
+
+/**
+ * What the review queue loads for each document. Only the OCR field payload is
+ * selected: `content` holds the full extracted text and page lines, which the
+ * queue never shows, and the queue page re-reads every tab every 30 seconds.
+ * `review_sessions` carries at most the one session the tab in view needs.
+ */
+function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
+  return {
+    ocr_result: { select: { keyValuePairs: true } },
+    lock: true,
+    workflowVersion: { select: { lineage: { select: { name: true } } } },
+    review_sessions: {
+      // Exclude in_progress — lock record determines "In review" display; these are noise
+      where: { status: { in: lastSessionStatuses } },
+      include: {
+        corrections: true,
+      },
+      orderBy: { started_at: "desc" },
+      take: 1,
+    },
+  } satisfies Prisma.DocumentInclude;
+}
+
+/** One review-queue document, exactly as `findReviewQueue` loads it. */
+export type ReviewQueueDocument = Prisma.DocumentGetPayload<{
+  include: ReturnType<typeof reviewQueueInclude>;
+}>;
 
 @Injectable()
 export class ReviewDbService {
@@ -109,6 +135,7 @@ export class ReviewDbService {
   private buildReviewQueueWhere(
     filters: ReviewQueueFilters,
   ): Prisma.DocumentWhereInput {
+    const now = new Date();
     const where: Prisma.DocumentWhereInput = {
       status: { in: filters.statuses },
       // Only documents ingested through the regular API/upload pipeline are
@@ -122,7 +149,7 @@ export class ReviewDbService {
       // Exclude documents locked by other reviewers (keep own locks visible)
       NOT: {
         lock: {
-          expires_at: { gt: new Date() },
+          expires_at: { gt: now },
           ...(filters.currentReviewerId
             ? { reviewer_id: { not: filters.currentReviewerId } }
             : {}),
@@ -138,8 +165,9 @@ export class ReviewDbService {
       where.model_id = filters.modelId;
     }
 
-    if (filters.reviewStatus === "pending") {
-      where.OR = [
+    // Not yet approved or flagged — still awaiting a decision either way.
+    const undecidedSessions: Prisma.DocumentWhereInput = {
+      OR: [
         { review_sessions: { none: {} } },
         {
           review_sessions: {
@@ -147,6 +175,27 @@ export class ReviewDbService {
               status: {
                 in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
               },
+            },
+          },
+        },
+      ],
+    };
+
+    if (filters.reviewStatus === "pending") {
+      // Unclaimed: no active lock at all. A document the caller has claimed
+      // belongs on the "claimed" tab instead.
+      where.AND = [
+        undecidedSessions,
+        { OR: [{ lock: null }, { lock: { expires_at: { lte: now } } }] },
+      ];
+    } else if (filters.reviewStatus === "claimed") {
+      where.AND = [
+        undecidedSessions,
+        {
+          lock: {
+            is: {
+              expires_at: { gt: now },
+              reviewer_id: filters.currentReviewerId ?? "__no-reviewer__",
             },
           },
         },
@@ -181,20 +230,23 @@ export class ReviewDbService {
   }
 
   /**
-   * Reads the extracted fields of every document the filter matches, without
-   * pagination, so an average over them covers the whole queue. Only the OCR
-   * field payload is selected — the rest of the document row is not needed.
-   * @param filters - The same filters passed to findReviewQueue.
-   * @returns One entry per document that has an OCR result.
+   * Reads the extracted fields of every document that matches any of the
+   * filters, without pagination, so an average over them covers the whole
+   * queue. Pass one filter per queue tab and the result is exactly the
+   * documents the tabs list between them, each read once. Only the OCR field
+   * payload is selected — the rest of the document row is not needed.
+   * @param filters - Filters in the shape findReviewQueue takes; a document
+   *   matching any one of them is included.
+   * @returns One entry per matching document that has an OCR result.
    */
   async findQueueFieldPayloads(
-    filters: ReviewQueueFilters,
+    filters: ReviewQueueFilters[],
     tx?: Prisma.TransactionClient,
   ): Promise<Prisma.JsonValue[]> {
     const client = tx ?? this.prisma;
     const rows = await client.document.findMany({
       where: {
-        ...this.buildReviewQueueWhere(filters),
+        OR: filters.map((filter) => this.buildReviewQueueWhere(filter)),
         ocr_result: { isNot: null },
       },
       select: { ocr_result: { select: { keyValuePairs: true } } },
@@ -233,38 +285,34 @@ export class ReviewDbService {
   async findReviewQueue(
     filters: ReviewQueueFilters,
     tx?: Prisma.TransactionClient,
-  ): Promise<Document[]> {
+  ): Promise<ReviewQueueDocument[]> {
     const client = tx ?? this.prisma;
     this.logger.debug("Finding review queue");
 
     const where = this.buildReviewQueueWhere(filters);
+
+    // `lastSession` must be the session relevant to the tab being viewed, not
+    // just whichever terminal session started most recently: a flagged
+    // document that was claimed and then abandoned (e.g. an expired lock)
+    // would otherwise surface that newer `abandoned` session instead of the
+    // `flagged` one the Flagged tab's "Take" action needs to reopen.
+    const lastSessionStatuses: ReviewStatus[] =
+      filters.reviewStatus === "flagged"
+        ? [ReviewStatus.flagged]
+        : filters.reviewStatus === "reviewed"
+          ? [ReviewStatus.approved]
+          : [
+              ReviewStatus.approved,
+              ReviewStatus.flagged,
+              ReviewStatus.abandoned,
+            ];
 
     return client.document.findMany({
       where,
       orderBy: { created_at: "desc" },
       take: filters.limit ?? 50,
       skip: filters.offset ?? 0,
-      include: {
-        ocr_result: true,
-        lock: true,
-        review_sessions: {
-          where: {
-            // Exclude in_progress — lock record determines "In review" display; these are noise
-            status: {
-              in: [
-                ReviewStatus.approved,
-                ReviewStatus.flagged,
-                ReviewStatus.abandoned,
-              ],
-            },
-          },
-          include: {
-            corrections: true,
-          },
-          orderBy: { started_at: "desc" },
-          take: 1,
-        },
-      },
+      include: reviewQueueInclude(lastSessionStatuses),
     });
   }
 
