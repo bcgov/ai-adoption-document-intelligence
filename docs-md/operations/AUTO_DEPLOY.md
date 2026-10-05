@@ -59,9 +59,11 @@ The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. I
 
 | Target | Staged tag | Floating tag | Rollback | Rotation |
 |---|---|---|---|---|
-| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
+| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep only the newest SHA tag per image (the running build) |
 | Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
 | Other manual runs (`dev`/`test`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
+
+Test keeps no rollback history: each build adds about 0.9 GB of image layers (Temporal about 460 MB, backend about 300 MB) against the repository's 5 GB quota, which test and production share. Rotation runs in the **Artifactory cleanup** job, after a successful deploy, so the newest test tag is the build the test instance is running.
 
 Rotation matches `<instance>-????????????`, and for the test and production targets the instance name
 and the floating tag are the same string, so those SHA tags rotate. On other manual runs they are not:
@@ -71,9 +73,25 @@ such as `feature/visual-workflow-builder` stages `feature-visual-workflow-builde
 Left as-is deliberately: the manual pathway is being retired under
 [AI-1207](https://citz-do.atlassian.net/browse/AI-1207).
 
+## OpenShift API retries
+
+GitHub-hosted runners reach the cluster API over the public internet, where a share of new connections is refused (`connect: connection refused`) or stalls (`i/o timeout`, `context deadline exceeded`) for periods of minutes to hours. The same API stays reachable from the BC Gov network during those periods, and a retry a few seconds later almost always gets through.
+
+Every deploy-job step that talks to the cluster sources `scripts/lib/oc-retry.sh`, which wraps `oc` and `helm`:
+
+- A call that fails with a connection error is retried up to six times, 10 seconds apart (`CLUSTER_RETRY_ATTEMPTS`, `CLUSTER_RETRY_WAIT_SECONDS`). Each attempt's error output stays in the log, followed by a `[WARN] ... retrying` line.
+- Any other failure (`NotFound`, `Forbidden`, validation, a rollout or Helm `--wait` timeout) fails at once with its own exit code, so existence checks such as `if oc get deployment ...` still read a missing resource as missing rather than retrying it.
+- A manifest piped in with `-f -` is buffered to a file, so a retry re-sends all of it.
+- One-shot `oc` calls (`get`, `apply`, `create`, `label`, `patch`, `delete`, ...) get `--request-timeout=60s` (`OC_REQUEST_TIMEOUT`), so a stalled request fails and is retried instead of hanging; `oc rollout status` keeps its own `--timeout`.
+- `helm upgrade` handles a release left pending. An upgrade that loses its connection mid-way cannot record its outcome, so the release's latest revision stays `pending-upgrade` and every later upgrade fails with `another operation (install/upgrade/rollback) is in progress`, blocking all deploys until it is cleared. Before upgrading, the wrapper rolls such a release back to its last deployed revision if the pending revision is at least 10 minutes old (`HELM_PENDING_MIN_AGE_SECONDS`; older than any live upgrade, whose `--wait` is 5 minutes). After one of its own attempts fails on a connection error, it clears the pending revision regardless of age and retries, including when the retry reports `another operation ... is in progress`. A pending first install with no earlier revision is left alone.
+
+Login (`openshift_login` in `scripts/lib/openshift-login.sh`) makes up to six attempts 10 seconds apart and calls `oc` directly, without the wrapper, so a runner that cannot reach the API at all fails in about four minutes. From some Azure regions the API is unreachable for a whole job (runners in `mexicocentral` and `chilecentral` failed every login attempt while runners in US regions got through), so the final error names the runner's Azure region, read from the instance metadata service. **Re-run failed jobs** gets a different runner.
+
+Tests: `bash scripts/lib/oc-retry.test.sh`, `bash scripts/lib/openshift-login.test.sh`.
+
 ## Artifactory retries
 
-To handle intermittent `Client.Timeout exceeded` errors against the registry, registry operations retry up to three times with a 15-second backoff:
+To handle intermittent `Client.Timeout exceeded` errors and connection timeouts against the registry from GitHub runners, registry operations make up to six attempts with a 15-second backoff:
 
 - `docker login` in the build and promote steps (`scripts/lib/artifactory-login.sh`).
 - The deploy job's staged-image existence check and the `docker buildx imagetools create` promotion, via a shared `with_retries` helper (`scripts/lib/retry.sh`). The existence check only accepts HTTP 200, so a transient timeout (`000`) or `5xx` is retried while a genuinely-missing image still fails after the attempts are exhausted.
@@ -88,9 +106,10 @@ Test and production images share one Artifactory repository (`kfd3-fd34fb-local`
 
 Artifactory intermittently drops requests after about 15 seconds with no response (logged as HTTP `000`), well inside `--max-time`, so a longer timeout does not help. Instead:
 
-- Every request is retried three times with a 10-second wait, and a failed request logs curl's exit code and error.
+- Every request gets up to six attempts with a 10-second wait, and a failed request logs curl's exit code and error. From GitHub runners a connection can also time out outright (`curl: (28) Failed to connect`) for a while.
 - If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
 - Deletes are retried; a `404` counts as already deleted.
+- `_uploads` blobs younger than an hour are left for a later run. The cleanup job runs straight after a deploy, when the run's own pushes have just finished: Artifactory still holds those blobs, so a delete hangs until it times out, and deleting a blob a concurrent push is still writing would break that push.
 - Any lookup or delete that still fails makes the script exit `1`, which turns the **Artifactory cleanup** job red.
 
 **When the cleanup job fails**, the deploy itself succeeded. Use **Re-run failed jobs** on the run to retry just the cleanup; it is safe to repeat. If it keeps failing, run the script locally in dry-run mode (`./scripts/artifactory-cleanup.sh --env dev`) to see which lookups fail.
@@ -101,8 +120,11 @@ Artifactory intermittently drops requests after about 15 seconds with no respons
 
 The deploy job uses `scripts/lib/wait-for-rollouts.sh`, which:
 
+- Restarts the deployments one at a time and waits for each rollout (`oc rollout status`, 300 s) before restarting the next. A rolling update creates a surge pod before removing an old one, and the test namespace's CPU-request quota (4 CPU, about 3.5 in use at rest) leaves room for roughly one surge pod at a time; restarting them all at once makes the surge pods queue on the quota until the later rollouts time out.
 - Fails the workflow (not just a warning) when `oc rollout status` times out — including when the namespace lacks the resources to schedule the new pods, which surfaces as a rollout timeout rather than a silent success.
-- Emits pod status, `FailedScheduling` events, and resource-quota details on failure.
+- Emits pod status, `FailedScheduling` events, `FailedCreate` events (pods refused, for example `exceeded quota`), and resource-quota details on failure. The deploy service account cannot read resource quotas, so in practice the `FailedCreate` events are what show a quota limit.
+
+Tests: `bash scripts/lib/wait-for-rollouts.test.sh`.
 
 Namespace capacity is not pre-checked before the restart: in a shared namespace a quota can be at its limit because of other instances, and a rollout-restart of already-sized deployments requests no new storage, so a pre-flight quota gate produced false blocks. Resource exhaustion is instead caught by the rollout-status timeout above. Right-sizing capacity (HPA tuning) is tracked separately.
 

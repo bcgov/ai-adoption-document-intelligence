@@ -178,4 +178,52 @@ describe("GroupContext", () => {
       ).toEqual([]);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Scenario 9: a system admin can select a group they are not a member of
+  // ---------------------------------------------------------------------------
+  describe("Scenario 9 – system admin selects a non-member group", () => {
+    it("makes the selected non-member group active for a system admin", () => {
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA] },
+        isSystemAdmin: true,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      act(() => {
+        result.current.setActiveGroup(groupC);
+      });
+
+      expect(result.current.activeGroup).toEqual(groupC);
+      expect(localStorage.getItem("activeGroupId")).toBe(groupC.id);
+    });
+
+    it("keeps a non-admin on a membership when a non-member group is passed", () => {
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA, groupB] },
+        isSystemAdmin: false,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      act(() => {
+        result.current.setActiveGroup(groupC);
+      });
+
+      expect(result.current.activeGroup).toEqual(groupA);
+    });
+
+    it("falls back to the first membership after a reload with a non-member group stored", () => {
+      localStorage.setItem("activeGroupId", groupC.id);
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA] },
+        isSystemAdmin: true,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      expect(result.current.activeGroup).toEqual(groupA);
+    });
+  });
 });

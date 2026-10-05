@@ -34,20 +34,30 @@ interface GroupProviderProps {
  * `localStorage`. If the stored group id no longer exists in the user's
  * memberships (or no value was stored), it falls back to the first available
  * group. When the user has no memberships `activeGroup` is `null`.
+ *
+ * A system admin can select any group, including one they are not a member
+ * of; that selection is held for the session and resolves to the first
+ * membership again after a full page load.
  */
 export const GroupProvider: React.FC<GroupProviderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isSystemAdmin } = useAuth();
   const availableGroups: Group[] = user?.groups ?? [];
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_GROUP_ID_KEY),
   );
+  // The group object a system admin picked from the full group list, which
+  // is not in `availableGroups` when they are not a member of it.
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
 
   // Derived during render rather than held in state, so it is set in the same
   // render as the user's groups. Route guards read it on the first render after
   // /me returns, and a null there redirects a full page load to "/".
   const activeGroup =
     availableGroups.find((g) => g.id === selectedGroupId) ??
+    (isSystemAdmin && selectedGroup?.id === selectedGroupId
+      ? selectedGroup
+      : undefined) ??
     availableGroups[0] ??
     null;
 
@@ -59,6 +69,7 @@ export const GroupProvider: React.FC<GroupProviderProps> = ({ children }) => {
   const setActiveGroup = (group: Group): void => {
     localStorage.setItem(ACTIVE_GROUP_ID_KEY, group.id);
     setSelectedGroupId(group.id);
+    setSelectedGroup(group);
   };
 
   const hasPermissionForGroup = (

@@ -285,7 +285,7 @@ jobs:
 
           for svc in "${SERVICES[@]}"; do
             echo "Checking ${svc}:${SHA_TAG}..."
-            if ! with_retries 3 15 check_manifest "${svc}"; then
+            if ! with_retries 6 15 check_manifest "${svc}"; then
               echo "::error::Missing staged image ${svc}:${SHA_TAG}"
               exit 1
             fi
@@ -326,6 +326,7 @@ jobs:
           THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           source scripts/lib/instance-name.sh
           source scripts/lib/generate-overlay.sh
@@ -396,6 +397,7 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           echo "::group::Artifactory image pull secret"
           # Create an instance-owned docker-registry pull secret with the same
@@ -471,6 +473,7 @@ jobs:
           CHES_TO_EMAILS: ${{ secrets.CHES_TO_EMAILS }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           CHES_SECRET="${INSTANCE_NAME}-ches-adapter-secrets"
 
@@ -504,6 +507,7 @@ jobs:
           ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_RELEASE="${INSTANCE_NAME}-plg"
           # Secret name must match the default produced by the plg.alertmanager.adapterSecretName
@@ -531,6 +535,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/plg-pre-delete.sh
           delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 
@@ -546,6 +551,7 @@ jobs:
           ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
@@ -575,6 +581,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/wait-for-rollouts.sh
           SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
           wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"
@@ -599,7 +606,7 @@ jobs:
           SERVICES=(backend-services frontend temporal ches-adapter)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
-            with_retries 3 15 docker buildx imagetools create \
+            with_retries 6 15 docker buildx imagetools create \
               --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
@@ -632,11 +639,15 @@ jobs:
           set -euo pipefail
           # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
           # recent `<instance>-<12hex>` named tags per image, delete the rest.
-          # For test/dev, rotate SHA tags matching `<instance>-????????????`.
+          # For test/dev, keep only the newest `<instance>-<12hex>` tag per
+          # image: this job runs after a successful deploy, so that is the
+          # build the instance is running. Test keeps no rollback history;
+          # each build adds about 0.9 GB against the repository's 5 GB quota,
+          # which test and prod share.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
             bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 1 --match "${INSTANCE}-????????????"
           fi
 
   cleanup-on-failure:
