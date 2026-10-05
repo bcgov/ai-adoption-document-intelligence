@@ -73,6 +73,7 @@ describe("EphemeralDocumentCleanupService", () => {
         DocumentStatus.complete,
         DocumentStatus.failed,
         DocumentStatus.conversion_failed,
+        DocumentStatus.rejected,
       ],
       100,
     );

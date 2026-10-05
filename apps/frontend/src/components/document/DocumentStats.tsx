@@ -8,7 +8,7 @@ interface DocumentStatsProps {
 const DocumentStats = (props: DocumentStatsProps) => {
   const { stats } = props;
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2, md: 4, lg: 6 }}>
+    <SimpleGrid cols={{ base: 1, sm: 2, md: 4, lg: 7 }}>
       <Paper radius="md" p="md" withBorder>
         <Text size="xs" c="dimmed">
           Total
@@ -55,6 +55,14 @@ const DocumentStats = (props: DocumentStatsProps) => {
         </Text>
         <Text fw={600} size="lg" c="red">
           {(stats?.failed ?? 0) + (stats?.conversion_failed ?? 0)}
+        </Text>
+      </Paper>
+      <Paper radius="md" p="md" withBorder>
+        <Text size="xs" c="dimmed">
+          Rejected
+        </Text>
+        <Text fw={600} size="lg" c="grape">
+          {stats?.rejected ?? 0}
         </Text>
       </Paper>
     </SimpleGrid>

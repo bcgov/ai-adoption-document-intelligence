@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
 import { apiService } from "../../data/services/api.service";
-import { Document } from "../../shared/types";
+import { Document, REJECTION_REASON_LABELS } from "../../shared/types";
 import {
   ActionIcon,
   Alert,
@@ -478,13 +478,50 @@ export function DocumentViewerModal({
                                     ? "red"
                                     : document.status === "awaiting_review"
                                       ? "yellow"
-                                      : "blue"
+                                      : document.status === "rejected"
+                                        ? "dark"
+                                        : "blue"
                               }
                             >
                               {document.status}
                             </Badge>
                           </Table.Td>
                         </Table.Tr>
+                        {document.rejection && (
+                          <>
+                            <Table.Tr>
+                              <Table.Td fw={600}>Rejected by</Table.Td>
+                              <Table.Td style={{ wordBreak: "break-word" }}>
+                                {document.rejection.rejected_by ?? "API key"}
+                                {document.rejection.rejected_at &&
+                                  ` on ${new Date(document.rejection.rejected_at).toLocaleString()}`}
+                              </Table.Td>
+                            </Table.Tr>
+                            <Table.Tr>
+                              <Table.Td fw={600}>Rejection reason</Table.Td>
+                              <Table.Td style={{ wordBreak: "break-word" }}>
+                                {document.rejection.reason
+                                  ? REJECTION_REASON_LABELS[
+                                      document.rejection.reason
+                                    ]
+                                  : "Not recorded"}
+                              </Table.Td>
+                            </Table.Tr>
+                            {document.rejection.comment && (
+                              <Table.Tr>
+                                <Table.Td fw={600}>Reviewer comment</Table.Td>
+                                <Table.Td
+                                  style={{
+                                    wordBreak: "break-word",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {document.rejection.comment}
+                                </Table.Td>
+                              </Table.Tr>
+                            )}
+                          </>
+                        )}
                         <Table.Tr>
                           <Table.Td fw={600}>Model</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>

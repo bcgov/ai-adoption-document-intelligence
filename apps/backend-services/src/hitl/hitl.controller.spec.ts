@@ -1,4 +1,4 @@
-import { GroupRole } from "@generated/client";
+import { GroupRole, RejectionReason } from "@generated/client";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
@@ -418,10 +418,11 @@ describe("HitlController", () => {
   });
 
   describe("approveSession", () => {
-    it("approves session for a group member", async () => {
+    it("approves session for a group member, as the caller", async () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -434,7 +435,10 @@ describe("HitlController", () => {
       hitlService.approveSession.mockResolvedValue(mockResult as any);
       const result = await controller.approveSession("session-1", req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.approveSession).toHaveBeenCalledWith("session-1");
+      expect(hitlService.approveSession).toHaveBeenCalledWith(
+        "session-1",
+        "actor-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -478,12 +482,15 @@ describe("HitlController", () => {
   });
 
   describe("rejectSession", () => {
-    const dto: RejectSessionDto = { rejectionReason: "input quality" };
+    const dto: RejectSessionDto = {
+      rejectionReason: RejectionReason.INPUT_QUALITY,
+    };
 
-    it("rejects session for a group member", async () => {
+    it("rejects session for a group member, as the caller", async () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -496,7 +503,11 @@ describe("HitlController", () => {
       hitlService.rejectSession.mockResolvedValue(mockResult as any);
       const result = await controller.rejectSession("session-1", dto, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.rejectSession).toHaveBeenCalledWith("session-1", dto);
+      expect(hitlService.rejectSession).toHaveBeenCalledWith(
+        "session-1",
+        dto,
+        "actor-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {

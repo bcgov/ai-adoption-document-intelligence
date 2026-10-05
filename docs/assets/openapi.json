@@ -382,1217 +382,6 @@
         ]
       }
     },
-    "/api/groups/{groupId}": {
-      "delete": {
-        "operationId": "GroupController_deleteGroup",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Group soft-deleted successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a system admin."
-          },
-          "404": {
-            "description": "Group not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Soft-delete an existing group (system admin only)",
-        "tags": [
-          "Group"
-        ]
-      },
-      "patch": {
-        "operationId": "GroupController_updateGroup",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateGroupDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Group updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a system admin."
-          },
-          "404": {
-            "description": "Group not found."
-          },
-          "409": {
-            "description": "A group with the given name already exists."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Update an existing group (system admin only)",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups": {
-      "get": {
-        "operationId": "GroupController_getAllGroups",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "List of groups.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get all existing groups",
-        "tags": [
-          "Group"
-        ]
-      },
-      "post": {
-        "operationId": "GroupController_createGroup",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateGroupDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Group created successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a system admin."
-          },
-          "409": {
-            "description": "A group with the given name already exists."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Create a new group (system admin only)",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/user/{userId}": {
-      "get": {
-        "operationId": "GroupController_getUserGroups",
-        "parameters": [
-          {
-            "name": "userId",
-            "required": true,
-            "in": "path",
-            "description": "User ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of groups the user is a member of.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserGroupDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller does not have permission to view this user's groups."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get a user's group membership",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/request": {
-      "post": {
-        "operationId": "GroupController_requestMembership",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RequestMembershipDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Membership requested successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Group not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Request membership to a group",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/requests/mine": {
-      "get": {
-        "operationId": "GroupController_getMyRequests",
-        "parameters": [
-          {
-            "name": "status",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of membership requests made by the caller.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MyMembershipRequestDto"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid status query parameter."
-          },
-          "401": {
-            "description": "Unauthorized."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get all membership requests made by the caller",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/requests/{requestId}/cancel": {
-      "patch": {
-        "operationId": "GroupController_cancelMembershipRequest",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "description": "Membership request ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MembershipRequestActionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Membership request cancelled successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request is not in PENDING state."
-          },
-          "403": {
-            "description": "Request belongs to a different user."
-          },
-          "404": {
-            "description": "Membership request not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Cancel a pending group membership request",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/requests/{requestId}/approve": {
-      "patch": {
-        "operationId": "GroupController_approveMembershipRequest",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "description": "Membership request ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MembershipRequestActionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Membership request approved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request is not in PENDING state."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          },
-          "404": {
-            "description": "Membership request not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Approve a pending group membership request",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/requests/{requestId}/deny": {
-      "patch": {
-        "operationId": "GroupController_denyMembershipRequest",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "description": "Membership request ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MembershipRequestActionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Membership request denied successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request is not in PENDING state."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          },
-          "404": {
-            "description": "Membership request not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Deny a pending group membership request",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/members/{userId}": {
-      "post": {
-        "operationId": "GroupController_addGroupMember",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "required": true,
-            "in": "path",
-            "description": "User ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User assigned to group successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Assign a user to a group",
-        "tags": [
-          "Group"
-        ]
-      },
-      "delete": {
-        "operationId": "GroupController_removeGroupMember",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "required": true,
-            "in": "path",
-            "description": "User ID to remove",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Member removed from group successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          },
-          "404": {
-            "description": "Group not found or user is not a member."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Remove a member from a group",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/requests": {
-      "get": {
-        "operationId": "GroupController_getGroupRequests",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "description": "Optional status to filter membership requests (PENDING, APPROVED, DENIED).",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of membership requests for the group.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupMembershipRequestDto"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid status query parameter."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          },
-          "404": {
-            "description": "Group not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get membership requests for a group with optional status filter",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/members": {
-      "get": {
-        "operationId": "GroupController_getGroupMembers",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of group members.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupMemberDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Caller is not a member of the group or a system admin."
-          },
-          "404": {
-            "description": "Group not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get all members of a group",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/members/{userId}/role": {
-      "patch": {
-        "operationId": "GroupController_updateGroupMemberRole",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "required": true,
-            "in": "path",
-            "description": "User ID to update",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMemberRoleDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Member role updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          },
-          "404": {
-            "description": "Group not found or user is not a member."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Update a group member's role (group admin or system admin only)",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/leave": {
-      "delete": {
-        "operationId": "GroupController_leaveGroup",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully left the group.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Caller is not a member of the group."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Leave a group the caller belongs to",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/groups/{groupId}/billing-config": {
-      "get": {
-        "operationId": "GroupController_getGroupBillingConfig",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Billing configuration retrieved successfully. Returns null if no config exists.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupBillingConfigDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated"
-          },
-          "403": {
-            "description": "Caller is not a platform admin"
-          },
-          "404": {
-            "description": "Group not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get billing configuration for a group (platform admin only)",
-        "tags": [
-          "Group"
-        ]
-      },
-      "patch": {
-        "description": "Group admins can configure their own group's spending cap as a self-imposed guardrail. Platform admins can configure any group's cap.",
-        "operationId": "GroupController_setGroupBillingCap",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetBillingCapDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Billing configuration updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupBillingConfigDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated"
-          },
-          "403": {
-            "description": "Caller is not a platform admin"
-          },
-          "404": {
-            "description": "Group not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Set or remove a group's monthly spending cap (group admin or platform admin)",
-        "tags": [
-          "Group"
-        ]
-      }
-    },
-    "/api/usage/summary": {
-      "get": {
-        "operationId": "UsageController_getAllGroupsUsageSummary",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "All active groups with their current-month spend and cap data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AllGroupsSummaryItemDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a system admin."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get current-month spend summary for all groups (system admin only)",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/groups/{groupId}/summary": {
-      "get": {
-        "operationId": "UsageController_getGroupUsageSummary",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Current billing period summary including cap status.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroupUsageSummaryDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get current-month usage summary for a group",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/groups/{groupId}/history": {
-      "get": {
-        "operationId": "UsageController_getGroupUsageHistory",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Historical period summaries ordered most-recent first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupUsageHistoryItemDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get historical monthly usage summaries for a group",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/groups/{groupId}/activity-history": {
-      "get": {
-        "operationId": "UsageController_getGroupActivityHistory",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "startDate",
-            "required": false,
-            "in": "query",
-            "description": "The starting date for activity filtering.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "endDate",
-            "required": false,
-            "in": "query",
-            "description": "The ending date for activity filtering. Inclusive.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Activity-level spend per period, ordered by period then activity name.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupActivityHistoryItemDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a group admin or system admin."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get per-activity monthly spend breakdown for a group",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/groups/{groupId}/runs/{workflowExecutionId}": {
-      "get": {
-        "operationId": "UsageController_getRunDetail",
-        "parameters": [
-          {
-            "name": "groupId",
-            "required": true,
-            "in": "path",
-            "description": "Group ID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "workflowExecutionId",
-            "required": true,
-            "in": "path",
-            "description": "Temporal workflow execution ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Full cost detail for the workflow execution.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RunDetailDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Caller is not a group admin, or the run belongs to a different group."
-          },
-          "404": {
-            "description": "No usage events found for the specified execution ID."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get cost breakdown for a specific workflow run",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/rate-versions": {
-      "get": {
-        "operationId": "UsageController_getRateVersions",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "All rate versions ordered by effective date descending.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RateVersionDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get all rate versions with their billing configuration",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
-    "/api/usage/rate-versions/{versionId}/activity-costs": {
-      "get": {
-        "operationId": "UsageController_getRateVersionActivityCosts",
-        "parameters": [
-          {
-            "name": "versionId",
-            "required": true,
-            "in": "path",
-            "description": "Rate version ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Activity costs for the specified rate version.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ActivityCostItemDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "404": {
-            "description": "Rate version not found."
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Get activity cost table for a specific rate version",
-        "tags": [
-          "Usage"
-        ]
-      }
-    },
     "/api/benchmark/datasets": {
       "post": {
         "operationId": "DatasetController_createDataset",
@@ -1640,6 +429,15 @@
         "operationId": "DatasetController_listDatasets",
         "parameters": [
           {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "description": "Optional group ID to filter datasets by a specific group",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "required": false,
             "in": "query",
@@ -1655,15 +453,6 @@
             "description": "Items per page (default: 20, max: 100)",
             "schema": {
               "type": "number"
-            }
-          },
-          {
-            "name": "groupId",
-            "required": false,
-            "in": "query",
-            "description": "Optional group ID to filter datasets by a specific group",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -2819,7 +1608,7 @@
           },
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Filter by group ID",
             "schema": {
@@ -3265,10 +2054,12 @@
         "parameters": [
           {
             "name": "groupId",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Optional group ID to filter projects",
-            "schema": {}
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4757,7 +3548,7 @@
         "parameters": [
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Scope counts to a specific group ID.",
             "schema": {
@@ -4800,18 +3591,22 @@
         "operationId": "DocumentController_getBulkThumbnails",
         "parameters": [
           {
-            "name": "ids",
-            "required": true,
-            "in": "query",
-            "description": "Comma-separated list of document IDs (max 200).",
-            "schema": {}
-          },
-          {
             "name": "group_id",
             "required": true,
             "in": "query",
             "description": "Group ID that owns the documents.",
-            "schema": {}
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ids",
+            "required": true,
+            "in": "query",
+            "description": "Comma-separated list of document IDs (max 200).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4998,9 +3793,9 @@
         "parameters": [
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
+            "description": "Filter documents by group ID. Only documents belonging to this group are returned.",
             "schema": {
               "type": "string"
             }
@@ -5285,90 +4080,24 @@
         ]
       }
     },
-    "/api/documents/{documentId}/approve": {
-      "post": {
-        "description": "Sends a human approval signal to the document's workflow. When rejecting, rejectionReason is required.",
-        "operationId": "DocumentController_approveDocument",
-        "parameters": [
-          {
-            "name": "documentId",
-            "required": true,
-            "in": "path",
-            "description": "Document ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "description": "Approval decision and optional reviewer info, comments, rejection reason, annotations",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApproveDocumentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Approval signal sent successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Document approved successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)"
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Document not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          }
-        ],
-        "summary": "Approve or reject a document",
-        "tags": [
-          "Documents"
-        ]
-      }
-    },
     "/api/workflows": {
       "get": {
         "operationId": "WorkflowController_getWorkflows",
         "parameters": [
           {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "description": "Group ID to filter workflows by a specific group",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "includeBenchmarkCandidates",
             "required": false,
             "in": "query",
             "description": "When true, include benchmark candidate workflow lineages in the list",
-            "schema": {}
-          },
-          {
-            "name": "groupId",
-            "required": false,
-            "in": "query",
-            "description": "Optional group ID to filter workflows by a specific group",
             "schema": {}
           }
         ],
@@ -5395,7 +4124,7 @@
             "api-key": []
           }
         ],
-        "summary": "List all workflows for the current user's groups",
+        "summary": "List all workflows for the requested group",
         "tags": [
           "Workflow"
         ]
@@ -6294,15 +5023,338 @@
         ]
       }
     },
+    "/api/usage/summary": {
+      "get": {
+        "operationId": "UsageController_getAllGroupsUsageSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All active groups with their current-month spend and cap data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AllGroupsSummaryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get current-month spend summary for all groups (system admin only)",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/summary": {
+      "get": {
+        "operationId": "UsageController_getGroupUsageSummary",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current billing period summary including cap status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupUsageSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get current-month usage summary for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/history": {
+      "get": {
+        "operationId": "UsageController_getGroupUsageHistory",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical period summaries ordered most-recent first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupUsageHistoryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get historical monthly usage summaries for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/activity-history": {
+      "get": {
+        "operationId": "UsageController_getGroupActivityHistory",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "The starting date for activity filtering.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "The ending date for activity filtering. Inclusive.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity-level spend per period, ordered by period then activity name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupActivityHistoryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get per-activity monthly spend breakdown for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/runs/{workflowExecutionId}": {
+      "get": {
+        "operationId": "UsageController_getRunDetail",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflowExecutionId",
+            "required": true,
+            "in": "path",
+            "description": "Temporal workflow execution ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full cost detail for the workflow execution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin, or the run belongs to a different group."
+          },
+          "404": {
+            "description": "No usage events found for the specified execution ID."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get cost breakdown for a specific workflow run",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/rate-versions": {
+      "get": {
+        "operationId": "UsageController_getRateVersions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All rate versions ordered by effective date descending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RateVersionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all rate versions with their billing configuration",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/rate-versions/{versionId}/activity-costs": {
+      "get": {
+        "operationId": "UsageController_getRateVersionActivityCosts",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "description": "Rate version ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity costs for the specified rate version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityCostItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "404": {
+            "description": "Rate version not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get activity cost table for a specific rate version",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
     "/api/template-models": {
       "get": {
         "operationId": "TemplateModelController_getTemplateModels",
         "parameters": [
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Filter template models by group ID. When provided, only template models for that group are returned and group membership is verified.",
+            "description": "Filter template models by group ID. Only template models for that group are returned and group membership is verified.",
             "schema": {
               "type": "string"
             }
@@ -7547,9 +6599,9 @@
         "parameters": [
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Optional group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
+            "description": "Group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
             "schema": {
               "type": "string"
             }
@@ -8129,7 +7181,7 @@
           },
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Scope results to a specific group ID",
             "schema": {
@@ -8170,7 +7222,7 @@
         "parameters": [
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Scope stats to a specific group ID",
             "schema": {
@@ -8245,7 +7297,7 @@
           },
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Scope to a specific group ID",
             "schema": {
@@ -8486,7 +7538,7 @@
         ]
       }
     },
-    "/api/hitl/sessions/{id}/submit": {
+    "/api/hitl/sessions/{id}/approve": {
       "post": {
         "operationId": "HitlController_approveSession",
         "parameters": [
@@ -8530,6 +7582,68 @@
           }
         ],
         "summary": "Approve and complete a review session",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/reject": {
+      "post": {
+        "operationId": "HitlController_rejectSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session rejected and marked complete; the document moves to rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "rejectionReason is missing or not one of the allowed values"
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "409": {
+            "description": "Session is not in progress: already approved, rejected, flagged, or abandoned"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Reject and complete a review session",
         "tags": [
           "hitl"
         ]
@@ -8809,7 +7923,7 @@
           },
           {
             "name": "group_id",
-            "required": false,
+            "required": true,
             "in": "query",
             "description": "Scope results to a specific group ID",
             "schema": {
@@ -9301,6 +8415,897 @@
         ]
       }
     },
+    "/api/groups/{groupId}": {
+      "delete": {
+        "operationId": "GroupController_deleteGroup",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group soft-deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a system admin."
+          },
+          "404": {
+            "description": "Group not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Soft-delete an existing group (system admin only)",
+        "tags": [
+          "Group"
+        ]
+      },
+      "patch": {
+        "operationId": "GroupController_updateGroup",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Group updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a system admin."
+          },
+          "404": {
+            "description": "Group not found."
+          },
+          "409": {
+            "description": "A group with the given name already exists."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Update an existing group (system admin only)",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups": {
+      "get": {
+        "operationId": "GroupController_getAllGroups",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of groups.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all existing groups",
+        "tags": [
+          "Group"
+        ]
+      },
+      "post": {
+        "operationId": "GroupController_createGroup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Group created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a system admin."
+          },
+          "409": {
+            "description": "A group with the given name already exists."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Create a new group (system admin only)",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/user/{userId}": {
+      "get": {
+        "operationId": "GroupController_getUserGroups",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of groups the user is a member of.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserGroupDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller does not have permission to view this user's groups."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get a user's group membership",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/request": {
+      "post": {
+        "operationId": "GroupController_requestMembership",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestMembershipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership requested successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Group not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Request membership to a group",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/requests/mine": {
+      "get": {
+        "operationId": "GroupController_getMyRequests",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of membership requests made by the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyMembershipRequestDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status query parameter."
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all membership requests made by the caller",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/requests/{requestId}/cancel": {
+      "patch": {
+        "operationId": "GroupController_cancelMembershipRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "description": "Membership request ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipRequestActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership request cancelled successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not in PENDING state."
+          },
+          "403": {
+            "description": "Request belongs to a different user."
+          },
+          "404": {
+            "description": "Membership request not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Cancel a pending group membership request",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/requests/{requestId}/approve": {
+      "patch": {
+        "operationId": "GroupController_approveMembershipRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "description": "Membership request ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipRequestActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership request approved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not in PENDING state."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          },
+          "404": {
+            "description": "Membership request not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Approve a pending group membership request",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/requests/{requestId}/deny": {
+      "patch": {
+        "operationId": "GroupController_denyMembershipRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "description": "Membership request ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipRequestActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership request denied successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not in PENDING state."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          },
+          "404": {
+            "description": "Membership request not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Deny a pending group membership request",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/members/{userId}": {
+      "post": {
+        "operationId": "GroupController_addGroupMember",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User assigned to group successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Assign a user to a group",
+        "tags": [
+          "Group"
+        ]
+      },
+      "delete": {
+        "operationId": "GroupController_removeGroupMember",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID to remove",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed from group successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          },
+          "404": {
+            "description": "Group not found or user is not a member."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Remove a member from a group",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/requests": {
+      "get": {
+        "operationId": "GroupController_getGroupRequests",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Optional status to filter membership requests (PENDING, APPROVED, DENIED).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of membership requests for the group.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupMembershipRequestDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status query parameter."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          },
+          "404": {
+            "description": "Group not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get membership requests for a group with optional status filter",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/members": {
+      "get": {
+        "operationId": "GroupController_getGroupMembers",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of group members.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupMemberDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the group or a system admin."
+          },
+          "404": {
+            "description": "Group not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all members of a group",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/members/{userId}/role": {
+      "patch": {
+        "operationId": "GroupController_updateGroupMemberRole",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID to update",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Member role updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          },
+          "404": {
+            "description": "Group not found or user is not a member."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Update a group member's role (group admin or system admin only)",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/leave": {
+      "delete": {
+        "operationId": "GroupController_leaveGroup",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully left the group.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Caller is not a member of the group."
+          },
+          "403": {
+            "description": "Caller is not a member of the group or lacks GROUP_LEAVE."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Leave a group the caller belongs to",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/groups/{groupId}/billing-config": {
+      "get": {
+        "operationId": "GroupController_getGroupBillingConfig",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Billing configuration retrieved successfully. Returns null if no config exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBillingConfigDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Caller is not a platform admin"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get billing configuration for a group (platform admin only)",
+        "tags": [
+          "Group"
+        ]
+      },
+      "patch": {
+        "description": "Group admins can configure their own group's spending cap as a self-imposed guardrail. Platform admins can configure any group's cap.",
+        "operationId": "GroupController_setGroupBillingCap",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBillingCapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Billing configuration updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBillingConfigDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Caller is not a platform admin"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Set or remove a group's monthly spending cap (group admin or platform admin)",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
     "/api/tables": {
       "get": {
         "operationId": "TablesController_listTables",
@@ -9624,7 +9629,7 @@
             "api-key": []
           }
         ],
-        "summary": "Add a column to a table (admin only)",
+        "summary": "Add a column to a table",
         "tags": [
           "tables"
         ]
@@ -9703,7 +9708,7 @@
             "api-key": []
           }
         ],
-        "summary": "Update a column definition (admin only)",
+        "summary": "Update a column definition",
         "tags": [
           "tables"
         ]
@@ -9763,7 +9768,7 @@
             "api-key": []
           }
         ],
-        "summary": "Remove a column from a table (admin only)",
+        "summary": "Remove a column from a table ",
         "tags": [
           "tables"
         ]
@@ -9833,7 +9838,7 @@
             "api-key": []
           }
         ],
-        "summary": "Add a lookup to a table (admin only)",
+        "summary": "Add a lookup to a table",
         "tags": [
           "tables"
         ]
@@ -9912,7 +9917,7 @@
             "api-key": []
           }
         ],
-        "summary": "Update a lookup definition (admin only)",
+        "summary": "Update a lookup definition",
         "tags": [
           "tables"
         ]
@@ -9969,7 +9974,7 @@
             "api-key": []
           }
         ],
-        "summary": "Remove a lookup from a table (admin only)",
+        "summary": "Remove a lookup from a table",
         "tags": [
           "tables"
         ]
@@ -10553,14 +10558,111 @@
             "description": "The authenticated user's role in this group",
             "enum": [
               "ADMIN",
-              "MEMBER"
+              "EDITOR",
+              "REVIEWER"
             ]
+          },
+          "permissions": {
+            "type": "array",
+            "description": "An array of permissions associated with this group role.",
+            "items": {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48,
+                49,
+                50,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59,
+                60,
+                61,
+                62,
+                63,
+                64,
+                65,
+                66,
+                67,
+                68,
+                69,
+                70,
+                71,
+                72,
+                73,
+                74,
+                75,
+                76,
+                77,
+                78,
+                79,
+                80,
+                81,
+                82,
+                83,
+                84,
+                85
+              ]
+            }
           }
         },
         "required": [
           "id",
           "name",
-          "role"
+          "role",
+          "permissions"
         ]
       },
       "MeResponseDto": {
@@ -10608,635 +10710,6 @@
           "expires_in",
           "groups",
           "actorId"
-        ]
-      },
-      "SuccessDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Indicates the operation was successful"
-          }
-        },
-        "required": [
-          "success"
-        ]
-      },
-      "GroupDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Group unique identifier"
-          },
-          "name": {
-            "type": "string",
-            "description": "Group display name"
-          },
-          "description": {
-            "type": "object",
-            "description": "Optional description of the group",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "description"
-        ]
-      },
-      "UserGroupDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Group unique identifier"
-          },
-          "name": {
-            "type": "string",
-            "description": "Group display name"
-          },
-          "role": {
-            "type": "string",
-            "description": "The user's role in this group",
-            "enum": [
-              "ADMIN",
-              "MEMBER"
-            ]
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional description of the group"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "role"
-        ]
-      },
-      "RequestMembershipDto": {
-        "type": "object",
-        "properties": {
-          "groupId": {
-            "type": "string",
-            "description": "The ID of the group to request membership for"
-          }
-        },
-        "required": [
-          "groupId"
-        ]
-      },
-      "MyMembershipRequestDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The unique identifier of the request"
-          },
-          "groupId": {
-            "type": "string",
-            "description": "The ID of the group the request is for"
-          },
-          "groupName": {
-            "type": "string",
-            "description": "The name of the group the request is for"
-          },
-          "status": {
-            "type": "string",
-            "description": "The current status of the request",
-            "enum": [
-              "PENDING",
-              "APPROVED",
-              "DENIED",
-              "CANCELLED"
-            ]
-          },
-          "reason": {
-            "type": "string",
-            "description": "The reason provided when acting on the request"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "The date the request was created"
-          }
-        },
-        "required": [
-          "id",
-          "groupId",
-          "groupName",
-          "status",
-          "createdAt"
-        ]
-      },
-      "MembershipRequestActionDto": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "description": "Optional reason for the action"
-          }
-        }
-      },
-      "UpdateGroupDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The new name for the group"
-          },
-          "description": {
-            "type": "string",
-            "description": "An optional description for the group"
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "CreateGroupDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The name of the group to create"
-          },
-          "description": {
-            "type": "string",
-            "description": "An optional description for the group"
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "GroupMembershipRequestDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The unique identifier of the request"
-          },
-          "userId": {
-            "type": "string",
-            "description": "The ID of the user who made the request"
-          },
-          "email": {
-            "type": "string",
-            "description": "The email address of the user who made the request"
-          },
-          "groupId": {
-            "type": "string",
-            "description": "The ID of the group the request is for"
-          },
-          "status": {
-            "type": "string",
-            "description": "The current status of the request",
-            "enum": [
-              "PENDING",
-              "APPROVED",
-              "DENIED",
-              "CANCELLED"
-            ]
-          },
-          "reason": {
-            "type": "string",
-            "description": "The reason provided when acting on the request"
-          },
-          "resolvedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "The date the request was resolved"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "The date the request was created"
-          }
-        },
-        "required": [
-          "id",
-          "userId",
-          "email",
-          "groupId",
-          "status",
-          "createdAt"
-        ]
-      },
-      "GroupMemberDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "description": "The user's unique identifier"
-          },
-          "email": {
-            "type": "string",
-            "description": "The user's email address"
-          },
-          "joinedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "The date the user joined the group"
-          },
-          "role": {
-            "type": "string",
-            "description": "The user's role in the group",
-            "enum": [
-              "ADMIN",
-              "MEMBER"
-            ]
-          }
-        },
-        "required": [
-          "userId",
-          "email",
-          "joinedAt",
-          "role"
-        ]
-      },
-      "UpdateMemberRoleDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "type": "string",
-            "description": "The new role to assign to the member",
-            "enum": [
-              "ADMIN",
-              "MEMBER"
-            ],
-            "example": "MEMBER"
-          }
-        },
-        "required": [
-          "role"
-        ]
-      },
-      "GroupBillingConfigDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Billing config record ID"
-          },
-          "group_id": {
-            "type": "string",
-            "description": "Group ID this config belongs to"
-          },
-          "monthly_cap_dollars": {
-            "type": "number",
-            "description": "Monthly spending cap in dollars. Null means no cap is enforced.",
-            "nullable": true
-          },
-          "cap_configured_by": {
-            "type": "object",
-            "description": "User ID of the platform admin who last configured the cap.",
-            "nullable": true
-          },
-          "cap_configured_at": {
-            "type": "object",
-            "description": "Timestamp when the cap was last configured.",
-            "nullable": true
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Record creation timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "group_id",
-          "monthly_cap_dollars",
-          "cap_configured_by",
-          "cap_configured_at",
-          "created_at"
-        ]
-      },
-      "SetBillingCapDto": {
-        "type": "object",
-        "properties": {
-          "monthly_cap_dollars": {
-            "type": "number",
-            "description": "Monthly spending cap in dollars. Pass null to remove the cap entirely. The field must always be present.",
-            "nullable": true,
-            "minimum": 0
-          }
-        },
-        "required": [
-          "monthly_cap_dollars"
-        ]
-      },
-      "AllGroupsSummaryItemDto": {
-        "type": "object",
-        "properties": {
-          "group_id": {
-            "type": "string",
-            "description": "Group ID"
-          },
-          "group_name": {
-            "type": "string",
-            "description": "Group name"
-          },
-          "total_dollars_spent": {
-            "type": "number",
-            "description": "Total dollars spent this calendar month"
-          },
-          "monthly_cap_dollars": {
-            "type": "number",
-            "description": "Configured monthly spending cap in dollars. Null if no cap is configured.",
-            "nullable": true
-          },
-          "usage_percentage": {
-            "type": "number",
-            "description": "Spend as a percentage of the cap (0–100+). Null if no cap is configured.",
-            "nullable": true
-          }
-        },
-        "required": [
-          "group_id",
-          "group_name",
-          "total_dollars_spent",
-          "monthly_cap_dollars",
-          "usage_percentage"
-        ]
-      },
-      "GroupUsageSummaryDto": {
-        "type": "object",
-        "properties": {
-          "group_id": {
-            "type": "string",
-            "description": "Group ID"
-          },
-          "period_year": {
-            "type": "number",
-            "description": "Calendar year of the billing period"
-          },
-          "period_month": {
-            "type": "number",
-            "description": "Calendar month of the billing period (1–12)"
-          },
-          "total_units_consumed": {
-            "type": "number",
-            "description": "Total billing units consumed in this period"
-          },
-          "total_dollars_spent": {
-            "type": "number",
-            "description": "Total dollars spent in this period"
-          },
-          "monthly_cap_dollars": {
-            "type": "number",
-            "description": "Monthly spending cap in dollars. Null means no cap is configured.",
-            "nullable": true
-          },
-          "remaining_dollars": {
-            "type": "number",
-            "description": "Remaining dollars before the cap is exhausted. Null if no cap is configured.",
-            "nullable": true
-          }
-        },
-        "required": [
-          "group_id",
-          "period_year",
-          "period_month",
-          "total_units_consumed",
-          "total_dollars_spent",
-          "monthly_cap_dollars",
-          "remaining_dollars"
-        ]
-      },
-      "GroupUsageHistoryItemDto": {
-        "type": "object",
-        "properties": {
-          "period_year": {
-            "type": "number",
-            "description": "Calendar year of the billing period"
-          },
-          "period_month": {
-            "type": "number",
-            "description": "Calendar month of the billing period (1–12)"
-          },
-          "total_units_consumed": {
-            "type": "number",
-            "description": "Total billing units consumed"
-          },
-          "total_dollars_spent": {
-            "type": "number",
-            "description": "Total dollars spent"
-          }
-        },
-        "required": [
-          "period_year",
-          "period_month",
-          "total_units_consumed",
-          "total_dollars_spent"
-        ]
-      },
-      "ActivityItemDto": {
-        "type": "object",
-        "properties": {
-          "units_consumed": {
-            "type": "number",
-            "description": "Total billing units consumed for this activity type"
-          },
-          "dollars_spent": {
-            "type": "number",
-            "description": "Total dollars spent for this activity type"
-          }
-        },
-        "required": [
-          "units_consumed",
-          "dollars_spent"
-        ]
-      },
-      "GroupActivityHistoryItemDto": {
-        "type": "object",
-        "properties": {
-          "period_year": {
-            "type": "number",
-            "description": "Calendar year of the billing period"
-          },
-          "period_month": {
-            "type": "number",
-            "description": "Calendar month of the billing period (1–12)"
-          },
-          "activities": {
-            "description": "A map of activity names/types for cost breakdowns (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActivityItemDto"
-              }
-            ]
-          },
-          "units_consumed": {
-            "type": "number",
-            "description": "Total billing units consumed for this event type"
-          },
-          "dollars_spent": {
-            "type": "number",
-            "description": "Total dollars spent for this event type"
-          },
-          "event_type": {
-            "type": "string",
-            "description": "The category of event the usage record falls under."
-          }
-        },
-        "required": [
-          "period_year",
-          "period_month",
-          "activities",
-          "units_consumed",
-          "dollars_spent",
-          "event_type"
-        ]
-      },
-      "RunDetailDto": {
-        "type": "object",
-        "properties": {
-          "workflow_execution_id": {
-            "type": "string",
-            "description": "Temporal workflow execution ID"
-          },
-          "workflow_version_id": {
-            "type": "string",
-            "description": "Version ID of workflow ran"
-          },
-          "group_id": {
-            "type": "string",
-            "description": "Group that owns this execution"
-          },
-          "estimated_units": {
-            "type": "number",
-            "description": "Pre-flight estimated units from the workflow_started event",
-            "nullable": true
-          },
-          "total_units_consumed": {
-            "type": "number",
-            "description": "Actual total units consumed from the terminal event (workflow_completed / workflow_failed / workflow_cancelled)",
-            "nullable": true
-          },
-          "id": {
-            "type": "string",
-            "description": "Usage event ID"
-          },
-          "event_type": {
-            "type": "string",
-            "description": "Event type (e.g. activity_completed)"
-          },
-          "activity_name": {
-            "type": "object",
-            "description": "Activity name, present on activity_completed events",
-            "nullable": true
-          },
-          "units_consumed": {
-            "type": "number",
-            "description": "Billing units consumed by this event"
-          },
-          "dollar_value": {
-            "type": "number",
-            "description": "Dollar value of this event (units_consumed × rate unit_cost_dollars)"
-          },
-          "metered_quantity": {
-            "type": "number",
-            "description": "Number of pages processed for per-page activities. Null for flat-cost activities.",
-            "nullable": true
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Timestamp when this event was recorded"
-          }
-        },
-        "required": [
-          "workflow_execution_id",
-          "workflow_version_id",
-          "group_id",
-          "estimated_units",
-          "total_units_consumed",
-          "id",
-          "event_type",
-          "activity_name",
-          "units_consumed",
-          "dollar_value",
-          "metered_quantity",
-          "created_at"
-        ]
-      },
-      "RateVersionDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Rate version ID"
-          },
-          "version": {
-            "type": "string",
-            "description": "Version label (e.g. 1.0.0)"
-          },
-          "effective_from": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Date from which this rate version is active"
-          },
-          "unit_cost_dollars": {
-            "type": "number",
-            "description": "Dollar value per billing unit"
-          },
-          "units_per_gb_per_month": {
-            "type": "number",
-            "description": "Billing units charged per GB of storage per calendar month"
-          },
-          "max_pages_assumption": {
-            "type": "number",
-            "description": "Upper-bound page count used in pre-flight cost estimation for per-page activities"
-          },
-          "max_array_items_assumption": {
-            "type": "number",
-            "description": "Upper-bound array item count used in pre-flight cost estimation for fan-out nodes"
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Record creation timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "version",
-          "effective_from",
-          "unit_cost_dollars",
-          "units_per_gb_per_month",
-          "max_pages_assumption",
-          "max_array_items_assumption",
-          "created_at"
-        ]
-      },
-      "ActivityCostItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Activity cost record ID"
-          },
-          "activity_name": {
-            "type": "string",
-            "description": "Activity name (e.g. azureOcr.extract)"
-          },
-          "cost_type": {
-            "type": "string",
-            "description": "Cost type: flat or per_page"
-          },
-          "units": {
-            "type": "number",
-            "description": "Billing units charged for this activity"
-          }
-        },
-        "required": [
-          "id",
-          "activity_name",
-          "cost_type",
-          "units"
         ]
       },
       "CreateDatasetDto": {
@@ -14385,7 +13858,7 @@
             "type": "number",
             "description": "Documents that failed processing"
           },
-          "rejected_by_human": {
+          "rejected": {
             "type": "number",
             "description": "Documents rejected by a human reviewer"
           },
@@ -14402,7 +13875,7 @@
           "awaiting_review",
           "complete",
           "failed",
-          "rejected_by_human",
+          "rejected",
           "conversion_failed"
         ]
       },
@@ -14422,6 +13895,45 @@
         "required": [
           "documentId",
           "thumbnailData"
+        ]
+      },
+      "DocumentRejectionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INPUT_QUALITY",
+              "OCR_FAILURE",
+              "MODEL_MISMATCH",
+              "CONFIDENCE_TOO_LOW",
+              "SYSTEMIC_ERROR"
+            ],
+            "nullable": true,
+            "description": "The reason the reviewer chose"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "The reviewer's optional comment"
+          },
+          "rejected_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the document was rejected"
+          },
+          "rejected_by": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer whose session rejected the document; null when that reviewer is an API key"
+          }
+        },
+        "required": [
+          "reason",
+          "comment",
+          "rejected_at",
+          "rejected_by"
         ]
       },
       "DocumentDataDto": {
@@ -14471,7 +13983,8 @@
               "awaiting_review",
               "complete",
               "failed",
-              "conversion_failed"
+              "conversion_failed",
+              "rejected"
             ]
           },
           "created_at": {
@@ -14501,6 +14014,16 @@
           "workflow_name": {
             "type": "string",
             "nullable": true
+          },
+          "rejection": {
+            "nullable": true,
+            "description": "Why and by whom the document was rejected. Set by the list endpoint on rejected documents; null otherwise.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DocumentRejectionDto"
+              }
+            ]
           }
         },
         "required": [
@@ -14605,7 +14128,8 @@
               "awaiting_review",
               "complete",
               "failed",
-              "conversion_failed"
+              "conversion_failed",
+              "rejected"
             ]
           },
           "title": {
@@ -14656,34 +14180,6 @@
           "updated_at",
           "model_id",
           "ocr_result"
-        ]
-      },
-      "ApproveDocumentDto": {
-        "type": "object",
-        "properties": {
-          "approved": {
-            "type": "boolean",
-            "description": "Whether the document is approved (true) or rejected (false)"
-          },
-          "reviewer": {
-            "type": "string",
-            "description": "Identifier of the reviewer"
-          },
-          "comments": {
-            "type": "string",
-            "description": "Optional comments from the reviewer"
-          },
-          "rejectionReason": {
-            "type": "string",
-            "description": "Required when approved is false. Reason for rejecting the document."
-          },
-          "annotations": {
-            "type": "string",
-            "description": "Optional annotations (e.g. JSON string)"
-          }
-        },
-        "required": [
-          "approved"
         ]
       },
       "WorkflowInfoDto": {
@@ -14878,7 +14374,8 @@
               "awaiting_review",
               "complete",
               "failed",
-              "conversion_failed"
+              "conversion_failed",
+              "rejected"
             ],
             "description": "Document status after the re-run was started.",
             "example": "ongoing_ocr"
@@ -15189,6 +14686,317 @@
         },
         "required": [
           "documents"
+        ]
+      },
+      "AllGroupsSummaryItemDto": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "type": "string",
+            "description": "Group name"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent this calendar month"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Configured monthly spending cap in dollars. Null if no cap is configured.",
+            "nullable": true
+          },
+          "usage_percentage": {
+            "type": "number",
+            "description": "Spend as a percentage of the cap (0–100+). Null if no cap is configured.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "group_id",
+          "group_name",
+          "total_dollars_spent",
+          "monthly_cap_dollars",
+          "usage_percentage"
+        ]
+      },
+      "GroupUsageSummaryDto": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed in this period"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent in this period"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Null means no cap is configured.",
+            "nullable": true
+          },
+          "remaining_dollars": {
+            "type": "number",
+            "description": "Remaining dollars before the cap is exhausted. Null if no cap is configured.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "group_id",
+          "period_year",
+          "period_month",
+          "total_units_consumed",
+          "total_dollars_spent",
+          "monthly_cap_dollars",
+          "remaining_dollars"
+        ]
+      },
+      "GroupUsageHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent"
+          }
+        },
+        "required": [
+          "period_year",
+          "period_month",
+          "total_units_consumed",
+          "total_dollars_spent"
+        ]
+      },
+      "ActivityItemDto": {
+        "type": "object",
+        "properties": {
+          "units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed for this activity type"
+          },
+          "dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent for this activity type"
+          }
+        },
+        "required": [
+          "units_consumed",
+          "dollars_spent"
+        ]
+      },
+      "GroupActivityHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "activities": {
+            "description": "A map of activity names/types for cost breakdowns (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivityItemDto"
+              }
+            ]
+          },
+          "units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed for this event type"
+          },
+          "dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent for this event type"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "The category of event the usage record falls under."
+          }
+        },
+        "required": [
+          "period_year",
+          "period_month",
+          "activities",
+          "units_consumed",
+          "dollars_spent",
+          "event_type"
+        ]
+      },
+      "RunDetailDto": {
+        "type": "object",
+        "properties": {
+          "workflow_execution_id": {
+            "type": "string",
+            "description": "Temporal workflow execution ID"
+          },
+          "workflow_version_id": {
+            "type": "string",
+            "description": "Version ID of workflow ran"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Group that owns this execution"
+          },
+          "estimated_units": {
+            "type": "number",
+            "description": "Pre-flight estimated units from the workflow_started event",
+            "nullable": true
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Actual total units consumed from the terminal event (workflow_completed / workflow_failed / workflow_cancelled)",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "description": "Usage event ID"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type (e.g. activity_completed)"
+          },
+          "activity_name": {
+            "type": "object",
+            "description": "Activity name, present on activity_completed events",
+            "nullable": true
+          },
+          "units_consumed": {
+            "type": "number",
+            "description": "Billing units consumed by this event"
+          },
+          "dollar_value": {
+            "type": "number",
+            "description": "Dollar value of this event (units_consumed × rate unit_cost_dollars)"
+          },
+          "metered_quantity": {
+            "type": "number",
+            "description": "Number of pages processed for per-page activities. Null for flat-cost activities.",
+            "nullable": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when this event was recorded"
+          }
+        },
+        "required": [
+          "workflow_execution_id",
+          "workflow_version_id",
+          "group_id",
+          "estimated_units",
+          "total_units_consumed",
+          "id",
+          "event_type",
+          "activity_name",
+          "units_consumed",
+          "dollar_value",
+          "metered_quantity",
+          "created_at"
+        ]
+      },
+      "RateVersionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Rate version ID"
+          },
+          "version": {
+            "type": "string",
+            "description": "Version label (e.g. 1.0.0)"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Date from which this rate version is active"
+          },
+          "unit_cost_dollars": {
+            "type": "number",
+            "description": "Dollar value per billing unit"
+          },
+          "units_per_gb_per_month": {
+            "type": "number",
+            "description": "Billing units charged per GB of storage per calendar month"
+          },
+          "max_pages_assumption": {
+            "type": "number",
+            "description": "Upper-bound page count used in pre-flight cost estimation for per-page activities"
+          },
+          "max_array_items_assumption": {
+            "type": "number",
+            "description": "Upper-bound array item count used in pre-flight cost estimation for fan-out nodes"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Record creation timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "effective_from",
+          "unit_cost_dollars",
+          "units_per_gb_per_month",
+          "max_pages_assumption",
+          "max_array_items_assumption",
+          "created_at"
+        ]
+      },
+      "ActivityCostItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Activity cost record ID"
+          },
+          "activity_name": {
+            "type": "string",
+            "description": "Activity name (e.g. azureOcr.extract)"
+          },
+          "cost_type": {
+            "type": "string",
+            "description": "Cost type: flat or per_page"
+          },
+          "units": {
+            "type": "number",
+            "description": "Billing units charged for this activity"
+          }
+        },
+        "required": [
+          "id",
+          "activity_name",
+          "cost_type",
+          "units"
         ]
       },
       "FieldDefinitionResponseDto": {
@@ -16545,6 +16353,29 @@
           "message"
         ]
       },
+      "RejectSessionDto": {
+        "type": "object",
+        "properties": {
+          "rejectionReason": {
+            "type": "string",
+            "enum": [
+              "INPUT_QUALITY",
+              "OCR_FAILURE",
+              "MODEL_MISMATCH",
+              "CONFIDENCE_TOO_LOW",
+              "SYSTEMIC_ERROR"
+            ],
+            "description": "Why the reviewer is rejecting the document"
+          },
+          "comments": {
+            "type": "string",
+            "description": "Optional comment explaining the rejection. Stored on the review session and shown with the document."
+          }
+        },
+        "required": [
+          "rejectionReason"
+        ]
+      },
       "HeartbeatResponseDto": {
         "type": "object",
         "properties": {
@@ -17032,6 +16863,327 @@
           "success",
           "groupId",
           "groupName"
+        ]
+      },
+      "SuccessDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates the operation was successful"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "GroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group unique identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Group display name"
+          },
+          "description": {
+            "type": "object",
+            "description": "Optional description of the group",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description"
+        ]
+      },
+      "UserGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group unique identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Group display name"
+          },
+          "role": {
+            "type": "string",
+            "description": "The user's role in this group",
+            "enum": [
+              "ADMIN",
+              "EDITOR",
+              "REVIEWER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the group"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role"
+        ]
+      },
+      "RequestMembershipDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "description": "The ID of the group to request membership for"
+          }
+        },
+        "required": [
+          "groupId"
+        ]
+      },
+      "MyMembershipRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the request"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "The ID of the group the request is for"
+          },
+          "groupName": {
+            "type": "string",
+            "description": "The name of the group the request is for"
+          },
+          "status": {
+            "type": "string",
+            "description": "The current status of the request",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "DENIED",
+              "CANCELLED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason provided when acting on the request"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The date the request was created"
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "groupName",
+          "status",
+          "createdAt"
+        ]
+      },
+      "MembershipRequestActionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for the action"
+          }
+        }
+      },
+      "UpdateGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The new name for the group"
+          },
+          "description": {
+            "type": "string",
+            "description": "An optional description for the group"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the group to create"
+          },
+          "description": {
+            "type": "string",
+            "description": "An optional description for the group"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "GroupMembershipRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the request"
+          },
+          "userId": {
+            "type": "string",
+            "description": "The ID of the user who made the request"
+          },
+          "email": {
+            "type": "string",
+            "description": "The email address of the user who made the request"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "The ID of the group the request is for"
+          },
+          "status": {
+            "type": "string",
+            "description": "The current status of the request",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "DENIED",
+              "CANCELLED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason provided when acting on the request"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The date the request was resolved"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The date the request was created"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "email",
+          "groupId",
+          "status",
+          "createdAt"
+        ]
+      },
+      "GroupMemberDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "The user's unique identifier"
+          },
+          "email": {
+            "type": "string",
+            "description": "The user's email address"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The date the user joined the group"
+          },
+          "role": {
+            "type": "string",
+            "description": "The user's role in the group",
+            "enum": [
+              "ADMIN",
+              "EDITOR",
+              "REVIEWER"
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "joinedAt",
+          "role"
+        ]
+      },
+      "UpdateMemberRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "The new role to assign to the member",
+            "enum": [
+              "ADMIN",
+              "EDITOR",
+              "REVIEWER"
+            ],
+            "example": "EDITOR"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "GroupBillingConfigDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Billing config record ID"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Group ID this config belongs to"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Null means no cap is enforced.",
+            "nullable": true
+          },
+          "cap_configured_by": {
+            "type": "object",
+            "description": "User ID of the platform admin who last configured the cap.",
+            "nullable": true
+          },
+          "cap_configured_at": {
+            "type": "object",
+            "description": "Timestamp when the cap was last configured.",
+            "nullable": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Record creation timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "group_id",
+          "monthly_cap_dollars",
+          "cap_configured_by",
+          "cap_configured_at",
+          "created_at"
+        ]
+      },
+      "SetBillingCapDto": {
+        "type": "object",
+        "properties": {
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Pass null to remove the cap entirely. The field must always be present.",
+            "nullable": true,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "monthly_cap_dollars"
         ]
       },
       "TableSummaryDto": {

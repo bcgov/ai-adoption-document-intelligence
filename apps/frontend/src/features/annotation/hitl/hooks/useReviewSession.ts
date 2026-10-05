@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
+import type { RejectionReason } from "@/shared/types";
 import type { CorrectionAction } from "../../core/types/annotation";
 
 interface OcrField {
@@ -93,6 +94,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/corrections`,
         { corrections },
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -109,6 +111,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/approve`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -121,14 +124,14 @@ export const useReviewSession = (sessionId?: string) => {
 
   const rejectSessionMutation = useMutation({
     mutationFn: async (dto: {
-      rejectionReason: string;
+      rejectionReason: RejectionReason;
       comments?: string;
-      annotations?: string;
     }) => {
       const response = await apiService.post(
         `/hitl/sessions/${sessionId}/reject`,
         dto,
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -136,6 +139,9 @@ export const useReviewSession = (sessionId?: string) => {
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
       queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
       queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+      // The document is now rejected, so the Documents page and its counts change
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document-stats"] });
     },
   });
 
@@ -145,6 +151,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/skip`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -161,6 +168,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/flag`,
         dto ?? {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -176,6 +184,7 @@ export const useReviewSession = (sessionId?: string) => {
       const response = await apiService.delete(
         `/hitl/sessions/${sessionId}/corrections/${correctionId}`,
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
