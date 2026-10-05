@@ -230,20 +230,23 @@ export class ReviewDbService {
   }
 
   /**
-   * Reads the extracted fields of every document the filter matches, without
-   * pagination, so an average over them covers the whole queue. Only the OCR
-   * field payload is selected — the rest of the document row is not needed.
-   * @param filters - The same filters passed to findReviewQueue.
-   * @returns One entry per document that has an OCR result.
+   * Reads the extracted fields of every document that matches any of the
+   * filters, without pagination, so an average over them covers the whole
+   * queue. Pass one filter per queue tab and the result is exactly the
+   * documents the tabs list between them, each read once. Only the OCR field
+   * payload is selected — the rest of the document row is not needed.
+   * @param filters - Filters in the shape findReviewQueue takes; a document
+   *   matching any one of them is included.
+   * @returns One entry per matching document that has an OCR result.
    */
   async findQueueFieldPayloads(
-    filters: ReviewQueueFilters,
+    filters: ReviewQueueFilters[],
     tx?: Prisma.TransactionClient,
   ): Promise<Prisma.JsonValue[]> {
     const client = tx ?? this.prisma;
     const rows = await client.document.findMany({
       where: {
-        ...this.buildReviewQueueWhere(filters),
+        OR: filters.map((filter) => this.buildReviewQueueWhere(filter)),
         ocr_result: { isNot: null },
       },
       select: { ocr_result: { select: { keyValuePairs: true } } },

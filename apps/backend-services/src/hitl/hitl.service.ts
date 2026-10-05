@@ -30,7 +30,11 @@ import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
-import { ReviewDbService, type ReviewQueueDocument } from "./review-db.service";
+import {
+  ReviewDbService,
+  type ReviewQueueDocument,
+  type ReviewQueueFilters,
+} from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
 interface DocumentWithOcrResult extends Document {
@@ -327,11 +331,12 @@ export class HitlService {
   }
 
   /**
-   * Summarises the whole review queue for the header cards. Every figure is a
-   * database count over the same filter the queue itself uses — including the
+   * Summarises the whole review queue for the header cards. Every figure is
+   * read through the same per-tab filters the queue itself uses — including the
    * caller's own locks, so a document open in this reviewer's workspace still
-   * counts — and so the numbers do not depend on which tab is open or how many
-   * rows one page holds.
+   * counts — so the numbers do not depend on which tab is open or how many rows
+   * one page holds, and the confidence average covers exactly the documents
+   * the counts do.
    */
   async getQueueStats(groupIds?: string[], currentReviewerId?: string) {
     this.logger.debug("Getting queue statistics");
@@ -344,6 +349,36 @@ export class HitlService {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
+    const tabFilters: Record<
+      "pending" | "claimed" | "flagged" | "reviewed",
+      ReviewQueueFilters
+    > = {
+      pending: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds,
+        currentReviewerId,
+      },
+      claimed: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        groupIds,
+        currentReviewerId,
+      },
+      flagged: {
+        statuses: reviewableStatuses,
+        reviewStatus: "flagged",
+        groupIds,
+        currentReviewerId,
+      },
+      reviewed: {
+        statuses: reviewableStatuses,
+        reviewStatus: "reviewed",
+        groupIds,
+        currentReviewerId,
+      },
+    };
+
     const [
       pendingCount,
       claimedCount,
@@ -352,47 +387,22 @@ export class HitlService {
       fieldPayloads,
       reviewedToday,
     ] = await Promise.all([
-      this.reviewDb.countReviewQueue({
-        statuses: [DocumentStatus.awaiting_review],
-        reviewStatus: "pending",
-        groupIds,
-        currentReviewerId,
-      }),
-      // "Requires review" spans the Pending and Claimed tabs — a document the
-      // caller has claimed still needs reviewing, it is just no longer unclaimed.
-      this.reviewDb.countReviewQueue({
-        statuses: [DocumentStatus.awaiting_review],
-        reviewStatus: "claimed",
-        groupIds,
-        currentReviewerId,
-      }),
-      this.reviewDb.countReviewQueue({
-        statuses: reviewableStatuses,
-        reviewStatus: "flagged",
-        groupIds,
-        currentReviewerId,
-      }),
-      this.reviewDb.countReviewQueue({
-        statuses: reviewableStatuses,
-        reviewStatus: "reviewed",
-        groupIds,
-        currentReviewerId,
-      }),
-      this.reviewDb.findQueueFieldPayloads({
-        statuses: reviewableStatuses,
-        reviewStatus: "all",
-        groupIds,
-        currentReviewerId,
-      }),
+      this.reviewDb.countReviewQueue(tabFilters.pending),
+      this.reviewDb.countReviewQueue(tabFilters.claimed),
+      this.reviewDb.countReviewQueue(tabFilters.flagged),
+      this.reviewDb.countReviewQueue(tabFilters.reviewed),
+      this.reviewDb.findQueueFieldPayloads(Object.values(tabFilters)),
       this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
     ]);
 
     return {
       // Every tab summed together — documents a workflow completed without
       // ever routing to review never match any of the four tabs, so they are
-      // correctly excluded here too.
+      // correctly excluded here, and from the average below.
       totalDocuments:
         pendingCount + claimedCount + flaggedCount + reviewedCount,
+      // "Requires review" spans the Pending and Claimed tabs — a document the
+      // caller has claimed still needs reviewing, it is just no longer unclaimed.
       requiresReview: pendingCount + claimedCount,
       averageConfidence: averageDocumentConfidence(fieldPayloads),
       reviewedToday,

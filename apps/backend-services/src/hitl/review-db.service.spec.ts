@@ -1036,22 +1036,47 @@ describe("ReviewDbService", () => {
   });
 
   describe("findQueueFieldPayloads", () => {
-    it("selects only OCR fields, for every matching document", async () => {
+    it("selects only OCR fields, for every document matching any of the filters", async () => {
       mockDocument.findMany.mockResolvedValue([
         { ocr_result: { keyValuePairs: { a: { confidence: 0.5 } } } },
         { ocr_result: { keyValuePairs: null } },
       ]);
 
-      const result = await service.findQueueFieldPayloads({
-        statuses: [DocumentStatus.awaiting_review],
-        reviewStatus: "all",
-      });
+      const result = await service.findQueueFieldPayloads([
+        { statuses: [DocumentStatus.awaiting_review], reviewStatus: "pending" },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "flagged",
+        },
+      ]);
 
       expect(result).toEqual([{ a: { confidence: 0.5 } }]);
       const [args] = mockDocument.findMany.mock.calls.at(-1)!;
       expect(args.select).toEqual({
         ocr_result: { select: { keyValuePairs: true } },
       });
+      expect(args.where.ocr_result).toEqual({ isNot: null });
+      // One branch per filter, each the full queue filter for that tab
+      expect(args.where.OR).toHaveLength(2);
+      expect(args.where.OR[0]).toEqual(
+        expect.objectContaining({
+          status: { in: [DocumentStatus.awaiting_review] },
+          AND: expect.arrayContaining([
+            expect.objectContaining({ OR: expect.any(Array) }),
+          ]),
+        }),
+      );
+      expect(args.where.OR[1]).toEqual(
+        expect.objectContaining({
+          status: {
+            in: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          },
+          review_sessions: {
+            some: { status: ReviewStatus.flagged },
+            none: { status: ReviewStatus.approved },
+          },
+        }),
+      );
       expect(args).not.toHaveProperty("take");
     });
   });

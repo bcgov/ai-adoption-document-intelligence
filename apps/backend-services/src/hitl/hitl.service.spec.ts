@@ -471,6 +471,43 @@ describe("HitlService", () => {
       expect(since.toDateString()).toBe(new Date().toDateString());
     });
 
+    it("should average confidence over exactly the documents the four tabs list", async () => {
+      mockReviewDbService.countReviewQueue.mockResolvedValue(0);
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([]);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
+
+      await service.getQueueStats(["group-1"], "reviewer-1");
+
+      // The same per-tab filters as the counts, so a document a workflow
+      // completed without routing to review is left out of the average too.
+      expect(mockReviewDbService.findQueueFieldPayloads).toHaveBeenCalledWith([
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "pending",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "claimed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "flagged",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "reviewed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+      ]);
+    });
+
     it("should report zero average confidence when no document carries field confidence", async () => {
       mockReviewDbService.countReviewQueue.mockResolvedValue(0);
       mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([
