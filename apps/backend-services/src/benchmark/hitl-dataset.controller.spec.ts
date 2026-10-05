@@ -66,11 +66,15 @@ describe("HitlDatasetController", () => {
 
   describe("listEligibleDocuments", () => {
     it("should return eligible documents", async () => {
-      const result = await controller.listEligibleDocuments({}, mockReq);
+      const result = await controller.listEligibleDocuments(
+        { group_id: "test-group" },
+        mockReq,
+      );
       expect(result.documents).toEqual([]);
-      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith({}, [
-        "test-group",
-      ]);
+      expect(mockService.listEligibleDocuments).toHaveBeenCalledWith(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
     });
 
     it("should pass filter parameters", async () => {
@@ -79,12 +83,14 @@ describe("HitlDatasetController", () => {
           page: 2,
           limit: 10,
           search: "invoice",
+          group_id: "test-group",
         },
         mockReq,
       );
 
       expect(mockService.listEligibleDocuments).toHaveBeenCalledWith(
         {
+          group_id: "test-group",
           page: 2,
           limit: 10,
           search: "invoice",

@@ -15,8 +15,8 @@ Access is determined by the user's role in the active group. The backend enforce
 | Delete table | ADMIN |
 | Add/edit/delete columns | ADMIN |
 | Add/edit/delete lookups | ADMIN |
-| Create/edit/delete rows | MEMBER (any group member) |
-| View all tabs | MEMBER (any group member) |
+| Create/edit/delete rows | EDITOR (any group member) |
+| View all tabs | EDITOR (any group member) |
 
 The Settings tab (edit metadata, delete table) is hidden from non-admins entirely. The "Add Column", "Edit", and "Delete" controls in the Columns and Lookups tabs are hidden from non-admins. Row CRUD controls remain visible to all group members.
 

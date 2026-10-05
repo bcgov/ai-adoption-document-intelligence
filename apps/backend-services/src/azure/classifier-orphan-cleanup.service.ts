@@ -2,6 +2,7 @@ import { getErrorStack } from "@ai-di/shared-logging";
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
 import { Inject, Injectable, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { AuditService } from "@/audit/audit.service";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
@@ -34,6 +35,7 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
     azureService: AzureService,
+    private readonly auditService: AuditService,
   ) {
     this.client = azureService.getClient();
   }
@@ -116,6 +118,17 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
       const deleted = await this.deleteOrphan(groupId, classifierName, modelId);
       if (deleted) {
         totalDeleted++;
+        await this.auditService.recordEvent({
+          event_type: "classifier_orphan_deleted",
+          resource_type: "classifier",
+          resource_id: modelId,
+          actor_id: "system",
+          group_id: groupId,
+          payload: {
+            modelId,
+            classifierName,
+          },
+        });
       } else {
         totalErrors++;
         this.logger.warn(

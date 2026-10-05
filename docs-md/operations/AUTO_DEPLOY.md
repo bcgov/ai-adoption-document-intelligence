@@ -1,20 +1,31 @@
-# Auto-Deploy on push to `develop` and `main`
+# Deploy Instance: test on push to `develop`, production on a manual run from `main`
 
 ## Overview
 
-The `Deploy Instance` workflow automatically builds images and deploys them to the appropriate OpenShift instance whenever a commit lands on `develop` or `main`:
+The `Deploy Instance` workflow (`.github/workflows/deploy-instance.yml`) builds images and deploys them to an OpenShift instance. A commit landing on `develop` deploys the shared test instance automatically. Production is deployed only by a manual run of the workflow from `main` with the `prod` environment selected; a push to `main` does not deploy.
 
-| Branch | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
-|---|---|---|---|---|---|
-| `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |
-| `main` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` | `bcgov-di-<sha12>` |
+| Target | Started by | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
+|---|---|---|---|---|---|---|
+| Test | Push to `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |
+| Production | Manual run from `main`, environment `prod` | `bcgov-di` | `fd34fb-prod` | `prod` | `bcgov-di` | `bcgov-di-<sha12>` |
 
-This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag pushes via the now-retired `build-apps.yml`) for test and production deployments.
+Test and production deployments go through this workflow; the local scripts in `scripts/` are for extra stacks (see [MANUAL_LOAD_TEST_INSTANCE.md](MANUAL_LOAD_TEST_INSTANCE.md)).
 
-## What happens on a push
+## Releasing to production
 
-1. **Trigger**: `push` to `develop` or `main`.
-2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment.
+1. Get the changes onto `main` (a pull request from `develop`). The push to `main` does not start a deployment.
+2. In GitHub, open **Actions → Deploy Instance → Run workflow**, choose the `main` branch and the `prod` environment, and leave `namespace` and `instance_name` empty.
+3. The run builds the tip of `main` and deploys `bcgov-di` in `fd34fb-prod`, as described in the next section.
+
+Two guards keep production runs on `main`:
+
+- The metadata job fails the run when `prod` is selected on any other branch, or when `namespace` or `instance_name` is set.
+- The `prod` GitHub environment has a deployment branch rule that allows only `main`, so GitHub refuses any job that uses production's secrets from another branch, whatever that branch's copy of the workflow contains.
+
+## What happens on a run
+
+1. **Trigger**: a push to `develop`, or a manual run (`workflow_dispatch`).
+2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment, and stops a `prod` run that is not on `main` or that sets an override.
 3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
 4. **Deploy job**:
    - Verifies all four staged images exist in Artifactory at the SHA tag.
@@ -24,8 +35,8 @@ This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag p
    - Generates Prometheus alert rules (`npm run generate:alert-rules`), creates the `<instance>-ches-adapter-secrets` and `<instance>-plg-alertmanager-adapter-secret` secrets, then Helm-installs the per-instance PLG monitoring stack (Grafana/Loki/Prometheus/Alertmanager + CHES adapter). Gated by the workflow-level `DEPLOY_PLG` env (currently `"true"`); immutable Loki/Prometheus/Alertmanager StatefulSets are deleted (`--cascade=orphan`, PVCs preserved) before the Helm upgrade. Sizing and retention come from `deployments/openshift/helm/plg/values-<environment>.yaml`, layered on top of `values-openshift.yaml`; only credentials and Alertmanager routing are passed as `--set` flags from environment secrets.
    - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out (including when namespace resources are exhausted and the new pods cannot schedule); the backend's `migrate-db` init container runs `prisma migrate deploy` on fresh-pod start (no separate migrate step).
    - **Promotes** staged SHA tags to the floating tag via `docker buildx imagetools create` (only after rollouts succeed).
-   - Runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim orphan manifests (non-blocking).
-5. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags and reclaims orphans via `scripts/artifactory-delete-run-tags.sh`. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
+5. **Artifactory cleanup job** (after a successful deploy): runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim unreferenced manifests and leftover upload blobs. It is its own job so that a failure turns that job red without marking the deploy failed; see [Artifactory cleanup](#artifactory-cleanup).
+6. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags via `scripts/artifactory-delete-run-tags.sh`, **only for the services whose build failed**. Each failed build job uploads a marker artifact named for its service and run attempt, and the cleanup reads only the current attempt's markers. Images that pushed successfully stay staged, so **Re-run failed jobs** rebuilds just the failures and the deploy still finds all four staged images. The layers the deleted tags leave behind are reclaimed by the next successful run's cleanup job. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
 
 ## Staging model
 
@@ -42,39 +53,78 @@ flowchart LR
 
 ## Concurrency
 
-The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on the same branch in rapid succession, the older run is cancelled and the newer commit is deployed. Pushes to `develop` and `main` run independently.
+The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on `develop` in rapid succession, the older run is cancelled and the newer commit is deployed; the same applies to two manual runs started on one branch, including two production runs from `main`. Runs on different branches run independently.
 
 ## Image tagging strategy
 
 | Target | Staged tag | Floating tag | Rollback | Rotation |
 |---|---|---|---|---|
-| Test (`develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
-| Prod (`main`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
-| Manual (`workflow_dispatch`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
+| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep only the newest SHA tag per image (the running build) |
+| Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
+| Other manual runs (`dev`/`test`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
 
-Rotation matches `<instance>-????????????`, and on `develop`/`main` the instance name and the floating
-tag are the same string, so those SHA tags rotate. On `workflow_dispatch` they are not: the instance
-name is capped at 20 characters and strips `.`/`_`, while the tag keeps them, so a branch such as
-`feature/visual-workflow-builder` stages `feature-visual-workflow-builder-<sha12>` against a
+Test keeps no rollback history: each build adds about 0.9 GB of image layers (Temporal about 460 MB, backend about 300 MB) against the repository's 5 GB quota, which test and production share. Rotation runs in the **Artifactory cleanup** job, after a successful deploy, so the newest test tag is the build the test instance is running.
+
+Rotation matches `<instance>-????????????`, and for the test and production targets the instance name
+and the floating tag are the same string, so those SHA tags rotate. On other manual runs they are not:
+the instance name is capped at 20 characters and strips `.`/`_`, while the tag keeps them, so a branch
+such as `feature/visual-workflow-builder` stages `feature-visual-workflow-builder-<sha12>` against a
 `feature-visual-workf-????????????` glob that never matches, and those manifests accumulate.
 Left as-is deliberately: the manual pathway is being retired under
 [AI-1207](https://citz-do.atlassian.net/browse/AI-1207).
 
+## OpenShift API retries
+
+GitHub-hosted runners reach the cluster API over the public internet, where a share of new connections is refused (`connect: connection refused`) or stalls (`i/o timeout`, `context deadline exceeded`) for periods of minutes to hours. The same API stays reachable from the BC Gov network during those periods, and a retry a few seconds later almost always gets through.
+
+Every deploy-job step that talks to the cluster sources `scripts/lib/oc-retry.sh`, which wraps `oc` and `helm`:
+
+- A call that fails with a connection error is retried up to six times, 10 seconds apart (`CLUSTER_RETRY_ATTEMPTS`, `CLUSTER_RETRY_WAIT_SECONDS`). Each attempt's error output stays in the log, followed by a `[WARN] ... retrying` line.
+- Any other failure (`NotFound`, `Forbidden`, validation, a rollout or Helm `--wait` timeout) fails at once with its own exit code, so existence checks such as `if oc get deployment ...` still read a missing resource as missing rather than retrying it.
+- A manifest piped in with `-f -` is buffered to a file, so a retry re-sends all of it.
+- One-shot `oc` calls (`get`, `apply`, `create`, `label`, `patch`, `delete`, ...) get `--request-timeout=60s` (`OC_REQUEST_TIMEOUT`), so a stalled request fails and is retried instead of hanging; `oc rollout status` keeps its own `--timeout`.
+- `helm upgrade` handles a release left pending. An upgrade that loses its connection mid-way cannot record its outcome, so the release's latest revision stays `pending-upgrade` and every later upgrade fails with `another operation (install/upgrade/rollback) is in progress`, blocking all deploys until it is cleared. Before upgrading, the wrapper rolls such a release back to its last deployed revision if the pending revision is at least 10 minutes old (`HELM_PENDING_MIN_AGE_SECONDS`; older than any live upgrade, whose `--wait` is 5 minutes). After one of its own attempts fails on a connection error, it clears the pending revision regardless of age and retries, including when the retry reports `another operation ... is in progress`. A pending first install with no earlier revision is left alone.
+
+Login (`openshift_login` in `scripts/lib/openshift-login.sh`) makes up to six attempts 10 seconds apart and calls `oc` directly, without the wrapper, so a runner that cannot reach the API at all fails in about four minutes. From some Azure regions the API is unreachable for a whole job (runners in `mexicocentral` and `chilecentral` failed every login attempt while runners in US regions got through), so the final error names the runner's Azure region, read from the instance metadata service. **Re-run failed jobs** gets a different runner.
+
+Tests: `bash scripts/lib/oc-retry.test.sh`, `bash scripts/lib/openshift-login.test.sh`.
+
 ## Artifactory retries
 
-To handle intermittent `Client.Timeout exceeded` errors against the registry, registry operations retry up to three times with a 15-second backoff:
+To handle intermittent `Client.Timeout exceeded` errors and connection timeouts against the registry from GitHub runners, registry operations make up to six attempts with a 15-second backoff:
 
 - `docker login` in the build and promote steps (`scripts/lib/artifactory-login.sh`).
 - The deploy job's staged-image existence check and the `docker buildx imagetools create` promotion, via a shared `with_retries` helper (`scripts/lib/retry.sh`). The existence check only accepts HTTP 200, so a transient timeout (`000`) or `5xx` is retried while a genuinely-missing image still fails after the attempts are exhausted.
 
 All Artifactory REST/registry `curl` calls additionally use `--connect-timeout 30 --max-time 120`.
 
+## Artifactory cleanup
+
+Test and production images share one Artifactory repository (`kfd3-fd34fb-local`), so any cleanup run sees production's tags too.
+
+`scripts/artifactory-cleanup.sh` runs in three phases: optional tag rotation (`--keep N --match GLOB`), orphan reclamation, and `_uploads` cleanup. Orphan reclamation deletes a stored manifest only if no remaining named tag references it, so before deleting it resolves every named tag of an image to its manifest digest and, for an image index, each child digest.
+
+Artifactory intermittently drops requests after about 15 seconds with no response (logged as HTTP `000`), well inside `--max-time`, so a longer timeout does not help. Instead:
+
+- Every request gets up to six attempts with a 10-second wait, and a failed request logs curl's exit code and error. From GitHub runners a connection can also time out outright (`curl: (28) Failed to connect`) for a while.
+- If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
+- Deletes are retried; a `404` counts as already deleted.
+- `_uploads` blobs younger than an hour are left for a later run. The cleanup job runs straight after a deploy, when the run's own pushes have just finished: Artifactory still holds those blobs, so a delete hangs until it times out, and deleting a blob a concurrent push is still writing would break that push.
+- Any lookup or delete that still fails makes the script exit `1`, which turns the **Artifactory cleanup** job red.
+
+**When the cleanup job fails**, the deploy itself succeeded. Use **Re-run failed jobs** on the run to retry just the cleanup; it is safe to repeat. If it keeps failing, run the script locally in dry-run mode (`./scripts/artifactory-cleanup.sh --env dev`) to see which lookups fail.
+
+`scripts/artifactory-delete-run-tags.sh` deletes only the named run tag from each image (retried, `404` counts as done) and exits `1` if a delete still fails.
+
 ## Rollout failure handling
 
 The deploy job uses `scripts/lib/wait-for-rollouts.sh`, which:
 
+- Restarts the deployments one at a time and waits for each rollout (`oc rollout status`, 300 s) before restarting the next. A rolling update creates a surge pod before removing an old one, and the test namespace's CPU-request quota (4 CPU, about 3.5 in use at rest) leaves room for roughly one surge pod at a time; restarting them all at once makes the surge pods queue on the quota until the later rollouts time out.
 - Fails the workflow (not just a warning) when `oc rollout status` times out — including when the namespace lacks the resources to schedule the new pods, which surfaces as a rollout timeout rather than a silent success.
-- Emits pod status, `FailedScheduling` events, and resource-quota details on failure.
+- Emits pod status, `FailedScheduling` events, `FailedCreate` events (pods refused, for example `exceeded quota`), and resource-quota details on failure. The deploy service account cannot read resource quotas, so in practice the `FailedCreate` events are what show a quota limit.
+
+Tests: `bash scripts/lib/wait-for-rollouts.test.sh`.
 
 Namespace capacity is not pre-checked before the restart: in a shared namespace a quota can be at its limit because of other instances, and a rollout-restart of already-sized deployments requests no new storage, so a pre-flight quota gate produced false blocks. Resource exhaustion is instead caught by the rollout-status timeout above. Right-sizing capacity (HPA tuning) is tracked separately.
 
@@ -83,7 +133,7 @@ Namespace capacity is not pre-checked before the restart: in a shared namespace 
 ### GitHub environments
 
 - `test` — populated by `scripts/gh-setup-test-env.sh` (see below). All shared secrets mirror `dev`, with `OPENSHIFT_*` overridden for `fd34fb-test`.
-- `prod` — already configured with production OpenShift and Azure/SSO secrets. Secrets sourced from `deployments/openshift/config/prod.env` + the `fd34fb-prod` SA token.
+- `prod` — already configured with production OpenShift and Azure/SSO secrets. Secrets sourced from `deployments/openshift/config/prod.env` + the `fd34fb-prod` SA token. Its deployment branch rule (**Settings → Environments → prod → Deployment branches and tags**) allows only `main`.
 
 Both environments should have:
 - `OPENSHIFT_TOKEN` — service-account token for the matching namespace
@@ -119,17 +169,23 @@ The script:
 
 Secret values never touch stdout.
 
-## `workflow_dispatch` path
+## Manual runs (`workflow_dispatch`)
 
-The workflow supports manual dispatch from any branch with explicit inputs:
+The workflow can be run manually (**Actions → Deploy Instance → Run workflow**) with these inputs:
 
-- `environment` (`dev|test`, default `dev`)
+- `environment` (`dev|test|prod`, default `dev`)
 - `namespace` (optional OpenShift namespace override)
 - `instance_name` (optional instance name override)
 
-Manual-dispatch behavior:
+With `environment` set to `prod`:
 
-- By default, instance and floating image tag are branch-derived (same as before).
+- The run must start from `main`; on any other branch the metadata job fails before anything is built.
+- `namespace` and `instance_name` must be empty; the metadata job fails if either is set.
+- It deploys the production target from the table above (see [Releasing to production](#releasing-to-production)).
+
+With `dev` or `test`, from any branch (including `main`):
+
+- By default, instance and floating image tag are branch-derived.
 - SHA tag is `<floating-tag>-<sha12>`.
 - If `instance_name` is provided, it overrides the branch-derived instance name.
 - The selected `environment` is used as the GitHub environment for both build and deploy jobs, so environment-specific secrets (including `test`) are honored.

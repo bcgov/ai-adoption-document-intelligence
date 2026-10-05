@@ -70,6 +70,11 @@ generate_instance_overlay() {
   local throttle_auth_refresh_ttl_ms="60000"
   local throttle_auth_refresh_limit="5"
   local db_pool_max="20"
+  # Empty disables each retention janitor; a positive integer is days.
+  local document_retention_days=""
+  local audit_event_retention_days=""
+  local benchmark_audit_log_retention_days=""
+  local review_session_retention_days=""
   local azure_openai_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
@@ -178,6 +183,22 @@ generate_instance_overlay() {
         ;;
       --db-pool-max)
         db_pool_max="$2"
+        shift 2
+        ;;
+      --document-retention-days)
+        document_retention_days="$2"
+        shift 2
+        ;;
+      --audit-event-retention-days)
+        audit_event_retention_days="$2"
+        shift 2
+        ;;
+      --benchmark-audit-log-retention-days)
+        benchmark_audit_log_retention_days="$2"
+        shift 2
+        ;;
+      --review-session-retention-days)
+        review_session_retention_days="$2"
         shift 2
         ;;
       --azure-openai-endpoint)
@@ -361,6 +382,10 @@ generate_instance_overlay() {
     -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|$(_sed_escape_replacement "${throttle_auth_refresh_ttl_ms}")|g"
     -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_refresh_limit}")|g"
     -e "s|__DB_POOL_MAX__|$(_sed_escape_replacement "${db_pool_max}")|g"
+    -e "s|__DOCUMENT_RETENTION_DAYS__|$(_sed_escape_replacement "${document_retention_days}")|g"
+    -e "s|__AUDIT_EVENT_RETENTION_DAYS__|$(_sed_escape_replacement "${audit_event_retention_days}")|g"
+    -e "s|__BENCHMARK_AUDIT_LOG_RETENTION_DAYS__|$(_sed_escape_replacement "${benchmark_audit_log_retention_days}")|g"
+    -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
@@ -381,6 +406,17 @@ generate_instance_overlay() {
     while IFS= read -r -d '' file; do
       sed -i "${sed_args[@]}" "${file}"
     done
+
+  # Fail if any __TOKEN__ placeholders survived substitution — a template token
+  # without a matching sed rule would otherwise reach the live ConfigMap as a literal string.
+  local unresolved
+  unresolved=$(grep -rn --include='*.yml' --include='*.yaml' '__[A-Z][A-Z0-9_]*__' "${generated_dir}" || true)
+  if [[ -n "${unresolved}" ]]; then
+    echo "[ERROR] generate_instance_overlay: unresolved placeholder tokens found in rendered overlay:" >&2
+    echo "${unresolved}" >&2
+    rm -rf "${tmp_root}"
+    return 1
+  fi
 
   echo "${generated_dir}"
 }

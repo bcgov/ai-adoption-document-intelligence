@@ -2,7 +2,7 @@ name: Deploy Instance
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -13,6 +13,7 @@ on:
         options:
           - dev
           - test
+          - prod
       namespace:
         description: Optional OpenShift namespace override
         required: false
@@ -58,8 +59,16 @@ jobs:
             IMAGE_TAG="bcgov-di-test"
             SHA_TAG="bcgov-di-test-${GITHUB_SHA::12}"
             ENV="test"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "main" ]]; then
-            # push to main → prod instance; floating tag + immutable SHA tag for rollback
+          elif [[ "${{ inputs.environment }}" == "prod" ]]; then
+            # manual prod deploy: main only, fixed instance, no overrides; floating tag + immutable SHA tag for rollback
+            if [[ "${{ github.ref_name }}" != "main" ]]; then
+              echo "::error::prod deploys run from main only (this run is on '${{ github.ref_name }}')"
+              exit 1
+            fi
+            if [[ -n "${{ inputs.namespace }}" || -n "${{ inputs.instance_name }}" ]]; then
+              echo "::error::prod deploys do not accept namespace or instance_name overrides"
+              exit 1
+            fi
             INSTANCE="bcgov-di"
             IMAGE_TAG="bcgov-di"
             SHA_TAG="bcgov-di-${GITHUB_SHA::12}"
@@ -185,6 +194,25 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
+      # Marks this service as failed so cleanup-on-failure deletes only failed
+      # services' tags. Siblings that pushed stay in Artifactory, so "Re-run
+      # failed jobs" rebuilds just the failures and the deploy still finds every
+      # staged image. The attempt number keeps a re-run from reading markers
+      # left by an earlier attempt.
+      - name: Record failed service
+        if: failure()
+        run: |
+          mkdir -p /tmp/failure-marker
+          touch "/tmp/failure-marker/${{ matrix.service }}"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-service-${{ matrix.service }}-${{ github.run_attempt }}
+          path: /tmp/failure-marker/
+          retention-days: 1
+
   deploy:
     name: Deploy to OpenShift
     needs: [metadata, build]
@@ -257,7 +285,7 @@ jobs:
 
           for svc in "${SERVICES[@]}"; do
             echo "Checking ${svc}:${SHA_TAG}..."
-            if ! with_retries 3 15 check_manifest "${svc}"; then
+            if ! with_retries 6 15 check_manifest "${svc}"; then
               echo "::error::Missing staged image ${svc}:${SHA_TAG}"
               exit 1
             fi
@@ -286,6 +314,10 @@ jobs:
           BENCHMARK_TASK_QUEUE: ${{ secrets.BENCHMARK_TASK_QUEUE }}
           ENABLE_BENCHMARK_QUEUE: ${{ secrets.ENABLE_BENCHMARK_QUEUE }}
           BODY_LIMIT: ${{ secrets.BODY_LIMIT }}
+          DOCUMENT_RETENTION_DAYS: ${{ secrets.DOCUMENT_RETENTION_DAYS }}
+          AUDIT_EVENT_RETENTION_DAYS: ${{ secrets.AUDIT_EVENT_RETENTION_DAYS }}
+          BENCHMARK_AUDIT_LOG_RETENTION_DAYS: ${{ secrets.BENCHMARK_AUDIT_LOG_RETENTION_DAYS }}
+          REVIEW_SESSION_RETENTION_DAYS: ${{ secrets.REVIEW_SESSION_RETENTION_DAYS }}
           THROTTLE_GLOBAL_TTL_MS: ${{ secrets.THROTTLE_GLOBAL_TTL_MS }}
           THROTTLE_GLOBAL_LIMIT: ${{ secrets.THROTTLE_GLOBAL_LIMIT }}
           THROTTLE_AUTH_TTL_MS: ${{ secrets.THROTTLE_AUTH_TTL_MS }}
@@ -294,6 +326,7 @@ jobs:
           THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           source scripts/lib/instance-name.sh
           source scripts/lib/generate-overlay.sh
@@ -321,6 +354,10 @@ jobs:
             --benchmark-task-queue "${BENCHMARK_TASK_QUEUE:-benchmark-processing}" \
             --enable-benchmark-queue "${ENABLE_BENCHMARK_QUEUE:-true}" \
             --body-limit "${BODY_LIMIT:-50mb}" \
+            --document-retention-days "${DOCUMENT_RETENTION_DAYS:-}" \
+            --audit-event-retention-days "${AUDIT_EVENT_RETENTION_DAYS:-}" \
+            --benchmark-audit-log-retention-days "${BENCHMARK_AUDIT_LOG_RETENTION_DAYS:-}" \
+            --review-session-retention-days "${REVIEW_SESSION_RETENTION_DAYS:-}" \
             --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS:-60000}" \
             --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT:-100}" \
             --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS:-60000}" \
@@ -360,6 +397,7 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           echo "::group::Artifactory image pull secret"
           # Create an instance-owned docker-registry pull secret with the same
@@ -435,6 +473,7 @@ jobs:
           CHES_TO_EMAILS: ${{ secrets.CHES_TO_EMAILS }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           CHES_SECRET="${INSTANCE_NAME}-ches-adapter-secrets"
 
@@ -468,6 +507,7 @@ jobs:
           ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_RELEASE="${INSTANCE_NAME}-plg"
           # Secret name must match the default produced by the plg.alertmanager.adapterSecretName
@@ -495,6 +535,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/plg-pre-delete.sh
           delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 
@@ -510,6 +551,7 @@ jobs:
           ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
@@ -539,6 +581,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/wait-for-rollouts.sh
           SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
           wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"
@@ -563,14 +606,29 @@ jobs:
           SERVICES=(backend-services frontend temporal ches-adapter)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
-            with_retries 3 15 docker buildx imagetools create \
+            with_retries 6 15 docker buildx imagetools create \
               --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
-      - name: Artifactory cleanup (reclaim storage)
-        if: success()
-        continue-on-error: true
+
+  artifactory-cleanup:
+    name: Artifactory cleanup
+    # Rotates old SHA tags and reclaims unreferenced manifests after a
+    # successful deploy. It is a separate job so that a failure (Artifactory
+    # lookups or deletes that still fail after retries) shows as a red job
+    # without marking the deploy failed, and can be re-run on its own with
+    # "Re-run failed jobs"; the script is safe to repeat.
+    needs: [metadata, deploy]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Rotate SHA tags and reclaim storage
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -581,11 +639,15 @@ jobs:
           set -euo pipefail
           # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
           # recent `<instance>-<12hex>` named tags per image, delete the rest.
-          # For test/dev, rotate SHA tags matching `<instance>-????????????`.
+          # For test/dev, keep only the newest `<instance>-<12hex>` tag per
+          # image: this job runs after a successful deploy, so that is the
+          # build the instance is running. Test keeps no rollback history;
+          # each build adds about 0.9 GB against the repository's 5 GB quota,
+          # which test and prod share.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
             bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 1 --match "${INSTANCE}-????????????"
           fi
 
   cleanup-on-failure:
@@ -606,7 +668,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Delete staged run tags and reclaim orphans
+      - name: Download failure markers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/failed-services
+          pattern: failed-service-*-${{ github.run_attempt }}
+          merge-multiple: true
+
+      - name: Delete staged run tags for failed services
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -618,4 +687,22 @@ jobs:
             echo "No SHA tag to clean up."
             exit 0
           fi
-          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete
+
+          # Only delete the tag for services whose build actually failed, so a
+          # single flaky image push doesn't wipe already-pushed sibling images
+          # (which would otherwise force rebuilding everything on retry).
+          FAILED_SERVICES=()
+          if [[ -d /tmp/failed-services ]]; then
+            while IFS= read -r -d '' f; do
+              FAILED_SERVICES+=("$(basename "$f")")
+            done < <(find /tmp/failed-services -maxdepth 1 -type f -print0)
+          fi
+
+          if [[ "${#FAILED_SERVICES[@]}" -eq 0 ]]; then
+            echo "No failure markers found; skipping targeted cleanup."
+            exit 0
+          fi
+
+          echo "Failed services: ${FAILED_SERVICES[*]}"
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
+

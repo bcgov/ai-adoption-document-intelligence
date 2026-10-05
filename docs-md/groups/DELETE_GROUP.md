@@ -26,3 +26,5 @@ Soft-deletes an existing group by ID. Only system admins may perform this action
 Soft-deletes the specified group by setting `deleted_at` to the current timestamp and `deleted_by` to the caller's actor ID. Associated records (members, workflows, membership requests) are **not** modified. A `group_deleted` audit event is recorded on success.
 
 Soft-deleted groups are excluded from all subsequent `GET /api/groups` listings.
+
+Membership rows are kept, but they no longer grant access: `IdentityGuard` builds the caller's group roles only from memberships in groups that are not soft-deleted (`UserDbService.findUserWithGroupNames`), so former members receive `403` on the group's resources and no longer see them in lists.

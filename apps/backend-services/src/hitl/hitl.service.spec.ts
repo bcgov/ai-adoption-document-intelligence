@@ -201,6 +201,7 @@ describe("HitlService", () => {
   describe("getQueue", () => {
     it("should return documents from the queue with their computed average confidence", async () => {
       const filters: QueueFilterDto = {
+        group_id: "group-1",
         limit: 50,
         offset: 0,
       };
@@ -245,7 +246,7 @@ describe("HitlService", () => {
       ]);
       mockReviewDbService.countReviewQueue.mockResolvedValueOnce(1);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents).toHaveLength(1);
       expect(result.total).toBe(1);
@@ -269,7 +270,7 @@ describe("HitlService", () => {
         docWithSession as any,
       ]);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents[0].lastSession).toEqual({
         id: "session-1",
@@ -285,7 +286,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ status: DocumentStatusFilter.ALL });
+      await service.getQueue({
+        group_id: "group-1",
+        status: DocumentStatusFilter.ALL,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -299,7 +303,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -314,7 +321,7 @@ describe("HitlService", () => {
       ]);
 
       await service.getQueue(
-        { reviewStatus: ReviewStatusFilter.CLAIMED },
+        { group_id: "group-1", reviewStatus: ReviewStatusFilter.CLAIMED },
         undefined,
         "reviewer-1",
       );
@@ -332,7 +339,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -344,7 +354,10 @@ describe("HitlService", () => {
     it("should NOT include complete documents in the pending filter", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.PENDING });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.PENDING,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -356,7 +369,7 @@ describe("HitlService", () => {
     it("should use default values for optional filters", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({});
+      await service.getQueue({ group_id: "group-1" });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
@@ -1049,6 +1062,7 @@ describe("HitlService", () => {
       mockAnalyticsService.getAnalytics.mockResolvedValueOnce(mockAnalytics);
 
       const filters = {
+        group_id: "group-1",
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-12-31"),
       };
