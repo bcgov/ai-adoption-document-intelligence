@@ -190,10 +190,10 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. A positive integer is required to enable it (e.g. `90`). |
+| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`, `rejected`) are permanently deleted along with their blob-storage files and `ocr_results` rows. A positive integer is required to enable it (e.g. `90`). |
 | `AUDIT_EVENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `audit_events` rows are deleted. Confirm statutory retention requirements before setting this in a regulated environment. |
 | `BENCHMARK_AUDIT_LOG_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `benchmark_audit_logs` rows are deleted. |
-| `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `approved` or `abandoned` `review_sessions` are deleted, once their document has finished processing, along with their cascading `field_corrections` (reviewer edits read by confusion profiles, HITL aggregation and format suggestions). `in_progress` and `flagged` sessions are never deleted. |
+| `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `approved`, `rejected` or `abandoned` `review_sessions` are deleted, once their document has finished processing, along with their cascading `field_corrections` (reviewer edits read by confusion profiles, HITL aggregation and format suggestions). `in_progress` and `flagged` sessions are never deleted. |
 
 All four janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
 

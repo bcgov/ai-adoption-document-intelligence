@@ -52,6 +52,7 @@ const PURGEABLE_STATUSES: DocumentStatus[] = [
   DocumentStatus.complete,
   DocumentStatus.failed,
   DocumentStatus.conversion_failed,
+  DocumentStatus.rejected,
 ];
 
 /**

@@ -32,7 +32,7 @@ Two conditions, both required:
 
 - `created_at` is older than `now() - DOCUMENT_RETENTION_DAYS`. The age is
   measured from creation, not from last activity.
-- Status is one of `complete`, `failed`, `conversion_failed`.
+- Status is one of `complete`, `failed`, `conversion_failed`, `rejected`.
 
 `pre_ocr` and `ongoing_ocr` are excluded because the pipeline is still running.
 `awaiting_review` and `extracted` are excluded because a HITL or follow-on step
@@ -96,11 +96,11 @@ Runs **daily at 02:30**, in batches.
 Controlled by `REVIEW_SESSION_RETENTION_DAYS`. Deletes `review_sessions` whose
 `completed_at` is older than the configured window, when both hold:
 
-1. The session status is `approved` or `abandoned`. `in_progress` sessions are
+1. The session status is `approved`, `rejected` or `abandoned`. `in_progress` sessions are
    still open, and `flagged` sessions are escalations that still need action;
    neither is deleted at any age.
-2. The session's document has finished processing (`complete`, `failed` or
-   `conversion_failed`).
+2. The session's document has finished processing (`complete`, `failed`,
+   `conversion_failed` or `rejected`).
 
 Deletion cascades to `field_corrections` and `document_locks`.
 `field_corrections` holds each edit a reviewer made to an extracted field, and

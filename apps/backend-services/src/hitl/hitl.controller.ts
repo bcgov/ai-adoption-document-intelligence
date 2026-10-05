@@ -10,6 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -285,7 +286,10 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.approveSession(sessionId);
+    return this.hitlService.approveSession(
+      sessionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/reject")
@@ -293,8 +297,12 @@ export class HitlController {
   @ApiOperation({ summary: "Reject and complete a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
-    description: "Session rejected and marked complete",
+    description:
+      "Session rejected and marked complete; the document moves to rejected",
     type: SessionActionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "rejectionReason is missing or not one of the allowed values",
   })
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
@@ -314,7 +322,11 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_APPROVE_DENY,
     ]);
-    return this.hitlService.rejectSession(sessionId, dto);
+    return this.hitlService.rejectSession(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/skip")

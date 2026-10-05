@@ -638,7 +638,7 @@ export class HitlService {
     };
   }
 
-  async approveSession(sessionId: string) {
+  async approveSession(sessionId: string, actorId: string) {
     this.logger.debug(`Approving session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -691,6 +691,7 @@ export class HitlService {
           event_type: "review_session_approved",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
@@ -704,7 +705,7 @@ export class HitlService {
 
     await this.resumeGatedWorkflow(session.document_id, {
       approved: true,
-      reviewer: session.actor_id,
+      reviewer: actorId,
       groupId: doc.group_id,
       workflowExecutionId: doc.workflow_execution_id,
     });
@@ -742,11 +743,18 @@ export class HitlService {
   }
 
   /**
-   * Rejects a review session. Unlike approval, the document's status is left
-   * untouched here: rejection fails the gated workflow (HUMAN_GATE_REJECTED),
-   * and that failure path — not the queue — decides the document's fate.
+   * Rejects a review session, and the document with it. The session keeps the
+   * reviewer's reason and comment, and the document moves to `rejected` in the
+   * same transaction, so the rejection holds whether or not a workflow is
+   * waiting. The workflow's review gate then fails the run
+   * (HUMAN_GATE_REJECTED); its failure hook only moves documents that are
+   * still in OCR, so it leaves `rejected` alone.
    */
-  async rejectSession(sessionId: string, dto: RejectSessionDto) {
+  async rejectSession(
+    sessionId: string,
+    dto: RejectSessionDto,
+    actorId: string,
+  ) {
     this.logger.debug(`Rejecting session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -770,12 +778,16 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
+    const rejectionComment = dto.comments?.trim() || null;
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
         {
           status: ReviewStatus.rejected,
           completed_at: new Date(),
+          rejection_reason: dto.rejectionReason,
+          rejection_comment: rejectionComment,
         },
         tx,
       );
@@ -784,6 +796,14 @@ export class HitlService {
         throw new NotFoundException(`Review session ${sessionId} not found`);
       }
 
+      await this.documentService.updateDocument(
+        session.document_id,
+        {
+          status: DocumentStatus.rejected,
+        },
+        tx,
+      );
+
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
       await this.auditService.recordEvent(
@@ -791,13 +811,14 @@ export class HitlService {
           event_type: "review_session_rejected",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
           payload: {
             document_id: session.document_id,
             rejection_reason: dto.rejectionReason,
-            comments: dto.comments,
+            comments: rejectionComment,
           },
         },
         tx,
@@ -808,10 +829,10 @@ export class HitlService {
 
     await this.resumeGatedWorkflow(session.document_id, {
       approved: false,
-      reviewer: session.actor_id,
+      reviewer: actorId,
       groupId: doc.group_id,
       workflowExecutionId: doc.workflow_execution_id,
-      comments: dto.comments,
+      comments: rejectionComment ?? undefined,
       rejectionReason: dto.rejectionReason,
       annotations: dto.annotations,
     });
