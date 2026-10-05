@@ -59,9 +59,11 @@ The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. I
 
 | Target | Staged tag | Floating tag | Rollback | Rotation |
 |---|---|---|---|---|
-| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
+| Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep only the newest SHA tag per image (the running build) |
 | Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
 | Other manual runs (`dev`/`test`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
+
+Test keeps no rollback history: each build adds about 0.9 GB of image layers (Temporal about 460 MB, backend about 300 MB) against the repository's 5 GB quota, which test and production share. Rotation runs in the **Artifactory cleanup** job, after a successful deploy, so the newest test tag is the build the test instance is running.
 
 Rotation matches `<instance>-????????????`, and for the test and production targets the instance name
 and the floating tag are the same string, so those SHA tags rotate. On other manual runs they are not:

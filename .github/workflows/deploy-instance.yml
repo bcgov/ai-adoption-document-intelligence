@@ -639,11 +639,15 @@ jobs:
           set -euo pipefail
           # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
           # recent `<instance>-<12hex>` named tags per image, delete the rest.
-          # For test/dev, rotate SHA tags matching `<instance>-????????????`.
+          # For test/dev, keep only the newest `<instance>-<12hex>` tag per
+          # image: this job runs after a successful deploy, so that is the
+          # build the instance is running. Test keeps no rollback history;
+          # each build adds about 0.9 GB against the repository's 5 GB quota,
+          # which test and prod share.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
             bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 1 --match "${INSTANCE}-????????????"
           fi
 
   cleanup-on-failure:
