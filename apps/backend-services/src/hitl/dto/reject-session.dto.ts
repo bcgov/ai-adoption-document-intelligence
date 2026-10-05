@@ -17,11 +17,4 @@ export class RejectSessionDto {
   @IsOptional()
   @IsString()
   comments?: string;
-
-  @ApiPropertyOptional({
-    description: "Optional annotations (e.g. JSON string)",
-  })
-  @IsOptional()
-  @IsString()
-  annotations?: string;
 }

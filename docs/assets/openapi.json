@@ -16370,10 +16370,6 @@
           "comments": {
             "type": "string",
             "description": "Optional comment explaining the rejection. Stored on the review session and shown with the document."
-          },
-          "annotations": {
-            "type": "string",
-            "description": "Optional annotations (e.g. JSON string)"
           }
         },
         "required": [

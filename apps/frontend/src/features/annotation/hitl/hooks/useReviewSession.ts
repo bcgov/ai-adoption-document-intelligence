@@ -124,7 +124,6 @@ export const useReviewSession = (sessionId?: string) => {
     mutationFn: async (dto: {
       rejectionReason: RejectionReason;
       comments?: string;
-      annotations?: string;
     }) => {
       const response = await apiService.post(
         `/hitl/sessions/${sessionId}/reject`,

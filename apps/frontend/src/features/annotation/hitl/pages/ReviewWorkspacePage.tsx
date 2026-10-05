@@ -327,7 +327,6 @@ export const ReviewWorkspacePage: FC = () => {
   const [rejectionReason, setRejectionReason] =
     useState<RejectionReason | null>(null);
   const [rejectionComments, setRejectionComments] = useState("");
-  const [rejectionAnnotations, setRejectionAnnotations] = useState("");
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -849,7 +848,6 @@ export const ReviewWorkspacePage: FC = () => {
     setRejectModalOpened(false);
     setRejectionReason(null);
     setRejectionComments("");
-    setRejectionAnnotations("");
   };
 
   const handleConfirmReject = async () => {
@@ -859,7 +857,6 @@ export const ReviewWorkspacePage: FC = () => {
       await rejectSessionAsync({
         rejectionReason,
         comments: rejectionComments.trim() || undefined,
-        annotations: rejectionAnnotations.trim() || undefined,
       });
     } catch (error) {
       // Keep the dialog open so the reviewer's reason and comment survive.
@@ -1491,25 +1488,12 @@ export const ReviewWorkspacePage: FC = () => {
 
             <div>
               <Text size="sm" fw={600} mb="xs">
-                Comments (optional)
-              </Text>
-              <Textarea
-                placeholder="Add any comments about the rejection..."
-                value={rejectionComments}
-                onChange={(e) => setRejectionComments(e.currentTarget.value)}
-                minRows={3}
-                disabled={isRejecting}
-              />
-            </div>
-
-            <div>
-              <Text size="sm" fw={600} mb="xs">
-                Annotations (optional)
+                Comment (optional)
               </Text>
               <Textarea
                 placeholder="What failed, where, why? (e.g., 'field X is missing on page 2', 'OCR hallucinated text in section Y')"
-                value={rejectionAnnotations}
-                onChange={(e) => setRejectionAnnotations(e.currentTarget.value)}
+                value={rejectionComments}
+                onChange={(e) => setRejectionComments(e.currentTarget.value)}
                 minRows={3}
                 disabled={isRejecting}
               />

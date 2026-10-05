@@ -1051,7 +1051,6 @@ describe("HitlService", () => {
           reviewer: "reviewer-1",
           comments: undefined,
           rejectionReason: RejectionReason.INPUT_QUALITY,
-          annotations: undefined,
         },
       );
     });

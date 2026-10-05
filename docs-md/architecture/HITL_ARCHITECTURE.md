@@ -504,8 +504,7 @@ the workflow continues into the nodes after the gate:
   there was nothing to resume. Both carry `source: "hitl_session"`.
 
 Rejection sends the same signal with `approved: false`, plus the
-`rejectionReason`/`comments`/`annotations` supplied on the reject call. The
-review gate fails the run with `HUMAN_GATE_REJECTED` as soon as it reads
+`rejectionReason` and `comments` supplied on the reject call. The review gate fails the run with `HUMAN_GATE_REJECTED` as soon as it reads
 `approved: false`, so no node after the gate runs. The rejection does not
 depend on the workflow: the reject call marks the document `rejected` itself,
 and the workflow's failure hook only moves documents that are still in OCR, so

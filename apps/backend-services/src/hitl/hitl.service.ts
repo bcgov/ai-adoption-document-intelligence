@@ -284,7 +284,6 @@ export class HitlService {
       workflowExecutionId?: string;
       comments?: string;
       rejectionReason?: string;
-      annotations?: string;
     },
   ): Promise<void> {
     // The Temporal workflow id is derived from the document id. The stored
@@ -298,7 +297,6 @@ export class HitlService {
         reviewer: outcome.reviewer,
         comments: outcome.comments,
         rejectionReason: outcome.rejectionReason,
-        annotations: outcome.annotations,
       });
       await this.auditService.recordEvent({
         event_type: "human_approval_signal_sent",
@@ -834,7 +832,6 @@ export class HitlService {
       workflowExecutionId: doc.workflow_execution_id,
       comments: rejectionComment ?? undefined,
       rejectionReason: dto.rejectionReason,
-      annotations: dto.annotations,
     });
 
     return {
