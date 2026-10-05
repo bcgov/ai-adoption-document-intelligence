@@ -16188,8 +16188,10 @@
           "model_id": {
             "type": "object"
           },
-          "workflow_id": {
-            "type": "object"
+          "workflow_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Name of the workflow the document was uploaded through, or null when it was uploaded without one"
           },
           "created_at": {
             "format": "date-time",
@@ -16210,6 +16212,7 @@
           "id",
           "original_filename",
           "status",
+          "workflow_name",
           "created_at",
           "updated_at",
           "average_confidence"

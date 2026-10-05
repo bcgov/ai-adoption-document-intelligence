@@ -208,7 +208,7 @@ describe("ReviewDbService", () => {
       );
     });
 
-    it("should load only the OCR field payload, not the full OCR text", async () => {
+    it("should load only the OCR field payload and the workflow's name, not the full OCR text", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
       await service.findReviewQueue({
@@ -219,6 +219,9 @@ describe("ReviewDbService", () => {
       const [args] = mockDocument.findMany.mock.calls.at(-1)!;
       expect(args.include.ocr_result).toEqual({
         select: { keyValuePairs: true },
+      });
+      expect(args.include.workflowVersion).toEqual({
+        select: { lineage: { select: { name: true } } },
       });
       expect(args.include.lock).toBe(true);
     });

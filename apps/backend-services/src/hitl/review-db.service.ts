@@ -32,6 +32,7 @@ function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
   return {
     ocr_result: { select: { keyValuePairs: true } },
     lock: true,
+    workflowVersion: { select: { lineage: { select: { name: true } } } },
     review_sessions: {
       // Exclude in_progress — lock record determines "In review" display; these are noise
       where: { status: { in: lastSessionStatuses } },

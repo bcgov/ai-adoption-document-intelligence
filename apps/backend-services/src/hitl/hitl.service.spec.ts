@@ -26,7 +26,7 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
-import { ReviewDbService } from "./review-db.service";
+import { ReviewDbService, type ReviewQueueDocument } from "./review-db.service";
 
 describe("HitlService", () => {
   let service: HitlService;
@@ -227,6 +227,28 @@ describe("HitlService", () => {
       expect(result.documents[0].id).toBe("doc-1");
       // The total counts the whole queue, not the page that was returned
       expect(result.total).toBe(137);
+    });
+
+    it("should name each document's workflow, or give null when it was uploaded without one", async () => {
+      const queueRow: ReviewQueueDocument = {
+        ...mockDocument,
+        ocr_result: { keyValuePairs: mockOcrResult.keyValuePairs },
+        lock: null,
+        workflowVersion: { lineage: { name: "Invoice intake" } },
+        review_sessions: [],
+      };
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        queueRow,
+        { ...queueRow, id: "doc-2", workflowVersion: null },
+      ]);
+      mockReviewDbService.countReviewQueue.mockResolvedValueOnce(2);
+
+      const result = await service.getQueue({ group_id: "group-1" });
+
+      expect(result.documents.map((doc) => doc.workflow_name)).toEqual([
+        "Invoice intake",
+        null,
+      ]);
     });
 
     it("should not filter documents by confidence — that is the workflow's job", async () => {

@@ -231,7 +231,7 @@ export class HitlService {
         original_filename: doc.original_filename,
         status: doc.status,
         model_id: doc.model_id,
-        workflow_id: doc.workflow_id,
+        workflow_name: doc.workflowVersion?.lineage.name ?? null,
         created_at: doc.created_at,
         updated_at: doc.updated_at,
         average_confidence: getAverageConfidence(doc),
