@@ -1,7 +1,6 @@
 // Load .env before any module is resolved so that process.env is populated
 // when decorators (e.g. @Throttle) are evaluated at import time.
-// Loads external secret override first ($DI_SECRETS_DIR/backend-services.env),
-// then repo-local .env for non-sensitive defaults. MUST remain first import.
+// Loads the repo-root .env. MUST remain first import.
 import "./env-loader";
 
 import { createLogger } from "@ai-di/shared-logging";

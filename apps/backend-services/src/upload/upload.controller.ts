@@ -23,7 +23,7 @@ import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated";
+import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
@@ -88,7 +88,9 @@ export class UploadController {
           "group_id is required when not authenticating with an API key",
         );
       }
-      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+      identityCanAccessGroup(req.resolvedIdentity, groupId, [
+        Permission.DOCUMENT_CREATE,
+      ]);
 
       // Validate base64 file data
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {

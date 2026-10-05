@@ -24,9 +24,9 @@ The caller must satisfy one of the following:
 - Be a system admin (`is_system_admin = true` on their `User` record)
 - Be a group admin for the specified group (present in `UserGroup` with `role = ADMIN` for the given `groupId`)
 
-Regular group members (role `MEMBER`) are **not** permitted to view requests.
+Regular group members (role `EDITOR` or `REVIEWER`) are **not** permitted to view requests.
 
-Access is enforced by the `@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: ADMIN })` guard, which checks `resolvedIdentity.groupRoles` populated by the `IdentityGuard`; system admins bypass the membership check.
+Access is enforced by the `@Identity({ groupPermissions: { groupIdFrom: { param: "groupId" }, requiredPermissions: [Permission.GROUP_REQUESTS_RETRIEVE] } })` guard, which checks `resolvedIdentity.groupRoles` populated by the `IdentityGuard`; system admins bypass the membership check.
 
 ## Response
 

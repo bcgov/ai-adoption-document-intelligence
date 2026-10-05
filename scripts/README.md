@@ -2,7 +2,7 @@
 
 CLI scripts for managing, backing up, and tearing down instances of the application stack on OpenShift.
 
-**Default deployments use the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/operations/AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); pushes to `main` deploy to `bcgov-di` (namespace `fd34fb-prod`).
+**Default deployments use the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/operations/AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); production, `bcgov-di` (namespace `fd34fb-prod`), is deployed by running the workflow manually from `main` with the `prod` environment.
 
 For a **second stack** in `fd34fb-test` with images from your branch (load testing), use **[`oc-build-push.sh`](#oc-build-pushsh--build-and-push-images)** and **[`oc-deploy-instance.sh`](#oc-deploy-instancesh--manual-openshift-deploy)** with **[manual deploy docs](../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md)**.
 

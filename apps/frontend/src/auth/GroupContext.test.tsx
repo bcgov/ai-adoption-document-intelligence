@@ -148,4 +148,82 @@ describe("GroupContext", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Scenario 8: activeGroup is set in the same render as the user's groups
+  // ---------------------------------------------------------------------------
+  describe("Scenario 8 – activeGroup arrives in the same render as the groups", () => {
+    it("never renders the user's groups alongside a null activeGroup", () => {
+      // The provider mounts before /me returns, then the user arrives.
+      mockUseAuth.mockReturnValue({ user: null });
+      const renders: { groups: number; activeGroupId: string | null }[] = [];
+      const { rerender } = renderHook(
+        () => {
+          const context = useGroup();
+          renders.push({
+            groups: context.availableGroups.length,
+            activeGroupId: context.activeGroup?.id ?? null,
+          });
+          return context;
+        },
+        { wrapper },
+      );
+
+      mockUseAuth.mockReturnValue({ user: { groups: [groupA, groupB] } });
+      rerender();
+
+      expect(renders.some((r) => r.groups > 0)).toBe(true);
+      expect(
+        renders.filter((r) => r.groups > 0 && r.activeGroupId === null),
+      ).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Scenario 9: a system admin can select a group they are not a member of
+  // ---------------------------------------------------------------------------
+  describe("Scenario 9 – system admin selects a non-member group", () => {
+    it("makes the selected non-member group active for a system admin", () => {
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA] },
+        isSystemAdmin: true,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      act(() => {
+        result.current.setActiveGroup(groupC);
+      });
+
+      expect(result.current.activeGroup).toEqual(groupC);
+      expect(localStorage.getItem("activeGroupId")).toBe(groupC.id);
+    });
+
+    it("keeps a non-admin on a membership when a non-member group is passed", () => {
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA, groupB] },
+        isSystemAdmin: false,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      act(() => {
+        result.current.setActiveGroup(groupC);
+      });
+
+      expect(result.current.activeGroup).toEqual(groupA);
+    });
+
+    it("falls back to the first membership after a reload with a non-member group stored", () => {
+      localStorage.setItem("activeGroupId", groupC.id);
+      mockUseAuth.mockReturnValue({
+        user: { groups: [groupA] },
+        isSystemAdmin: true,
+      });
+
+      const { result } = renderHook(() => useGroup(), { wrapper });
+
+      expect(result.current.activeGroup).toEqual(groupA);
+    });
+  });
 });

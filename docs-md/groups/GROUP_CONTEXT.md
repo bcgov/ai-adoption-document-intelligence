@@ -21,14 +21,17 @@ No additional network calls are made.
 ### `Group`
 
 ```ts
+type GroupRole = "ADMIN" | "EDITOR" | "REVIEWER";
+
 interface Group {
   id: string;
   name: string;
-  role?: "ADMIN" | "MEMBER";
+  role?: GroupRole;
+  permissions?: Permission[];
 }
 ```
 
-Exported from `AuthContext.tsx` and re-used throughout the frontend.
+Exported from `AuthContext.tsx` and re-used throughout the frontend. `permissions` is the role's permission list from `/api/auth/me`, sent as numbers: values of the `Permission` enum in `apps/frontend/src/auth/permissions.ts` (see [FRONTEND_ROUTE_PERMISSIONS.md](../auth/FRONTEND_ROUTE_PERMISSIONS.md)).
 
 ### `GroupContextType`
 
@@ -37,6 +40,7 @@ Exported from `AuthContext.tsx` and re-used throughout the frontend.
 | `availableGroups`| `Group[]`               | All groups the authenticated user belongs to.                |
 | `activeGroup`    | `Group \| null`         | The currently selected group, or `null` if the user has no memberships. |
 | `setActiveGroup` | `(group: Group) => void`| Updates the active group and persists its `id` to `localStorage`. |
+| `hasPermissionForGroup` | `(groupId: string, requiredPermissions: Permission[]) => boolean` | `true` when the user's membership in that group holds every listed permission. It does not consider system-admin status; callers check `isSystemAdmin` from `useAuth()` first. |
 
 ## Provider
 
@@ -57,7 +61,8 @@ import { GroupProvider } from "./auth/GroupContext";
 ```ts
 import { useGroup } from "./auth/GroupContext";
 
-const { availableGroups, activeGroup, setActiveGroup } = useGroup();
+const { availableGroups, activeGroup, setActiveGroup, hasPermissionForGroup } =
+  useGroup();
 ```
 
 Throws an error if called outside of a `GroupProvider`.
@@ -71,11 +76,15 @@ Throws an error if called outside of a `GroupProvider`.
 | `localStorage` has an `activeGroupId` that matches a membership     | Matching `Group` object            |
 | `localStorage` has a stale `activeGroupId` (no longer a membership) | First entry in `availableGroups`   |
 
-The active group is re-resolved with the same rules whenever the user's group list changes (e.g. after a fresh `/me` response).
+`activeGroup` is computed from these rules on every render rather than held in state, so it is set in the same render in which the user's groups arrive from `/me`. Route guards depend on this: they run on that first render after a page load, and an empty active group there would redirect the user to `/`.
+
+## System admins and non-member groups
+
+For a system admin, the group selector lists every group, not only the admin's memberships. When an admin picks a group they are not a member of, `setActiveGroup` keeps that `Group` object as well as its id, and `activeGroup` resolves to it for the rest of the session. A full page load resolves only against memberships, so the stored id of a non-member group falls back to the first entry in `availableGroups` (the stale-id row above).
 
 ## Persistence
 
-`setActiveGroup(group)` updates `localStorage.activeGroupId` to the group's `id`. On next load, `GroupProvider` restores this selection automatically.
+`setActiveGroup(group)` updates `localStorage.activeGroupId` to the group's `id`. On next load, `GroupProvider` restores this selection automatically when the id matches a membership.
 
 ## Related changes
 

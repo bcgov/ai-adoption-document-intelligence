@@ -39,6 +39,7 @@ import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
@@ -81,10 +82,11 @@ export class BenchmarkRunController {
   private async assertProjectGroupAccess(
     projectId: string,
     req: Request,
+    permissions: Permission[],
   ): Promise<string> {
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId, permissions);
     return project.groupId;
   }
 
@@ -120,7 +122,9 @@ export class BenchmarkRunController {
     );
     const project =
       await this.benchmarkProjectService.getProjectById(projectId);
-    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId, [
+      Permission.BENCHMARK_CREATE,
+    ]);
     const definition = await this.benchmarkDefinitionService.getDefinitionById(
       projectId,
       definitionId,
@@ -180,7 +184,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/definitions/${definitionId}/ocr-improvement/debug-log`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkDefinitionService.getPipelineDebugLog(
       projectId,
       definitionId,
@@ -216,7 +222,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/definitions/${definitionId}/runs`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_CREATE,
+    ]);
     const actorId = req.resolvedIdentity!.actorId;
     return this.benchmarkRunService.startRun(
       projectId,
@@ -241,7 +249,9 @@ export class BenchmarkRunController {
     @Req() req: Request,
   ): Promise<RunSummaryDto[]> {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs`);
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkRunService.listRuns(projectId);
   }
 
@@ -273,7 +283,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/ocr-cache-sources?datasetVersionId=${datasetVersionId}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkRunService.listOcrCacheSources(
       projectId,
       datasetVersionId,
@@ -297,7 +309,9 @@ export class BenchmarkRunController {
     @Req() req: Request,
   ): Promise<RunDetailsDto> {
     this.logger.log(`GET /api/benchmark/projects/${projectId}/runs/${runId}`);
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.benchmarkRunService.getRunById(projectId, runId);
   }
 
@@ -322,7 +336,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/cancel`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_UPDATE,
+    ]);
     return this.benchmarkRunService.cancelRun(
       projectId,
       runId,
@@ -354,7 +370,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/drill-down`,
     );
-    const groupId = await this.assertProjectGroupAccess(projectId, req);
+    const groupId = await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     const result = await this.benchmarkRunService.getDrillDown(
       projectId,
       runId,
@@ -398,7 +416,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/error-detection-analysis`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.errorDetectionService.getAnalysis(projectId, runId);
   }
 
@@ -432,7 +452,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/download`,
     );
-    const groupId = await this.assertProjectGroupAccess(projectId, req);
+    const groupId = await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     const exportPayload = await this.benchmarkRunService.exportFullRun(
       projectId,
       runId,
@@ -497,7 +519,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `GET /api/benchmark/projects/${projectId}/runs/${runId}/samples`,
     );
-    const groupId = await this.assertProjectGroupAccess(projectId, req);
+    const groupId = await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     // Extract pagination params
     const page = query.page ? parseInt(query.page, 10) : 1;
@@ -553,7 +577,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/baseline`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_UPDATE,
+    ]);
     const actorId = req.resolvedIdentity!.actorId;
     return this.benchmarkRunService.promoteToBaseline(
       projectId,
@@ -584,7 +610,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `DELETE /api/benchmark/projects/${projectId}/runs/${runId}`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_DELETE,
+    ]);
     return this.benchmarkRunService.deleteRun(
       projectId,
       runId,
@@ -617,7 +645,9 @@ export class BenchmarkRunController {
     this.logger.log(
       `POST /api/benchmark/projects/${projectId}/apply-candidate-to-base`,
     );
-    await this.assertProjectGroupAccess(projectId, req);
+    await this.assertProjectGroupAccess(projectId, req, [
+      Permission.BENCHMARK_UPDATE,
+    ]);
 
     return this.benchmarkDefinitionService.applyToBaseWorkflow(
       projectId,

@@ -63,6 +63,7 @@ describe("RequestLoggingInterceptor", () => {
       resolvedIdentity: {
         userId: "u-1",
         actorId: "u-1",
+        resolvedGroups: [],
         isSystemAdmin: false,
         groupRoles: {},
       },
@@ -130,6 +131,7 @@ describe("RequestLoggingInterceptor", () => {
           groupRoles: {},
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
       } as Partial<Request>);
       const ctx = makeContext(req);
@@ -170,6 +172,7 @@ describe("RequestLoggingInterceptor", () => {
           userId: "user-1",
           groupRoles: {},
           actorId: "actor-1",
+          resolvedGroups: [],
           isSystemAdmin: false,
         },
       } as Partial<Request>);
@@ -187,6 +190,7 @@ describe("RequestLoggingInterceptor", () => {
       resolvedIdentity: {
         userId: "user-abc",
         actorId: "user-abc",
+        resolvedGroups: [],
         isSystemAdmin: false,
         groupRoles: {},
       },
@@ -205,6 +209,7 @@ describe("RequestLoggingInterceptor", () => {
         groupRoles: {},
         isSystemAdmin: false,
         actorId: "actor-1",
+        resolvedGroups: [],
       },
     } as Partial<Request>);
     const ctx = makeContext(req);
@@ -248,6 +253,7 @@ describe("RequestLoggingInterceptor", () => {
           groupRoles: {},
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
       } as Partial<Request>);
       const ctx = makeContext(req);

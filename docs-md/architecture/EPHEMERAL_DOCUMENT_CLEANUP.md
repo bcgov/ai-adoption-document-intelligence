@@ -23,6 +23,11 @@ policy controls **which targets** are deleted.
 > transient — only the source/intermediate **files** and the Temporal record
 > are removed.
 
+The kept rows are removed later by
+[document retention](./DOCUMENT_RETENTION.md) if it is enabled — that janitor
+deletes the `documents` row and its `ocr_results` outright once the document
+passes the retention age.
+
 ## Consuming a purged document
 
 A purged document still appears in lists and detail responses — `purged_at` is
@@ -74,9 +79,13 @@ to **at least one** target. The OCR result in Postgres is always kept.
 
 ## How it works
 
-A NestJS `@Cron` service ([`EphemeralDocumentCleanupService`](../../apps/backend-services/src/document/ephemeral-document-cleanup.service.ts))
+A NestJS `@Cron` service ([`EphemeralDocumentCleanupService`](../../apps/backend-services/src/retention/ephemeral-document-cleanup.service.ts))
 runs every minute and processes up to `BATCH_SIZE` (100) purgeable documents per
-run. Each run:
+run. With more than one backend replica, only one runs it at a time: the job
+runs under the `purgeEphemeralDocuments` advisory lock, and the other replicas
+log that it is already running and skip (see
+[DOCUMENT_RETENTION.md § Running on more than one replica](./DOCUMENT_RETENTION.md#running-on-more-than-one-replica)).
+None of the purge steps uses the lock transaction. Each run:
 
 1. Queries `documents` that are in a terminal status (`complete`, `failed`,
    `conversion_failed`), not yet purged, **and** whose workflow version config

@@ -26,7 +26,7 @@ All QA workflows also support `workflow_dispatch`. Local equivalents run as left
 
 | Workflow | File | Trigger | What it does |
 | --- | --- | --- | --- |
-| Deploy Instance | `deploy-instance.yml` | Push to `develop`/`main`, or manual dispatch from any branch | Builds images and deploys to OpenShift — see [AUTO_DEPLOY.md](AUTO_DEPLOY.md) |
+| Deploy Instance | `deploy-instance.yml` | Push to `develop`, or manual dispatch from any branch (`prod` only from `main`) | Builds images and deploys to OpenShift: `develop` pushes to the test instance, a manual `prod` run from `main` to production — see [AUTO_DEPLOY.md](AUTO_DEPLOY.md) |
 | Deploy GitHub Pages | `pages.yml` | Push to `main` touching `docs/**`, `docs-md/wiki/**`, the wiki builder, or `package.json` | Runs `docs/build.sh` (pages, wiki HTML, Mermaid diagrams) and publishes the `docs/` site |
 
 ## Manual operations (`workflow_dispatch` only)
