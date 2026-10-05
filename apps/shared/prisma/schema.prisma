@@ -442,7 +442,7 @@ model UserGroup {
   user       User?     @relation(fields: [user_id], references: [id])
   group_id   String
   group      Group?    @relation(fields: [group_id], references: [id])
-  role       GroupRole @default(MEMBER)
+  role       GroupRole @default(EDITOR)
   created_at DateTime  @default(now())
 
   @@id([user_id, group_id])
@@ -511,6 +511,8 @@ model ReviewSession {
   corrections  FieldCorrection[]
   lock         DocumentLock?
 
+  @@index([document_id])
+  @@index([status, completed_at])
   @@map("review_sessions")
 }
 
@@ -544,6 +546,7 @@ model FieldCorrection {
   actor_id        String?
   actor           Actor?           @relation(fields: [actor_id], references: [id])
 
+  @@index([session_id])
   @@index([actor_id])
   @@map("field_corrections")
 }
@@ -967,7 +970,8 @@ enum GroupMembershipRequestStatus {
 
 enum GroupRole {
   ADMIN
-  MEMBER
+  EDITOR
+  REVIEWER
 }
 
 // ========== REFERENCE DATA TABLES ==========

@@ -159,8 +159,8 @@ again by reprocessing it. Two terminal states do reopen:
 User (ReviewQueuePage)
       ↓
 GET /api/hitl/queue
-  ?modelId=prebuilt-invoice
-  &maxConfidence=0.9
+  ?group_id=<group>
+  &modelId=prebuilt-invoice
   &reviewStatus=pending
       ↓
 HitlController.getQueue()
@@ -172,7 +172,8 @@ ReviewDbService.findReviewQueue()
 Returns: Documents with:
   - status = 'awaiting_review' (default; the EXTRACTED /
     ALL filters also admit status = 'extracted')
-  - confidence < threshold
+  - average_confidence, computed on the server
+  - workflow_name (null when uploaded without a workflow)
   - lastSession info (if reviewed)
 ```
 
@@ -186,12 +187,16 @@ again after the reviewer approves, persisting corrected values. (Before
 documents never appeared in the queue.)
 
 **Queue Filtering:**
-- Shows documents that need review (low confidence scores)
-- Default confidence threshold: 0.9
+- Shows the documents a workflow has sent to review. The queue applies no
+  confidence threshold of its own: the workflow's review step decides which
+  documents need a person (see [HITL_REVIEW_CRITERIA.md](HITL_REVIEW_CRITERIA.md))
 - Can filter by OCR model, review status, pagination
 - Excludes documents with active (non-expired) locks held by other reviewers
 - Excludes documents that belong to ground truth generation jobs
 - Includes last session info for previously reviewed documents
+- Gives each document an `average_confidence`, the mean of its fields'
+  confidence computed on the server (a field with no score counts as 0), so
+  the queue never sends OCR results to the browser
 
 ### 2. Start Session Flow
 
@@ -350,36 +355,35 @@ reviewer to open it starts a fresh session
 
 ### Query Parameters for `/api/hitl/queue`
 
-- `status` (enum): Document status filter — `extracted` (default) | `all` (also includes `awaiting_review` documents)
+- `group_id` (string, required): The group to list. The caller needs that group's `HITL_QUEUE_RETRIEVE` permission, otherwise `403`.
+- `reviewStatus` (enum): Which tab to list — `pending` (default) | `claimed` | `flagged` | `reviewed` | `all`. `claimed` lists the documents the caller holds an unexpired lock on.
+- `status` (enum): Document status filter — `extracted` lists documents at `extracted`, `all` lists `extracted` and `awaiting_review`, and leaving it out lists `awaiting_review`. The Reviewed tab also includes `complete`.
 - `modelId` (string): Filter by OCR model used
-- `maxConfidence` (number): Show documents below this confidence (default: 0.9)
-- `reviewStatus` (enum): `pending` | `reviewed` | `all`
-- `limit` (number): Pagination limit
-- `offset` (number): Pagination offset
-- `group_id` (UUID, optional): Scope results to a single group. When omitted, returns items across all groups the identity belongs to. When provided, `identityCanAccessGroup` is called and a `403` is returned if the identity is not a member.
+- `limit` (number): Pagination limit, 1–100 (default 50)
+- `offset` (number): Pagination offset (default 0)
 
 ### Query Parameters for `/api/hitl/queue/stats`
 
-- `reviewStatus` (enum): `pending` | `reviewed` | `all`
-- `group_id` (UUID, optional): Scope stats to a single group. Same access check as `/queue`.
+- `group_id` (string, required): The group to summarise. Same permission check as `/queue`.
 
 ### Query Parameters for `/api/hitl/analytics`
 
 - `startDate` (date, optional): Start of analytics period
 - `endDate` (date, optional): End of analytics period
 - `reviewerId` (string, optional): Filter by reviewer ID
-- `group_id` (UUID, optional): Scope analytics to a single group. Same access check as `/queue`.
+- `group_id` (string, required): The group to report on. The caller needs that group's `HITL_SESSION_RETRIEVE` permission, otherwise `403`.
 
 ## Frontend Architecture
 
 ### Key Components
 
 **[ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)**
-- Displays list of documents requiring review
-- Filters by model, confidence threshold, review status
-- Shows queue statistics (pending count, reviewed count)
+- Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states))
+- Pending and Claimed by you show each document's model, workflow name, average confidence and upload date
+- Shows the queue-wide figures: total documents, requires review, average confidence and reviewed today (see [Queue Statistics](#queue-statistics))
+- Reloads every tab and the figures every 30 seconds while the page is in view, so documents other reviewers pick up drop out without a manual refresh
 - Includes last session info for each document
-- "Review" button starts new session
+- "Start review" on Pending opens a new session; "Resume" on Claimed by you returns to the caller's open one
 
 **[ReviewWorkspacePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx)**
 - Main review interface for active session
@@ -430,12 +434,20 @@ reviewer to open it starts a fresh session
 
 ### Queue States
 
-The queue has three tabs, and a document locked by another reviewer is excluded
-from all of them.
+The queue has four tabs. A document appears in at most one of them, and a
+document locked by another reviewer appears in none.
 
-**Pending**: Documents with either:
-- No review sessions, OR
-- Only `in_progress` or `abandoned` sessions
+A document is *undecided* while it has no review sessions, or only
+`in_progress` or `abandoned` ones. A lock is *live* until its `expires_at`
+passes: it lasts 10 minutes, and the review workspace extends it while open.
+
+**Pending**: Undecided documents at `awaiting_review` with no live lock.
+**Start review** opens a new session and takes the lock, which moves the
+document to Claimed by you.
+
+**Claimed by you**: Undecided documents at `awaiting_review` whose live lock is
+the caller's. **Resume** returns to that session. When the lock lapses, the
+document goes back to Pending.
 
 **Flagged**: Documents with a `flagged` session and no `approved` session. The
 tab offers two actions. **View** opens the document read-only, so any number of
@@ -470,12 +482,15 @@ Rejection sends the same signal with `approved: false`, plus the
 ### Queue Statistics
 
 `GET /api/hitl/queue/stats` reports on the whole queue rather than the tab in
-view, and every figure is a database count over the same filter the queue list
-uses:
+view. Every figure reads the same per-tab filters the queue lists use, so the
+numbers match the tabs:
 
-- **Total documents**: documents at `awaiting_review` or `complete`
-- **Requires review**: documents in the Pending queue
-- **Avg confidence**: the mean of each document's mean field confidence
+- **Total documents**: the four tabs added together. A document a workflow
+  completed without sending it to review is in no tab, and is not counted.
+- **Requires review**: Pending plus Claimed by you
+- **Avg confidence**: the mean of each document's mean field confidence, over
+  the same documents as Total documents. Fields with no confidence score are
+  left out of a document's mean.
 - **Reviewed today**: sessions approved since local midnight
 
 ### Last Session Tracking
@@ -497,6 +512,12 @@ This allows reviewers to see:
 - When it was reviewed
 - What the outcome was
 - How many corrections were made
+
+Which session that is depends on the tab. On Flagged it is the most recent
+`flagged` session and on Reviewed the most recent `approved` one; on the other
+tabs it is the most recent `approved`, `flagged` or `abandoned` session. A newer
+abandoned attempt therefore never hides the flagged session that **Take**
+reopens.
 
 ### Read-Only Mode
 

@@ -131,78 +131,26 @@ describe("TemplateModelController", () => {
   });
 
   describe("getTemplateModels", () => {
-    it("returns template models for the user's groups (JWT)", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+    it("returns template models for the specified group", async () => {
       templateModelService.getTemplateModels.mockResolvedValue([
         mockTemplateModel as never,
       ]);
-      const result = await controller.getTemplateModels(req, undefined);
+      const result = await controller.getTemplateModels("group-1");
       expect(result).toEqual([mockTemplateModel]);
       expect(templateModelService.getTemplateModels).toHaveBeenCalledWith([
         "group-1",
       ]);
     });
 
-    it("returns template models for an API key's group", async () => {
-      const req = {
-        resolvedIdentity: { groupRoles: { "group-1": GroupRole.MEMBER } },
-      } as unknown as Request;
+    it("returns only group template models when group_id is provided", async () => {
       templateModelService.getTemplateModels.mockResolvedValue([
         mockTemplateModel as never,
       ]);
-      const result = await controller.getTemplateModels(req, undefined);
+      const result = await controller.getTemplateModels("group-1");
       expect(result).toEqual([mockTemplateModel]);
       expect(templateModelService.getTemplateModels).toHaveBeenCalledWith([
         "group-1",
       ]);
-    });
-
-    it("returns empty template models when user has no identity", async () => {
-      const req = {
-        resolvedIdentity: undefined,
-      } as unknown as Request;
-      templateModelService.getTemplateModels.mockResolvedValue([]);
-      const result = await controller.getTemplateModels(req, undefined);
-      expect(result).toEqual([]);
-      expect(templateModelService.getTemplateModels).toHaveBeenCalledWith([]);
-    });
-
-    it("returns only group template models when group_id is provided and user is a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      templateModelService.getTemplateModels.mockResolvedValue([
-        mockTemplateModel as never,
-      ]);
-      const result = await controller.getTemplateModels(req, "group-1");
-      expect(result).toEqual([mockTemplateModel]);
-      expect(templateModelService.getTemplateModels).toHaveBeenCalledWith([
-        "group-1",
-      ]);
-    });
-
-    it("throws ForbiddenException when group_id is provided and user is not a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-          actorId: "user-1",
-        },
-      } as unknown as Request;
-
-      await expect(
-        controller.getTemplateModels(req, "group-1"),
-      ).rejects.toThrow(ForbiddenException);
-      expect(templateModelService.getTemplateModels).not.toHaveBeenCalled();
     });
   });
 
@@ -219,7 +167,7 @@ describe("TemplateModelController", () => {
           userId: "user-1",
           actorId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.createTemplateModel.mockResolvedValue(
@@ -239,7 +187,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -291,7 +239,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -348,7 +296,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -414,7 +362,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.uploadLabelingDocument.mockResolvedValue(
@@ -428,38 +376,6 @@ describe("TemplateModelController", () => {
         "user-1",
       );
     });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-          actorId: "user-1",
-        },
-      } as unknown as Request;
-
-      await expect(
-        controller.uploadLabelingDocument("tm-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(
-        templateModelService.uploadLabelingDocument,
-      ).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when no identity is provided", async () => {
-      const req = {
-        user: { sub: "user-1" },
-        resolvedIdentity: undefined,
-      } as unknown as Request;
-      await expect(
-        controller.uploadLabelingDocument("tm-1", dto, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(
-        templateModelService.uploadLabelingDocument,
-      ).not.toHaveBeenCalled();
-    });
   });
 
   describe("addDocumentToTemplateModel", () => {
@@ -470,7 +386,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.addDocumentToTemplateModel.mockResolvedValue(
@@ -543,7 +459,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -597,7 +513,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -668,7 +584,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -738,7 +654,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -788,7 +704,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -838,7 +754,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -896,7 +812,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const fileBuffer = Buffer.from("file content");

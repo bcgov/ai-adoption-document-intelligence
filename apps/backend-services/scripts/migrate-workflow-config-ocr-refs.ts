@@ -5,7 +5,11 @@
  *   npx tsx scripts/migrate-workflow-config-ocr-refs.ts [--apply] [--refresh-benchmark-hashes]
  */
 
-import "dotenv/config";
+import { resolve } from "node:path";
+import { config as dotenvConfig } from "dotenv";
+
+dotenvConfig({ path: resolve(__dirname, "../../../.env") });
+
 import { PrismaClient } from "@generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getPrismaPgOptions } from "../src/utils/database-url";

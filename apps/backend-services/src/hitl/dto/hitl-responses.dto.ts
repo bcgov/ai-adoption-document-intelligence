@@ -44,8 +44,13 @@ export class QueueDocumentDto {
   @ApiPropertyOptional()
   model_id!: string | null;
 
-  @ApiPropertyOptional()
-  workflow_id!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "Name of the workflow the document was uploaded through, or null when it was uploaded without one",
+  })
+  workflow_name!: string | null;
 
   @ApiProperty()
   created_at!: Date;

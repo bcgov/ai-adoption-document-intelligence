@@ -374,9 +374,10 @@ describe("HitlDatasetService", () => {
 
   describe("listEligibleDocuments", () => {
     it("should return eligible documents with approved sessions", async () => {
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
-
-      expect(result.documents).toHaveLength(2);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.total).toBe(2);
       expect(result.page).toBe(1);
       expect(result.limit).toBe(20);
@@ -385,6 +386,7 @@ describe("HitlDatasetService", () => {
     it("should filter by search term", async () => {
       const result = await service.listEligibleDocuments(
         {
+          group_id: "test-group",
           search: "invoice-001",
         },
         ["test-group"],
@@ -397,6 +399,7 @@ describe("HitlDatasetService", () => {
     it("should paginate results", async () => {
       const result = await service.listEligibleDocuments(
         {
+          group_id: "test-group",
           page: 1,
           limit: 1,
         },
@@ -420,7 +423,10 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.documents).toHaveLength(0);
     });
 
@@ -432,7 +438,10 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.documents).toHaveLength(0);
     });
   });

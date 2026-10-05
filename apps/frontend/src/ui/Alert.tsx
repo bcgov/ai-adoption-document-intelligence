@@ -38,49 +38,40 @@ export function Alert({
       ? String(children)
       : undefined;
 
-  const srOnlyText = [titleText, descriptionText].filter(Boolean).join(" ");
-
-  // BcdsInlineAlert renders its `children` prop instead of `title`/`description`
-  // whenever children is truthy, so only pass children through when there's
-  // custom node content to show — otherwise let title/description render.
-  const extraChildren = descriptionText == null ? children : null;
-  const customContent =
-    titleNode || extraChildren ? (
-      <>
-        {titleNode}
-        {extraChildren}
-      </>
-    ) : undefined;
+  // BC DS InlineAlert renders `children` INSTEAD of `title`/`description`
+  // whenever children is truthy, so children is passed only for content the
+  // plain-text props cannot carry (a ReactNode title or body), and then
+  // carries the title too.
+  const customChildren = descriptionText == null ? children : null;
+  const hasCustomContent =
+    titleNode != null ||
+    (customChildren != null &&
+      customChildren !== false &&
+      customChildren !== "");
 
   return (
     <div data-testid={dataTestId} style={wrapperStyle}>
-      {srOnlyText.length > 0 ? (
-        <span
-          className="bcds-alert-sr-only"
-          style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            padding: 0,
-            margin: -1,
-            overflow: "hidden",
-            clip: "rect(0, 0, 0, 0)",
-            whiteSpace: "nowrap",
-            border: 0,
-          }}
-        >
-          {srOnlyText}
-        </span>
-      ) : null}
       <BcdsInlineAlert
         variant={mapMantineAlertVariant(color, variant)}
-        title={titleText}
-        description={descriptionText}
+        title={hasCustomContent ? undefined : titleText}
+        description={hasCustomContent ? undefined : descriptionText}
         customIcon={icon}
         isCloseable={withCloseButton ?? Boolean(onClose)}
         onClose={onClose}
       >
-        {customContent}
+        {hasCustomContent ? (
+          <>
+            {titleText != null ? (
+              <span className="title">{titleText}</span>
+            ) : null}
+            {titleNode}
+            {descriptionText != null ? (
+              <span className="description">{descriptionText}</span>
+            ) : (
+              customChildren
+            )}
+          </>
+        ) : undefined}
       </BcdsInlineAlert>
     </div>
   );
