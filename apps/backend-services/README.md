@@ -207,7 +207,7 @@ npm install
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the `apps/backend-services/` directory:
+This app reads from a single `.env` file at the repo root (see root [README.md](../../README.md#2-configure-environment)) — there is no `apps/backend-services/.env`. Relevant keys:
 
 ```env
 # Server Configuration
@@ -317,7 +317,7 @@ docker compose --profile infra up minio-init
 
 - **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml` at the repo root.
 - **Buckets missing**: Check `docker compose logs minio-init` — the init container depends on MinIO's healthcheck and will retry until ready.
-- **Connection refused from app**: Ensure your `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
+- **Connection refused from app**: Ensure the repo-root `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
 
 ### 4. Database Setup
 

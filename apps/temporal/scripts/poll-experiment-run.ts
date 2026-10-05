@@ -8,24 +8,8 @@
 
 import "../src/env-loader";
 import * as fs from "node:fs";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import * as path from "node:path";
-import { resolve } from "node:path";
 import axios, { type AxiosResponse } from "axios";
-import { config as dotenvConfig } from "dotenv";
-
-const overrideDir =
-  process.env.DI_SECRETS_DIR ?? resolve(homedir(), ".config/bcgov-di");
-const candidates = [
-  resolve(overrideDir, "backend-services.env"),
-  resolve(__dirname, "..", "..", "backend-services", ".env"),
-];
-for (const p of candidates) {
-  if (existsSync(p)) {
-    dotenvConfig({ path: p, quiet: true });
-  }
-}
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
