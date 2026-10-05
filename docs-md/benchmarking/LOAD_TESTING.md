@@ -240,7 +240,7 @@ Routes used by the k6 script, matching the Nest controllers and Swagger decorato
 
 | Verb | Path and scenario params | Body | Notes |
 |------|--------------------------|------|-------|
-| `GET` | `/api/hitl/queue?group_id=<group>` plus optional `status`, `modelId`, `maxConfidence`, `limit`, `offset`, `reviewStatus` | None | Queue read from `HitlController.getQueue`. |
+| `GET` | `/api/hitl/queue?group_id=<group>` plus optional `status`, `modelId`, `limit`, `offset`, `reviewStatus` | None | Queue read from `HitlController.getQueue`. |
 | `GET` | `/api/hitl/queue/stats?group_id=<group>` plus optional `reviewStatus` | None | Queue stats from `HitlController.getQueueStats`. |
 | `GET` | `/api/hitl/analytics?group_id=<group>` plus optional `startDate`, `endDate`, `reviewerId` | None | Analytics read from `HitlController.getAnalytics`. |
 | `POST` | `/api/hitl/sessions/next?group_id=<group>` plus optional `modelId`, `maxConfidence`, `reviewStatus` | None | Claims the next eligible document when `LOAD_TEST_HITL_SESSION_MODE` is not `off`. |

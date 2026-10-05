@@ -75,7 +75,6 @@ function queueUrl(extra = {}) {
   const params = {
     group_id: groupId,
     reviewStatus,
-    maxConfidence,
     limit: queueLimit,
     ...extra,
   };
