@@ -30,7 +30,7 @@ import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
-import { ReviewDbService } from "./review-db.service";
+import { ReviewDbService, type ReviewQueueDocument } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
 interface DocumentWithOcrResult extends Document {
@@ -206,15 +206,15 @@ export class HitlService {
       currentReviewerId,
     };
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    const documents = await this.reviewDb.findReviewQueue({
       ...queueFilters,
       limit: filters.limit ?? 50,
       offset: filters.offset ?? 0,
-    })) as DocumentWithOcrResult[];
+    });
 
     const total = await this.reviewDb.countReviewQueue(queueFilters);
 
-    const getAverageConfidence = (doc: DocumentWithOcrResult) => {
+    const getAverageConfidence = (doc: ReviewQueueDocument) => {
       if (!doc.ocr_result?.keyValuePairs) return 0;
       const fields = Object.values(doc.ocr_result.keyValuePairs);
       if (fields.length === 0) return 0;
@@ -1060,17 +1060,17 @@ export class HitlService {
     // whatever it finds. a `complete` document's workflow has already
     // went past the review gate (see reopenSession's guard against
     // reopening one), so it must never be an eligible target here.
-    const documents = (await this.reviewDb.findReviewQueue({
+    const documents = await this.reviewDb.findReviewQueue({
       statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId: reviewerId,
-    })) as DocumentWithOcrResult[];
+    });
 
     // Filter by confidence — same logic as getQueue
-    const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+    const eligible = documents.filter((doc) => {
       if (filters.excludeDocumentId && doc.id === filters.excludeDocumentId) {
         return false;
       }

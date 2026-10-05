@@ -1,5 +1,4 @@
 import {
-  Document,
   DocumentLock,
   DocumentStatus,
   Prisma,
@@ -22,6 +21,33 @@ export interface ReviewQueueFilters {
   groupIds?: string[];
   currentReviewerId?: string;
 }
+
+/**
+ * What the review queue loads for each document. Only the OCR field payload is
+ * selected: `content` holds the full extracted text and page lines, which the
+ * queue never shows, and the queue page re-reads every tab every 30 seconds.
+ * `review_sessions` carries at most the one session the tab in view needs.
+ */
+function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
+  return {
+    ocr_result: { select: { keyValuePairs: true } },
+    lock: true,
+    review_sessions: {
+      // Exclude in_progress — lock record determines "In review" display; these are noise
+      where: { status: { in: lastSessionStatuses } },
+      include: {
+        corrections: true,
+      },
+      orderBy: { started_at: "desc" },
+      take: 1,
+    },
+  } satisfies Prisma.DocumentInclude;
+}
+
+/** One review-queue document, exactly as `findReviewQueue` loads it. */
+export type ReviewQueueDocument = Prisma.DocumentGetPayload<{
+  include: ReturnType<typeof reviewQueueInclude>;
+}>;
 
 @Injectable()
 export class ReviewDbService {
@@ -255,7 +281,7 @@ export class ReviewDbService {
   async findReviewQueue(
     filters: ReviewQueueFilters,
     tx?: Prisma.TransactionClient,
-  ): Promise<Document[]> {
+  ): Promise<ReviewQueueDocument[]> {
     const client = tx ?? this.prisma;
     this.logger.debug("Finding review queue");
 
@@ -282,19 +308,7 @@ export class ReviewDbService {
       orderBy: { created_at: "desc" },
       take: filters.limit ?? 50,
       skip: filters.offset ?? 0,
-      include: {
-        ocr_result: true,
-        lock: true,
-        review_sessions: {
-          // Exclude in_progress — lock record determines "In review" display; these are noise
-          where: { status: { in: lastSessionStatuses } },
-          include: {
-            corrections: true,
-          },
-          orderBy: { started_at: "desc" },
-          take: 1,
-        },
-      },
+      include: reviewQueueInclude(lastSessionStatuses),
     });
   }
 

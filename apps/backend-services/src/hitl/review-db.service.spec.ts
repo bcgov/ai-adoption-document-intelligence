@@ -208,6 +208,21 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should load only the OCR field payload, not the full OCR text", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.include.ocr_result).toEqual({
+        select: { keyValuePairs: true },
+      });
+      expect(args.include.lock).toBe(true);
+    });
+
     it("should restrict the queue to api-sourced documents and exclude ground truth jobs", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
