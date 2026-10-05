@@ -397,6 +397,53 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should filter by workflow through the version's lineage, so every version of the workflow matches", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        workflowId: "lineage-1",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.workflowVersion).toEqual({ lineage_id: "lineage-1" });
+      expect(args.where).not.toHaveProperty("workflow_id");
+    });
+
+    it("should sort by workflow name through the version's lineage", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "workflow",
+        sortDir: "asc",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual({
+        workflowVersion: { lineage: { name: "asc" } },
+      });
+    });
+
+    it("should sort by the document column for the other sort keys, newest first by default", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "filename",
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual({
+        original_filename: "desc",
+      });
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual({
+        created_at: "desc",
+      });
+    });
+
     it("should apply groupIds filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
