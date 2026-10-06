@@ -25,6 +25,7 @@ import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
@@ -281,17 +282,21 @@ export class HitlService {
       reviewer: string;
       groupId?: string;
       workflowExecutionId?: string;
+      comments?: string;
+      rejectionReason?: string;
     },
   ): Promise<void> {
     // The Temporal workflow id is derived from the document id. The stored
     // workflow_execution_id is the billing run id (unique per execution
-    // attempt) and is NOT the workflow id — see DocumentController.approveDocument.
+    // attempt) and is NOT the workflow id.
     const workflowId = `graph-${documentId}`;
 
     try {
       await this.temporalClient.sendHumanApproval(workflowId, {
         approved: outcome.approved,
         reviewer: outcome.reviewer,
+        comments: outcome.comments,
+        rejectionReason: outcome.rejectionReason,
       });
       await this.auditService.recordEvent({
         event_type: "human_approval_signal_sent",
@@ -631,7 +636,7 @@ export class HitlService {
     };
   }
 
-  async approveSession(sessionId: string) {
+  async approveSession(sessionId: string, actorId: string) {
     this.logger.debug(`Approving session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -684,6 +689,7 @@ export class HitlService {
           event_type: "review_session_approved",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
@@ -697,7 +703,7 @@ export class HitlService {
 
     await this.resumeGatedWorkflow(session.document_id, {
       approved: true,
-      reviewer: session.actor_id,
+      reviewer: actorId,
       groupId: doc.group_id,
       workflowExecutionId: doc.workflow_execution_id,
     });
@@ -731,6 +737,108 @@ export class HitlService {
       status: updated.status,
       completedAt: updated.completed_at,
       message: "Review session approved",
+    };
+  }
+
+  /**
+   * Rejects a review session, and the document with it. The session keeps the
+   * reviewer's reason and comment, and the document moves to `rejected` in the
+   * same transaction, so the rejection holds whether or not a workflow is
+   * waiting. The workflow's review gate then fails the run
+   * (HUMAN_GATE_REJECTED); its failure hook only moves documents that are
+   * still in OCR, so it leaves `rejected` alone.
+   */
+  async rejectSession(
+    sessionId: string,
+    dto: RejectSessionDto,
+    actorId: string,
+  ) {
+    this.logger.debug(`Rejecting session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Only a session someone is actually working on can be rejected. Without
+    // this, a double-click or a stale tab rejects twice, each sending its own
+    // rejection signal to the workflow.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.rejected
+          ? "Review session has already been rejected"
+          : `Cannot reject a session that is ${session.status}`,
+      );
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
+    const rejectionComment = dto.comments?.trim() || null;
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.rejected,
+          completed_at: new Date(),
+          rejection_reason: dto.rejectionReason,
+          rejection_comment: rejectionComment,
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.documentService.updateDocument(
+        session.document_id,
+        {
+          status: DocumentStatus.rejected,
+        },
+        tx,
+      );
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_rejected",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          actor_id: actorId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: {
+            document_id: session.document_id,
+            rejection_reason: dto.rejectionReason,
+            comments: rejectionComment,
+          },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
+    });
+
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: false,
+      reviewer: actorId,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
+      comments: rejectionComment ?? undefined,
+      rejectionReason: dto.rejectionReason,
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      completedAt: updated.completed_at,
+      message: "Review session rejected",
     };
   }
 

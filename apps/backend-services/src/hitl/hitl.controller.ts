@@ -10,6 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -40,6 +41,7 @@ import {
 import { HeartbeatResponseDto } from "./dto/lock.dto";
 import { NextSessionFilterDto } from "./dto/next-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
 
@@ -262,7 +264,7 @@ export class HitlController {
     return result;
   }
 
-  @Post("sessions/:id/submit")
+  @Post("sessions/:id/approve")
   @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Approve and complete a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
@@ -284,7 +286,47 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.approveSession(sessionId);
+    return this.hitlService.approveSession(
+      sessionId,
+      req.resolvedIdentity.actorId,
+    );
+  }
+
+  @Post("sessions/:id/reject")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Reject and complete a review session" })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description:
+      "Session rejected and marked complete; the document moves to rejected",
+    type: SessionActionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "rejectionReason is missing or not one of the allowed values",
+  })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "Session is not in progress: already approved, rejected, flagged, or abandoned",
+  })
+  async rejectSession(
+    @Param("id") sessionId: string,
+    @Body() dto: RejectSessionDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
+      Permission.HITL_APPROVE_DENY,
+    ]);
+    return this.hitlService.rejectSession(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/skip")

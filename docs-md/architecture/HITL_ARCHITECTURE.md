@@ -61,6 +61,7 @@ model FieldCorrection {
 enum ReviewStatus {
   in_progress
   approved
+  rejected
   flagged
   abandoned
 }
@@ -95,7 +96,7 @@ model DocumentLock {
 Document locks prevent concurrent editing:
 - A lock is acquired when a session starts (10-minute TTL)
 - The frontend sends heartbeat requests to extend the lock
-- Locks are released when a session completes (approve/flag/skip)
+- Locks are released when a session completes (approve/reject/flag/skip)
 - Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, marks any still-`in_progress` session `abandoned`, and records a `review_session_expired` audit event
 - If the same reviewer starts a session on an already-locked document, the existing session is returned
 - If a different reviewer tries, a `ConflictException` is thrown
@@ -103,6 +104,7 @@ Document locks prevent concurrent editing:
 ### Key Relationships
 
 - **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string
+- A **rejected** session also keeps why: `rejection_reason`, one of five fixed reasons (`INPUT_QUALITY`, `OCR_FAILURE`, `MODEL_MISMATCH`, `CONFIDENCE_TOO_LOW`, `SYSTEMIC_ERROR`), and an optional `rejection_comment`
 - **FieldCorrection** records are children - one per field interaction
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
@@ -117,15 +119,15 @@ Document locks prevent concurrent editing:
       ↓
   in_progress (initial state)
       ↓
-   ┌──┴──────────────┬──────────────────┬────────────────────┐
-   ↓                 ↓                  ↓                    ↓
-approved          flagged           abandoned            abandoned
-(terminal)       (terminal)        (skip, terminal)     (lock expired)
-   ↓                 ↓                  ↓                    ↓
-releases lock   releases lock      releases lock        lock deleted
-   ↓                 ↓                  ↓                    ↓
-final          Flagged tab,      back to Pending      back to Pending
-              view-only + Take
+   ┌──┴──────────────┬──────────────────┬──────────────────┬────────────────────┐
+   ↓                 ↓                  ↓                  ↓                    ↓
+approved          rejected           flagged           abandoned            abandoned
+(terminal)       (terminal)         (terminal)        (skip, terminal)     (lock expired)
+   ↓                 ↓                  ↓                  ↓                    ↓
+releases lock   releases lock      releases lock      releases lock        lock deleted
+   ↓                 ↓                  ↓                  ↓                    ↓
+final             final           Flagged tab,      back to Pending      back to Pending
+                                  view-only + Take
                    ↓
               in_progress
 ```
@@ -135,7 +137,8 @@ final          Flagged tab,      back to Pending      back to Pending
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
@@ -145,7 +148,9 @@ final          Flagged tab,      back to Pending      back to Pending
 **Important**: approving a document review is final. It signals the workflow
 parked at the `humanGate`, which then runs every node after the gate, and no
 request can call that back — reopening one answers 409. Review the document
-again by reprocessing it. Two terminal states do reopen:
+again by reprocessing it. Rejecting is final in the same way: the document
+moves to `rejected`, no queue tab lists it, and the Documents page no longer
+offers it for review. Two terminal states do reopen:
 - `flagged`, which is a hand-off rather than an ending
 - `approved` on a dataset labeling job, which drives nothing downstream and can go back for another pass until its dataset version is frozen
 
@@ -274,7 +279,7 @@ React Query cache invalidated
 ```
 User clicks "Approve"
       ↓
-POST /api/hitl/sessions/:id/submit
+POST /api/hitl/sessions/:id/approve
       ↓
 UPDATE review_sessions
 SET status = 'approved',
@@ -290,6 +295,31 @@ Invalidate query cache
       ↓
 Navigate back to queue (or auto-advance)
 ```
+
+#### Reject Path
+```
+User clicks "Reject", picks a reason, optionally adds a comment
+      ↓
+POST /api/hitl/sessions/:id/reject
+      ↓
+UPDATE review_sessions
+SET status = 'rejected',
+    completed_at = NOW(),
+    rejection_reason = :reason,
+    rejection_comment = :comment
+WHERE id = :id
+      ↓
+Document status set to 'rejected'; lock released
+      ↓
+Workflow signalled with approved: false; its review gate
+fails the run (HUMAN_GATE_REJECTED), and the status stays 'rejected'
+      ↓
+Documents page lists it as Rejected; the document viewer's
+Details tab shows who rejected it, the reason and the comment
+```
+
+Reject is hidden while labelling a benchmark dataset: there is no workflow to
+reject, and approval is what completes a labelling job.
 
 #### Flag Path
 ```
@@ -330,7 +360,8 @@ reviewer to open it starts a fresh session
 | `POST` | `/api/hitl/sessions/:id/corrections` | Submit field corrections | Yes |
 | `GET` | `/api/hitl/sessions/:id/corrections` | Get correction history | Yes |
 | `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
-| `POST` | `/api/hitl/sessions/:id/submit` | Approve session | Yes |
+| `POST` | `/api/hitl/sessions/:id/approve` | Approve session | Yes |
+| `POST` | `/api/hitl/sessions/:id/reject` | Reject session | Yes |
 | `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
@@ -470,12 +501,18 @@ the workflow continues into the nodes after the gate:
   review is complete regardless, so a failed signal never fails the approval.
 - The outcome is auditable either way: `human_approval_signal_sent` when the
   workflow was resumed, `human_approval_signal_skipped` (with the reason) when
-  there was nothing to resume. Both carry `source: "hitl_session"`, which
-  distinguishes them from the same signal sent by `POST /documents/:id/approve`.
+  there was nothing to resume. Both carry `source: "hitl_session"`.
 
-Rejection is not yet available from the review queue; it exists only on the
-Documents page, which sends the same signal with `approved: false` and a
-structured reason.
+Rejection sends the same signal with `approved: false`, plus the
+`rejectionReason` and `comments` supplied on the reject call. The review gate fails the run with `HUMAN_GATE_REJECTED` as soon as it reads
+`approved: false`, so no node after the gate runs. The rejection does not
+depend on the workflow: the reject call marks the document `rejected` itself,
+and the workflow's failure hook only moves documents that are still in OCR, so
+it leaves `rejected` alone.
+
+Both the approval and the rejection name the person who made the request, in
+the audit event's `actor_id` and in the signal's `reviewer`, which is not
+always whoever started the session.
 
 ### Queue Statistics
 

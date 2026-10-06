@@ -257,7 +257,7 @@ Routes used by the default scenario:
 | `POST /api/hitl/sessions/:id/corrections` | Writes one synthetic correction with `field_key`, `original_value`, `corrected_value`, `original_conf`, and `action`. |
 | `GET /api/hitl/sessions/:id/corrections` | Reads correction history. |
 | `POST /api/hitl/sessions/:id/skip` | Default session action to release the lock without approving the document. |
-| `POST /api/hitl/sessions/:id/submit` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=submit`; creates approved HITL documents that later appear in the eligible-documents route. |
+| `POST /api/hitl/sessions/:id/approve` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=submit`; creates approved HITL documents that later appear in the eligible-documents route. |
 | `POST /api/hitl/sessions/:id/flag` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=flag`. |
 
 Additional HITL routes exist but are not part of the default mutating loop because they either require specific IDs produced by previous actions or create persistent benchmark datasets:

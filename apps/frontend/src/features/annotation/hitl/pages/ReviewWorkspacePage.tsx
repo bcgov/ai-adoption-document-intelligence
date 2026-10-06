@@ -16,15 +16,21 @@ import {
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  REJECTION_REASON_LABELS,
+  RejectionReason,
+} from "../../../../shared/types";
+import {
   Accordion,
   ActionIcon,
   Button,
   Checkbox,
   Group,
   Loader,
+  Modal,
   notifications,
   Paper,
   ScrollArea,
+  Select,
   Stack,
   Text,
   Textarea,
@@ -272,9 +278,11 @@ export const ReviewWorkspacePage: FC = () => {
     approveSessionAsync,
     skipSessionAsync,
     flagSessionAsync,
+    rejectSessionAsync,
     isApproving,
     isSkipping,
     isFlagging,
+    isRejecting,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
@@ -315,6 +323,10 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [rejectModalOpened, setRejectModalOpened] = useState(false);
+  const [rejectionReason, setRejectionReason] =
+    useState<RejectionReason | null>(null);
+  const [rejectionComments, setRejectionComments] = useState("");
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -747,14 +759,34 @@ export const ReviewWorkspacePage: FC = () => {
     }
   };
 
+  // The review actions throw when the server refuses one, most often because
+  // the lock lapsed or another reviewer finished the session. Say so and stay
+  // on the document instead of reporting a success.
+  const notifyActionFailed = (title: string, error: unknown) => {
+    notifications.show({
+      title,
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Please try again.",
+      color: "red",
+      autoClose: 5000,
+    });
+  };
+
   const handleApprove = async () => {
     const payload = Object.values(correctionMap).filter(
       (correction) => correction.action === CorrectionAction.CORRECTED,
     );
-    if (payload.length > 0) {
-      await submitCorrectionsAsync(payload);
+    try {
+      if (payload.length > 0) {
+        await submitCorrectionsAsync(payload);
+      }
+      await approveSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not approve", error);
+      return;
     }
-    await approveSessionAsync();
 
     notifications.show({
       title: "Document approved",
@@ -769,7 +801,12 @@ export const ReviewWorkspacePage: FC = () => {
   };
 
   const handleSkip = async () => {
-    await skipSessionAsync();
+    try {
+      await skipSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not skip", error);
+      return;
+    }
 
     notifications.show({
       title: "Document skipped",
@@ -784,7 +821,12 @@ export const ReviewWorkspacePage: FC = () => {
   };
 
   const handleFlag = useCallback(async () => {
-    await flagSessionAsync();
+    try {
+      await flagSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not flag", error);
+      return;
+    }
 
     notifications.show({
       title: "Document flagged",
@@ -797,6 +839,43 @@ export const ReviewWorkspacePage: FC = () => {
     setCorrectionMap({});
     advanceOrReturn();
   }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
+
+  const handleReject = () => {
+    setRejectModalOpened(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalOpened(false);
+    setRejectionReason(null);
+    setRejectionComments("");
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionReason) return;
+
+    try {
+      await rejectSessionAsync({
+        rejectionReason,
+        comments: rejectionComments.trim() || undefined,
+      });
+    } catch (error) {
+      // Keep the dialog open so the reviewer's reason and comment survive.
+      notifyActionFailed("Could not reject", error);
+      return;
+    }
+
+    notifications.show({
+      title: "Document rejected",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
+      color: "red",
+      autoClose: 3000,
+    });
+
+    closeRejectModal();
+    clearUndoStack();
+    setCorrectionMap({});
+    advanceOrReturn();
+  };
 
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
@@ -1077,9 +1156,11 @@ export const ReviewWorkspacePage: FC = () => {
             onApprove={handleApprove}
             onFlag={handleFlag}
             onSkip={handleSkip}
+            onReject={benchmarkMatch ? undefined : handleReject}
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
+            isRejecting={isRejecting}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1369,6 +1450,75 @@ export const ReviewWorkspacePage: FC = () => {
           onClose={() => setShortcutsOpen(false)}
           shortcuts={shortcuts}
         />
+
+        <Modal
+          opened={rejectModalOpened}
+          onClose={closeRejectModal}
+          title="Reject document"
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Rejecting ends processing for this document. It is marked Rejected
+              on the Documents page, with your reason and comment. A reason is
+              required.
+            </Text>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Rejection reason{" "}
+                <Text span c="red">
+                  *
+                </Text>
+              </Text>
+              <Select
+                placeholder="Select a rejection reason"
+                data={Object.values(RejectionReason).map((reason) => ({
+                  value: reason,
+                  label: REJECTION_REASON_LABELS[reason],
+                }))}
+                value={rejectionReason}
+                onChange={(value) =>
+                  setRejectionReason(value as RejectionReason | null)
+                }
+                disabled={isRejecting}
+                searchable
+                comboboxProps={{ zIndex: 10000 }}
+              />
+            </div>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Comment (optional)
+              </Text>
+              <Textarea
+                placeholder="What failed, where, why? (e.g., 'field X is missing on page 2', 'OCR hallucinated text in section Y')"
+                value={rejectionComments}
+                onChange={(e) => setRejectionComments(e.currentTarget.value)}
+                minRows={3}
+                disabled={isRejecting}
+              />
+            </div>
+
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={closeRejectModal}
+                disabled={isRejecting}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={handleConfirmReject}
+                loading={isRejecting}
+                disabled={!rejectionReason}
+              >
+                Reject document
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </KeyboardManager>
   );

@@ -84,7 +84,7 @@ GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/r
 ```
 POST   /api/hitl/sessions                    Start a review session
 POST   /api/hitl/sessions/:id/corrections    Submit corrections
-POST   /api/hitl/sessions/:id/submit         Approve session (triggers GT extraction)
+POST   /api/hitl/sessions/:id/approve         Approve session (triggers GT extraction)
 POST   /api/hitl/sessions/:id/reopen         Reopen session (reverts job to awaiting_review, clears groundTruthPath)
 ```
 

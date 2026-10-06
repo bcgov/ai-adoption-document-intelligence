@@ -2,6 +2,7 @@ import {
   CorrectionAction as DbCorrectionAction,
   DocumentStatus,
   Prisma,
+  RejectionReason,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -20,6 +21,7 @@ import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { CorrectionAction, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
@@ -912,7 +914,7 @@ describe("HitlService", () => {
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
-      const result = await service.approveSession("session-1");
+      const result = await service.approveSession("session-1", "reviewer-1");
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -941,11 +943,210 @@ describe("HitlService", () => {
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
-      await expect(service.approveSession("non-existent")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.approveSession("non-existent", "reviewer-1"),
+      ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rejectSession", () => {
+    const dto: RejectSessionDto = {
+      rejectionReason: RejectionReason.INPUT_QUALITY,
+    };
+
+    it("should reject the session and the document, and release the lock", async () => {
+      const rejectedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        rejectedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.rejectSession(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
+
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.rejected,
+          completed_at: expect.any(Date),
+          rejection_reason: RejectionReason.INPUT_QUALITY,
+          rejection_comment: null,
+        },
+        expect.anything(),
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
+        expect.anything(),
+      );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.rejected },
+        expect.anything(),
+      );
+
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.rejected,
+        completedAt: rejectedSession.completed_at,
+        message: "Review session rejected",
+      });
+    });
+
+    it("should throw NotFoundException if session does not exist", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(
+        service.rejectSession("non-existent", dto, "reviewer-1"),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should refuse to reject a session twice", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(
+        service.rejectSession("session-1", dto, "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("signals the workflow the document is parked in", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession("session-1", dto, "reviewer-1");
+
+      // workflow id is derived from the document, not the billing run id
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        {
+          approved: false,
+          reviewer: "reviewer-1",
+          comments: undefined,
+          rejectionReason: RejectionReason.INPUT_QUALITY,
+        },
+      );
+    });
+
+    it("stores the trimmed comment on the session and in the audit event", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession(
+        "session-1",
+        {
+          rejectionReason: RejectionReason.MODEL_MISMATCH,
+          comments: "  Wrong form: this is a T4, not a monthly report.  ",
+        },
+        "reviewer-1",
+      );
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          rejection_reason: RejectionReason.MODEL_MISMATCH,
+          rejection_comment: "Wrong form: this is a T4, not a monthly report.",
+        }),
+        expect.anything(),
+      );
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_rejected",
+          payload: {
+            document_id: "doc-1",
+            rejection_reason: RejectionReason.MODEL_MISMATCH,
+            comments: "Wrong form: this is a T4, not a monthly report.",
+          },
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("still rejects the document when no workflow is waiting", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+      mockTemporal.sendHumanApproval.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      const result = await service.rejectSession(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
+
+      expect(result.status).toBe(ReviewStatus.rejected);
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.rejected },
+        expect.anything(),
+      );
+    });
+
+    it("names the person who rejected, not whoever started the session", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession("session-1", dto, "reviewer-2");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_rejected",
+          actor_id: "reviewer-2",
+        }),
+        expect.anything(),
+      );
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        expect.objectContaining({ reviewer: "reviewer-2" }),
+      );
     });
   });
 
@@ -1216,7 +1417,7 @@ describe("HitlService", () => {
         approvedSession() as any,
       );
 
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       // workflow id is derived from the document, not the billing run id
       expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
@@ -1225,6 +1426,30 @@ describe("HitlService", () => {
           approved: true,
           reviewer: "reviewer-1",
         },
+      );
+    });
+
+    it("names the person who approved, not whoever started the session", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+
+      await service.approveSession("session-1", "reviewer-2");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_approved",
+          actor_id: "reviewer-2",
+        }),
+        expect.anything(),
+      );
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        expect.objectContaining({ approved: true, reviewer: "reviewer-2" }),
       );
     });
 
@@ -1239,7 +1464,7 @@ describe("HitlService", () => {
         new Error("workflow execution not found"),
       );
 
-      const result = await service.approveSession("session-1");
+      const result = await service.approveSession("session-1", "reviewer-1");
 
       expect(result.status).toBe(ReviewStatus.approved);
       expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
@@ -1258,7 +1483,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession() as any,
       );
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       expect(audit).toHaveBeenCalledWith(
         expect.objectContaining({ event_type: "human_approval_signal_sent" }),
@@ -1274,7 +1499,7 @@ describe("HitlService", () => {
       mockTemporal.sendHumanApproval.mockRejectedValueOnce(
         new Error("workflow execution not found"),
       );
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       expect(audit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1294,9 +1519,9 @@ describe("HitlService", () => {
         status: ReviewStatus.approved,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
       expect(mockDocumentService.updateDocument).not.toHaveBeenCalled();
@@ -1308,9 +1533,9 @@ describe("HitlService", () => {
         status: ReviewStatus.flagged,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should refuse to approve a session whose lock expired", async () => {
@@ -1319,9 +1544,9 @@ describe("HitlService", () => {
         status: ReviewStatus.abandoned,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

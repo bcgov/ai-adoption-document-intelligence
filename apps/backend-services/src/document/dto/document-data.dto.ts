@@ -1,6 +1,38 @@
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, RejectionReason } from "@generated/client";
 import { ApiProperty } from "@nestjs/swagger";
 import { JsonValue } from "@prisma/client/runtime/client";
+
+export class DocumentRejectionDto {
+  @ApiProperty({
+    enum: RejectionReason,
+    nullable: true,
+    description: "The reason the reviewer chose",
+  })
+  reason!: RejectionReason | null;
+
+  @ApiProperty({
+    type: "string",
+    nullable: true,
+    description: "The reviewer's optional comment",
+  })
+  comment!: string | null;
+
+  @ApiProperty({
+    type: "string",
+    format: "date-time",
+    nullable: true,
+    description: "When the document was rejected",
+  })
+  rejected_at!: Date | null;
+
+  @ApiProperty({
+    type: "string",
+    nullable: true,
+    description:
+      "Email of the reviewer whose session rejected the document; null when that reviewer is an API key",
+  })
+  rejected_by!: string | null;
+}
 
 export class DocumentDataDto {
   @ApiProperty()
@@ -76,6 +108,15 @@ export class DocumentDataDto {
 
   @ApiProperty({ required: false, nullable: true, type: "string" })
   workflow_name?: string | null;
+
+  @ApiProperty({
+    type: DocumentRejectionDto,
+    required: false,
+    nullable: true,
+    description:
+      "Why and by whom the document was rejected. Set by the list endpoint on rejected documents; null otherwise.",
+  })
+  rejection?: DocumentRejectionDto | null;
 }
 
 export class ThumbnailResultDto {
@@ -130,7 +171,7 @@ export class DocumentStatusCountsDto {
   failed!: number;
 
   @ApiProperty({ description: "Documents rejected by a human reviewer" })
-  rejected_by_human!: number;
+  rejected!: number;
 
   @ApiProperty({ description: "Documents that failed PDF conversion" })
   conversion_failed!: number;

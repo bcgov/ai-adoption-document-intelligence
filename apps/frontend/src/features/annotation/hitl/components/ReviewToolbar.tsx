@@ -6,6 +6,7 @@ import {
   IconLayoutGrid,
   IconPhoto,
   IconPlayerSkipForward,
+  IconX,
 } from "@tabler/icons-react";
 import { FC } from "react";
 import { Button, Group, IconActionButton, Switch } from "../../../../ui";
@@ -17,10 +18,13 @@ interface ReviewToolbarProps {
   onBack: () => void;
   onApprove: () => void;
   onFlag: () => void;
+  /** Omit to hide Reject, as when labelling a dataset: there is no workflow to reject. */
+  onReject?: () => void;
   onSkip: () => void;
   isApproving?: boolean;
   isFlagging?: boolean;
   isSkipping?: boolean;
+  isRejecting?: boolean;
   autoAdvance?: boolean;
   onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
@@ -33,10 +37,12 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   onBack,
   onApprove,
   onFlag,
+  onReject,
   onSkip,
   isApproving,
   isFlagging,
   isSkipping,
+  isRejecting,
   autoAdvance,
   onAutoAdvanceToggle,
   viewMode,
@@ -71,6 +77,17 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         >
           Flag
         </Button>
+        {onReject && (
+          <Button
+            variant="light"
+            color="red"
+            leftSection={<IconX size={16} />}
+            onClick={onReject}
+            loading={isRejecting}
+          >
+            Reject
+          </Button>
+        )}
       </Group>
 
       <Group>
