@@ -1106,12 +1106,19 @@ describe("ReviewDbService", () => {
   });
 
   describe("expired lock handling", () => {
-    it("returns expired locks with the context an audit event needs", async () => {
+    it("returns expired locks with the context an audit event needs, and whether the session carries a flag note", async () => {
       mockDocumentLock.findMany.mockResolvedValue([
         {
           session_id: "session-1",
           document_id: "doc-1",
           document: { group_id: "group-1", workflow_execution_id: "wf-1" },
+          session: { flag_note: null },
+        },
+        {
+          session_id: "session-2",
+          document_id: "doc-2",
+          document: { group_id: "group-1", workflow_execution_id: null },
+          session: { flag_note: "Date on page 1 is ambiguous" },
         },
       ]);
       const now = new Date("2026-08-25T12:00:00.000Z");
@@ -1124,11 +1131,31 @@ describe("ReviewDbService", () => {
           document_id: "doc-1",
           group_id: "group-1",
           workflow_execution_id: "wf-1",
+          has_flag_note: false,
+        },
+        {
+          session_id: "session-2",
+          document_id: "doc-2",
+          group_id: "group-1",
+          workflow_execution_id: null,
+          has_flag_note: true,
         },
       ]);
       expect(mockDocumentLock.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { expires_at: { lte: now } } }),
       );
+    });
+
+    it("returns only sessions still in progress to flagged", async () => {
+      mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.returnSessionsToFlagged(["session-2"]);
+
+      expect(result).toBe(1);
+      expect(mockReviewSession.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["session-2"] }, status: ReviewStatus.in_progress },
+        data: { status: ReviewStatus.flagged },
+      });
     });
 
     it("abandons only sessions still in progress", async () => {
