@@ -1092,9 +1092,10 @@ export class HitlService {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
-          // Taking over a flagged session clears the note; it applied to the
-          // handoff, not to the reviewer now working the document.
-          flag_note: isHandoff ? null : undefined,
+          // The session belongs to whoever reopens it, so taking over a flagged
+          // session makes it the new reviewer's. Corrections already saved keep
+          // their own author, and the flag note stays for the new reviewer.
+          actor_id: reviewerId,
         },
         tx,
       );

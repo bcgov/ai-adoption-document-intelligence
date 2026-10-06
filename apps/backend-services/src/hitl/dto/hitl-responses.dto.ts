@@ -170,6 +170,8 @@ export class ReviewSessionResponseDto {
   reviewPlan?: ReviewPlanEntryDto[];
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description:
       "Note captured when the session was flagged, explaining what stopped the previous reviewer",
   })

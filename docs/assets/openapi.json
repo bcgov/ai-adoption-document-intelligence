@@ -7709,6 +7709,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlagSessionDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Session flagged, returned to pending queue without a lock",
@@ -15972,6 +15982,10 @@
           },
           "corrections_count": {
             "type": "number"
+          },
+          "flag_note": {
+            "type": "string",
+            "description": "Note captured when the session was flagged"
           }
         },
         "required": [
@@ -16182,6 +16196,11 @@
             "items": {
               "$ref": "#/components/schemas/ReviewPlanEntryDto"
             }
+          },
+          "flagNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "Note captured when the session was flagged, explaining what stopped the previous reviewer"
           }
         },
         "required": [
@@ -16375,6 +16394,15 @@
         "required": [
           "rejectionReason"
         ]
+      },
+      "FlagSessionDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Short note on why the session is being flagged, shown to whoever takes it over next"
+          }
+        }
       },
       "HeartbeatResponseDto": {
         "type": "object",
