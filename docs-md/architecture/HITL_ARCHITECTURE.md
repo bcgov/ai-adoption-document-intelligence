@@ -38,6 +38,7 @@ model ReviewSession {
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
+  flag_note    String?
   corrections  FieldCorrection[]
   lock         DocumentLock?
 
@@ -54,6 +55,8 @@ model FieldCorrection {
   original_conf   Float?
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
+  actor_id        String?
+  actor           Actor?           @relation(fields: [actor_id], references: [id])
 
   @@map("field_corrections")
 }
@@ -103,9 +106,10 @@ Document locks prevent concurrent editing:
 
 ### Key Relationships
 
-- **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string
+- **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string. Taking over a flagged session makes it the new reviewer's
 - A **rejected** session also keeps why: `rejection_reason`, one of five fixed reasons (`INPUT_QUALITY`, `OCR_FAILURE`, `MODEL_MISMATCH`, `CONFIDENCE_TOO_LOW`, `SYSTEMIC_ERROR`), and an optional `rejection_comment`
-- **FieldCorrection** records are children - one per field interaction
+- A **flagged** session keeps the note left when it was flagged (`flag_note`). Taking the session over keeps the note; flagging it again replaces it
+- **FieldCorrection** records are children - one per field interaction. Each records who made it (`actor_id`), so a session that changed hands credits every correction to the right reviewer. Corrections saved before authors were recorded have no `actor_id`
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
 - Sessions track duration via `started_at` and `completed_at` timestamps
@@ -139,10 +143,10 @@ final             final           Flagged tab,      back to Pending      back to
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
 | `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
 | `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
-| `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
+| `in_progress` | `flagged` | `POST /sessions/:id/flag` | Stores the optional `note` as `flag_note`, releases lock; document moves to the Flagged tab, which shows the note |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
-| `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over; the lock moves to them and the previous reviewer's corrections stay |
+| `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over: the session and its lock move to them, the flag note stays, and the previous reviewer's corrections stay, still credited to whoever made them |
 | `approved` | `in_progress` | `POST /sessions/:id/reopen` | Dataset labeling only, and only while the dataset version is unfrozen. Clears `completed_at`, re-acquires lock, sets document `awaiting_review` |
 
 **Important**: approving a document review is final. It signals the workflow
@@ -263,7 +267,8 @@ For each correction:
     original_value: correction.original_value,
     corrected_value: correction.corrected_value,
     original_conf: correction.original_conf,
-    action: correction.action
+    action: correction.action,
+    actor_id: <the caller's actor, from the signed-in identity>
   })
       ↓
 INSERT INTO field_corrections (...)
@@ -323,16 +328,25 @@ reject, and approval is what completes a labelling job.
 
 #### Flag Path
 ```
-User clicks "Flag"
+User clicks "Flag" and, in the dialog, optionally writes a note
       ↓
-POST /api/hitl/sessions/:id/flag
+POST /api/hitl/sessions/:id/flag   { note?: string }
       ↓
 UPDATE review_sessions
-SET status = 'flagged'
+SET status = 'flagged',
+    flag_note = :note   (trimmed; blank means no note)
 WHERE id = :id
       ↓
-Lock released; document listed in the Flagged tab, where it opens read-only
+Lock released; document listed in the Flagged tab with its note,
+and opens read-only with the note shown as a banner
 ```
+
+The note is meant for whoever picks the document up next, so it stays on the
+session when someone takes it over: the banner stays up while they work, and
+the Flag button carries a marker whose tooltip repeats the note. The flag
+dialog opens with the session's current note, so flagging again can extend it
+or replace it. The `review_session_flagged` audit event records the note as
+well.
 
 #### Skip Path
 ```
@@ -362,7 +376,7 @@ reviewer to open it starts a fresh session
 | `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
 | `POST` | `/api/hitl/sessions/:id/approve` | Approve session | Yes |
 | `POST` | `/api/hitl/sessions/:id/reject` | Reject session | Yes |
-| `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention | Yes |
+| `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention, with an optional `note` for the next reviewer | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
 | `POST` | `/api/hitl/sessions/:id/reopen` | Take over a flagged session, or reopen a dataset labeling job | Yes |
@@ -397,7 +411,7 @@ reviewer to open it starts a fresh session
 
 - `startDate` (date, optional): Start of analytics period
 - `endDate` (date, optional): End of analytics period
-- `reviewerId` (string, optional): Filter by reviewer ID
+- `reviewerId` (string, optional): Filter by reviewer: the sessions that reviewer holds, and the corrections that reviewer made. Corrections saved before authors were recorded match no reviewer.
 - `group_id` (string, required): The group to report on. The caller needs that group's `HITL_SESSION_RETRIEVE` permission, otherwise `403`.
 
 ## Frontend Architecture
@@ -405,7 +419,7 @@ reviewer to open it starts a fresh session
 ### Key Components
 
 **[ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)**
-- Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states))
+- Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states)). The Flagged tab shows each document's flag note
 - Pending and Claimed by you show each document's model, workflow name, average confidence and upload date
 - Shows the queue-wide figures: total documents, requires review, average confidence and reviewed today (see [Queue Statistics](#queue-statistics))
 - Reloads every tab and the figures every 30 seconds while the page is in view, so documents other reviewers pick up drop out without a manual refresh
@@ -418,7 +432,8 @@ reviewer to open it starts a fresh session
 - Inline canvas editing: [CanvasFieldOverlay.tsx](../../apps/frontend/src/features/annotation/hitl/components/CanvasFieldOverlay.tsx) anchors an input under each field's bounding box on the document image, sized to the box and colored by OCR confidence tier ([ConfidenceIndicator.tsx](../../apps/frontend/src/features/annotation/hitl/components/ConfidenceIndicator.tsx)); Tab moves between fields ([useFieldFocus.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useFieldFocus.ts)), F2 toggles the overlay, hover fades it to reveal the source pixels
 - Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
-- Actions: Approve, Escalate (with reason), Skip
+- Actions: Approve, Reject (with a reason), Flag (with an optional note), Skip
+- Shows a session's flag note as a banner, and marks the Flag button while a note is on the session
 - Supports read-only mode for viewing completed sessions
 
 ### Key Hooks
@@ -434,7 +449,7 @@ reviewer to open it starts a fresh session
 - Manages active session state
 - `submitCorrectionsAsync(corrections)`: Saves field corrections
 - `approveSessionAsync()`: Completes session as approved
-- `flagSessionAsync()`: Flags the session for priority attention
+- `flagSessionAsync({ note })`: Flags the session for priority attention, with an optional note for the next reviewer
 - `skipSessionAsync()`: Skips session, returning the document to the queue
 - Auto-invalidates cache on mutations
 
@@ -476,13 +491,15 @@ document to Claimed by you.
 the caller's. **Resume** returns to that session. When the lock lapses, the
 document goes back to Pending.
 
-**Flagged**: Documents with a `flagged` session and no `approved` session. The
-tab offers two actions. **View** opens the document read-only, so any number of
-people can read it and the correction history at once without taking it.
-**Take** reopens the session for the reader: the status returns to
-`in_progress`, the lock moves to them, and the document rejoins the ordinary
-review flow with the previous reviewer's corrections intact. Editing therefore
-always holds a lock, and flagging hands work on rather than parking it.
+**Flagged**: Documents with a `flagged` session and no `approved` session, each
+listed with the note left when it was flagged. **View** opens the document
+read-only with the note as a banner, so any number of people can read it and
+the correction history at once without taking it. **Take**, at the top of that
+view, reopens the session for the reader: the status returns to `in_progress`,
+the session and its lock move to them, the note stays on screen, and the
+document rejoins the ordinary review flow with the previous reviewer's
+corrections intact. Editing therefore always holds a lock, and flagging hands
+work on rather than parking it.
 
 **Reviewed**: Documents with at least one `approved` session.
 
@@ -539,6 +556,7 @@ lastSession: {
   status: ReviewStatus;
   completed_at: Date;
   corrections_count: number;
+  flag_note?: string;
 }
 ```
 
@@ -547,6 +565,7 @@ This allows reviewers to see:
 - When it was reviewed
 - What the outcome was
 - How many corrections were made
+- Why it was flagged, on the Flagged tab
 
 Which session that is depends on the tab. On Flagged it is the most recent
 `flagged` session and on Reviewed the most recent `approved` one; on the other
@@ -613,12 +632,14 @@ The system tracks metrics for:
 ### Flagging Workflow
 
 1. Reviewer encounters a case they should not decide
-2. Clicks "Flag"
-3. System marks the session `flagged` and releases the lock
-4. Document appears in the Flagged tab, where anyone in the group can read it
-   along with the corrections already made
-5. Whoever picks it up presses **Take**, which returns the session to
-   `in_progress` under their own lock
+2. Clicks "Flag" and writes a short note on what stopped them (optional)
+3. System marks the session `flagged`, keeps the note and releases the lock
+4. Document appears in the Flagged tab with the note, where anyone in the group
+   can open it with **View** and read it along with the corrections already made
+5. Whoever picks it up presses **Take** in that view. The session becomes
+   theirs, under their own lock, and the note stays in view while they work
+6. If they flag it again, the dialog opens with the existing note for them to
+   extend or replace
 
 ### Analytics Use Case
 
