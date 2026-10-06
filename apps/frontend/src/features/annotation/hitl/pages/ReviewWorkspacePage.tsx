@@ -68,6 +68,7 @@ import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { buildFieldValidators } from "../utils/format-validation";
+import { unsavedCorrections } from "../utils/unsaved-corrections";
 
 interface OcrField {
   valueString?: string;
@@ -777,14 +778,18 @@ export const ReviewWorkspacePage: FC = () => {
     });
   };
 
+  // Approve, Reject and Flag all end the session, so each first saves the
+  // corrections made on this page; whoever opens the document next sees them.
+  const saveNewCorrections = async () => {
+    const payload = unsavedCorrections(correctionMap, corrections);
+    if (payload.length > 0) {
+      await submitCorrectionsAsync(payload);
+    }
+  };
+
   const handleApprove = async () => {
-    const payload = Object.values(correctionMap).filter(
-      (correction) => correction.action === CorrectionAction.CORRECTED,
-    );
     try {
-      if (payload.length > 0) {
-        await submitCorrectionsAsync(payload);
-      }
+      await saveNewCorrections();
       await approveSessionAsync();
     } catch (error) {
       notifyActionFailed("Could not approve", error);
@@ -833,6 +838,7 @@ export const ReviewWorkspacePage: FC = () => {
 
   const handleConfirmFlag = async (note: string) => {
     try {
+      await saveNewCorrections();
       await flagSessionAsync({ note: note.trim() || undefined });
     } catch (error) {
       // Keep the flag dialog open so the reviewer's note survives.
@@ -867,6 +873,7 @@ export const ReviewWorkspacePage: FC = () => {
     if (!rejectionReason) return;
 
     try {
+      await saveNewCorrections();
       await rejectSessionAsync({
         rejectionReason,
         comments: rejectionComments.trim() || undefined,
