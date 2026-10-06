@@ -873,6 +873,11 @@ describe("HitlService", () => {
       expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledTimes(
         2,
       );
+      // each correction is credited to whoever submitted it
+      for (const [, correction] of mockReviewDbService.createFieldCorrection
+        .mock.calls) {
+        expect(correction).toMatchObject({ actor_id: "reviewer-1" });
+      }
 
       expect(result).toEqual({
         sessionId: "session-1",
@@ -1636,7 +1641,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...flaggedSession,
         status: ReviewStatus.in_progress,
-        flag_note: null,
+        actor_id: "other-reviewer",
       } as any);
       mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
         mockDocumentLock,
@@ -1645,12 +1650,13 @@ describe("HitlService", () => {
       const result = await service.reopenSession("session-1", "other-reviewer");
 
       expect(result.status).toBe(ReviewStatus.in_progress);
-      // taking over a flagged session clears the note; it applied to the handoff
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        expect.objectContaining({ flag_note: null }),
-        expect.anything(),
-      );
+      // the session becomes the new reviewer's, and the flag note stays for them
+      const [, update] = mockReviewDbService.updateReviewSession.mock.calls[0];
+      expect(update).toMatchObject({
+        status: ReviewStatus.in_progress,
+        actor_id: "other-reviewer",
+      });
+      expect(update).not.toHaveProperty("flag_note");
       // the lock moves to whoever took it, not to whoever flagged it
       expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
         expect.objectContaining({ reviewer_id: "other-reviewer" }),
@@ -1750,6 +1756,7 @@ describe("HitlService", () => {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          actor_id: "reviewer-1",
         },
         expect.anything(),
       );

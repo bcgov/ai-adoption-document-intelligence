@@ -506,7 +506,8 @@ model ReviewSession {
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
-  // Short note captured when the session is flagged, shown to the next reviewer.
+  // Note left when the session was last flagged, shown to whoever works on it next.
+  // Taking the session over keeps it; flagging again replaces it.
   flag_note    String?
   /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
   rejection_reason  RejectionReason?

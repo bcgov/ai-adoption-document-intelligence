@@ -318,7 +318,8 @@ export class ReviewDbService {
   }
 
   /**
-   * Updates a review session's status and/or completion timestamp.
+   * Updates a review session: its status, completion time, reviewer, flag note
+   * or rejection details.
    * @param id - The review session ID.
    * @param data - Fields to update on the session.
    * @returns The updated session, or null if not found.
@@ -328,6 +329,7 @@ export class ReviewDbService {
     data: {
       status?: ReviewStatus;
       completed_at?: Date | null;
+      actor_id?: string;
       flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
