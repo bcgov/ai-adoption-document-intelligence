@@ -234,8 +234,15 @@ Navigate to ReviewWorkspacePage
 
 ### 3. Submit Corrections Flow
 
+The review page keeps the reviewer's edits until they approve, reject or flag
+the document, and each of those first sends the corrections not saved yet.
+Skipping discards them. A session that is reopened, or taken over from another
+reviewer, opens with its saved corrections on the page; only a field whose value
+differs from its last saved correction is sent, so nothing is stored twice or
+credited to the wrong reviewer.
+
 ```
-User edits fields and submits corrections
+Reviewer approves, rejects or flags; the page sends its unsaved corrections
       ↓
 POST /api/hitl/sessions/:id/corrections
   {
@@ -622,18 +629,21 @@ The system tracks metrics for:
    - Views OCR results side-by-side with document
    - Edits incorrect values
    - Confirms correct values
-   - System saves corrections continuously
 
 4. **Reviewer completes session**
    - Approves if satisfied → status: `approved`
+   - Rejects if the document cannot be used → status: `rejected`
    - Flags if it needs someone else's eyes → status: `flagged`
    - Skips if cannot complete → status: `abandoned`
+   - Approving, rejecting and flagging save the corrections first; skipping
+     discards them
 
 ### Flagging Workflow
 
 1. Reviewer encounters a case they should not decide
 2. Clicks "Flag" and writes a short note on what stopped them (optional)
-3. System marks the session `flagged`, keeps the note and releases the lock
+3. System saves the corrections made so far, marks the session `flagged`,
+   keeps the note and releases the lock
 4. Document appears in the Flagged tab with the note, where anyone in the group
    can open it with **View** and read it along with the corrections already made
 5. Whoever picks it up presses **Take** in that view. The session becomes
