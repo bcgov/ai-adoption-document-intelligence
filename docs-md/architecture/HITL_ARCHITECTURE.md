@@ -100,7 +100,8 @@ Document locks prevent concurrent editing:
 - A lock is acquired when a session starts (10-minute TTL)
 - The frontend sends heartbeat requests to extend the lock
 - Locks are released when a session completes (approve/reject/flag/skip)
-- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, marks any still-`in_progress` session `abandoned`, and records a `review_session_expired` audit event
+- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, ends any still-`in_progress` session, and records a `review_session_expired` audit event whose payload names the session's new status. A session that carries a flag note goes back to `flagged`, so a document taken over from the Flagged tab returns there with its note and corrections; any other session becomes `abandoned`
+- When a heartbeat answers 409 because the lock is gone, the review page says the session was released and returns to the queue; edits not yet saved are lost
 - If the same reviewer starts a session on an already-locked document, the existing session is returned
 - If a different reviewer tries, a `ConflictException` is thrown
 
@@ -136,6 +137,9 @@ final             final           Flagged tab,      back to Pending      back to
               in_progress
 ```
 
+A lapsed lock on a session that carries a flag note ends it as `flagged`
+rather than `abandoned` (see [Transition Rules](#transition-rules)).
+
 ### Transition Rules
 
 | From | To | Trigger | Side Effects |
@@ -145,7 +149,8 @@ final             final           Flagged tab,      back to Pending      back to
 | `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Stores the optional `note` as `flag_note`, releases lock; document moves to the Flagged tab, which shows the note |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
-| `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
+| `in_progress` | `abandoned` | Lock expiry cron, session has no flag note | Releases lock; document returns to the Pending queue |
+| `in_progress` | `flagged` | Lock expiry cron, session carries a flag note | Releases lock; document returns to the Flagged tab with its note and corrections, for the next reviewer to take |
 | `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over: the session and its lock move to them, the flag note stays, and the previous reviewer's corrections stay, still credited to whoever made them |
 | `approved` | `in_progress` | `POST /sessions/:id/reopen` | Dataset labeling only, and only while the dataset version is unfrozen. Clears `completed_at`, re-acquires lock, sets document `awaiting_review` |
 

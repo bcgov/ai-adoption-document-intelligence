@@ -39,7 +39,7 @@ HITL routes low-confidence or review-required document results to humans. It is 
 - A session ends in one of four states: `approved`, `rejected` (the document moves to the `rejected` status, and the session keeps the reason and comment), `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
 - Flagging is a hand-off, not an ending: the flag carries an optional note for the next reviewer, the Flagged tab opens a document read-only without a lock, and **Take** in that view hands the same session to the reader under their own lock, corrections, note and all. Editing always holds a lock.
 - Approving is final. It signals the workflow parked at the `humanGate`, which then runs every node after the gate, so there is nothing to return to and no undo. Rejecting is final too: the reject call marks the document `rejected` itself, and the workflow's failure hook leaves that status alone. A dataset labeling job is the exception: it drives nothing downstream and its original reviewer can reopen it until the dataset version is frozen.
-- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry.
+- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry. A session that carries a flag note goes back to `flagged` instead, so a taken-over document keeps its hand-off.
 - Queue statistics are database counts over the whole queue, not a summary of the page in view.
 
 ## Related Topics

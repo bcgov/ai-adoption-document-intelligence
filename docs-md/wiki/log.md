@@ -141,4 +141,5 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - `architecture/HITL_ARCHITECTURE.md`: flagging stores an optional note (`flag_note`) shown in the Flagged tab and as a banner; Take sits in the read-only view, hands the session to the reader and keeps the note; each correction records who made it (`field_corrections.actor_id`), which the analytics `reviewerId` filter uses.
 - `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
-- `hitl.md`: the flag note, Take handing the session over, and per-correction authors.
+- `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
+- `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.
