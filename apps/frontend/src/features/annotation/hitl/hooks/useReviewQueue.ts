@@ -22,6 +22,7 @@ export interface QueueDocument {
     status: string;
     completed_at: string;
     corrections_count: number;
+    flag_note?: string;
   };
 }
 

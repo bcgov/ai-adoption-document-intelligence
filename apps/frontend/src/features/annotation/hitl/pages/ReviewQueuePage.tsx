@@ -5,10 +5,8 @@ import {
   IconEye,
   IconFlag,
 } from "@tabler/icons-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiService } from "@/data/services/api.service";
 import {
   Badge,
   Button,
@@ -29,7 +27,6 @@ import { useReviewQueue } from "../hooks/useReviewQueue";
 
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
@@ -62,8 +59,6 @@ export const ReviewQueuePage: FC = () => {
 
   // Queue-wide figures: the same for every tab, so read them from one queue.
   const stats = pendingQueue.stats;
-
-  const [takingSessionId, setTakingSessionId] = useState<string | null>(null);
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.9) return "green";
@@ -107,32 +102,6 @@ export const ReviewQueuePage: FC = () => {
         color: "red",
         autoClose: 5000,
       });
-    }
-  };
-
-  // Takes over a flagged document: the session goes back to in progress, the
-  // lock moves to this reviewer, and the previous reviewer's corrections stay.
-  const handleTakeSession = async (sessionId: string) => {
-    setTakingSessionId(sessionId);
-    try {
-      const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/reopen`,
-        {},
-      );
-      if (!response.success) throw new Error(response.message);
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
-      navigate(`/review/${sessionId}`);
-    } catch {
-      notifications.show({
-        title: "Could not take this document",
-        message:
-          "Another reviewer may have taken it already. Refresh the queue and try again.",
-        color: "red",
-        autoClose: 5000,
-      });
-    } finally {
-      setTakingSessionId(null);
     }
   };
 
@@ -392,6 +361,7 @@ export const ReviewQueuePage: FC = () => {
                     <DataTable.Th>Filename</DataTable.Th>
                     <DataTable.Th>Last reviewer</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Flag note</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
@@ -420,6 +390,17 @@ export const ReviewQueuePage: FC = () => {
                           </Badge>
                         </DataTable.Td>
                         <DataTable.Td>
+                          {doc.lastSession?.flag_note ? (
+                            <Text size="sm" style={{ maxWidth: 280 }}>
+                              {doc.lastSession.flag_note}
+                            </Text>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              —
+                            </Text>
+                          )}
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Group gap="xs">
                             <Button
                               size="xs"
@@ -434,19 +415,6 @@ export const ReviewQueuePage: FC = () => {
                               disabled={!doc.lastSession?.id}
                             >
                               View
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="orange"
-                              leftSection={<IconFlag size={14} />}
-                              onClick={() =>
-                                handleTakeSession(doc.lastSession!.id)
-                              }
-                              loading={takingSessionId === doc.lastSession?.id}
-                              disabled={!doc.lastSession?.id}
-                            >
-                              Take
                             </Button>
                           </Group>
                         </DataTable.Td>

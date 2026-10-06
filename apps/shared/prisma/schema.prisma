@@ -170,6 +170,7 @@ model Actor {
   updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
   deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
   reviewSessions            ReviewSession[]
+  fieldCorrections          FieldCorrection[]
   datasets                  Dataset[]
   benchmarkProjects         BenchmarkProject[]
   benchmarkAuditLogs        BenchmarkAuditLog[]
@@ -505,6 +506,9 @@ model ReviewSession {
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
+  // Note left when the session was last flagged, shown to whoever works on it next.
+  // Taking the session over keeps it; flagging again replaces it.
+  flag_note    String?
   /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
   rejection_reason  RejectionReason?
   rejection_comment String?
@@ -541,8 +545,13 @@ model FieldCorrection {
   original_conf   Float?
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
+  // Actor who made this correction. Null on rows created before this field existed
+  // (session.actor_id is the only historical signal, and it can be reassigned on takeover).
+  actor_id        String?
+  actor           Actor?           @relation(fields: [actor_id], references: [id])
 
   @@index([session_id])
+  @@index([actor_id])
   @@map("field_corrections")
 }
 

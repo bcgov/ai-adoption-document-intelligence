@@ -5,6 +5,7 @@ import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlController } from "./hitl.controller";
@@ -44,6 +45,7 @@ describe("HitlController", () => {
       approveSession: jest.fn(),
       rejectSession: jest.fn(),
       skipSession: jest.fn(),
+      flagSession: jest.fn(),
       getQueue: jest.fn(),
       getQueueStats: jest.fn(),
       getAnalytics: jest.fn(),
@@ -303,10 +305,11 @@ describe("HitlController", () => {
   describe("submitCorrections", () => {
     const dto: SubmitCorrectionsDto = { corrections: [] };
 
-    it("submits corrections for a group member", async () => {
+    it("submits corrections for a group member, credited to the caller", async () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -318,6 +321,7 @@ describe("HitlController", () => {
       expect(hitlService.submitCorrections).toHaveBeenCalledWith(
         "session-1",
         dto,
+        "actor-1",
       );
     });
 
@@ -596,6 +600,58 @@ describe("HitlController", () => {
         NotFoundException,
       );
       expect(hitlService.skipSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("flagSession", () => {
+    const dto: FlagSessionDto = { note: "Date on page 1 is ambiguous" };
+
+    it("flags the session with its note for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      const mockResult = {
+        id: "session-1",
+        status: "flagged",
+        message: "Review session flagged",
+      };
+      hitlService.flagSession.mockResolvedValue(mockResult as any);
+      const result = await controller.flagSession("session-1", dto, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.flagSession).toHaveBeenCalledWith("session-1", dto);
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.flagSession("session-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.flagSession).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.flagSession("session-1", dto, req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.flagSession).not.toHaveBeenCalled();
     });
   });
 

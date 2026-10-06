@@ -28,6 +28,7 @@ import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import {
   AnalyticsResponseDto,
   CorrectionsListResponseDto,
@@ -230,7 +231,11 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_CORRECTION_SUBMIT,
     ]);
-    return this.hitlService.submitCorrections(sessionId, dto);
+    return this.hitlService.submitCorrections(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("sessions/:id/corrections")
@@ -362,7 +367,11 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async flagSession(@Param("id") sessionId: string, @Req() req: Request) {
+  async flagSession(
+    @Param("id") sessionId: string,
+    @Body() dto: FlagSessionDto,
+    @Req() req: Request,
+  ) {
     const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
@@ -370,7 +379,7 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.flagSession(sessionId);
+    return this.hitlService.flagSession(sessionId, dto);
   }
 
   @Post("sessions/:id/heartbeat")

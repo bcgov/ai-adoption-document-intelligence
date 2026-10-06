@@ -24,6 +24,7 @@ import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
@@ -48,6 +49,7 @@ interface DocumentWithOcrResult extends Document {
     status: ReviewStatus;
     started_at: Date;
     completed_at: Date | null;
+    flag_note?: string | null;
     corrections?: unknown[];
   }>;
 }
@@ -248,6 +250,7 @@ export class HitlService {
               completed_at: doc.review_sessions[0].completed_at,
               corrections_count:
                 doc.review_sessions[0].corrections?.length || 0,
+              flag_note: doc.review_sessions[0].flag_note ?? undefined,
             }
           : undefined,
         lock: doc.lock
@@ -577,10 +580,15 @@ export class HitlService {
       corrections: session.corrections,
       fieldDefinitions,
       reviewPlan,
+      flagNote: session.flag_note,
     };
   }
 
-  async submitCorrections(sessionId: string, dto: SubmitCorrectionsDto) {
+  async submitCorrections(
+    sessionId: string,
+    dto: SubmitCorrectionsDto,
+    actorId: string,
+  ) {
     this.logger.debug(`Submitting corrections for session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -606,6 +614,7 @@ export class HitlService {
                 corrected_value: correction.corrected_value,
                 original_conf: correction.original_conf,
                 action: correction.action,
+                actor_id: actorId,
               },
               tx,
             ),
@@ -894,7 +903,7 @@ export class HitlService {
     };
   }
 
-  async flagSession(sessionId: string) {
+  async flagSession(sessionId: string, dto: FlagSessionDto) {
     this.logger.debug(`Flagging session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -907,10 +916,12 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
+    const flagNote = dto.note?.trim() || null;
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: ReviewStatus.flagged },
+        { status: ReviewStatus.flagged, flag_note: flagNote },
         tx,
       );
 
@@ -928,7 +939,7 @@ export class HitlService {
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id },
+          payload: { document_id: session.document_id, flag_note: flagNote },
         },
         tx,
       );
@@ -1077,6 +1088,10 @@ export class HitlService {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          // The session belongs to whoever reopens it, so taking over a flagged
+          // session makes it the new reviewer's. Corrections already saved keep
+          // their own author, and the flag note stays for the new reviewer.
+          actor_id: reviewerId,
         },
         tx,
       );

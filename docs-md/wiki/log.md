@@ -136,3 +136,10 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: the reject transition stores the reason and comment on the session and marks the document `rejected`; added the reject path, how the workflow's failure hook leaves `rejected` alone, who the approval and rejection name, and that Reject is hidden while labelling a dataset.
 - `extraction/OCR_FAILURE_HANDLING.md`, `architecture/DOCUMENT_RETENTION.md`, `architecture/EPHEMERAL_DOCUMENT_CLEANUP.md`, `operations/ENVIRONMENT_CONFIGURATION.md`: `rejected` is a terminal, purgeable document status, and rejected sessions age out like approved ones.
 - `hitl.md`: four session outcomes, rejection is final, and the drift risk of the rejection reasons being defined in both the schema and the frontend.
+
+## [2026-10-06] ingest | HITL flag notes and correction authors
+
+- `architecture/HITL_ARCHITECTURE.md`: flagging stores an optional note (`flag_note`) shown in the Flagged tab and as a banner; Take sits in the read-only view, hands the session to the reader and keeps the note; each correction records who made it (`field_corrections.actor_id`), which the analytics `reviewerId` filter uses.
+- `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
+- `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
+- `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.

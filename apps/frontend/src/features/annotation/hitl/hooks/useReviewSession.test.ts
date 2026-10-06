@@ -42,7 +42,7 @@ describe("useReviewSession actions", () => {
   it.each<[string, (hook: Hook) => Promise<unknown>]>([
     ["approve", (hook) => hook.approveSessionAsync()],
     ["skip", (hook) => hook.skipSessionAsync()],
-    ["flag", (hook) => hook.flagSessionAsync()],
+    ["flag", (hook) => hook.flagSessionAsync({})],
     [
       "reject",
       (hook) =>

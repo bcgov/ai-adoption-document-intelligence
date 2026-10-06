@@ -318,7 +318,8 @@ export class ReviewDbService {
   }
 
   /**
-   * Updates a review session's status and/or completion timestamp.
+   * Updates a review session: its status, completion time, reviewer, flag note
+   * or rejection details.
    * @param id - The review session ID.
    * @param data - Fields to update on the session.
    * @returns The updated session, or null if not found.
@@ -328,6 +329,8 @@ export class ReviewDbService {
     data: {
       status?: ReviewStatus;
       completed_at?: Date | null;
+      actor_id?: string;
+      flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
     },
@@ -372,6 +375,7 @@ export class ReviewDbService {
       corrected_value?: string;
       original_conf?: number;
       action: import("@generated/client").CorrectionAction;
+      actor_id?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").FieldCorrection> {
@@ -494,7 +498,7 @@ export class ReviewDbService {
 
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
-   * audit event needs.
+   * audit event needs, and whether the locked session carries a flag note.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
    */
@@ -507,6 +511,7 @@ export class ReviewDbService {
       document_id: string;
       group_id: string;
       workflow_execution_id: string | null;
+      has_flag_note: boolean;
     }>
   > {
     const client = tx ?? this.prisma;
@@ -518,6 +523,7 @@ export class ReviewDbService {
         document: {
           select: { group_id: true, workflow_execution_id: true },
         },
+        session: { select: { flag_note: true } },
       },
     });
     return locks.map((lock) => ({
@@ -525,7 +531,27 @@ export class ReviewDbService {
       document_id: lock.document_id,
       group_id: lock.document.group_id,
       workflow_execution_id: lock.document.workflow_execution_id,
+      has_flag_note: lock.session.flag_note !== null,
     }));
+  }
+
+  /**
+   * Returns in-progress sessions to `flagged`. Sessions in any other status
+   * are left alone, so a session that finished between the scan and this
+   * write keeps its outcome.
+   * @param sessionIds - The sessions to return to flagged.
+   * @returns How many sessions were updated.
+   */
+  async returnSessionsToFlagged(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewSession.updateMany({
+      where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
+      data: { status: ReviewStatus.flagged },
+    });
+    return result.count;
   }
 
   /**
@@ -654,26 +680,36 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     this.logger.debug("Getting review analytics");
 
-    const where: Prisma.ReviewSessionWhereInput = {};
+    // Scope shared by both queries: date range and group. Reviewer identity is
+    // applied separately below since sessions and corrections attribute it differently.
+    const scope: Prisma.ReviewSessionWhereInput = {};
     if (filters.startDate || filters.endDate) {
-      where.started_at = {};
-      if (filters.startDate) where.started_at.gte = filters.startDate;
-      if (filters.endDate) where.started_at.lte = filters.endDate;
-    }
-    if (filters.reviewerId) {
-      where.actor_id = filters.reviewerId;
+      scope.started_at = {};
+      if (filters.startDate) scope.started_at.gte = filters.startDate;
+      if (filters.endDate) scope.started_at.lte = filters.endDate;
     }
     if (filters.groupIds) {
-      where.document = { group_id: { in: filters.groupIds } };
+      scope.document = { group_id: { in: filters.groupIds } };
+    }
+
+    // Session ownership still reflects whoever currently holds the session (reassigned on takeover).
+    const sessionWhere: Prisma.ReviewSessionWhereInput = { ...scope };
+    if (filters.reviewerId) {
+      sessionWhere.actor_id = filters.reviewerId;
+    }
+
+    // Correction throughput is attributed to whoever actually made each correction,
+    // not whoever currently owns the session it lives in.
+    const correctionWhere: Prisma.FieldCorrectionWhereInput = {
+      session: scope,
+    };
+    if (filters.reviewerId) {
+      correctionWhere.actor_id = filters.reviewerId;
     }
 
     const [sessions, corrections] = await Promise.all([
-      client.reviewSession.findMany({ where }),
-      client.fieldCorrection.findMany({
-        where: {
-          session: where,
-        },
-      }),
+      client.reviewSession.findMany({ where: sessionWhere }),
+      client.fieldCorrection.findMany({ where: correctionWhere }),
     ]);
 
     const correctionsByAction = corrections.reduce(

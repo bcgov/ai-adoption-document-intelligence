@@ -22,6 +22,7 @@ import {
 import {
   Accordion,
   ActionIcon,
+  Alert,
   Button,
   Checkbox,
   Group,
@@ -56,6 +57,7 @@ import {
   getConfidenceCanvasColor,
 } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
+import { FlagNoteModal } from "../components/FlagNoteModal";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { SnippetView } from "../components/SnippetView";
@@ -66,6 +68,7 @@ import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { buildFieldValidators } from "../utils/format-validation";
+import { unsavedCorrections } from "../utils/unsaved-corrections";
 
 interface OcrField {
   valueString?: string;
@@ -327,6 +330,7 @@ export const ReviewWorkspacePage: FC = () => {
   const [rejectionReason, setRejectionReason] =
     useState<RejectionReason | null>(null);
   const [rejectionComments, setRejectionComments] = useState("");
+  const [flagModalOpened, setFlagModalOpened] = useState(false);
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -774,14 +778,18 @@ export const ReviewWorkspacePage: FC = () => {
     });
   };
 
+  // Approve, Reject and Flag all end the session, so each first saves the
+  // corrections made on this page; whoever opens the document next sees them.
+  const saveNewCorrections = async () => {
+    const payload = unsavedCorrections(correctionMap, corrections);
+    if (payload.length > 0) {
+      await submitCorrectionsAsync(payload);
+    }
+  };
+
   const handleApprove = async () => {
-    const payload = Object.values(correctionMap).filter(
-      (correction) => correction.action === CorrectionAction.CORRECTED,
-    );
     try {
-      if (payload.length > 0) {
-        await submitCorrectionsAsync(payload);
-      }
+      await saveNewCorrections();
       await approveSessionAsync();
     } catch (error) {
       notifyActionFailed("Could not approve", error);
@@ -820,10 +828,20 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   };
 
-  const handleFlag = useCallback(async () => {
+  const handleFlag = useCallback(() => {
+    setFlagModalOpened(true);
+  }, []);
+
+  const closeFlagModal = () => {
+    setFlagModalOpened(false);
+  };
+
+  const handleConfirmFlag = async (note: string) => {
     try {
-      await flagSessionAsync();
+      await saveNewCorrections();
+      await flagSessionAsync({ note: note.trim() || undefined });
     } catch (error) {
+      // Keep the flag dialog open so the reviewer's note survives.
       notifyActionFailed("Could not flag", error);
       return;
     }
@@ -835,10 +853,11 @@ export const ReviewWorkspacePage: FC = () => {
       autoClose: 3000,
     });
 
+    closeFlagModal();
     clearUndoStack();
     setCorrectionMap({});
     advanceOrReturn();
-  }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
+  };
 
   const handleReject = () => {
     setRejectModalOpened(true);
@@ -854,6 +873,7 @@ export const ReviewWorkspacePage: FC = () => {
     if (!rejectionReason) return;
 
     try {
+      await saveNewCorrections();
       await rejectSessionAsync({
         rejectionReason,
         comments: rejectionComments.trim() || undefined,
@@ -1116,6 +1136,16 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
+        {session.flagNote && (
+          <Alert
+            color="orange"
+            title="Flag note"
+            icon={<IconFlag size={16} />}
+            data-testid="flag-note-banner"
+          >
+            {session.flagNote}
+          </Alert>
+        )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
@@ -1134,7 +1164,7 @@ export const ReviewWorkspacePage: FC = () => {
                 onClick={handleReopen}
                 loading={isReopening}
               >
-                Take for editing
+                Take
               </Button>
             ) : (
               canRelabel && (
@@ -1161,6 +1191,7 @@ export const ReviewWorkspacePage: FC = () => {
             isFlagging={isFlagging}
             isSkipping={isSkipping}
             isRejecting={isRejecting}
+            flagNote={session.flagNote}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1519,6 +1550,14 @@ export const ReviewWorkspacePage: FC = () => {
             </Group>
           </Stack>
         </Modal>
+
+        <FlagNoteModal
+          opened={flagModalOpened}
+          initialNote={session.flagNote ?? ""}
+          isSubmitting={isFlagging}
+          onClose={closeFlagModal}
+          onConfirm={handleConfirmFlag}
+        />
       </Stack>
     </KeyboardManager>
   );

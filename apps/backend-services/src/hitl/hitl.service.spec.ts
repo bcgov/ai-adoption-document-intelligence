@@ -117,6 +117,7 @@ describe("HitlService", () => {
     original_conf: 0.85,
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
+    actor_id: "actor-1",
   };
 
   beforeEach(async () => {
@@ -860,7 +861,11 @@ describe("HitlService", () => {
           field_key: "total_amount",
         });
 
-      const result = await service.submitCorrections("session-1", dto);
+      const result = await service.submitCorrections(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -868,6 +873,11 @@ describe("HitlService", () => {
       expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledTimes(
         2,
       );
+      // each correction is credited to whoever submitted it
+      for (const [, correction] of mockReviewDbService.createFieldCorrection
+        .mock.calls) {
+        expect(correction).toMatchObject({ actor_id: "reviewer-1" });
+      }
 
       expect(result).toEqual({
         sessionId: "session-1",
@@ -891,7 +901,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
-        service.submitCorrections("non-existent", dto),
+        service.submitCorrections("non-existent", dto, "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
@@ -1208,11 +1218,11 @@ describe("HitlService", () => {
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
-      const result = await service.flagSession("session-1");
+      const result = await service.flagSession("session-1", {});
 
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
-        { status: ReviewStatus.flagged },
+        { status: ReviewStatus.flagged, flag_note: null },
         expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
@@ -1226,10 +1236,38 @@ describe("HitlService", () => {
       });
     });
 
+    it("should store a trimmed flag note against the session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      await service.flagSession("session-1", {
+        note: "  waiting on legal to confirm the address  ",
+      });
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.flagged,
+          flag_note: "waiting on legal to confirm the address",
+        },
+        expect.anything(),
+      );
+    });
+
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
-      await expect(service.flagSession("non-existent")).rejects.toThrow(
+      await expect(service.flagSession("non-existent", {})).rejects.toThrow(
         NotFoundException,
       );
 
@@ -1592,6 +1630,7 @@ describe("HitlService", () => {
         ...mockReviewSession,
         status: ReviewStatus.flagged,
         completed_at: null,
+        flag_note: "waiting on legal to confirm the address",
         document: { ...mockDocumentWithOcr, groundTruthJob: null },
       };
 
@@ -1602,6 +1641,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...flaggedSession,
         status: ReviewStatus.in_progress,
+        actor_id: "other-reviewer",
       } as any);
       mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
         mockDocumentLock,
@@ -1610,6 +1650,13 @@ describe("HitlService", () => {
       const result = await service.reopenSession("session-1", "other-reviewer");
 
       expect(result.status).toBe(ReviewStatus.in_progress);
+      // the session becomes the new reviewer's, and the flag note stays for them
+      const [, update] = mockReviewDbService.updateReviewSession.mock.calls[0];
+      expect(update).toMatchObject({
+        status: ReviewStatus.in_progress,
+        actor_id: "other-reviewer",
+      });
+      expect(update).not.toHaveProperty("flag_note");
       // the lock moves to whoever took it, not to whoever flagged it
       expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
         expect.objectContaining({ reviewer_id: "other-reviewer" }),
@@ -1709,6 +1756,7 @@ describe("HitlService", () => {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          actor_id: "reviewer-1",
         },
         expect.anything(),
       );
