@@ -28,24 +28,8 @@
  */
 
 import "../src/env-loader";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
 import axios from "axios";
-import { config as dotenvConfig } from "dotenv";
 import { getPrismaClient } from "../src/activities/database-client";
-
-const overrideDir =
-  process.env.DI_SECRETS_DIR ?? resolve(homedir(), ".config/bcgov-di");
-const candidates = [
-  resolve(overrideDir, "backend-services.env"),
-  resolve(__dirname, "..", "..", "backend-services", ".env"),
-];
-for (const p of candidates) {
-  if (existsSync(p)) {
-    dotenvConfig({ path: p, quiet: true });
-  }
-}
 
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DATASET_VERSION_ID = "seed-local-samples-mix-public-v1";

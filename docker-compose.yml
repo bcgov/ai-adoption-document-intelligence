@@ -20,27 +20,36 @@ services:
     profiles: [infra]
 
   minio:
-    image: minio/minio
+    # MinIO no longer publishes minio/minio on Docker Hub; Chainguard
+    # publishes a build of the same server. It runs as a non-root user by
+    # default, which cannot open a data volume the earlier image wrote as
+    # root, so run it as root as that image did.
+    image: cgr.dev/chainguard/minio:latest
     container_name: minio
     restart: unless-stopped
+    user: "0:0"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # The image has mc but no curl; the healthcheck asks mc whether the
+      # server is ready, which needs no credentials.
+      MC_HOST_local: http://localhost:9000
     ports:
       - "19000:9000"
       - "19001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 30s
       timeout: 10s
       retries: 3
     profiles: [infra]
 
   minio-init:
-    image: minio/mc
+    # The MinIO server image also ships mc and sh, which the init script uses.
+    image: cgr.dev/chainguard/minio:latest
     container_name: minio-init
     depends_on:
       minio:

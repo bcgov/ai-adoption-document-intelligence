@@ -24,13 +24,19 @@ import { AppLoggerService } from "../logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
-import { ReviewDbService } from "./review-db.service";
+import {
+  ReviewDbService,
+  type ReviewQueueDocument,
+  type ReviewQueueFilters,
+} from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
 
 interface DocumentWithOcrResult extends Document {
@@ -43,6 +49,7 @@ interface DocumentWithOcrResult extends Document {
     status: ReviewStatus;
     started_at: Date;
     completed_at: Date | null;
+    flag_note?: string | null;
     corrections?: unknown[];
   }>;
 }
@@ -156,23 +163,40 @@ export class HitlService {
   ) {
     this.logger.debug("Getting review queue with filters", { ...filters });
 
-    const maxConfidence = filters.maxConfidence ?? 0.9;
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
 
-    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : filters.reviewStatus === ReviewStatusFilter.FLAGGED
-            ? "flagged"
-            : "pending";
-
-    const statuses: DocumentStatus[] =
-      filters.status === DocumentStatusFilter.EXTRACTED
-        ? [DocumentStatus.extracted]
-        : filters.status === DocumentStatusFilter.ALL
-          ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
-          : [DocumentStatus.awaiting_review];
+    let statuses: DocumentStatus[];
+    switch (filters.status) {
+      case DocumentStatusFilter.EXTRACTED:
+        statuses = [DocumentStatus.extracted];
+        break;
+      case DocumentStatusFilter.ALL:
+        statuses = [DocumentStatus.extracted, DocumentStatus.awaiting_review];
+        break;
+      default:
+        statuses = [DocumentStatus.awaiting_review];
+    }
 
     // Approving a document moves it to `complete`; flag/skip leave it at
     // `awaiting_review`. The Reviewed tab must therefore also include
@@ -184,42 +208,44 @@ export class HitlService {
     const queueFilters = {
       statuses,
       modelId: filters.modelId,
-      maxConfidence,
+      workflowId: filters.workflowId,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId,
+      search: filters.search,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
     };
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    const documents = await this.reviewDb.findReviewQueue({
       ...queueFilters,
       limit: filters.limit ?? 50,
       offset: filters.offset ?? 0,
-    })) as DocumentWithOcrResult[];
+    });
 
-    const filtered = documents.filter((doc) =>
-      this.needsReview(doc, maxConfidence),
-    );
+    const total = await this.reviewDb.countReviewQueue(queueFilters);
 
-    // The confidence gate above runs in JS over the current page, so it can
-    // only be counted page by page. It applies to `extracted` documents alone —
-    // for every other status the gate passes everything, and the database can
-    // count the whole queue.
-    const gateApplies = statuses.includes(DocumentStatus.extracted);
-    const total = gateApplies
-      ? filtered.length
-      : await this.reviewDb.countReviewQueue(queueFilters);
+    const getAverageConfidence = (doc: ReviewQueueDocument) => {
+      if (!doc.ocr_result?.keyValuePairs) return 0;
+      const fields = Object.values(doc.ocr_result.keyValuePairs);
+      if (fields.length === 0) return 0;
+      const sum = fields.reduce(
+        (acc, field) => acc + (field.confidence || 0),
+        0,
+      );
+      return sum / fields.length;
+    };
 
     return {
-      documents: filtered.map((doc) => ({
+      documents: documents.map((doc) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
         model_id: doc.model_id,
+        workflow_name: doc.workflowVersion?.lineage.name ?? null,
         created_at: doc.created_at,
         updated_at: doc.updated_at,
-        ocr_result: {
-          fields: doc.ocr_result?.keyValuePairs || {},
-        },
+        average_confidence: getAverageConfidence(doc),
         lastSession: doc.review_sessions?.[0]
           ? {
               id: doc.review_sessions[0].id,
@@ -228,6 +254,7 @@ export class HitlService {
               completed_at: doc.review_sessions[0].completed_at,
               corrections_count:
                 doc.review_sessions[0].corrections?.length || 0,
+              flag_note: doc.review_sessions[0].flag_note ?? undefined,
             }
           : undefined,
         lock: doc.lock
@@ -262,17 +289,21 @@ export class HitlService {
       reviewer: string;
       groupId?: string;
       workflowExecutionId?: string;
+      comments?: string;
+      rejectionReason?: string;
     },
   ): Promise<void> {
     // The Temporal workflow id is derived from the document id. The stored
     // workflow_execution_id is the billing run id (unique per execution
-    // attempt) and is NOT the workflow id — see DocumentController.approveDocument.
+    // attempt) and is NOT the workflow id.
     const workflowId = `graph-${documentId}`;
 
     try {
       await this.temporalClient.sendHumanApproval(workflowId, {
         approved: outcome.approved,
         reviewer: outcome.reviewer,
+        comments: outcome.comments,
+        rejectionReason: outcome.rejectionReason,
       });
       await this.auditService.recordEvent({
         event_type: "human_approval_signal_sent",
@@ -312,41 +343,12 @@ export class HitlService {
   }
 
   /**
-   * Decides whether a document belongs in the review queue. Documents already
-   * sitting at `awaiting_review` (or `complete`) were routed there by the
-   * workflow's own review criteria, so they qualify outright; `extracted`
-   * documents qualify only when at least one field falls below the confidence
-   * threshold.
-   */
-  private needsReview(
-    doc: DocumentWithOcrResult,
-    maxConfidence: number,
-  ): boolean {
-    if (
-      doc.status === DocumentStatus.awaiting_review ||
-      doc.status === DocumentStatus.complete
-    ) {
-      return true;
-    }
-
-    const fields = doc.ocr_result?.keyValuePairs as unknown as
-      | ExtractedFields
-      | null
-      | undefined;
-    if (!fields || typeof fields !== "object") return false;
-
-    return Object.values(fields).some(
-      (field: DocumentField) =>
-        field?.confidence !== undefined && field.confidence < maxConfidence,
-    );
-  }
-
-  /**
-   * Summarises the whole review queue for the header cards. Every figure is a
-   * database count over the same filter the queue itself uses — including the
+   * Summarises the whole review queue for the header cards. Every figure is
+   * read through the same per-tab filters the queue itself uses — including the
    * caller's own locks, so a document open in this reviewer's workspace still
-   * counts — and so the numbers do not depend on which tab is open or how many
-   * rows one page holds.
+   * counts — so the numbers do not depend on which tab is open or how many rows
+   * one page holds, and the confidence average covers exactly the documents
+   * the counts do.
    */
   async getQueueStats(groupIds?: string[], currentReviewerId?: string) {
     this.logger.debug("Getting queue statistics");
@@ -359,32 +361,61 @@ export class HitlService {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [totalDocuments, requiresReview, fieldPayloads, reviewedToday] =
-      await Promise.all([
-        this.reviewDb.countReviewQueue({
-          statuses: reviewableStatuses,
-          reviewStatus: "all",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.countReviewQueue({
-          statuses: [DocumentStatus.awaiting_review],
-          reviewStatus: "pending",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.findQueueFieldPayloads({
-          statuses: reviewableStatuses,
-          reviewStatus: "all",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
-      ]);
+    const tabFilters: Record<
+      "pending" | "claimed" | "flagged" | "reviewed",
+      ReviewQueueFilters
+    > = {
+      pending: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds,
+        currentReviewerId,
+      },
+      claimed: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        groupIds,
+        currentReviewerId,
+      },
+      flagged: {
+        statuses: reviewableStatuses,
+        reviewStatus: "flagged",
+        groupIds,
+        currentReviewerId,
+      },
+      reviewed: {
+        statuses: reviewableStatuses,
+        reviewStatus: "reviewed",
+        groupIds,
+        currentReviewerId,
+      },
+    };
+
+    const [
+      pendingCount,
+      claimedCount,
+      flaggedCount,
+      reviewedCount,
+      fieldPayloads,
+      reviewedToday,
+    ] = await Promise.all([
+      this.reviewDb.countReviewQueue(tabFilters.pending),
+      this.reviewDb.countReviewQueue(tabFilters.claimed),
+      this.reviewDb.countReviewQueue(tabFilters.flagged),
+      this.reviewDb.countReviewQueue(tabFilters.reviewed),
+      this.reviewDb.findQueueFieldPayloads(Object.values(tabFilters)),
+      this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
+    ]);
 
     return {
-      totalDocuments,
-      requiresReview,
+      // Every tab summed together — documents a workflow completed without
+      // ever routing to review never match any of the four tabs, so they are
+      // correctly excluded here, and from the average below.
+      totalDocuments:
+        pendingCount + claimedCount + flaggedCount + reviewedCount,
+      // "Requires review" spans the Pending and Claimed tabs — a document the
+      // caller has claimed still needs reviewing, it is just no longer unclaimed.
+      requiresReview: pendingCount + claimedCount,
       averageConfidence: averageDocumentConfidence(fieldPayloads),
       reviewedToday,
     };
@@ -553,10 +584,15 @@ export class HitlService {
       corrections: session.corrections,
       fieldDefinitions,
       reviewPlan,
+      flagNote: session.flag_note,
     };
   }
 
-  async submitCorrections(sessionId: string, dto: SubmitCorrectionsDto) {
+  async submitCorrections(
+    sessionId: string,
+    dto: SubmitCorrectionsDto,
+    actorId: string,
+  ) {
     this.logger.debug(`Submitting corrections for session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -582,6 +618,7 @@ export class HitlService {
                 corrected_value: correction.corrected_value,
                 original_conf: correction.original_conf,
                 action: correction.action,
+                actor_id: actorId,
               },
               tx,
             ),
@@ -612,7 +649,7 @@ export class HitlService {
     };
   }
 
-  async approveSession(sessionId: string) {
+  async approveSession(sessionId: string, actorId: string) {
     this.logger.debug(`Approving session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -665,6 +702,7 @@ export class HitlService {
           event_type: "review_session_approved",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
@@ -678,7 +716,7 @@ export class HitlService {
 
     await this.resumeGatedWorkflow(session.document_id, {
       approved: true,
-      reviewer: session.actor_id,
+      reviewer: actorId,
       groupId: doc.group_id,
       workflowExecutionId: doc.workflow_execution_id,
     });
@@ -712,6 +750,108 @@ export class HitlService {
       status: updated.status,
       completedAt: updated.completed_at,
       message: "Review session approved",
+    };
+  }
+
+  /**
+   * Rejects a review session, and the document with it. The session keeps the
+   * reviewer's reason and comment, and the document moves to `rejected` in the
+   * same transaction, so the rejection holds whether or not a workflow is
+   * waiting. The workflow's review gate then fails the run
+   * (HUMAN_GATE_REJECTED); its failure hook only moves documents that are
+   * still in OCR, so it leaves `rejected` alone.
+   */
+  async rejectSession(
+    sessionId: string,
+    dto: RejectSessionDto,
+    actorId: string,
+  ) {
+    this.logger.debug(`Rejecting session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Only a session someone is actually working on can be rejected. Without
+    // this, a double-click or a stale tab rejects twice, each sending its own
+    // rejection signal to the workflow.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.rejected
+          ? "Review session has already been rejected"
+          : `Cannot reject a session that is ${session.status}`,
+      );
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
+    const rejectionComment = dto.comments?.trim() || null;
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.rejected,
+          completed_at: new Date(),
+          rejection_reason: dto.rejectionReason,
+          rejection_comment: rejectionComment,
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.documentService.updateDocument(
+        session.document_id,
+        {
+          status: DocumentStatus.rejected,
+        },
+        tx,
+      );
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_rejected",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          actor_id: actorId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: {
+            document_id: session.document_id,
+            rejection_reason: dto.rejectionReason,
+            comments: rejectionComment,
+          },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
+    });
+
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: false,
+      reviewer: actorId,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
+      comments: rejectionComment ?? undefined,
+      rejectionReason: dto.rejectionReason,
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      completedAt: updated.completed_at,
+      message: "Review session rejected",
     };
   }
 
@@ -767,7 +907,7 @@ export class HitlService {
     };
   }
 
-  async flagSession(sessionId: string) {
+  async flagSession(sessionId: string, dto: FlagSessionDto) {
     this.logger.debug(`Flagging session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -780,10 +920,12 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
+    const flagNote = dto.note?.trim() || null;
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: ReviewStatus.flagged },
+        { status: ReviewStatus.flagged, flag_note: flagNote },
         tx,
       );
 
@@ -801,7 +943,7 @@ export class HitlService {
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id },
+          payload: { document_id: session.document_id, flag_note: flagNote },
         },
         tx,
       );
@@ -950,6 +1092,10 @@ export class HitlService {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          // The session belongs to whoever reopens it, so taking over a flagged
+          // session makes it the new reviewer's. Corrections already saved keep
+          // their own author, and the flag note stays for the new reviewer.
+          actor_id: reviewerId,
         },
         tx,
       );
@@ -1024,25 +1170,44 @@ export class HitlService {
   ) {
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : "pending";
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    // Unlike getQueue, this starts a brand new in_progress session on
+    // whatever it finds. a `complete` document's workflow has already
+    // went past the review gate (see reopenSession's guard against
+    // reopening one), so it must never be an eligible target here.
+    const documents = await this.reviewDb.findReviewQueue({
       statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
-      maxConfidence,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId: reviewerId,
-    })) as DocumentWithOcrResult[];
+    });
 
     // Filter by confidence — same logic as getQueue
-    const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+    const eligible = documents.filter((doc) => {
       if (filters.excludeDocumentId && doc.id === filters.excludeDocumentId) {
         return false;
       }

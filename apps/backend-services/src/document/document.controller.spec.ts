@@ -8,7 +8,6 @@ import {
 import type { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
-import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
 import { DocumentService } from "./document.service";
 
@@ -19,7 +18,6 @@ const mockAuditService = {
 describe("DocumentController", () => {
   let controller: DocumentController;
   let documentService: jest.Mocked<DocumentService>;
-  let temporalClientService: jest.Mocked<TemporalClientService>;
   let blobStorage: jest.Mocked<BlobStorageInterface>;
 
   const mockGroupId = "group-1";
@@ -49,7 +47,6 @@ describe("DocumentController", () => {
       uploadDocument: jest.fn(),
       updateDocumentStatus: jest.fn(),
     } as any;
-    temporalClientService = {} as jest.Mocked<TemporalClientService>;
     blobStorage = {
       read: jest.fn(),
       write: jest.fn(),
@@ -60,7 +57,6 @@ describe("DocumentController", () => {
     } as any;
     controller = new DocumentController(
       documentService,
-      temporalClientService,
       blobStorage,
       mockAppLogger,
       mockAuditService as any,

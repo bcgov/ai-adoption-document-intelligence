@@ -6,18 +6,20 @@ pgBackRest backup running in OpenShift. It covers both the backend database
 
 ## Background
 
-The Crunchy PostgreSQL Operator (PGO) runs two cron jobs per database cluster:
+The Crunchy PostgreSQL Operator (PGO) runs two cron jobs per database cluster,
+and archives WAL continuously between them:
 
-| Job | Schedule | What it does |
-|-----|----------|--------------|
-| Full backup | Daily at 02:00 UTC | Copies the entire database to the backup volume |
-| Incremental backup | Every 60 minutes | Copies only blocks that changed since the last backup |
+| Cluster | Full backup | Incremental backup | Retention |
+|---------|-------------|--------------------|-----------|
+| `app-pg` | Weekly, Sunday 02:00 | Every 4 hours | 2 most recent fulls (count-based) |
+| `temporal-pg` | Daily 02:00 | Every 60 minutes | 14 days (time-based) |
 
-Both types are stored inside the cluster on a dedicated `PersistentVolumeClaim`
-backed by the `netapp-file-backup` storage class (NetApp NFS). Backups are
-retained for **14 days** (`repo1-retention-full` on each `PostgresCluster`),
-after which older full backups and all their dependent incrementals are pruned
-automatically.
+A full backup copies the entire database; an incremental copies only blocks
+changed since the last backup. Both are stored inside the cluster on a dedicated
+`PersistentVolumeClaim` backed by the `netapp-file-backup` storage class
+(NetApp NFS). Fulls that fall outside retention are pruned automatically, along
+with the incrementals and WAL that depend on them. What this means for data loss
+and the recovery window is in [BACKUP_RPO_RTO.md](./BACKUP_RPO_RTO.md).
 
 **This runbook is for restoring from those automated backups.** It is entirely
 separate from `scripts/oc-backup-db.sh` / `oc-restore-db.sh`, which are manual

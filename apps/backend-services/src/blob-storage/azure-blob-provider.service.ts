@@ -230,10 +230,20 @@ export class AzureBlobProviderService
    * @param prefix - The blob name prefix to match for deletion
    */
   async deleteByPrefix(prefix: string): Promise<void> {
-    let deleted = 0;
-
+    const names: string[] = [];
     for await (const blob of this.containerClient.listBlobsFlat({ prefix })) {
-      await this.containerClient.deleteBlob(blob.name);
+      names.push(blob.name);
+    }
+
+    // On a storage account with a hierarchical namespace, directories are
+    // listed as entries of their own, ahead of their contents, and Azure
+    // refuses to delete a non-empty directory. Deleting in reverse
+    // lexicographic order removes every path before its parent directory.
+    names.sort().reverse();
+
+    let deleted = 0;
+    for (const name of names) {
+      await this.containerClient.deleteBlob(name);
       deleted += 1;
     }
 

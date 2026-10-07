@@ -76,7 +76,6 @@ describe("OcrService", () => {
             updateDocument: jest.fn().mockResolvedValue({
               ...defaultDocument,
               status: DocumentStatus.ongoing_ocr,
-              workflow_id: "workflow-123",
             }),
             upsertOcrResult: jest.fn(),
             findOcrResult: jest.fn(),

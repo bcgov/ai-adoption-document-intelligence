@@ -211,8 +211,8 @@ Designer note: simple cases (a single comparison) should look as clean as possib
   - **Type** *(dropdown: text / number / true-false / list / object)*
   - **Required** *(toggle)*
   - **Description** *(short text)*
-- **Timeout** *(duration, required, e.g., `24h`)*
-- **On timeout** *(dropdown, required, default "Fail")*:
+- **Timeout** *(duration, optional, e.g., `24h`)* — Leave blank to wait until the reviewer responds, however long that takes.
+- **On timeout** *(dropdown, required, default "Fail")* — Applies only when a timeout is set:
   - **Fail** — Workflow fails if no response in time.
   - **Continue** — Treat as approved and continue normal flow.
   - **Follow fallback arrow** — Take the fallback outgoing arrow. Selecting this enables an extra outgoing handle on the canvas.

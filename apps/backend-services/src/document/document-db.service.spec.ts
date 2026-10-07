@@ -1,4 +1,10 @@
-import { DocumentStatus, OcrResult, Prisma } from "@generated/client";
+import {
+  DocumentStatus,
+  OcrResult,
+  Prisma,
+  RejectionReason,
+  ReviewStatus,
+} from "@generated/client";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { PrismaService } from "../database/prisma.service";
 import { DocumentDbService } from "./document-db.service";
@@ -9,6 +15,7 @@ const mockPrismaDocument = {
   findUnique: jest.fn(),
   findMany: jest.fn(),
   count: jest.fn(),
+  groupBy: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
 };
@@ -21,6 +28,10 @@ const mockPrismaOcrResult = {
 const mockPrismaClient = {
   document: mockPrismaDocument,
   ocrResult: mockPrismaOcrResult,
+  $transaction: jest.fn(
+    (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+      fn(mockPrismaClient),
+  ),
 };
 
 const mockPrismaService = {
@@ -44,7 +55,6 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   status: DocumentStatus.ongoing_ocr,
   apim_request_id: null,
   model_id: "model-1",
-  workflow_id: null,
   workflow_config_id: null,
   workflow_execution_id: null,
   group_id: "group-1",
@@ -87,7 +97,6 @@ describe("DocumentDbService", () => {
         status: doc.status,
         apim_request_id: null,
         model_id: doc.model_id,
-        workflow_id: null,
         workflow_config_id: null,
         workflow_execution_id: null,
         group_id: doc.group_id,
@@ -138,10 +147,41 @@ describe("DocumentDbService", () => {
   });
 
   describe("findAllDocuments", () => {
+    const listInclude = {
+      workflowVersion: {
+        select: {
+          lineage: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      review_sessions: {
+        where: { status: ReviewStatus.rejected },
+        orderBy: { completed_at: "desc" },
+        take: 1,
+        select: {
+          rejection_reason: true,
+          rejection_comment: true,
+          completed_at: true,
+          actor: { select: { user: { select: { email: true } } } },
+        },
+      },
+    };
+
     it("should return all documents with total when no groupIds provided", async () => {
       const docs = [
-        { ...makeDocument({ id: "doc-1" }), workflowVersion: null },
-        { ...makeDocument({ id: "doc-2" }), workflowVersion: null },
+        {
+          ...makeDocument({ id: "doc-1" }),
+          workflowVersion: null,
+          review_sessions: [],
+        },
+        {
+          ...makeDocument({ id: "doc-2" }),
+          workflowVersion: null,
+          review_sessions: [],
+        },
       ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(2);
@@ -150,27 +190,29 @@ describe("DocumentDbService", () => {
 
       expect(result).toEqual({
         documents: [
-          { ...docs[0], workflow_name: null, workflowVersion: undefined },
-          { ...docs[1], workflow_name: null, workflowVersion: undefined },
+          {
+            ...docs[0],
+            workflowVersion: undefined,
+            review_sessions: undefined,
+            workflow_name: null,
+            rejection: null,
+          },
+          {
+            ...docs[1],
+            workflowVersion: undefined,
+            review_sessions: undefined,
+            workflow_name: null,
+            rejection: null,
+          },
         ],
         total: 2,
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: {},
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 50,
         skip: 0,
-        include: {
-          workflowVersion: {
-            select: {
-              lineage: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
+        include: listInclude,
       });
       expect(mockPrismaDocument.count).toHaveBeenCalledWith({
         where: {},
@@ -178,7 +220,9 @@ describe("DocumentDbService", () => {
     });
 
     it("should filter by groupIds when provided", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
 
@@ -186,31 +230,29 @@ describe("DocumentDbService", () => {
 
       expect(result).toEqual({
         documents: [
-          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+          {
+            ...docs[0],
+            workflowVersion: undefined,
+            review_sessions: undefined,
+            workflow_name: null,
+            rejection: null,
+          },
         ],
         total: 1,
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 50,
         skip: 0,
-        include: {
-          workflowVersion: {
-            select: {
-              lineage: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
+        include: listInclude,
       });
     });
 
     it("should apply limit and offset from options", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(100);
 
@@ -221,31 +263,49 @@ describe("DocumentDbService", () => {
 
       expect(result).toEqual({
         documents: [
-          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+          {
+            ...docs[0],
+            workflowVersion: undefined,
+            review_sessions: undefined,
+            workflow_name: null,
+            rejection: null,
+          },
         ],
         total: 100,
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: {},
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 10,
         skip: 20,
-        include: {
-          workflowVersion: {
-            select: {
-              lineage: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
+        include: listInclude,
       });
     });
 
+    it("should break ties by id when sorting by a column documents share, so paging never repeats or skips one", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([]);
+      mockPrismaDocument.count.mockResolvedValue(0);
+
+      await service.findAllDocuments(undefined, {
+        sortBy: "status",
+        sortDir: "asc",
+        limit: 50,
+        offset: 50,
+      });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ status: "asc" }, { id: "asc" }],
+          take: 50,
+          skip: 50,
+        }),
+      );
+    });
+
     it("should expand the 'failed' status filter to include conversion_failed", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
 
@@ -263,7 +323,9 @@ describe("DocumentDbService", () => {
     });
 
     it("should match a non-failed status filter exactly", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
 
@@ -279,7 +341,9 @@ describe("DocumentDbService", () => {
     });
 
     it("should filter by content_hash when provided", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
       const hash =
@@ -295,7 +359,9 @@ describe("DocumentDbService", () => {
     });
 
     it("should include content_hash in search filter when provided", async () => {
-      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      const docs = [
+        { ...makeDocument(), workflowVersion: null, review_sessions: [] },
+      ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
       mockPrismaDocument.count.mockResolvedValue(1);
 
@@ -321,10 +387,111 @@ describe("DocumentDbService", () => {
       );
     });
 
+    it("returns why and by whom a rejected document was rejected", async () => {
+      const rejectedAt = new Date("2026-10-05T17:00:00Z");
+      mockPrismaDocument.findMany.mockResolvedValue([
+        {
+          ...makeDocument({ status: DocumentStatus.rejected }),
+          workflowVersion: { lineage: { name: "Standard OCR" } },
+          review_sessions: [
+            {
+              rejection_reason: RejectionReason.MODEL_MISMATCH,
+              rejection_comment: "This is a T4, not a monthly report.",
+              completed_at: rejectedAt,
+              actor: { user: { email: "reviewer@example.com" } },
+            },
+          ],
+        },
+      ]);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      const { documents } = await service.findAllDocuments();
+
+      expect(documents[0]).toMatchObject({
+        workflow_name: "Standard OCR",
+        rejection: {
+          reason: RejectionReason.MODEL_MISMATCH,
+          comment: "This is a T4, not a monthly report.",
+          rejected_at: rejectedAt,
+          rejected_by: "reviewer@example.com",
+        },
+      });
+      expect(documents[0]).not.toHaveProperty("review_sessions");
+      expect(documents[0]).not.toHaveProperty("workflowVersion");
+    });
+
+    it("has no reviewer email when an API key rejected the document", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([
+        {
+          ...makeDocument({ status: DocumentStatus.rejected }),
+          workflowVersion: null,
+          review_sessions: [
+            {
+              rejection_reason: RejectionReason.INPUT_QUALITY,
+              rejection_comment: null,
+              completed_at: new Date(),
+              actor: { user: null },
+            },
+          ],
+        },
+      ]);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      const { documents } = await service.findAllDocuments();
+
+      expect(documents[0].rejection?.rejected_by).toBeNull();
+    });
+
+    it("gives no rejection for a document that is no longer rejected", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([
+        {
+          ...makeDocument({ status: DocumentStatus.complete }),
+          workflowVersion: null,
+          review_sessions: [
+            {
+              rejection_reason: RejectionReason.INPUT_QUALITY,
+              rejection_comment: null,
+              completed_at: new Date(),
+              actor: { user: { email: "reviewer@example.com" } },
+            },
+          ],
+        },
+      ]);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      const { documents } = await service.findAllDocuments();
+
+      expect(documents[0].rejection).toBeNull();
+    });
+
     it("should throw if prisma throws", async () => {
       mockPrismaDocument.findMany.mockRejectedValue(new Error("DB error"));
       mockPrismaDocument.count.mockResolvedValue(0);
       await expect(service.findAllDocuments()).rejects.toThrow("DB error");
+    });
+  });
+
+  describe("getDocumentStatusCounts", () => {
+    it("counts rejected documents apart from failed ones", async () => {
+      mockPrismaDocument.groupBy.mockResolvedValue([
+        { status: DocumentStatus.complete, _count: { _all: 4 } },
+        { status: DocumentStatus.failed, _count: { _all: 2 } },
+        { status: DocumentStatus.rejected, _count: { _all: 3 } },
+      ]);
+      mockPrismaDocument.count.mockResolvedValue(9);
+
+      const counts = await service.getDocumentStatusCounts(["group-1"]);
+
+      expect(counts).toMatchObject({
+        total: 9,
+        complete: 4,
+        failed: 2,
+        rejected: 3,
+        awaiting_review: 0,
+      });
+      expect(mockPrismaDocument.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { group_id: { in: ["group-1"] } } }),
+      );
     });
   });
 

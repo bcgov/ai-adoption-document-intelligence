@@ -13,7 +13,7 @@ const REVIEW_FLOW_PERMISSIONS: [string, Permission][] = [
     Permission.HITL_SESSION_RETRIEVE,
   ],
   [
-    "POST /hitl/sessions/:id/submit, skip, flag and heartbeat",
+    "POST /hitl/sessions/:id/approve, skip, flag and heartbeat",
     Permission.HITL_SESSION_PROGRESS,
   ],
   ["POST /hitl/sessions/:id/reopen", Permission.HITL_SESSION_REOPEN],
@@ -22,7 +22,7 @@ const REVIEW_FLOW_PERMISSIONS: [string, Permission][] = [
     "DELETE /hitl/sessions/:id/corrections/:correctionId",
     Permission.HITL_CORRECTION_DELETE,
   ],
-  ["POST /documents/:documentId/approve", Permission.HITL_APPROVE_DENY],
+  ["POST /hitl/sessions/:id/reject", Permission.HITL_APPROVE_DENY],
   ["GET /documents/:documentId/view", Permission.DOCUMENT_VIEW],
   ["GET /documents/:documentId/download", Permission.DOCUMENT_DOWNLOAD],
   ["GET /groups/:groupId/members", Permission.GROUP_RETRIEVE],

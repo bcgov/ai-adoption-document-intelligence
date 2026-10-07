@@ -109,9 +109,7 @@ export class OcrService {
       const fileType = "pdf";
       const contentType = "application/pdf";
 
-      // Get workflow_config_id from document if available
-      // This references the Workflow table and contains the workflow configuration
-      // Fallback to legacy workflow_id for backward compatibility during migration
+      // The workflow version the document was uploaded through
       const workflowConfigId = document.workflow_config_id || undefined;
       if (workflowConfigId) {
         this.logger.log(

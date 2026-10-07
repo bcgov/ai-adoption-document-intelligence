@@ -78,7 +78,6 @@ const makeReviewSession = (
       status: DocumentStatus.extracted,
       apim_request_id: null,
       model_id: "model-1",
-      workflow_id: null,
       workflow_config_id: null,
       workflow_execution_id: null,
       group_id: "group-1",
@@ -208,6 +207,24 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should load only the OCR field payload and the workflow's name, not the full OCR text", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.include.ocr_result).toEqual({
+        select: { keyValuePairs: true },
+      });
+      expect(args.include.workflowVersion).toEqual({
+        select: { lineage: { select: { name: true } } },
+      });
+      expect(args.include.lock).toBe(true);
+    });
+
     it("should restrict the queue to api-sourced documents and exclude ground truth jobs", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
@@ -236,7 +253,62 @@ describe("ReviewDbService", () => {
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it("should exclude documents the caller has an active lock on from the pending filter", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              {
+                OR: [
+                  { lock: null },
+                  { lock: { expires_at: { lte: expect.any(Date) } } },
+                ],
+              },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it("should apply claimed review status filter, scoped to the current reviewer's active lock", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        currentReviewerId: "reviewer-1",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              {
+                lock: {
+                  is: {
+                    expires_at: { gt: expect.any(Date) },
+                    reviewer_id: "reviewer-1",
+                  },
+                },
+              },
+            ]),
           }),
         }),
       );
@@ -257,6 +329,162 @@ describe("ReviewDbService", () => {
           }),
         }),
       );
+    });
+
+    it("should scope lastSession to only flagged sessions on the flagged tab, so a newer abandoned attempt cannot shadow it", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "flagged",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: { status: { in: [ReviewStatus.flagged] } },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should scope lastSession to only approved sessions on the reviewed tab", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "reviewed",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: { status: { in: [ReviewStatus.approved] } },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should scope lastSession to approved/flagged/abandoned for tabs other than flagged/reviewed", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: {
+                status: {
+                  in: [
+                    ReviewStatus.approved,
+                    ReviewStatus.flagged,
+                    ReviewStatus.abandoned,
+                  ],
+                },
+              },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should filter by workflow through the version's lineage, so every version of the workflow matches", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        workflowId: "lineage-1",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.workflowVersion).toEqual({ lineage_id: "lineage-1" });
+    });
+
+    it("should sort by workflow name through the version's lineage", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "workflow",
+        sortDir: "asc",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual([
+        { workflowVersion: { lineage: { name: "asc" } } },
+        { id: "asc" },
+      ]);
+    });
+
+    it("should sort by the document column for the other sort keys, newest first by default", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "filename",
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { original_filename: "desc" },
+        { id: "asc" },
+      ]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { created_at: "desc" },
+        { id: "asc" },
+      ]);
+    });
+
+    it("should break ties by id, so documents that share a model page the same way every time", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "model",
+        sortDir: "asc",
+        limit: 50,
+        offset: 50,
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual([{ model_id: "asc" }, { id: "asc" }]);
+      expect(args).toMatchObject({ take: 50, skip: 50 });
+    });
+
+    it("should search filenames case-insensitively, matching any part of the name", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        search: "Regular",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.original_filename).toEqual({
+        contains: "Regular",
+        mode: "insensitive",
+      });
+    });
+
+    it("should leave filenames unfiltered without a search", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where).not.toHaveProperty("original_filename");
     });
 
     it("should apply groupIds filter", async () => {
@@ -477,6 +705,10 @@ describe("ReviewDbService", () => {
       await service.getReviewAnalytics({ reviewerId: "reviewer-1" });
 
       expect(mockReviewSession.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ actor_id: "reviewer-1" }),
+      });
+      // Corrections are attributed to whoever made them, not whoever currently owns the session.
+      expect(mockFieldCorrection.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({ actor_id: "reviewer-1" }),
       });
     });
@@ -884,8 +1116,12 @@ describe("ReviewDbService", () => {
         in: [DocumentStatus.awaiting_review],
       });
       expect(args.where.group_id).toEqual({ in: ["group-1"] });
-      expect(args.where.OR).toEqual(
-        expect.arrayContaining([{ review_sessions: { none: {} } }]),
+      expect(args.where.AND).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+          }),
+        ]),
       );
       // A count must not be paginated, or it is just a page size
       expect(args).not.toHaveProperty("take");
@@ -894,22 +1130,47 @@ describe("ReviewDbService", () => {
   });
 
   describe("findQueueFieldPayloads", () => {
-    it("selects only OCR fields, for every matching document", async () => {
+    it("selects only OCR fields, for every document matching any of the filters", async () => {
       mockDocument.findMany.mockResolvedValue([
         { ocr_result: { keyValuePairs: { a: { confidence: 0.5 } } } },
         { ocr_result: { keyValuePairs: null } },
       ]);
 
-      const result = await service.findQueueFieldPayloads({
-        statuses: [DocumentStatus.awaiting_review],
-        reviewStatus: "all",
-      });
+      const result = await service.findQueueFieldPayloads([
+        { statuses: [DocumentStatus.awaiting_review], reviewStatus: "pending" },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "flagged",
+        },
+      ]);
 
       expect(result).toEqual([{ a: { confidence: 0.5 } }]);
       const [args] = mockDocument.findMany.mock.calls.at(-1)!;
       expect(args.select).toEqual({
         ocr_result: { select: { keyValuePairs: true } },
       });
+      expect(args.where.ocr_result).toEqual({ isNot: null });
+      // One branch per filter, each the full queue filter for that tab
+      expect(args.where.OR).toHaveLength(2);
+      expect(args.where.OR[0]).toEqual(
+        expect.objectContaining({
+          status: { in: [DocumentStatus.awaiting_review] },
+          AND: expect.arrayContaining([
+            expect.objectContaining({ OR: expect.any(Array) }),
+          ]),
+        }),
+      );
+      expect(args.where.OR[1]).toEqual(
+        expect.objectContaining({
+          status: {
+            in: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          },
+          review_sessions: {
+            some: { status: ReviewStatus.flagged },
+            none: { status: ReviewStatus.approved },
+          },
+        }),
+      );
       expect(args).not.toHaveProperty("take");
     });
   });
@@ -935,12 +1196,19 @@ describe("ReviewDbService", () => {
   });
 
   describe("expired lock handling", () => {
-    it("returns expired locks with the context an audit event needs", async () => {
+    it("returns expired locks with the context an audit event needs, and whether the session carries a flag note", async () => {
       mockDocumentLock.findMany.mockResolvedValue([
         {
           session_id: "session-1",
           document_id: "doc-1",
           document: { group_id: "group-1", workflow_execution_id: "wf-1" },
+          session: { flag_note: null },
+        },
+        {
+          session_id: "session-2",
+          document_id: "doc-2",
+          document: { group_id: "group-1", workflow_execution_id: null },
+          session: { flag_note: "Date on page 1 is ambiguous" },
         },
       ]);
       const now = new Date("2026-08-25T12:00:00.000Z");
@@ -953,11 +1221,31 @@ describe("ReviewDbService", () => {
           document_id: "doc-1",
           group_id: "group-1",
           workflow_execution_id: "wf-1",
+          has_flag_note: false,
+        },
+        {
+          session_id: "session-2",
+          document_id: "doc-2",
+          group_id: "group-1",
+          workflow_execution_id: null,
+          has_flag_note: true,
         },
       ]);
       expect(mockDocumentLock.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { expires_at: { lte: now } } }),
       );
+    });
+
+    it("returns only sessions still in progress to flagged", async () => {
+      mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.returnSessionsToFlagged(["session-2"]);
+
+      expect(result).toBe(1);
+      expect(mockReviewSession.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["session-2"] }, status: ReviewStatus.in_progress },
+        data: { status: ReviewStatus.flagged },
+      });
     });
 
     it("abandons only sessions still in progress", async () => {

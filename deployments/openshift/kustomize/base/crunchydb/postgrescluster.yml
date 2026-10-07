@@ -25,8 +25,12 @@ spec:
   backups:
     pgbackrest:
       global:
-        repo1-retention-full: '14' # Retain backups for 14 days. All full and incremental after this will be removed.
-        repo1-retention-full-type: time
+        # Keep the 2 most recent full backups (covers ~2 weeks with weekly fulls).
+        # All incrementals newer than the oldest retained full are also kept.
+        # Use count-based retention so the window doesn't grow unboundedly when
+        # a scheduled full is missed.
+        repo1-retention-full: '2'
+        repo1-retention-full-type: count
         # Block incremental: back up only the changed blocks within a file rather
         # than re-copying the whole changed file segment. Prevents backup/WAL
         # bloat from high-churn tables (e.g. ocr_results), which previously filled
@@ -34,11 +38,26 @@ spec:
         # (pgBackRest 2.46+)
         repo1-block: 'y'
         repo1-bundle: 'y'
+        # zstd compression: better ratio and faster than the default gzip,
+        # well-supported in pgBackRest 2.46+ and Crunchy PGO 5.x.
+        # Level 3 is the fast default; raise to 6 for ~10% better ratio at
+        # the cost of higher CPU during backup windows.
+        # Compression is not repo-indexed in pgBackRest: the option names are
+        # compress-type/compress-level with no repoN- prefix. A prefixed form is
+        # rejected as "not valid for command 'backup'", the config warning prints
+        # on every pgbackrest invocation, and compression silently stays on gz.
+        compress-type: zst
+        compress-level: '3'
       repos:
         - name: repo1
           schedules:
-            full: '0 2 * * *'
-            incremental: '*/60 * * * *'
+            # Full backup once per week (Sunday 02:00). Weekly fulls combined
+            # with block-incremental backups keep the repo small while still
+            # providing intra-day recovery points.
+            full: '0 2 * * 0'
+            # Incremental every 4 hours. Hourly incrementals were overkill given
+            # that source files live in blob storage; 4-hour RPO is sufficient.
+            incremental: '0 */4 * * *'
           volume:
             volumeClaimSpec:
               storageClassName: netapp-file-backup

@@ -75,7 +75,6 @@ function queueUrl(extra = {}) {
   const params = {
     group_id: groupId,
     reviewStatus,
-    maxConfidence,
     limit: queueLimit,
     ...extra,
   };
@@ -209,7 +208,7 @@ function runSessionRequests() {
 
   let actionRes = null;
   if (sessionMode === "submit") {
-    actionRes = http.post(sessionUrl(sessionId, "/submit"), null, {
+    actionRes = http.post(sessionUrl(sessionId, "/approve"), null, {
       headers: authHeaders(),
       timeout: "60s",
     });

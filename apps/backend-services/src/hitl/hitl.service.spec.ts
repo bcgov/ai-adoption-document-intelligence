@@ -2,6 +2,7 @@ import {
   CorrectionAction as DbCorrectionAction,
   DocumentStatus,
   Prisma,
+  RejectionReason,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -20,13 +21,14 @@ import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { CorrectionAction, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
-import { ReviewDbService } from "./review-db.service";
+import { ReviewDbService, type ReviewQueueDocument } from "./review-db.service";
 
 describe("HitlService", () => {
   let service: HitlService;
@@ -53,7 +55,6 @@ describe("HitlService", () => {
     created_at: new Date(),
     updated_at: new Date(),
     purged_at: null,
-    workflow_id: null,
     workflow_config_id: null,
     workflow_execution_id: null,
     group_id: "group-1",
@@ -115,6 +116,7 @@ describe("HitlService", () => {
     original_conf: 0.85,
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
+    actor_id: "actor-1",
   };
 
   beforeEach(async () => {
@@ -199,10 +201,9 @@ describe("HitlService", () => {
   });
 
   describe("getQueue", () => {
-    it("should return filtered documents with low confidence fields", async () => {
+    it("should return documents from the queue with their computed average confidence", async () => {
       const filters: QueueFilterDto = {
         group_id: "group-1",
-        maxConfidence: 0.9,
         limit: 50,
         offset: 0,
       };
@@ -217,7 +218,6 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
-        maxConfidence: 0.9,
         limit: 50,
         offset: 0,
         reviewStatus: "pending",
@@ -227,32 +227,35 @@ describe("HitlService", () => {
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].id).toBe("doc-1");
-      expect(result.documents[0].ocr_result.fields).toEqual(
-        mockOcrResult.keyValuePairs,
-      );
       // The total counts the whole queue, not the page that was returned
       expect(result.total).toBe(137);
     });
 
-    it("should filter out documents without OCR results", async () => {
-      const docWithoutOcr = {
+    it("should name each document's workflow, or give null when it was uploaded without one", async () => {
+      const queueRow: ReviewQueueDocument = {
         ...mockDocument,
-        ocr_result: null,
+        ocr_result: { keyValuePairs: mockOcrResult.keyValuePairs },
+        lock: null,
+        workflowVersion: { lineage: { name: "Invoice intake" } },
+        review_sessions: [],
       };
-
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
-        docWithoutOcr as any,
+        queueRow,
+        { ...queueRow, id: "doc-2", workflowVersion: null },
       ]);
+      mockReviewDbService.countReviewQueue.mockResolvedValueOnce(2);
 
       const result = await service.getQueue({ group_id: "group-1" });
 
-      expect(result.documents).toHaveLength(0);
-      expect(result.total).toBe(0);
+      expect(result.documents.map((doc) => doc.workflow_name)).toEqual([
+        "Invoice intake",
+        null,
+      ]);
     });
 
-    it("should filter out documents with all high confidence fields", async () => {
+    it("should not filter documents by confidence — that is the workflow's job", async () => {
       const docWithHighConfidence = {
-        ...mockDocument,
+        ...mockDocumentWithOcr,
         ocr_result: {
           ...mockOcrResult,
           keyValuePairs: {
@@ -265,14 +268,12 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         docWithHighConfidence as any,
       ]);
+      mockReviewDbService.countReviewQueue.mockResolvedValueOnce(1);
 
-      const result = await service.getQueue({
-        group_id: "group-1",
-        maxConfidence: 0.9,
-      });
+      const result = await service.getQueue({ group_id: "group-1" });
 
-      expect(result.documents).toHaveLength(0);
-      expect(result.total).toBe(0);
+      expect(result.documents).toHaveLength(1);
+      expect(result.total).toBe(1);
     });
 
     it("should include last session information if available", async () => {
@@ -338,6 +339,25 @@ describe("HitlService", () => {
       );
     });
 
+    it("should handle CLAIMED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr as any,
+      ]);
+
+      await service.getQueue(
+        { group_id: "group-1", reviewStatus: ReviewStatusFilter.CLAIMED },
+        undefined,
+        "reviewer-1",
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "claimed",
+          currentReviewerId: "reviewer-1",
+        }),
+      );
+    });
+
     it("should include complete documents in the REVIEWED filter so approved docs appear", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr as any,
@@ -378,7 +398,6 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
-        maxConfidence: 0.9,
         limit: 50,
         offset: 0,
         reviewStatus: "pending",
@@ -389,10 +408,12 @@ describe("HitlService", () => {
   });
 
   describe("getQueueStats", () => {
-    it("should count the whole queue rather than one page of it", async () => {
+    it("should sum the pending, claimed, flagged, and reviewed tabs into the total, excluding documents that skipped review entirely", async () => {
       mockReviewDbService.countReviewQueue
-        .mockResolvedValueOnce(320) // total reviewable documents
-        .mockResolvedValueOnce(214); // pending documents
+        .mockResolvedValueOnce(140) // pending documents
+        .mockResolvedValueOnce(74) // claimed documents
+        .mockResolvedValueOnce(30) // flagged documents
+        .mockResolvedValueOnce(76); // reviewed documents
       mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([
         { a: { confidence: 0.9 }, b: { confidence: 0.7 } },
         { a: { confidence: 0.6 } },
@@ -403,6 +424,7 @@ describe("HitlService", () => {
 
       expect(result).toEqual({
         totalDocuments: 320,
+        // Requires review spans the Pending and Claimed tabs
         requiresReview: 214,
         averageConfidence: 0.7,
         reviewedToday: 7,
@@ -416,17 +438,29 @@ describe("HitlService", () => {
 
       await service.getQueueStats(["group-1"], "reviewer-1");
 
-      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
-        statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
-        reviewStatus: "all",
-        groupIds: ["group-1"],
-        currentReviewerId: "reviewer-1",
-      });
-      // The caller's own locked document still counts as theirs to review,
-      // so this must match what the Pending tab lists.
+      // Requires review must count both the Pending and Claimed tabs, since a
+      // document the caller has claimed still needs reviewing.
       expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
         reviewStatus: "pending",
+        groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
+      });
+      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
+      });
+      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+        reviewStatus: "flagged",
+        groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
+      });
+      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+        reviewStatus: "reviewed",
         groupIds: ["group-1"],
         currentReviewerId: "reviewer-1",
       });
@@ -437,6 +471,43 @@ describe("HitlService", () => {
       expect(since.getHours()).toBe(0);
       expect(since.getMinutes()).toBe(0);
       expect(since.toDateString()).toBe(new Date().toDateString());
+    });
+
+    it("should average confidence over exactly the documents the four tabs list", async () => {
+      mockReviewDbService.countReviewQueue.mockResolvedValue(0);
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([]);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
+
+      await service.getQueueStats(["group-1"], "reviewer-1");
+
+      // The same per-tab filters as the counts, so a document a workflow
+      // completed without routing to review is left out of the average too.
+      expect(mockReviewDbService.findQueueFieldPayloads).toHaveBeenCalledWith([
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "pending",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "claimed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "flagged",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+        {
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+          reviewStatus: "reviewed",
+          groupIds: ["group-1"],
+          currentReviewerId: "reviewer-1",
+        },
+      ]);
     });
 
     it("should report zero average confidence when no document carries field confidence", async () => {
@@ -789,7 +860,11 @@ describe("HitlService", () => {
           field_key: "total_amount",
         });
 
-      const result = await service.submitCorrections("session-1", dto);
+      const result = await service.submitCorrections(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -797,6 +872,11 @@ describe("HitlService", () => {
       expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledTimes(
         2,
       );
+      // each correction is credited to whoever submitted it
+      for (const [, correction] of mockReviewDbService.createFieldCorrection
+        .mock.calls) {
+        expect(correction).toMatchObject({ actor_id: "reviewer-1" });
+      }
 
       expect(result).toEqual({
         sessionId: "session-1",
@@ -820,7 +900,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
-        service.submitCorrections("non-existent", dto),
+        service.submitCorrections("non-existent", dto, "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
@@ -843,7 +923,7 @@ describe("HitlService", () => {
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
-      const result = await service.approveSession("session-1");
+      const result = await service.approveSession("session-1", "reviewer-1");
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -872,11 +952,210 @@ describe("HitlService", () => {
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
-      await expect(service.approveSession("non-existent")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.approveSession("non-existent", "reviewer-1"),
+      ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rejectSession", () => {
+    const dto: RejectSessionDto = {
+      rejectionReason: RejectionReason.INPUT_QUALITY,
+    };
+
+    it("should reject the session and the document, and release the lock", async () => {
+      const rejectedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        rejectedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.rejectSession(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
+
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.rejected,
+          completed_at: expect.any(Date),
+          rejection_reason: RejectionReason.INPUT_QUALITY,
+          rejection_comment: null,
+        },
+        expect.anything(),
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
+        expect.anything(),
+      );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.rejected },
+        expect.anything(),
+      );
+
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.rejected,
+        completedAt: rejectedSession.completed_at,
+        message: "Review session rejected",
+      });
+    });
+
+    it("should throw NotFoundException if session does not exist", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(
+        service.rejectSession("non-existent", dto, "reviewer-1"),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should refuse to reject a session twice", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(
+        service.rejectSession("session-1", dto, "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("signals the workflow the document is parked in", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession("session-1", dto, "reviewer-1");
+
+      // workflow id is derived from the document, not the billing run id
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        {
+          approved: false,
+          reviewer: "reviewer-1",
+          comments: undefined,
+          rejectionReason: RejectionReason.INPUT_QUALITY,
+        },
+      );
+    });
+
+    it("stores the trimmed comment on the session and in the audit event", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession(
+        "session-1",
+        {
+          rejectionReason: RejectionReason.MODEL_MISMATCH,
+          comments: "  Wrong form: this is a T4, not a monthly report.  ",
+        },
+        "reviewer-1",
+      );
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          rejection_reason: RejectionReason.MODEL_MISMATCH,
+          rejection_comment: "Wrong form: this is a T4, not a monthly report.",
+        }),
+        expect.anything(),
+      );
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_rejected",
+          payload: {
+            document_id: "doc-1",
+            rejection_reason: RejectionReason.MODEL_MISMATCH,
+            comments: "Wrong form: this is a T4, not a monthly report.",
+          },
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("still rejects the document when no workflow is waiting", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+      mockTemporal.sendHumanApproval.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      const result = await service.rejectSession(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
+
+      expect(result.status).toBe(ReviewStatus.rejected);
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.rejected },
+        expect.anything(),
+      );
+    });
+
+    it("names the person who rejected, not whoever started the session", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession("session-1", dto, "reviewer-2");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_rejected",
+          actor_id: "reviewer-2",
+        }),
+        expect.anything(),
+      );
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        expect.objectContaining({ reviewer: "reviewer-2" }),
+      );
     });
   });
 
@@ -938,11 +1217,11 @@ describe("HitlService", () => {
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
-      const result = await service.flagSession("session-1");
+      const result = await service.flagSession("session-1", {});
 
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
-        { status: ReviewStatus.flagged },
+        { status: ReviewStatus.flagged, flag_note: null },
         expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
@@ -956,10 +1235,38 @@ describe("HitlService", () => {
       });
     });
 
+    it("should store a trimmed flag note against the session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      await service.flagSession("session-1", {
+        note: "  waiting on legal to confirm the address  ",
+      });
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.flagged,
+          flag_note: "waiting on legal to confirm the address",
+        },
+        expect.anything(),
+      );
+    });
+
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
-      await expect(service.flagSession("non-existent")).rejects.toThrow(
+      await expect(service.flagSession("non-existent", {})).rejects.toThrow(
         NotFoundException,
       );
 
@@ -1147,7 +1454,7 @@ describe("HitlService", () => {
         approvedSession() as any,
       );
 
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       // workflow id is derived from the document, not the billing run id
       expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
@@ -1156,6 +1463,30 @@ describe("HitlService", () => {
           approved: true,
           reviewer: "reviewer-1",
         },
+      );
+    });
+
+    it("names the person who approved, not whoever started the session", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+
+      await service.approveSession("session-1", "reviewer-2");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_session_approved",
+          actor_id: "reviewer-2",
+        }),
+        expect.anything(),
+      );
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        expect.objectContaining({ approved: true, reviewer: "reviewer-2" }),
       );
     });
 
@@ -1170,7 +1501,7 @@ describe("HitlService", () => {
         new Error("workflow execution not found"),
       );
 
-      const result = await service.approveSession("session-1");
+      const result = await service.approveSession("session-1", "reviewer-1");
 
       expect(result.status).toBe(ReviewStatus.approved);
       expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
@@ -1189,7 +1520,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession() as any,
       );
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       expect(audit).toHaveBeenCalledWith(
         expect.objectContaining({ event_type: "human_approval_signal_sent" }),
@@ -1205,7 +1536,7 @@ describe("HitlService", () => {
       mockTemporal.sendHumanApproval.mockRejectedValueOnce(
         new Error("workflow execution not found"),
       );
-      await service.approveSession("session-1");
+      await service.approveSession("session-1", "reviewer-1");
 
       expect(audit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1225,9 +1556,9 @@ describe("HitlService", () => {
         status: ReviewStatus.approved,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
       expect(mockDocumentService.updateDocument).not.toHaveBeenCalled();
@@ -1239,9 +1570,9 @@ describe("HitlService", () => {
         status: ReviewStatus.flagged,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should refuse to approve a session whose lock expired", async () => {
@@ -1250,9 +1581,9 @@ describe("HitlService", () => {
         status: ReviewStatus.abandoned,
       } as any);
 
-      await expect(service.approveSession("session-1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.approveSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -1298,6 +1629,7 @@ describe("HitlService", () => {
         ...mockReviewSession,
         status: ReviewStatus.flagged,
         completed_at: null,
+        flag_note: "waiting on legal to confirm the address",
         document: { ...mockDocumentWithOcr, groundTruthJob: null },
       };
 
@@ -1308,6 +1640,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...flaggedSession,
         status: ReviewStatus.in_progress,
+        actor_id: "other-reviewer",
       } as any);
       mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
         mockDocumentLock,
@@ -1316,6 +1649,13 @@ describe("HitlService", () => {
       const result = await service.reopenSession("session-1", "other-reviewer");
 
       expect(result.status).toBe(ReviewStatus.in_progress);
+      // the session becomes the new reviewer's, and the flag note stays for them
+      const [, update] = mockReviewDbService.updateReviewSession.mock.calls[0];
+      expect(update).toMatchObject({
+        status: ReviewStatus.in_progress,
+        actor_id: "other-reviewer",
+      });
+      expect(update).not.toHaveProperty("flag_note");
       // the lock moves to whoever took it, not to whoever flagged it
       expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
         expect.objectContaining({ reviewer_id: "other-reviewer" }),
@@ -1415,6 +1755,7 @@ describe("HitlService", () => {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          actor_id: "reviewer-1",
         },
         expect.anything(),
       );
@@ -1492,7 +1833,6 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
         modelId: undefined,
-        maxConfidence: 0.9,
         limit: 10,
         reviewStatus: "pending",
         groupIds: ["group-1"],
@@ -1500,6 +1840,59 @@ describe("HitlService", () => {
       });
       expect(result).not.toBeNull();
       expect(result?.id).toBe("session-1");
+    });
+
+    it("should handle CLAIMED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.CLAIMED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "claimed",
+          currentReviewerId: "reviewer-1",
+        }),
+      );
+    });
+
+    it("should handle FLAGGED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.FLAGGED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "flagged",
+        }),
+      );
     });
 
     it("should return null when no eligible documents", async () => {

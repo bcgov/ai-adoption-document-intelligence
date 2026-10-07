@@ -1,16 +1,18 @@
 import {
   IconAlertCircle,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconClock,
   IconEye,
   IconFlag,
+  IconSearch,
+  IconSelector,
 } from "@tabler/icons-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { FC, useState } from "react";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
-import { apiService } from "@/data/services/api.service";
-import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
+import { useModels } from "../../../../data/hooks/useModels";
+import { useWorkflows } from "../../../../data/hooks/useWorkflows";
 import {
   Badge,
   Button,
@@ -20,64 +22,155 @@ import {
   Loader,
   notifications,
   PageHeader,
+  Pagination,
   PanelCard,
+  Select,
   SimpleGrid,
   Stack,
   StatCard,
   Tabs,
   Text,
+  TextInput,
+  UnstyledButton,
 } from "../../../../ui";
-import type { QueueDocument } from "../hooks/useReviewQueue";
 import { useReviewQueue } from "../hooks/useReviewQueue";
+
+type SortField = "filename" | "created_at" | "model" | "workflow";
+
+// The pager draws its previous and next arrows as bare icons, so name them
+// for screen readers.
+const PAGER_CONTROL_LABELS = {
+  first: "First page",
+  previous: "Previous page",
+  next: "Next page",
+  last: "Last page",
+} as const;
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: "asc" | "desc";
+}) {
+  if (sortField !== field) return <IconSelector size={14} />;
+  return sortDir === "asc" ? (
+    <IconChevronUp size={14} />
+  ) : (
+    <IconChevronDown size={14} />
+  );
+}
 
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
+  const [pageNumber, setPageNumber] = useState<number>(0);
+  const [searchInput, setSearchInput] = useState(""); // Immediate input value
+  const [search, setSearch] = useState(""); // Debounced search query
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
+  const [workflowFilter, setWorkflowFilter] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const PAGE_SIZE = 50;
+  const offset = useMemo(() => PAGE_SIZE * pageNumber, [pageNumber]);
+
+  const { data: models } = useModels();
+  const { data: workflows } = useWorkflows();
+
+  // Debounce search input (500ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Reset to the first page when a filter or sort changes
+  useEffect(() => {
+    setPageNumber(0);
+  }, [search, modelFilter, workflowFilter, sortField, sortDir]);
+
+  const toggleSort = (field: SortField): void => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
 
   const pendingQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "pending",
+    offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
+  });
+
+  const claimedQueue = useReviewQueue({
+    limit: PAGE_SIZE,
+    reviewStatus: "claimed",
+    offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const reviewedQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "reviewed",
+    offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const flaggedQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "flagged",
+    offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
-  const activeQueue =
-    activeTab === "reviewed"
-      ? reviewedQueue
-      : activeTab === "flagged"
-        ? flaggedQueue
-        : pendingQueue;
+  const queuesByTab: Record<string, ReturnType<typeof useReviewQueue>> = {
+    pending: pendingQueue,
+    claimed: claimedQueue,
+    flagged: flaggedQueue,
+    reviewed: reviewedQueue,
+  };
+  const activeQueue = queuesByTab[activeTab ?? "pending"] ?? pendingQueue;
+  const totalPages = Math.ceil(activeQueue.total / PAGE_SIZE);
+
+  // The queue refreshes every 30 seconds and other reviewers claim documents,
+  // so a tab can shrink while someone is on its last page. Step back to the
+  // last page that still has documents rather than leave them on an empty one.
+  useEffect(() => {
+    if (pageNumber > 0 && pageNumber >= totalPages) {
+      setPageNumber(Math.max(totalPages - 1, 0));
+    }
+  }, [pageNumber, totalPages]);
 
   // Queue-wide figures: the same for every tab, so read them from one queue.
   const stats = pendingQueue.stats;
-
-  const [takingSessionId, setTakingSessionId] = useState<string | null>(null);
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.9) return "green";
     if (confidence >= 0.7) return "yellow";
     return "red";
-  };
-
-  const getAverageConfidence = (doc: QueueDocument) => {
-    if (!doc.ocr_result?.fields) return 0;
-    const fields = Object.values(doc.ocr_result.fields);
-    if (fields.length === 0) return 0;
-    const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
-    return sum / fields.length;
   };
 
   // A tab loads one page of documents. Say so when the queue holds more than
@@ -119,32 +212,6 @@ export const ReviewQueuePage: FC = () => {
     }
   };
 
-  // Takes over a flagged document: the session goes back to in progress, the
-  // lock moves to this reviewer, and the previous reviewer's corrections stay.
-  const handleTakeSession = async (sessionId: string) => {
-    setTakingSessionId(sessionId);
-    try {
-      const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/reopen`,
-        {},
-      );
-      if (!response.success) throw new Error(response.message);
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
-      navigate(`/review/${sessionId}`);
-    } catch {
-      notifications.show({
-        title: "Could not take this document",
-        message:
-          "Another reviewer may have taken it already. Refresh the queue and try again.",
-        color: "red",
-        autoClose: 5000,
-      });
-    } finally {
-      setTakingSessionId(null);
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "approved":
@@ -157,6 +224,8 @@ export const ReviewQueuePage: FC = () => {
         return "blue";
     }
   };
+
+  const avgConfidence = stats ? Math.round(stats.averageConfidence * 100) : NaN;
 
   return (
     <Stack gap="lg">
@@ -175,7 +244,7 @@ export const ReviewQueuePage: FC = () => {
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(stats.averageConfidence * 100)}%`}
+            value={`${Number.isNaN(avgConfidence) ? "-" : avgConfidence}%`}
           />
           <StatCard
             label="Reviewed today"
@@ -186,10 +255,50 @@ export const ReviewQueuePage: FC = () => {
       )}
 
       <PanelCard>
-        <Tabs value={activeTab} onChange={setActiveTab}>
+        <Group gap="md" align="flex-end" mb="md">
+          <TextInput
+            placeholder="Search by filename"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.currentTarget.value)}
+            leftSection={<IconSearch size={16} />}
+            style={{ flex: 1 }}
+          />
+          <Select
+            data={(models ?? []).map((model) => ({
+              value: model,
+              label: model,
+            }))}
+            value={modelFilter}
+            onChange={setModelFilter}
+            placeholder="All models"
+            clearable
+            w={200}
+          />
+          <Select
+            data={(workflows ?? []).map((workflow) => ({
+              value: workflow.id,
+              label: workflow.name,
+            }))}
+            value={workflowFilter}
+            onChange={setWorkflowFilter}
+            placeholder="All workflows"
+            clearable
+            w={200}
+          />
+        </Group>
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            setActiveTab(value);
+            setPageNumber(0);
+          }}
+        >
           <Tabs.List>
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
               Pending review ({pendingQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
+              Claimed by you ({claimedQueue.total})
             </Tabs.Tab>
             <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
               Flagged ({flaggedQueue.total})
@@ -225,20 +334,81 @@ export const ReviewQueuePage: FC = () => {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Document</DataTable.Th>
-                    <DataTable.Th>Status</DataTable.Th>
-                    <DataTable.Th>Model</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("model")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Model
+                        <SortIcon
+                          field="model"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("workflow")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Workflow
+                        <SortIcon
+                          field="workflow"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
-                    <DataTable.Th>Uploaded</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("created_at")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Uploaded
+                        <SortIcon
+                          field="created_at"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
-                    // A lock belonging to the current user means they already own this session.
-                    const myLock =
-                      doc.lock?.reviewer_id === user?.actorId ? doc.lock : null;
+                    const avgConfidence = doc.average_confidence;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
@@ -247,19 +417,13 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {myLock ? (
-                            <Badge variant="light" color="blue" size="sm">
-                              In review
-                            </Badge>
-                          ) : (
-                            <Badge variant="light" size="sm">
-                              {doc.status}
-                            </Badge>
-                          )}
+                          <Text size="sm" c="dimmed">
+                            {doc.model_id || "N/A"}
+                          </Text>
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
-                            {doc.model_id || "N/A"}
+                            {doc.workflow_name ?? "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
@@ -277,29 +441,169 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {myLock ? (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="blue"
-                              leftSection={<IconEye size={14} />}
-                              onClick={() =>
-                                navigate(`/review/${myLock.session_id}`)
-                              }
-                            >
-                              Resume
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              leftSection={<IconEye size={14} />}
-                              onClick={() => handleStartSession(doc.id, false)}
-                              loading={pendingQueue.isStartingSession}
-                            >
-                              Start review
-                            </Button>
-                          )}
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconEye size={14} />}
+                            onClick={() => handleStartSession(doc.id, false)}
+                            loading={pendingQueue.isStartingSession}
+                          >
+                            Start review
+                          </Button>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    );
+                  })}
+                </DataTable.Tbody>
+              </DataTable>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="claimed" pt="md">
+            {claimedQueue.queue.length === 0 ? (
+              <Center py="xl">
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No documents claimed by you</Text>
+                    <Text size="sm" c="dimmed">
+                      Documents you start reviewing appear here until you finish
+                      or release them
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            ) : (
+              <DataTable
+                striped
+                highlightOnHover
+                caption={queueCaption(
+                  claimedQueue.queue.length,
+                  claimedQueue.total,
+                  "claimed",
+                )}
+              >
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("model")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Model
+                        <SortIcon
+                          field="model"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("workflow")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Workflow
+                        <SortIcon
+                          field="workflow"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("created_at")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Uploaded
+                        <SortIcon
+                          field="created_at"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
+                  {claimedQueue.queue.map((doc) => {
+                    const avgConfidence = doc.average_confidence;
+                    return (
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.model_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.workflow_name ?? "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge
+                            variant="light"
+                            color={getConfidenceColor(avgConfidence)}
+                            size="sm"
+                          >
+                            {Math.round(avgConfidence * 100)}%
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(doc.created_at).toLocaleDateString()}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconEye size={14} />}
+                            disabled={!doc.lock?.session_id}
+                            onClick={() =>
+                              navigate(`/review/${doc.lock!.session_id}`)
+                            }
+                          >
+                            Resume
+                          </Button>
                         </DataTable.Td>
                       </DataTable.Tr>
                     );
@@ -326,15 +630,32 @@ export const ReviewQueuePage: FC = () => {
               <DataTable>
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Filename</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Filename
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Last reviewer</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Flag note</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {flaggedQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
+                    const avgConfidence = doc.average_confidence;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
@@ -357,6 +678,17 @@ export const ReviewQueuePage: FC = () => {
                           </Badge>
                         </DataTable.Td>
                         <DataTable.Td>
+                          {doc.lastSession?.flag_note ? (
+                            <Text size="sm" style={{ maxWidth: 280 }}>
+                              {doc.lastSession.flag_note}
+                            </Text>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              —
+                            </Text>
+                          )}
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Group gap="xs">
                             <Button
                               size="xs"
@@ -371,19 +703,6 @@ export const ReviewQueuePage: FC = () => {
                               disabled={!doc.lastSession?.id}
                             >
                               View
-                            </Button>
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="orange"
-                              leftSection={<IconFlag size={14} />}
-                              onClick={() =>
-                                handleTakeSession(doc.lastSession!.id)
-                              }
-                              loading={takingSessionId === doc.lastSession?.id}
-                              disabled={!doc.lastSession?.id}
-                            >
-                              Take
                             </Button>
                           </Group>
                         </DataTable.Td>
@@ -420,7 +739,23 @@ export const ReviewQueuePage: FC = () => {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Reviewer</DataTable.Th>
                     <DataTable.Th>Reviewed date</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>
@@ -487,6 +822,23 @@ export const ReviewQueuePage: FC = () => {
             )}
           </Tabs.Panel>
         </Tabs>
+
+        {/* Under the table, and only when the tab spans pages, as on the
+            Documents page. */}
+        {totalPages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              value={pageNumber + 1}
+              onChange={(page) => setPageNumber(page - 1)}
+              total={totalPages}
+              siblings={1}
+              boundaries={1}
+              getControlProps={(control) => ({
+                "aria-label": PAGER_CONTROL_LABELS[control],
+              })}
+            />
+          </Group>
+        )}
       </PanelCard>
     </Stack>
   );

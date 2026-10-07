@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -26,6 +27,7 @@ import {
 } from "./metrics/metrics.service";
 import { OcrModule } from "./ocr/ocr.module";
 import { QueueModule } from "./queue/queue.module";
+import { RetentionModule } from "./retention/retention.module";
 import { TablesModule } from "./tables/tables.module";
 import { TemplateModelModule } from "./template-model/template-model.module";
 import { TemporalModule } from "./temporal/temporal.module";
@@ -38,7 +40,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     LoggingModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ["../../.env", ".env"],
+      envFilePath: resolve(__dirname, "../../../.env"),
       cache: true,
     }),
     ScheduleModule.forRoot(),
@@ -62,6 +64,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     ConfusionProfileModule,
     DatabaseModule,
     DocumentModule,
+    RetentionModule,
     QueueModule,
     UploadModule,
     TemporalModule,

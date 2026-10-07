@@ -17,10 +17,11 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { computeContentHash } from "./content-hash.util";
 import { DocumentDbService } from "./document-db.service";
-import type { DocumentData } from "./document-db.types";
+import type { DocumentData, DocumentListItem } from "./document-db.types";
 import { extensionForOriginalBlob } from "./original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -66,6 +67,7 @@ export class DocumentService {
     private readonly blobStorage: BlobStorageInterface,
     private readonly pdfNormalization: PdfNormalizationService,
     private readonly uploadNormalizationLimiter: UploadNormalizationLimiter,
+    private readonly temporalClient: TemporalClientService,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -234,7 +236,6 @@ export class DocumentService {
           source: "api",
           status: DocumentStatus.conversion_failed,
           apim_request_id: null,
-          workflow_id: workflowId || null,
           workflow_config_id: workflowId || null,
           workflow_execution_id: null,
           model_id: modelId,
@@ -270,7 +271,6 @@ export class DocumentService {
         source: "api",
         status: DocumentStatus.ongoing_ocr,
         apim_request_id: null,
-        workflow_id: workflowId || null,
         workflow_config_id: workflowId || null,
         workflow_execution_id: null,
         model_id: modelId,
@@ -325,6 +325,10 @@ export class DocumentService {
    * (`pre_ocr` or `ongoing_ocr`) to avoid orphaning Temporal workflows. The
    * caller must wait for processing to settle before retrying.
    *
+   * A workflow still running for the document is cancelled: one waiting at a
+   * `humanGate` with no timeout would otherwise wait forever for a review
+   * that can no longer happen. This is best-effort like the blob cleanup.
+   *
    * @param id - The document ID.
    * @returns `true` if deleted, `false` if not found.
    * @throws ConflictException if the document is currently being processed.
@@ -356,7 +360,29 @@ export class DocumentService {
         `Failed to delete blobs for document ${id}: ${(error as Error).message}`,
       );
     }
+    await this.cancelRunningWorkflow(id);
     return true;
+  }
+
+  /**
+   * Cancels the document's workflow (`graph-<documentId>`) if it is still
+   * running. A Temporal failure is logged and never fails the delete.
+   */
+  private async cancelRunningWorkflow(documentId: string): Promise<void> {
+    const workflowId = `graph-${documentId}`;
+    try {
+      const cancelled =
+        await this.temporalClient.requestWorkflowCancellation(workflowId);
+      if (cancelled) {
+        this.logger.log(
+          `Cancelled workflow ${workflowId} for deleted document ${documentId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to cancel workflow ${workflowId} for deleted document ${documentId}: ${getErrorMessage(error)}`,
+      );
+    }
   }
 
   /**
@@ -379,7 +405,7 @@ export class DocumentService {
    * @param groupIds - Optional list of group IDs to filter by.
    * @param options - Query options: pagination, search, status filter, and sort parameters.
    * @param tx - Optional transaction client for atomic operations.
-   * @returns Object with matching document records (including workflow_name) and total count.
+   * @returns Object with matching document records (including workflow_name and rejection) and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
@@ -395,7 +421,7 @@ export class DocumentService {
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{
-    documents: (DocumentData & { workflow_name?: string | null })[];
+    documents: DocumentListItem[];
     total: number;
   }> {
     return this.documentDb.findAllDocuments(groupIds, options, tx);
@@ -415,7 +441,7 @@ export class DocumentService {
     awaiting_review: number;
     complete: number;
     failed: number;
-    rejected_by_human: number;
+    rejected: number;
     conversion_failed: number;
   }> {
     return this.documentDb.getDocumentStatusCounts(groupIds);

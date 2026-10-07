@@ -254,7 +254,9 @@ Benchmark lifecycle events not covered by the limited `AuditAction` enum use glo
 | Area | Notes |
 |------|--------|
 | HITL `heartbeat`, API key `last_used` | Housekeeping |
-| `EphemeralDocumentCleanupService`, `ClassifierOrphanCleanupService` | Background janitors |
+| `EphemeralDocumentCleanupService` | Background janitor; no audit event |
+| `ClassifierOrphanCleanupService` | Background janitor; records `classifier_orphan_deleted` per deleted orphan, outside any transaction |
+| `DocumentRetentionService` | Background janitor. Records one audit event per run rather than per deleted row; see [DOCUMENT_RETENTION.md § Audit](./DOCUMENT_RETENTION.md#audit) for when each event is written and what its payload means |
 | Benchmark `startRun` | Create → Temporal → `postTemporalStartTransaction` with failure compensation |
 | Classifier / training delete | DB-first then best-effort external cleanup (audit still required) |
 | Blob-then-DB uploads | External storage before DB is not a multi-DB-write atomicity issue |

@@ -119,6 +119,10 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: split the reopen transition in two — an approved session reopens for its own reviewer within five minutes, a flagged session is taken over by any group member with no time limit — and documented the Flagged tab's View/Take actions.
 - `hitl.md`: flagging is a hand-off rather than a terminal state; editing always holds a lock.
 
+## [2026-08-28] maintenance | Backup RPO/RTO doc
+
+- Created `docs-md/operations/BACKUP_RPO_RTO.md` recording the RPO, recovery window and RTO implied by PR #238's backup settings (weekly fulls, 4-hour incrementals, 2-full count retention).
+
 ## [2026-09-29] ingest | Frontend route permissions and the reviewer role
 
 - `auth/FRONTEND_ROUTE_PERMISSIONS.md`: new — `appRoutes` in `routes.config.tsx`, `GroupPermissionGuard`, sidebar filtering, `HomeRedirect` landing pages, and the numeric permission list `/api/auth/me` sends.
@@ -126,3 +130,16 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `groups/GROUP_CONTEXT.md`: `Group.role` and `permissions`, `hasPermissionForGroup`, and the active group derived during render.
 - `groups/DELETE_GROUP.md`, `auth/AUTHENTICATION.md`: memberships in soft-deleted groups grant no access.
 - `auth-and-groups.md`: new canonical source, and the drift risk of the frontend's copy of the `Permission` enum.
+
+## [2026-10-05] ingest | HITL rejection marks the document rejected
+
+- `architecture/HITL_ARCHITECTURE.md`: the reject transition stores the reason and comment on the session and marks the document `rejected`; added the reject path, how the workflow's failure hook leaves `rejected` alone, who the approval and rejection name, and that Reject is hidden while labelling a dataset.
+- `extraction/OCR_FAILURE_HANDLING.md`, `architecture/DOCUMENT_RETENTION.md`, `architecture/EPHEMERAL_DOCUMENT_CLEANUP.md`, `operations/ENVIRONMENT_CONFIGURATION.md`: `rejected` is a terminal, purgeable document status, and rejected sessions age out like approved ones.
+- `hitl.md`: four session outcomes, rejection is final, and the drift risk of the rejection reasons being defined in both the schema and the frontend.
+
+## [2026-10-06] ingest | HITL flag notes and correction authors
+
+- `architecture/HITL_ARCHITECTURE.md`: flagging stores an optional note (`flag_note`) shown in the Flagged tab and as a banner; Take sits in the read-only view, hands the session to the reader and keeps the note; each correction records who made it (`field_corrections.actor_id`), which the analytics `reviewerId` filter uses.
+- `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
+- `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
+- `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.
