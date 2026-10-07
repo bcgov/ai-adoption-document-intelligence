@@ -140,7 +140,6 @@ export interface UploadDocumentPayload {
   original_filename?: string;
   metadata?: Record<string, unknown>;
   model_id: string;
-  /** @deprecated Server accepts workflow_config_id; lineage id is resolved server-side */
   /** WorkflowVersion.id for documents.workflow_config_id FK */
   workflow_config_id?: string;
   group_id: string;
