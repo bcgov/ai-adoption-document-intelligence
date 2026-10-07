@@ -308,20 +308,20 @@ interface HumanGateNode extends GraphNodeBase {
     name: string;             // Temporal signal name, e.g., "humanApproval"
     payloadSchema?: Record<string, unknown>;  // Expected signal payload shape
   };
-  timeout: string;            // Duration to wait, e.g., "24h"
-  onTimeout: "fail" | "continue" | "fallback";
+  timeout?: string;           // Optional duration to wait, e.g., "24h"
+  onTimeout: "fail" | "continue" | "fallback";  // Applies only when timeout is set
   fallbackEdgeId?: string;    // Used when onTimeout is "fallback"
 }
 ```
 
-**Execution strategy**: Maps to Temporal `condition()` + timer pattern. The signal name is registered on the workflow, and the workflow blocks until the signal is received or the timeout expires.
+**Execution strategy**: Maps to Temporal `condition()`, plus a timer when `timeout` is set. The signal name is registered on the workflow, and the workflow blocks until the signal is received or the timeout expires. Without a `timeout` there is no timer: the gate waits until the signal arrives, however long that takes. The seeded templates set no gate timeout.
 
 **Implementation details**:
 - Signal handlers are registered at runtime using the node's `signal.name`.
 - If the signal payload contains `{ approved: false }`, the node fails with `HUMAN_GATE_REJECTED`.
 - When the signal is received, payload fields are written to ctx via `outputs` (port name -> payload field).
 - If `outputs` is not provided, the full payload is written to `ctx["<nodeId>Payload"]`.
-- On timeout:
+- On timeout (only when `timeout` is set):
   - `fail` throws a non-retryable `HUMAN_GATE_TIMEOUT`.
   - `continue` proceeds as if approved.
   - `fallback` routes to `fallbackEdgeId`.
@@ -519,7 +519,6 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
           "annotations": "string"
         }
       },
-      "timeout": "24h",
       "onTimeout": "fail"
     },
     "storeResults": {
@@ -801,7 +800,7 @@ The graph runner follows this algorithm:
       - `join`: wait for all (or any) branches from the corresponding `map`, collect results into ctx
       - `childWorkflow`: start a child `graphWorkflow` with the referenced subgraph
       - `pollUntil`: execute activity + sleep loop until condition or timeout
-      - `humanGate`: register signal handler, wait via `condition()` with timeout
+      - `humanGate`: register signal handler, wait via `condition()` (with a timer only when `timeout` is set)
    d. On node completion, update ready set
    e. Check for cancellation signals
 6. **Return** final ctx and completion status
@@ -1298,6 +1297,7 @@ The method:
 1. Loads the `GraphWorkflowConfig` from the `Workflow` table
 2. Canonicalizes and hashes the config (see Section 12)
 3. Calls `client.workflow.start("graphWorkflow", { args: [{ graph, initialCtx, configHash, runnerVersion }], ... })`
+4. Sets no `workflowExecutionTimeout`. Every node bounds its own work (activity start-to-close timeouts and retry limits, `pollUntil` attempts), and a `humanGate` without a `timeout` waits for its reviewer.
 
 Remove the old `startOCRWorkflow` method and associated backward compatibility code.
 
@@ -1757,6 +1757,7 @@ The structured DSL and CEL would be interchangeable in switch conditions. The fr
 | HumanGate approval | Signal received before timeout, workflow continues |
 | HumanGate rejection | Rejection signal received, workflow fails with HUMAN_GATE_REJECTED |
 | HumanGate timeout | No signal within timeout, behaves per onTimeout policy |
+| HumanGate without timeout | Still running after 25h; approval then continues the workflow, rejection fails it with HUMAN_GATE_REJECTED |
 | Error fallback | Activity fails, follows error edge to humanGate |
 | Error skip | Activity fails with skip policy, next node executes |
 | Error fail | Activity fails with fail policy, workflow fails |

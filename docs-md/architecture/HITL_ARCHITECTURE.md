@@ -528,15 +528,16 @@ work on rather than parking it.
 ### Resuming a gated workflow
 
 A workflow that reaches a `humanGate` sets its document to `awaiting_review` and
-then blocks on the `humanApproval` signal — in the seeded templates with a 24
-hour timeout and `onTimeout: "fail"`. Approving a session sends that signal, so
-the workflow continues into the nodes after the gate:
+then blocks on the `humanApproval` signal. The seeded templates set no gate
+timeout and graph workflows have no execution timeout, so the workflow waits
+until a reviewer acts, however long that takes. Approving a session sends that
+signal, so the workflow continues into the nodes after the gate:
 
 - The Temporal workflow id is derived from the document (`graph-<documentId>`).
   `Document.workflow_execution_id` is the billing run id and is not the workflow
   id.
 - Not every reviewable document has a workflow waiting — seeded documents and
-  ungated pipelines have none, and a gate that already timed out is gone. The
+  ungated pipelines have none, and a gate whose configured timeout expired is gone. The
   review is complete regardless, so a failed signal never fails the approval.
 - The outcome is auditable either way: `human_approval_signal_sent` when the
   workflow was resumed, `human_approval_signal_skipped` (with the reason) when
