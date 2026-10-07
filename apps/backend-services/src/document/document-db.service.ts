@@ -96,7 +96,6 @@ export class DocumentDbService {
           source: data.source,
           status: data.status as DocumentStatus,
           model_id: data.model_id,
-          workflow_id: data.workflow_id || null,
           workflow_config_id: data.workflow_config_id || null,
           workflow_execution_id: data.workflow_execution_id || null,
           group_id: data.group_id,

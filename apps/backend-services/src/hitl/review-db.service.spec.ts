@@ -78,7 +78,6 @@ const makeReviewSession = (
       status: DocumentStatus.extracted,
       apim_request_id: null,
       model_id: "model-1",
-      workflow_id: null,
       workflow_config_id: null,
       workflow_execution_id: null,
       group_id: "group-1",
@@ -407,7 +406,6 @@ describe("ReviewDbService", () => {
 
       const [args] = mockDocument.findMany.mock.calls.at(-1)!;
       expect(args.where.workflowVersion).toEqual({ lineage_id: "lineage-1" });
-      expect(args.where).not.toHaveProperty("workflow_id");
     });
 
     it("should sort by workflow name through the version's lineage", async () => {

@@ -55,7 +55,6 @@ describe("HitlService", () => {
     created_at: new Date(),
     updated_at: new Date(),
     purged_at: null,
-    workflow_id: null,
     workflow_config_id: null,
     workflow_execution_id: null,
     group_id: "group-1",

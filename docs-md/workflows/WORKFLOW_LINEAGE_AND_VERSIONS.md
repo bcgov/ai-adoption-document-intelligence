@@ -20,8 +20,8 @@
 
 ## Documents & OCR
 
-- `documents.workflow_config_id` stores a **`WorkflowVersion.id`** (column name unchanged). `documents.workflow_id` stores the **`WorkflowLineage.id`** when known.
-- **`POST /api/upload`**: accepts `workflow_config_id` and/or deprecated `workflow_id` as either a **lineage id** or a **version id**; the server resolves to lineage + version before insert so the FK is always valid.
+- `documents.workflow_config_id` stores a **`WorkflowVersion.id`** (column name unchanged). The version's `lineage_id` names the workflow, so a document's workflow is always reached through its version.
+- **`POST /api/upload`**: accepts `workflow_slug` (with an optional `workflow_version`) or `workflow_config_id` as either a **lineage id** (resolved to its head version) or a **version id**; the server stores the resolved version id, so the FK is always valid.
 
 ## Migration
 
