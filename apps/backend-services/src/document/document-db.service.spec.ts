@@ -211,7 +211,7 @@ describe("DocumentDbService", () => {
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: {},
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 50,
         skip: 0,
         include: listInclude,
@@ -244,7 +244,7 @@ describe("DocumentDbService", () => {
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 50,
         skip: 0,
         include: listInclude,
@@ -277,11 +277,31 @@ describe("DocumentDbService", () => {
       });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: {},
-        orderBy: { created_at: "desc" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }],
         take: 10,
         skip: 20,
         include: listInclude,
       });
+    });
+
+    it("should break ties by id when sorting by a column documents share, so paging never repeats or skips one", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([]);
+      mockPrismaDocument.count.mockResolvedValue(0);
+
+      await service.findAllDocuments(undefined, {
+        sortBy: "status",
+        sortDir: "asc",
+        limit: 50,
+        offset: 50,
+      });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ status: "asc" }, { id: "asc" }],
+          take: 50,
+          skip: 50,
+        }),
+      );
     });
 
     it("should expand the 'failed' status filter to include conversion_failed", async () => {

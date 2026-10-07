@@ -15,12 +15,16 @@ import type { ReviewSessionData } from "./review-db.types";
 export interface ReviewQueueFilters {
   statuses: DocumentStatus[];
   modelId?: string;
+  workflowId?: string;
   minConfidence?: number;
   limit?: number;
   offset?: number;
   reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   groupIds?: string[];
   currentReviewerId?: string;
+  search?: string;
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+  sortDir?: "asc" | "desc";
 }
 
 /**
@@ -166,6 +170,20 @@ export class ReviewDbService {
       where.model_id = filters.modelId;
     }
 
+    // The filter offers workflows (lineages), while a document records the
+    // workflow version it was uploaded through, so match on the version's
+    // lineage — every version of the chosen workflow counts.
+    if (filters.workflowId) {
+      where.workflowVersion = { lineage_id: filters.workflowId };
+    }
+
+    if (filters.search) {
+      where.original_filename = {
+        contains: filters.search,
+        mode: "insensitive",
+      };
+    }
+
     // Not yet approved or flagged — still awaiting a decision either way.
     const undecidedSessions: Prisma.DocumentWhereInput = {
       OR: [
@@ -291,6 +309,24 @@ export class ReviewDbService {
     this.logger.debug("Finding review queue");
 
     const where = this.buildReviewQueueWhere(filters);
+    const sortFieldByKey = {
+      filename: "original_filename",
+      model: "model_id",
+      created_at: "created_at",
+    } as const;
+    const sortBy = filters.sortBy ?? "created_at";
+    const sortDir = filters.sortDir ?? "desc";
+    // Workflow sorts by the name the Workflow column shows, through the
+    // version's lineage, as the Documents page does. Documents that share the
+    // sorted value come back in no fixed order, and each page is a separate
+    // query, so the id settles ties; without it a page can repeat a document
+    // from the page before and skip another.
+    const orderBy: Prisma.DocumentOrderByWithRelationInput[] = [
+      sortBy === "workflow"
+        ? { workflowVersion: { lineage: { name: sortDir } } }
+        : { [sortFieldByKey[sortBy]]: sortDir },
+      { id: "asc" },
+    ];
 
     // `lastSession` must be the session relevant to the tab being viewed, not
     // just whichever terminal session started most recently: a flagged
@@ -310,7 +346,7 @@ export class ReviewDbService {
 
     return client.document.findMany({
       where,
-      orderBy: { created_at: "desc" },
+      orderBy,
       take: filters.limit ?? 50,
       skip: filters.offset ?? 0,
       include: reviewQueueInclude(lastSessionStatuses),

@@ -63,6 +63,15 @@ const statusStyles: Record<string, { color: string; label: string }> = {
 
 const PAGE_SIZE = 50;
 
+// The pager draws its previous and next arrows as bare icons, so name them
+// for screen readers.
+const PAGER_CONTROL_LABELS = {
+  first: "First page",
+  previous: "Previous page",
+  next: "Next page",
+  last: "Last page",
+} as const;
+
 type SortField =
   | "title"
   | "status"
@@ -463,6 +472,9 @@ export function DocumentsPage() {
                       total={totalPages}
                       siblings={1}
                       boundaries={1}
+                      getControlProps={(control) => ({
+                        "aria-label": PAGER_CONTROL_LABELS[control],
+                      })}
                     />
                   </Group>
                 )}

@@ -412,8 +412,16 @@ reviewer to open it starts a fresh session
 - `reviewStatus` (enum): Which tab to list — `pending` (default) | `claimed` | `flagged` | `reviewed` | `all`. `claimed` lists the documents the caller holds an unexpired lock on.
 - `status` (enum): Document status filter — `extracted` lists documents at `extracted`, `all` lists `extracted` and `awaiting_review`, and leaving it out lists `awaiting_review`. The Reviewed tab also includes `complete`.
 - `modelId` (string): Filter by OCR model used
+- `workflowId` (string): Filter by workflow. A document records the workflow version it went through, so every version of the workflow matches.
+- `search` (string): Filter by filename, ignoring case and matching any part of the name
+- `sortBy` (enum): `created_at` (default) | `filename` | `model` | `workflow`. `workflow` sorts by the workflow's name.
+- `sortDir` (enum): `desc` (default) | `asc`
 - `limit` (number): Pagination limit, 1–100 (default 50)
 - `offset` (number): Pagination offset (default 0)
+
+Every sort ends with the document id. Documents that share the sorted value, such as a queue where every document used one model, would otherwise come back in no fixed order, and since each page is a separate query, a page could repeat a document and skip another. The Documents page list sorts the same way.
+
+Each tab's `total` is counted with the same filters, so it matches the documents the tab pages through.
 
 ### Query Parameters for `/api/hitl/queue/stats`
 
@@ -433,6 +441,8 @@ reviewer to open it starts a fresh session
 **[ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)**
 - Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states)). The Flagged tab shows each document's flag note
 - Pending and Claimed by you show each document's model, workflow name, average confidence and upload date
+- A filename search, Model and Workflow filters and sortable column headers apply to every tab, and each tab's count follows them. Changing any of them, or the tab, returns to the first page
+- Pages through each tab 50 documents at a time, with numbered pages under the table, as on the Documents page. The pager shows only when a tab holds more than one page, and steps back to the last page if the tab shrinks under the reader
 - Shows the queue-wide figures: total documents, requires review, average confidence and reviewed today (see [Queue Statistics](#queue-statistics))
 - Reloads every tab and the figures every 30 seconds while the page is in view, so documents other reviewers pick up drop out without a manual refresh
 - Includes last session info for each document

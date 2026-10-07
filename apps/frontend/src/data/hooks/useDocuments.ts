@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useGroup } from "../../auth/GroupContext";
 import type { Document, DocumentStatus } from "../../shared/types";
 import { apiService } from "../services/api.service";
@@ -83,5 +83,8 @@ export function useDocuments(
     },
     staleTime: options?.staleTime ?? 1000 * 60 * 5,
     refetchInterval: options?.refetchInterval,
+    // Keeps the previous page's rows visible while the next page loads, so
+    // paging/sorting/filtering doesn't flash the whole table to a loading state.
+    placeholderData: keepPreviousData,
   });
 }

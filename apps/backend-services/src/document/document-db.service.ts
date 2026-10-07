@@ -248,7 +248,10 @@ export class DocumentDbService {
       const [documents, total] = await Promise.all([
         client.document.findMany({
           where,
-          orderBy,
+          // Documents that share the sorted value come back in no fixed
+          // order, and each page is a separate query, so the id settles
+          // ties; without it a page can repeat a document and skip another.
+          orderBy: [orderBy, { id: "asc" }],
           take,
           skip,
           include: {

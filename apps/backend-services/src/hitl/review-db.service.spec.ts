@@ -397,6 +397,98 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should filter by workflow through the version's lineage, so every version of the workflow matches", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        workflowId: "lineage-1",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.workflowVersion).toEqual({ lineage_id: "lineage-1" });
+      expect(args.where).not.toHaveProperty("workflow_id");
+    });
+
+    it("should sort by workflow name through the version's lineage", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "workflow",
+        sortDir: "asc",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual([
+        { workflowVersion: { lineage: { name: "asc" } } },
+        { id: "asc" },
+      ]);
+    });
+
+    it("should sort by the document column for the other sort keys, newest first by default", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "filename",
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { original_filename: "desc" },
+        { id: "asc" },
+      ]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { created_at: "desc" },
+        { id: "asc" },
+      ]);
+    });
+
+    it("should break ties by id, so documents that share a model page the same way every time", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "model",
+        sortDir: "asc",
+        limit: 50,
+        offset: 50,
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual([{ model_id: "asc" }, { id: "asc" }]);
+      expect(args).toMatchObject({ take: 50, skip: 50 });
+    });
+
+    it("should search filenames case-insensitively, matching any part of the name", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        search: "Regular",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.original_filename).toEqual({
+        contains: "Regular",
+        mode: "insensitive",
+      });
+    });
+
+    it("should leave filenames unfiltered without a search", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where).not.toHaveProperty("original_filename");
+    });
+
     it("should apply groupIds filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 

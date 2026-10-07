@@ -7151,6 +7151,15 @@
             }
           },
           {
+            "name": "workflowId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by workflow ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -7186,6 +7195,45 @@
             "description": "Scope results to a specific group ID",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Filter by filename (case-insensitive, partial match)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "Field to sort by",
+            "schema": {
+              "default": "created_at",
+              "type": "string",
+              "enum": [
+                "filename",
+                "created_at",
+                "model",
+                "workflow"
+              ]
+            }
+          },
+          {
+            "name": "sortDir",
+            "required": false,
+            "in": "query",
+            "description": "Sort direction",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
