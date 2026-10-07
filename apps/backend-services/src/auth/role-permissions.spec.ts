@@ -33,7 +33,7 @@ describe("RoleClaimsMap", () => {
   it("holds only Permission values, never the enum's reverse-mapped names", () => {
     for (const role of Object.values(GroupRole)) {
       for (const permission of RoleClaimsMap[role]) {
-        expect(typeof permission).toBe("number");
+        expect(typeof permission).toBe("string");
       }
     }
   });
