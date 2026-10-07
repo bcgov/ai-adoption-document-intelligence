@@ -462,7 +462,8 @@ async function executePollUntilNode(
  *
  * US-011: HumanGate node handler
  *
- * Waits for a human signal (approved/rejected) or times out.
+ * Waits for a human signal (approved/rejected). With a `timeout`, gives up
+ * after it and follows `onTimeout`; without one, waits until the signal comes.
  * Sets document status to `awaiting_review` before waiting so the HITL queue
  * can show documents that need human review without querying Temporal.
  */
@@ -500,10 +501,17 @@ async function executeHumanGateNode(
     payload = signalPayload;
   });
 
-  const received = await condition(
-    () => payload !== null,
-    node.timeout as Duration,
-  );
+  // condition() resolves a boolean only when given a timeout. Without one it
+  // resolves void once the predicate holds, which means the signal arrived.
+  let received = true;
+  if (node.timeout) {
+    received = await condition(
+      () => payload !== null,
+      node.timeout as Duration,
+    );
+  } else {
+    await condition(() => payload !== null);
+  }
 
   if (!received) {
     if (node.onTimeout === "continue") {

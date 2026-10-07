@@ -345,14 +345,14 @@ async function runWorkflowWithSignal(
     args: [workflowInput],
   });
 
-  const resultPromise = handle.result();
-  const runPromise = worker.runUntil(resultPromise);
-
-  await handle.signal(signalName, payload);
-
-  const result = (await runPromise) as GraphWorkflowResult;
-  const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
-  return { ...result, ctx: status.ctx };
+  // The query runs inside runUntil: a query needs a polling worker, so it
+  // would hang once the worker has stopped.
+  return worker.runUntil(async () => {
+    await handle.signal(signalName, payload);
+    const result = (await handle.result()) as GraphWorkflowResult;
+    const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+    return { ...result, ctx: status.ctx };
+  });
 }
 
 async function runWorkflowWithoutSignal(
@@ -386,10 +386,13 @@ async function runWorkflowWithoutSignal(
     args: [workflowInput],
   });
 
-  const resultPromise = handle.result();
-  const result = (await worker.runUntil(resultPromise)) as GraphWorkflowResult;
-  const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
-  return { ...result, ctx: status.ctx };
+  // The query runs inside runUntil: a query needs a polling worker, so it
+  // would hang once the worker has stopped.
+  return worker.runUntil(async () => {
+    const result = (await handle.result()) as GraphWorkflowResult;
+    const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+    return { ...result, ctx: status.ctx };
+  });
 }
 
 describe("Graph Workflow", () => {
@@ -1124,7 +1127,7 @@ describe("Graph Workflow", () => {
   });
 
   describe("US-011: HumanGate Node Handler", () => {
-    it.skip("continues on approval and writes payload to ctx", async () => {
+    it("continues on approval and writes payload to ctx", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
@@ -1263,7 +1266,112 @@ describe("Graph Workflow", () => {
       }
     });
 
-    it.skip("continues on timeout when onTimeout is continue", async () => {
+    it("waits past 24h without a timeout and continues on approval", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Approval Test",
+          description: "Test humanGate without a timeout waits, then continues",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+            outputs: [
+              { port: "approved", ctxKey: "approved" },
+              { port: "reviewer", ctxKey: "reviewer" },
+            ],
+          },
+          next: {
+            id: "next",
+            type: "activity",
+            label: "Next Step",
+            activityType: "document.updateStatus",
+            parameters: { status: "approved" },
+          },
+        },
+        edges: [{ id: "e1", source: "gate", target: "next", type: "normal" }],
+        entryNodeId: "gate",
+        ctx: {
+          approved: { type: "boolean" },
+          reviewer: { type: "string" },
+          documentId: { type: "string", defaultValue: "test-doc" },
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        makeMockInput(graph),
+        "test-humangate-no-timeout-approval",
+      );
+
+      const outcome = await worker.runUntil(async () => {
+        await testEnv.sleep("25h");
+        const statusAfterWait = (await handle.describe()).status.name;
+        await handle.signal("humanApproval", {
+          approved: true,
+          reviewer: "alice",
+        });
+        const result = (await handle.result()) as GraphWorkflowResult;
+        const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+        return { statusAfterWait, result, ctx: status.ctx };
+      });
+
+      expect(outcome.statusAfterWait).toBe("RUNNING");
+      expect(outcome.result.status).toBe("completed");
+      expect(outcome.result.completedNodes).toContain("next");
+      expect(outcome.ctx.approved).toBe(true);
+      expect(outcome.ctx.reviewer).toBe("alice");
+    });
+
+    it("fails with HUMAN_GATE_REJECTED on rejection without a timeout", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Rejection Test",
+          description: "Test humanGate without a timeout rejects",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+          },
+        },
+        edges: [],
+        entryNodeId: "gate",
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflowWithSignal(
+          testEnv,
+          input,
+          "test-humangate-no-timeout-rejection",
+          "humanApproval",
+          { approved: false, reviewer: "bob" },
+        );
+        throw new Error("Expected humanGate to reject");
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const cause = (error as { cause?: { message?: string; type?: string } })
+          .cause;
+        const combined = `${errorMessage} ${cause?.message ?? ""}`;
+        expect(cause?.type ?? combined).toMatch(/HUMAN_GATE_REJECTED/);
+      }
+    });
+
+    it("continues on timeout when onTimeout is continue", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
@@ -1304,7 +1412,7 @@ describe("Graph Workflow", () => {
       expect(result.completedNodes).toContain("next");
     });
 
-    it.skip("routes to fallback edge on timeout when onTimeout is fallback", async () => {
+    it("routes to fallback edge on timeout when onTimeout is fallback", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
