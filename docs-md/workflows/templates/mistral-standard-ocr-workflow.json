@@ -129,7 +129,6 @@
           "annotations": "string"
         }
       },
-      "timeout": "24h",
       "onTimeout": "fail"
     },
     "storeResults": {
