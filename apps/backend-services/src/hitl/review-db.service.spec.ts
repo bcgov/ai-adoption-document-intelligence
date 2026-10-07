@@ -463,6 +463,32 @@ describe("ReviewDbService", () => {
       expect(args).toMatchObject({ take: 50, skip: 50 });
     });
 
+    it("should search filenames case-insensitively, matching any part of the name", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        search: "Regular",
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where.original_filename).toEqual({
+        contains: "Regular",
+        mode: "insensitive",
+      });
+    });
+
+    it("should leave filenames unfiltered without a search", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.where).not.toHaveProperty("original_filename");
+    });
+
     it("should apply groupIds filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
