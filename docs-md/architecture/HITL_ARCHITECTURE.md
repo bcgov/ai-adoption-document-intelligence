@@ -528,15 +528,16 @@ work on rather than parking it.
 ### Resuming a gated workflow
 
 A workflow that reaches a `humanGate` sets its document to `awaiting_review` and
-then blocks on the `humanApproval` signal — in the seeded templates with a 24
-hour timeout and `onTimeout: "fail"`. Approving a session sends that signal, so
-the workflow continues into the nodes after the gate:
+then blocks on the `humanApproval` signal. The seeded templates set no gate
+timeout and graph workflows have no execution timeout, so the workflow waits
+until a reviewer acts, however long that takes. Approving a session sends that
+signal, so the workflow continues into the nodes after the gate:
 
 - The Temporal workflow id is derived from the document (`graph-<documentId>`).
   `Document.workflow_execution_id` is the billing run id and is not the workflow
   id.
 - Not every reviewable document has a workflow waiting — seeded documents and
-  ungated pipelines have none, and a gate that already timed out is gone. The
+  ungated pipelines have none, and a gate whose configured timeout expired is gone. The
   review is complete regardless, so a failed signal never fails the approval.
 - The outcome is auditable either way: `human_approval_signal_sent` when the
   workflow was resumed, `human_approval_signal_skipped` (with the reason) when
@@ -548,6 +549,13 @@ Rejection sends the same signal with `approved: false`, plus the
 depend on the workflow: the reject call marks the document `rejected` itself,
 and the workflow's failure hook only moves documents that are still in OCR, so
 it leaves `rejected` alone.
+
+Deleting the document also ends a workflow that is still waiting at its gate.
+Once the document is gone, `DocumentService.deleteDocument` asks Temporal to
+cancel `graph-<documentId>` (`TemporalClientService.requestWorkflowCancellation`),
+and the run ends as cancelled. Without it, a gate with no timeout would wait
+forever for a review that can no longer happen. The cancellation is best-effort
+and never fails the delete.
 
 Both the approval and the rejection name the person who made the request, in
 the audit event's `actor_id` and in the signal's `reviewer`, which is not

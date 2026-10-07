@@ -267,7 +267,6 @@
           "annotations": "string"
         }
       },
-      "timeout": "24h",
       "onTimeout": "fail"
     },
     "storeResults": {
@@ -354,8 +353,7 @@
         {
           "label": "Review Timeout",
           "path": "nodes.humanReview.timeout",
-          "type": "duration",
-          "default": "24h"
+          "type": "duration"
         }
       ]
     },

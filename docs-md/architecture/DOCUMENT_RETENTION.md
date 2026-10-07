@@ -244,4 +244,7 @@ How to read these events:
 
 The user-initiated `DELETE /api/documents/:id` path, which removes the same rows,
 records a per-document event. See
-[TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSACTION_AND_AUDIT_AUDIT.md).
+[TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSACTION_AND_AUDIT_AUDIT.md). That path
+also cancels the document's workflow if it is still running. The retention job
+needs no such step, because it only deletes documents in terminal statuses, and
+those have no workflow waiting.
