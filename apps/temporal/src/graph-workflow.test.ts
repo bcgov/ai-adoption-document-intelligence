@@ -1371,6 +1371,79 @@ describe("Graph Workflow", () => {
       }
     });
 
+    it("ends as cancelled when a run waiting without a timeout is cancelled", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Cancellation Test",
+          description:
+            "Test a waiting humanGate without a timeout is cancelled",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+          },
+          next: {
+            id: "next",
+            type: "activity",
+            label: "Next Step",
+            activityType: "document.updateStatus",
+            parameters: { status: "approved" },
+          },
+        },
+        edges: [{ id: "e1", source: "gate", target: "next", type: "normal" }],
+        entryNodeId: "gate",
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
+      };
+
+      const statusUpdates: unknown[] = [];
+      let gateReachedResolve: (() => void) | undefined;
+      const gateReached = new Promise<void>((resolve) => {
+        gateReachedResolve = resolve;
+      });
+      const activitiesOverride: ActivityMap = {
+        "document.updateStatus": async (params: Record<string, unknown>) => {
+          statusUpdates.push(params.status);
+          if (params.status === "awaiting_review") {
+            gateReachedResolve?.();
+          }
+          return { success: true };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        makeMockInput(graph),
+        "test-humangate-no-timeout-cancel",
+        activitiesOverride,
+      );
+
+      const outcome = await worker.runUntil(async () => {
+        await gateReached;
+        await testEnv.sleep("1h");
+        const before = (await handle.query("getStatus")) as GraphWorkflowStatus;
+        await handle.cancel();
+        const failure = await handle.result().then(
+          () => undefined,
+          (error: unknown) =>
+            (error as { cause?: { name?: string } }).cause?.name,
+        );
+        const after = (await handle.describe()).status.name;
+        return { before, failure, after };
+      });
+
+      expect(outcome.before.overallStatus).toBe("running");
+      expect(outcome.before.nodeStatuses.gate.status).toBe("running");
+      expect(outcome.failure).toBe("CancelledFailure");
+      expect(outcome.after).toBe("CANCELLED");
+      expect(statusUpdates).not.toContain("approved");
+    });
+
     it("continues on timeout when onTimeout is continue", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",

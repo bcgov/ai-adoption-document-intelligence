@@ -79,6 +79,7 @@ describe("TemporalClientService", () => {
       result: jest.fn(),
       query: jest.fn(),
       signal: jest.fn(),
+      cancel: jest.fn(),
     };
 
     // Setup mock client
@@ -533,6 +534,71 @@ describe("TemporalClientService", () => {
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
         "Temporal client not initialized",
       );
+    });
+  });
+
+  describe("requestWorkflowCancellation", () => {
+    it("requests cancellation of a running execution", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "RUNNING" },
+      });
+      mockWorkflowHandle.cancel.mockResolvedValue(undefined);
+
+      await expect(
+        service.requestWorkflowCancellation("workflow-123"),
+      ).resolves.toBe(true);
+      expect(mockClient.workflow.getHandle).toHaveBeenCalledWith(
+        "workflow-123",
+      );
+      expect(mockWorkflowHandle.cancel).toHaveBeenCalled();
+    });
+
+    it("returns false without cancelling an execution that has closed", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "COMPLETED" },
+      });
+
+      await expect(
+        service.requestWorkflowCancellation("workflow-123"),
+      ).resolves.toBe(false);
+      expect(mockWorkflowHandle.cancel).not.toHaveBeenCalled();
+    });
+
+    it("returns false when no execution exists", async () => {
+      const { WorkflowNotFoundError } = jest.requireMock("@temporalio/client");
+      mockWorkflowHandle.describe.mockRejectedValue(
+        new WorkflowNotFoundError("not found"),
+      );
+
+      await expect(
+        service.requestWorkflowCancellation("workflow-123"),
+      ).resolves.toBe(false);
+      expect(mockWorkflowHandle.cancel).not.toHaveBeenCalled();
+    });
+
+    it("throws on other errors", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "RUNNING" },
+      });
+      mockWorkflowHandle.cancel.mockRejectedValue(
+        new Error("permission denied"),
+      );
+
+      await expect(
+        service.requestWorkflowCancellation("workflow-123"),
+      ).rejects.toThrow("request cancellation of workflow workflow-123");
+    });
+
+    it("throws if the client is not initialized", async () => {
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+        mockAppLogger,
+      );
+
+      await expect(
+        newService.requestWorkflowCancellation("workflow-123"),
+      ).rejects.toThrow("Temporal client not initialized");
     });
   });
 

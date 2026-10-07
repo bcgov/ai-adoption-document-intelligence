@@ -420,6 +420,44 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Asks Temporal to cancel a running workflow execution.
+   *
+   * Unlike {@link cancelWorkflow}, which sends the graph's own `cancel` signal
+   * that is only checked between nodes, this interrupts a node that is still
+   * waiting — such as a `humanGate` with no timeout — and the run ends as
+   * cancelled.
+   *
+   * Temporal accepts a cancellation request for an execution that has already
+   * closed, so the running state is checked first to report accurately.
+   *
+   * @param workflowId Workflow execution ID
+   * @returns true when cancellation was requested; false when no execution
+   *   exists or it has already closed, so there was nothing to cancel.
+   */
+  async requestWorkflowCancellation(workflowId: string): Promise<boolean> {
+    this.ensureClientInitialized();
+
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      const description = await handle.describe();
+      if (description.status.name !== "RUNNING") {
+        return false;
+      }
+      await handle.cancel();
+      this.logger.log(`Cancellation requested for workflow ${workflowId}`);
+      return true;
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        return false;
+      }
+      throw this.handleError(
+        error,
+        `request cancellation of workflow ${workflowId}`,
+      );
+    }
+  }
+
+  /**
    * Permanently deletes a workflow execution's history and visibility record
    * from Temporal. Used by the ephemeral-document cleanup janitor to drop the
    * Temporal footprint of completed documents ahead of the namespace retention
