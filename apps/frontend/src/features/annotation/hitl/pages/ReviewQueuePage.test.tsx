@@ -45,33 +45,52 @@ describe("ReviewQueuePage pager", () => {
     totals = { pending: 50 };
     render(page());
 
-    expect(screen.queryByText(/Page \d+ of/)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Next" }),
+      screen.queryByRole("button", { name: "Next page" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Claimed by you/ }));
-    expect(screen.queryByText(/Page \d+ of/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Next page" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows the pager once a tab spans more than one page", () => {
+  it("shows numbered pages under the table once a tab spans more than one page", () => {
     totals = { pending: 51 };
     render(page());
 
-    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const next = screen.getByRole("button", { name: "Next page" });
+    expect(
+      screen.getByRole("tabpanel").compareDocumentPosition(next) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(next);
+    expect(screen.getByRole("button", { name: "2" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("steps back to the last page when the tab shrinks under the reader", () => {
     totals = { pending: 120 };
     const { rerender } = render(page());
 
-    fireEvent.click(screen.getByRole("button", { name: "Last" }));
-    expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+    expect(screen.getByRole("button", { name: "3" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
     totals = { pending: 70 };
     rerender(page());
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

@@ -1,4 +1,3 @@
-import { Typography } from "@mantine/core";
 import {
   IconAlertCircle,
   IconCheck,
@@ -7,8 +6,6 @@ import {
   IconClock,
   IconEye,
   IconFlag,
-  IconPlayerPlayFilled,
-  IconPlayerSkipForwardFilled,
   IconSearch,
   IconSelector,
 } from "@tabler/icons-react";
@@ -18,15 +15,14 @@ import { useModels } from "../../../../data/hooks/useModels";
 import { useWorkflows } from "../../../../data/hooks/useWorkflows";
 import {
   Badge,
-  Box,
   Button,
   Center,
   DataTable,
   Group,
-  IconActionButton,
   Loader,
   notifications,
   PageHeader,
+  Pagination,
   PanelCard,
   Select,
   SimpleGrid,
@@ -40,6 +36,15 @@ import {
 import { useReviewQueue } from "../hooks/useReviewQueue";
 
 type SortField = "filename" | "created_at" | "model" | "workflow";
+
+// The pager draws its previous and next arrows as bare icons, so name them
+// for screen readers.
+const PAGER_CONTROL_LABELS = {
+  first: "First page",
+  previous: "Previous page",
+  next: "Next page",
+  last: "Last page",
+} as const;
 
 function SortIcon({
   field,
@@ -288,89 +293,20 @@ export const ReviewQueuePage: FC = () => {
             setPageNumber(0);
           }}
         >
-          <Box
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
-            <Tabs.List>
-              <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-                Pending review ({pendingQueue.total})
-              </Tabs.Tab>
-              <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
-                Claimed by you ({claimedQueue.total})
-              </Tabs.Tab>
-              <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
-                Flagged ({flaggedQueue.total})
-              </Tabs.Tab>
-              <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
-                Reviewed ({reviewedQueue.total})
-              </Tabs.Tab>
-            </Tabs.List>
-
-            {/* Only a tab that spans pages needs a pager, as on the Documents page. */}
-            {totalPages > 1 && (
-              <Box
-                style={{
-                  marginBottom: "1em",
-                  marginLeft: "auto",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "end",
-                  gap: 10,
-                }}
-              >
-                <IconActionButton
-                  icon={
-                    <IconPlayerSkipForwardFilled
-                      style={{ transform: "rotate(180deg)" }}
-                    />
-                  }
-                  tooltip={"First"}
-                  disabled={pageNumber <= 0}
-                  onClick={() => {
-                    setPageNumber(0);
-                  }}
-                  style={{ padding: 5 }}
-                />
-                <IconActionButton
-                  icon={
-                    <IconPlayerPlayFilled
-                      style={{ transform: "rotate(180deg)" }}
-                    />
-                  }
-                  tooltip={"Previous"}
-                  disabled={pageNumber <= 0}
-                  onClick={() => {
-                    setPageNumber(pageNumber - 1);
-                  }}
-                  style={{ padding: 5 }}
-                />
-                <Typography>
-                  Page {pageNumber + 1} of {totalPages}
-                </Typography>
-                <IconActionButton
-                  icon={<IconPlayerPlayFilled />}
-                  tooltip={"Next"}
-                  disabled={offset + PAGE_SIZE >= activeQueue.total}
-                  onClick={() => {
-                    setPageNumber(pageNumber + 1);
-                  }}
-                  style={{ padding: 5 }}
-                />
-                <IconActionButton
-                  icon={<IconPlayerSkipForwardFilled />}
-                  tooltip={"Last"}
-                  disabled={offset + PAGE_SIZE >= activeQueue.total}
-                  onClick={() => {
-                    setPageNumber(totalPages - 1);
-                  }}
-                  style={{ padding: 5 }}
-                />
-              </Box>
-            )}
-          </Box>
+          <Tabs.List>
+            <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
+              Pending review ({pendingQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
+              Claimed by you ({claimedQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
+              Flagged ({flaggedQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
+              Reviewed ({reviewedQueue.total})
+            </Tabs.Tab>
+          </Tabs.List>
 
           <Tabs.Panel value="pending" pt="md">
             {pendingQueue.queue.length === 0 ? (
@@ -886,6 +822,23 @@ export const ReviewQueuePage: FC = () => {
             )}
           </Tabs.Panel>
         </Tabs>
+
+        {/* Under the table, and only when the tab spans pages, as on the
+            Documents page. */}
+        {totalPages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              value={pageNumber + 1}
+              onChange={(page) => setPageNumber(page - 1)}
+              total={totalPages}
+              siblings={1}
+              boundaries={1}
+              getControlProps={(control) => ({
+                "aria-label": PAGER_CONTROL_LABELS[control],
+              })}
+            />
+          </Group>
+        )}
       </PanelCard>
     </Stack>
   );

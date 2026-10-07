@@ -442,7 +442,7 @@ Each tab's `total` is counted with the same filters, so it matches the documents
 - Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states)). The Flagged tab shows each document's flag note
 - Pending and Claimed by you show each document's model, workflow name, average confidence and upload date
 - A filename search, Model and Workflow filters and sortable column headers apply to every tab, and each tab's count follows them. Changing any of them, or the tab, returns to the first page
-- Pages through each tab 50 documents at a time. The pager shows only when a tab holds more than one page, and steps back to the last page if the tab shrinks under the reader
+- Pages through each tab 50 documents at a time, with numbered pages under the table, as on the Documents page. The pager shows only when a tab holds more than one page, and steps back to the last page if the tab shrinks under the reader
 - Shows the queue-wide figures: total documents, requires review, average confidence and reviewed today (see [Queue Statistics](#queue-statistics))
 - Reloads every tab and the figures every 30 seconds while the page is in view, so documents other reviewers pick up drop out without a manual refresh
 - Includes last session info for each document
