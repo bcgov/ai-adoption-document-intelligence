@@ -693,7 +693,7 @@ Each ref is a small object: `{ documentId, blobPath, storage: "blob", byteLength
 
 **`transform` / `fieldMapping` templates** use `{{ocrResultRef.*}}`, `{{ocrResponseRef.*}}`, `{{cleanedResultRef.*}}`.
 
-On **document delete**, `DocumentService.deleteDocument` best-effort deletes the `{groupId}/ocr/{documentId}/` prefix.
+On **document delete**, `DocumentService.deleteDocument` best-effort deletes the `{groupId}/ocr/{documentId}/` prefix and cancels the document's workflow (`graph-<documentId>`) if it is still running, so a run waiting at a `humanGate` with no timeout does not wait forever.
 
 **Benchmark / ground-truth overrides:** optional `workflowConfigOverrides` on `GraphWorkflowInput` (dot paths from `exposedParams`). The worker merges them in `getWorkflowGraphConfig` before hash check and execution; `configHash` must be `hash(merged config)`.
 

@@ -550,6 +550,13 @@ depend on the workflow: the reject call marks the document `rejected` itself,
 and the workflow's failure hook only moves documents that are still in OCR, so
 it leaves `rejected` alone.
 
+Deleting the document also ends a workflow that is still waiting at its gate.
+Once the document is gone, `DocumentService.deleteDocument` asks Temporal to
+cancel `graph-<documentId>` (`TemporalClientService.requestWorkflowCancellation`),
+and the run ends as cancelled. Without it, a gate with no timeout would wait
+forever for a review that can no longer happen. The cancellation is best-effort
+and never fails the delete.
+
 Both the approval and the rejection name the person who made the request, in
 the audit event's `actor_id` and in the signal's `reviewer`, which is not
 always whoever started the session.
