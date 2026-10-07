@@ -42,10 +42,8 @@ import type { Response } from "express";
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DatasetService } from "./dataset.service";
 import {
   CreateDatasetDto,
@@ -78,9 +76,10 @@ export class DatasetController {
   private async assertDatasetGroupAccess(
     datasetId: string,
     req: Request,
+    permissions: Permission[],
   ): Promise<string> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId, permissions);
     return dataset.groupId;
   }
 
@@ -88,7 +87,10 @@ export class DatasetController {
   @HttpCode(HttpStatus.CREATED)
   @Identity({
     allowApiKey: true,
-    groupIdFrom: { body: "groupId" },
+    groupPermissions: {
+      groupIdFrom: { body: "groupId" },
+      requiredPermissions: [Permission.BENCHMARK_CREATE],
+    },
   })
   @ApiOperation({ summary: "Create a new dataset" })
   @ApiBody({
@@ -131,7 +133,7 @@ export class DatasetController {
   })
   @ApiQuery({
     name: "groupId",
-    required: false,
+    required: true,
     description: "Optional group ID to filter datasets by a specific group",
   })
   @ApiOkResponse({
@@ -141,32 +143,17 @@ export class DatasetController {
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listDatasets(
+    @Query("groupId") groupId: string,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
-    @Query("groupId") groupId?: string,
     @Req() req?: Request,
   ): Promise<PaginatedDatasetResponseDto> {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
-
-    if (groupId) {
-      identityCanAccessGroup(req!.resolvedIdentity, groupId);
-      return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
-    }
-
-    const groupIds = getIdentityGroupIds(req!.resolvedIdentity);
-
-    if (!groupIds || groupIds.length === 0) {
-      return {
-        data: [],
-        total: 0,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: 0,
-      };
-    }
-
-    return this.datasetService.listDatasets(pageNum, limitNum, groupIds);
+    identityCanAccessGroup(req!.resolvedIdentity, groupId, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
+    return this.datasetService.listDatasets(pageNum, limitNum, [groupId]);
   }
 
   @Get(":id")
@@ -188,7 +175,9 @@ export class DatasetController {
   ): Promise<DatasetResponseDto> {
     const dataset = await this.datasetService.getDatasetById(id);
 
-    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     return dataset;
   }
@@ -209,7 +198,7 @@ export class DatasetController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_DELETE]);
     return this.datasetService.deleteDataset(id, req.resolvedIdentity.actorId);
   }
 
@@ -250,7 +239,7 @@ export class DatasetController {
     }>,
     @Req() req: Request,
   ): Promise<UploadResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_FILES]);
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided for upload");
     }
@@ -300,7 +289,7 @@ export class DatasetController {
     @Body() createDto: CreateVersionDto,
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_CREATE]);
     return this.datasetService.createVersion(
       id,
       createDto,
@@ -324,7 +313,9 @@ export class DatasetController {
     @Param("id") id: string,
     @Req() req: Request,
   ): Promise<VersionListResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.datasetService.listVersions(id);
   }
 
@@ -346,7 +337,9 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     return this.datasetService.getVersionById(id, versionId);
   }
 
@@ -379,7 +372,7 @@ export class DatasetController {
     @Body() updateDto: UpdateVersionDto,
     @Req() req: Request,
   ): Promise<VersionResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_UPDATE]);
     return this.datasetService.updateVersionName(
       id,
       versionId,
@@ -413,7 +406,7 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_DELETE]);
     return this.datasetService.deleteVersion(
       id,
       versionId,
@@ -447,7 +440,7 @@ export class DatasetController {
     @Param("sampleId") sampleId: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_DELETE]);
     const groupId = (await this.datasetService.getDatasetById(id)).groupId;
     return this.datasetService.deleteSample(
       id,
@@ -493,7 +486,9 @@ export class DatasetController {
     @Query("page") page?: string,
     @Query("limit") limit?: string,
   ): Promise<SampleListResponseDto> {
-    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
@@ -546,7 +541,9 @@ export class DatasetController {
     @Param("sampleId") sampleId: string,
     @Req() req: Request,
   ): Promise<GroundTruthResponseDto> {
-    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     const result = await this.datasetService.getGroundTruth(
       id,
       versionId,
@@ -585,7 +582,9 @@ export class DatasetController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     if (!filePath) {
       throw new BadRequestException("Query parameter 'path' is required");
@@ -644,7 +643,7 @@ export class DatasetController {
     @Body() requestDto: ValidateDatasetRequestDto,
     @Req() req: Request,
   ): Promise<ValidationResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_CREATE]);
     return this.datasetService.validateDatasetVersion(
       id,
       versionId,
@@ -679,7 +678,7 @@ export class DatasetController {
     @Body() createDto: CreateSplitDto,
     @Req() req: Request,
   ): Promise<SplitResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_CREATE]);
     return this.datasetService.createSplit(
       id,
       versionId,
@@ -709,7 +708,9 @@ export class DatasetController {
     @Param("versionId") versionId: string,
     @Req() req: Request,
   ): Promise<SplitListResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     const splits = await this.datasetService.listSplits(id, versionId);
     return { splits };
   }
@@ -737,7 +738,9 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Req() req: Request,
   ): Promise<SplitDetailResponseDto> {
-    const groupId = await this.assertDatasetGroupAccess(id, req);
+    const groupId = await this.assertDatasetGroupAccess(id, req, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
     const result = await this.datasetService.getSplit(id, versionId, splitId);
     await this.auditService.recordEvent({
       event_type: "document_list_accessed",
@@ -797,7 +800,7 @@ export class DatasetController {
     @Body() updateDto: { sampleIds: string[] },
     @Req() req: Request,
   ): Promise<SplitResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_UPDATE]);
     return this.datasetService.updateSplit(
       id,
       versionId,
@@ -833,7 +836,7 @@ export class DatasetController {
     name: string | null;
     frozen: boolean;
   }> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_UPDATE]);
     return this.datasetService.freezeVersion(
       id,
       versionId,
@@ -864,7 +867,7 @@ export class DatasetController {
     @Param("splitId") splitId: string,
     @Req() req: Request,
   ): Promise<FreezeSplitResponseDto> {
-    await this.assertDatasetGroupAccess(id, req);
+    await this.assertDatasetGroupAccess(id, req, [Permission.BENCHMARK_UPDATE]);
     return this.datasetService.freezeSplit(
       id,
       versionId,

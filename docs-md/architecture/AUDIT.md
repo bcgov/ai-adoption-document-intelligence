@@ -212,6 +212,21 @@ Recorded by `TablesService`. Row-level events use `resource_type: "table_row"`; 
 | `classifier_training_requested` | User requests classifier training | classifier | classifier.name | classifier_name |
 | `classifier_deleted` | Classifier deleted | classifier | classifier.name | classifier_name, previous_status |
 
+### Retention janitors
+
+System-initiated; one event per scheduled run, not per deleted row. Recording
+conditions and payload semantics are in
+[DOCUMENT_RETENTION.md § Audit](./DOCUMENT_RETENTION.md#audit). `actor_id` is
+`retention_system` (`system` for the orphan cleanup) rather than `null`.
+
+| event_type | When | resource_type | resource_id | Payload / notes |
+|------------|------|---------------|-------------|-----------------|
+| `document_retention_run` | Document-retention run found eligible documents | document | `""` | documentIds (all candidates), daysRemoved, quantity (deleted); not in a transaction |
+| `audit_events_retention_run` | Audit-event janitor run acquired its lock | audit_event | `""` | daysRemoved; in the lock transaction |
+| `benchmark_audit_logs_retention_run` | Benchmark-log janitor run acquired its lock | benchmark_audit_log | `""` | daysRemoved; in the lock transaction |
+| `review_session_retention_run` | Review-session janitor run acquired its lock | review_session | `""` | daysRemoved; in the lock transaction |
+| `classifier_orphan_deleted` | Weekly orphan cleanup deleted an Azure classifier with no DB record | classifier | modelId | modelId, classifierName; group_id set |
+
 ### Confusion profile
 
 | event_type | When | resource_type | resource_id | Payload / notes |

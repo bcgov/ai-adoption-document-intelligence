@@ -20,7 +20,7 @@ import { AppLoggerService } from "../logging/app-logger.service";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { computeContentHash } from "./content-hash.util";
 import { DocumentDbService } from "./document-db.service";
-import type { DocumentData } from "./document-db.types";
+import type { DocumentData, DocumentListItem } from "./document-db.types";
 import { extensionForOriginalBlob } from "./original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -379,7 +379,7 @@ export class DocumentService {
    * @param groupIds - Optional list of group IDs to filter by.
    * @param options - Query options: pagination, search, status filter, and sort parameters.
    * @param tx - Optional transaction client for atomic operations.
-   * @returns Object with matching document records (including workflow_name) and total count.
+   * @returns Object with matching document records (including workflow_name and rejection) and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
@@ -395,7 +395,7 @@ export class DocumentService {
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{
-    documents: (DocumentData & { workflow_name?: string | null })[];
+    documents: DocumentListItem[];
     total: number;
   }> {
     return this.documentDb.findAllDocuments(groupIds, options, tx);
@@ -415,7 +415,7 @@ export class DocumentService {
     awaiting_review: number;
     complete: number;
     failed: number;
-    rejected_by_human: number;
+    rejected: number;
     conversion_failed: number;
   }> {
     return this.documentDb.getDocumentStatusCounts(groupIds);

@@ -14,7 +14,6 @@ import {
   NotFoundException,
   Param,
   Patch,
-  Post,
   Query,
   Req,
   Res,
@@ -38,10 +37,8 @@ import {
 import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import {
   buildBlobFilePath,
   OperationCategory,
@@ -58,9 +55,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { TemporalClientService } from "../temporal/temporal-client.service";
 import { type DocumentData, DocumentService } from "./document.service";
-import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
 import { getContentTypeFromFilename } from "./mime-from-filename";
@@ -70,7 +65,6 @@ import { getContentTypeFromFilename } from "./mime-from-filename";
 export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
-    private readonly temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
@@ -79,11 +73,17 @@ export class DocumentController {
 
   @Get("/stats")
   @HttpCode(HttpStatus.OK)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get document counts grouped by status" })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description: "Scope counts to a specific group ID.",
   })
   @ApiOkResponse({
@@ -94,22 +94,19 @@ export class DocumentController {
     description: "Access denied: not a member of the specified group",
   })
   async getDocumentStats(
-    @Req() req: Request,
-    @Query("group_id") groupId?: string,
+    @Query("group_id") groupId: string,
   ): Promise<DocumentStatusCountsDto> {
-    let groupIds: string[] | undefined;
-    if (groupId !== undefined) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      groupIds = [groupId];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    }
-    return this.documentService.getDocumentStatusCounts(groupIds);
+    return this.documentService.getDocumentStatusCounts([groupId]);
   }
 
   @Get("/thumbnails")
   @HttpCode(HttpStatus.OK)
-  @Identity()
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({
     summary: "Get thumbnails for multiple documents",
     description:
@@ -136,25 +133,15 @@ export class DocumentController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   async getBulkThumbnails(
-    @Query("group_id") groupId: string | undefined,
-    @Query("ids") idsParam: string | undefined,
-    @Req() req: Request,
+    @Query("group_id") groupId: string,
+    @Query("ids") idsParam: string,
   ): Promise<ThumbnailResultDto[]> {
-    if (!groupId) {
-      throw new BadRequestException("group_id query parameter is required");
-    }
-    if (!idsParam) {
-      throw new BadRequestException("ids query parameter is required");
-    }
-
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
-
     const ids = idsParam
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
 
-    if (ids.length > 200) {
+    if (!ids || ids.length > 200) {
       throw new BadRequestException(
         "Too many IDs requested; maximum is 200 per call",
       );
@@ -212,7 +199,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_RETRIEVE,
+    ]);
 
     await this.auditService.recordEvent({
       event_type: "document_accessed",
@@ -254,7 +243,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_UPDATE,
+    ]);
 
     const updated = await this.documentService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
@@ -308,7 +299,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_DELETE,
+    ]);
 
     await this.documentService.deleteDocument(documentId);
 
@@ -330,13 +323,19 @@ export class DocumentController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get documents (paginated)" })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description:
-      "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
+      "Filter documents by group ID. Only documents belonging to this group are returned.",
   })
   @ApiQuery({
     name: "limit",
@@ -391,7 +390,7 @@ export class DocumentController {
   })
   async getAllDocuments(
     @Req() req: Request,
-    @Query("group_id") groupId?: string,
+    @Query("group_id") groupId: string,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
     @Query("search") search?: string,
@@ -403,21 +402,12 @@ export class DocumentController {
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
-    let groupIds: string[] | undefined;
-
-    if (groupId !== undefined) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      groupIds = [groupId];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    }
-
     const limit = Math.min(parseInt(limitStr ?? "50", 10) || 50, 200);
     const offset = Math.max(parseInt(offsetStr ?? "0", 10) || 0, 0);
 
     try {
       const { documents, total } = await this.documentService.findAllDocuments(
-        groupIds,
+        [groupId],
         {
           limit,
           offset,
@@ -434,8 +424,7 @@ export class DocumentController {
         await this.auditService.recordEvent({
           event_type: "document_list_accessed",
           resource_type: "document_collection",
-          resource_id:
-            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          resource_id: groupId,
           actor_id: req.resolvedIdentity.actorId,
           group_id: groupId,
           payload: {
@@ -444,7 +433,7 @@ export class DocumentController {
             total,
             limit,
             offset,
-            group_ids: groupIds,
+            group_ids: [groupId],
           },
         });
       }
@@ -491,7 +480,9 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+        Permission.OCR_RESULTS_RETRIEVE,
+      ]);
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -595,7 +586,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_VIEW,
+    ]);
 
     if (document.purged_at) {
       throw new GoneException(
@@ -670,7 +663,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_RETRIEVE,
+    ]);
 
     const thumbnailKey = buildBlobFilePath(
       document.group_id ?? "",
@@ -727,7 +722,9 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+        Permission.DOCUMENT_DOWNLOAD,
+      ]);
 
       if (document.purged_at) {
         throw new GoneException(
@@ -781,124 +778,6 @@ export class DocumentController {
 
       throw new NotFoundException(
         getErrorMessage(error) || `Failed to download document: ${documentId}`,
-      );
-    }
-  }
-
-  @Post("/:documentId/approve")
-  @HttpCode(HttpStatus.OK)
-  @Identity()
-  @ApiOperation({
-    summary: "Approve or reject a document",
-    description:
-      "Sends a human approval signal to the document's workflow. When rejecting, rejectionReason is required.",
-  })
-  @ApiParam({ name: "documentId", description: "Document ID" })
-  @ApiBody({
-    type: ApproveDocumentDto,
-    description:
-      "Approval decision and optional reviewer info, comments, rejection reason, annotations",
-  })
-  @ApiOkResponse({
-    description: "Approval signal sent successfully",
-    schema: {
-      type: "object",
-      properties: {
-        success: { type: "boolean", example: true },
-        message: { type: "string", example: "Document approved successfully" },
-      },
-    },
-  })
-  @ApiBadRequestResponse({
-    description:
-      "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)",
-  })
-  @ApiNotFoundResponse({ description: "Document not found" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async approveDocument(
-    @Param("documentId") documentId: string,
-    @Body() body: ApproveDocumentDto,
-    @Req() req: Request,
-  ): Promise<{ success: boolean; message: string }> {
-    this.logger.debug(`=== DocumentController.approveDocument ===`);
-    this.logger.debug(`Document ID: ${documentId}`);
-    this.logger.debug(`Approved: ${body.approved}`);
-
-    try {
-      // Validate rejection reason is provided when rejecting
-      if (!body.approved && !body.rejectionReason) {
-        throw new BadRequestException(
-          "Rejection reason is required when rejecting a document",
-        );
-      }
-
-      // Find the document
-      const document = await this.documentService.findDocument(documentId);
-      if (!document) {
-        throw new NotFoundException(`Document not found: ${documentId}`);
-      }
-
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-
-      // Derive the Temporal workflowId from the document ID. The stored
-      // workflow_execution_id is the billing runId (unique per execution
-      // attempt) and must NOT be used as the Temporal workflowId.
-      const workflowId = `graph-${documentId}`;
-      if (!workflowId) {
-        throw new BadRequestException(
-          `Document ${documentId} does not have an associated workflow execution ID.`,
-        );
-      }
-
-      // Send human approval signal to the workflow
-      await this.temporalClientService.sendHumanApproval(workflowId, {
-        approved: body.approved,
-        reviewer: body.reviewer,
-        comments: body.comments,
-        rejectionReason: body.rejectionReason,
-        annotations: body.annotations,
-      });
-
-      await this.auditService.recordEvent({
-        event_type: "human_approval_signal_sent",
-        resource_type: "workflow_run",
-        resource_id: workflowId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        workflow_execution_id: workflowId,
-        group_id: document.group_id,
-        payload: {
-          approved: body.approved,
-          reviewer: body.reviewer ?? undefined,
-        },
-      });
-
-      this.logger.log(
-        `Human approval signal sent for document ${documentId}: ${body.approved ? "approved" : "rejected"}`,
-      );
-      if (!body.approved && body.rejectionReason) {
-        this.logger.log(`Rejection reason: ${body.rejectionReason}`);
-      }
-      this.logger.debug("=== DocumentController.approveDocument completed ===");
-
-      return {
-        success: true,
-        message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
-      };
-    } catch (error) {
-      this.logger.error(`Error approving document: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
-
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-
-      throw new NotFoundException(
-        getErrorMessage(error) || `Failed to approve document: ${documentId}`,
       );
     }
   }

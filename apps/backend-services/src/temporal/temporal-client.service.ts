@@ -455,7 +455,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   /**
    * Send human approval signal to a workflow
    * @param workflowId Workflow execution ID
-   * @param approval Approval data with approved flag, reviewer, comments, rejection reason, and annotations
+   * @param approval Approval data with approved flag, reviewer, comments, and rejection reason
    */
   async sendHumanApproval(
     workflowId: string,
@@ -464,7 +464,6 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       reviewer?: string;
       comments?: string;
       rejectionReason?: string;
-      annotations?: string;
     },
   ): Promise<void> {
     this.ensureClientInitialized();

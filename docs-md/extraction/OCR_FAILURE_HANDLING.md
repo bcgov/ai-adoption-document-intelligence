@@ -14,6 +14,7 @@ document in **"Processing"** (`ongoing_ocr`) forever.
 | `complete` | Complete | Finished (OCR + optional HITL) | yes |
 | `failed` | Failed | OCR/extraction failed | yes (purgeable) |
 | `conversion_failed` | Conversion failed (stats/filter bucket it under "Failed") | PDF normalization failed (e.g. password-protected) | yes (purgeable) |
+| `rejected` | Rejected | A reviewer rejected it in HITL review | yes (purgeable) |
 
 UI labels are from `statusStyles` in `apps/frontend/src/pages/DocumentsPage.tsx`.
 
@@ -22,8 +23,10 @@ immediately (it does not pass through `pre_ocr`); `pre_ocr` is used by other
 flows such as ground-truth generation. The pre-execution hook in `graphWorkflow`
 also sets `ongoing_ocr` at the start of a run. The success path transitions
 `extracted → complete` (HITL docs are left at `awaiting_review` for the HITL flow
-to finish). A HumanGate rejection ends the run without moving the document to
-`failed` — it stays at `awaiting_review`.
+to finish). A HumanGate rejection is not a processing failure: the HITL reject
+call marks the document `rejected` before it signals the workflow, and the
+run's failure hook leaves that status alone (see
+[HITL_ARCHITECTURE.md](../architecture/HITL_ARCHITECTURE.md)).
 
 ## Failure paths (why a document never gets stuck in "Processing")
 
@@ -58,7 +61,7 @@ immediately.
 
 ## Interaction with ephemeral cleanup
 
-`failed` and `conversion_failed` are **terminal and purgeable**. For documents
+`failed`, `conversion_failed` and `rejected` are **terminal and purgeable**. For documents
 whose workflow config is marked `ephemeral`, the cleanup janitor then deletes
 the document's blob-storage prefix (`{groupId}/ocr/{documentId}/` — original,
 `normalized.pdf`, thumbnail, and OCR artifacts) and its Temporal record. So a

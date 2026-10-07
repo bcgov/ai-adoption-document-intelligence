@@ -6,8 +6,7 @@
  */
 
 // Load environment variables first (before reading them).
-// Loads external secret override first ($DI_SECRETS_DIR/temporal.env),
-// then repo-local .env for non-sensitive defaults. MUST remain first import.
+// Loads the repo-root .env. MUST remain first import.
 import "./env-loader";
 
 export type {

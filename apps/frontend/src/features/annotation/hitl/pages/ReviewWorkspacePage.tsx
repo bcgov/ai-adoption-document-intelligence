@@ -16,15 +16,22 @@ import {
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  REJECTION_REASON_LABELS,
+  RejectionReason,
+} from "../../../../shared/types";
+import {
   Accordion,
   ActionIcon,
+  Alert,
   Button,
   Checkbox,
   Group,
   Loader,
+  Modal,
   notifications,
   Paper,
   ScrollArea,
+  Select,
   Stack,
   Text,
   Textarea,
@@ -50,6 +57,7 @@ import {
   getConfidenceCanvasColor,
 } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
+import { FlagNoteModal } from "../components/FlagNoteModal";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { SnippetView } from "../components/SnippetView";
@@ -60,6 +68,7 @@ import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { buildFieldValidators } from "../utils/format-validation";
+import { unsavedCorrections } from "../utils/unsaved-corrections";
 
 interface OcrField {
   valueString?: string;
@@ -272,9 +281,11 @@ export const ReviewWorkspacePage: FC = () => {
     approveSessionAsync,
     skipSessionAsync,
     flagSessionAsync,
+    rejectSessionAsync,
     isApproving,
     isSkipping,
     isFlagging,
+    isRejecting,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
@@ -291,11 +302,6 @@ export const ReviewWorkspacePage: FC = () => {
   const documentUrl = docState.url;
   const isNormalizedPdf = docState.isNormalizedPdf;
   const [currentPage, setCurrentPage] = useState(1);
-  const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
-  } = useElementSize();
   const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(
     null,
   );
@@ -320,6 +326,11 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [rejectModalOpened, setRejectModalOpened] = useState(false);
+  const [rejectionReason, setRejectionReason] =
+    useState<RejectionReason | null>(null);
+  const [rejectionComments, setRejectionComments] = useState("");
+  const [flagModalOpened, setFlagModalOpened] = useState(false);
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -337,6 +348,11 @@ export const ReviewWorkspacePage: FC = () => {
     () => localStorage.getItem("hitl-auto-advance") !== "false",
   );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
+  const {
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
+  } = useElementSize();
 
   const queuePath = location.pathname.match(
     /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
@@ -446,10 +462,8 @@ export const ReviewWorkspacePage: FC = () => {
     currentPage,
   );
 
-  // Canvas gets the rendered PDF page image, or raw image URL for non-PDFs
+  // Load the rendered PDF page image as HTMLImageElement for SnippetView
   const canvasImageUrl = isNormalizedPdf ? pdfPageImageUrl : documentUrl;
-
-  // Load the current canvas image as an HTMLImageElement for SnippetView
   useEffect(() => {
     if (!canvasImageUrl) {
       setDocumentImage(null);
@@ -749,14 +763,38 @@ export const ReviewWorkspacePage: FC = () => {
     }
   };
 
-  const handleApprove = async () => {
-    const payload = Object.values(correctionMap).filter(
-      (correction) => correction.action === CorrectionAction.CORRECTED,
-    );
+  // The review actions throw when the server refuses one, most often because
+  // the lock lapsed or another reviewer finished the session. Say so and stay
+  // on the document instead of reporting a success.
+  const notifyActionFailed = (title: string, error: unknown) => {
+    notifications.show({
+      title,
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Please try again.",
+      color: "red",
+      autoClose: 5000,
+    });
+  };
+
+  // Approve, Reject and Flag all end the session, so each first saves the
+  // corrections made on this page; whoever opens the document next sees them.
+  const saveNewCorrections = async () => {
+    const payload = unsavedCorrections(correctionMap, corrections);
     if (payload.length > 0) {
       await submitCorrectionsAsync(payload);
     }
-    await approveSessionAsync();
+  };
+
+  const handleApprove = async () => {
+    try {
+      await saveNewCorrections();
+      await approveSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not approve", error);
+      return;
+    }
 
     notifications.show({
       title: "Document approved",
@@ -771,7 +809,12 @@ export const ReviewWorkspacePage: FC = () => {
   };
 
   const handleSkip = async () => {
-    await skipSessionAsync();
+    try {
+      await skipSessionAsync();
+    } catch (error) {
+      notifyActionFailed("Could not skip", error);
+      return;
+    }
 
     notifications.show({
       title: "Document skipped",
@@ -785,8 +828,23 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   };
 
-  const handleFlag = useCallback(async () => {
-    await flagSessionAsync();
+  const handleFlag = useCallback(() => {
+    setFlagModalOpened(true);
+  }, []);
+
+  const closeFlagModal = () => {
+    setFlagModalOpened(false);
+  };
+
+  const handleConfirmFlag = async (note: string) => {
+    try {
+      await saveNewCorrections();
+      await flagSessionAsync({ note: note.trim() || undefined });
+    } catch (error) {
+      // Keep the flag dialog open so the reviewer's note survives.
+      notifyActionFailed("Could not flag", error);
+      return;
+    }
 
     notifications.show({
       title: "Document flagged",
@@ -795,10 +853,49 @@ export const ReviewWorkspacePage: FC = () => {
       autoClose: 3000,
     });
 
+    closeFlagModal();
     clearUndoStack();
     setCorrectionMap({});
     advanceOrReturn();
-  }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
+  };
+
+  const handleReject = () => {
+    setRejectModalOpened(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalOpened(false);
+    setRejectionReason(null);
+    setRejectionComments("");
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionReason) return;
+
+    try {
+      await saveNewCorrections();
+      await rejectSessionAsync({
+        rejectionReason,
+        comments: rejectionComments.trim() || undefined,
+      });
+    } catch (error) {
+      // Keep the dialog open so the reviewer's reason and comment survive.
+      notifyActionFailed("Could not reject", error);
+      return;
+    }
+
+    notifications.show({
+      title: "Document rejected",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
+      color: "red",
+      autoClose: 3000,
+    });
+
+    closeRejectModal();
+    clearUndoStack();
+    setCorrectionMap({});
+    advanceOrReturn();
+  };
 
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
@@ -1039,6 +1136,16 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
+        {session.flagNote && (
+          <Alert
+            color="orange"
+            title="Flag note"
+            icon={<IconFlag size={16} />}
+            data-testid="flag-note-banner"
+          >
+            {session.flagNote}
+          </Alert>
+        )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
@@ -1057,7 +1164,7 @@ export const ReviewWorkspacePage: FC = () => {
                 onClick={handleReopen}
                 loading={isReopening}
               >
-                Take for editing
+                Take
               </Button>
             ) : (
               canRelabel && (
@@ -1079,9 +1186,12 @@ export const ReviewWorkspacePage: FC = () => {
             onApprove={handleApprove}
             onFlag={handleFlag}
             onSkip={handleSkip}
+            onReject={benchmarkMatch ? undefined : handleReject}
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
+            isRejecting={isRejecting}
+            flagNote={session.flagNote}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1370,6 +1480,83 @@ export const ReviewWorkspacePage: FC = () => {
           opened={shortcutsOpen}
           onClose={() => setShortcutsOpen(false)}
           shortcuts={shortcuts}
+        />
+
+        <Modal
+          opened={rejectModalOpened}
+          onClose={closeRejectModal}
+          title="Reject document"
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Rejecting ends processing for this document. It is marked Rejected
+              on the Documents page, with your reason and comment. A reason is
+              required.
+            </Text>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Rejection reason{" "}
+                <Text span c="red">
+                  *
+                </Text>
+              </Text>
+              <Select
+                placeholder="Select a rejection reason"
+                data={Object.values(RejectionReason).map((reason) => ({
+                  value: reason,
+                  label: REJECTION_REASON_LABELS[reason],
+                }))}
+                value={rejectionReason}
+                onChange={(value) =>
+                  setRejectionReason(value as RejectionReason | null)
+                }
+                disabled={isRejecting}
+                searchable
+                comboboxProps={{ zIndex: 10000 }}
+              />
+            </div>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Comment (optional)
+              </Text>
+              <Textarea
+                placeholder="What failed, where, why? (e.g., 'field X is missing on page 2', 'OCR hallucinated text in section Y')"
+                value={rejectionComments}
+                onChange={(e) => setRejectionComments(e.currentTarget.value)}
+                minRows={3}
+                disabled={isRejecting}
+              />
+            </div>
+
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={closeRejectModal}
+                disabled={isRejecting}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={handleConfirmReject}
+                loading={isRejecting}
+                disabled={!rejectionReason}
+              >
+                Reject document
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        <FlagNoteModal
+          opened={flagModalOpened}
+          initialNote={session.flagNote ?? ""}
+          isSubmitting={isFlagging}
+          onClose={closeFlagModal}
+          onConfirm={handleConfirmFlag}
         />
       </Stack>
     </KeyboardManager>

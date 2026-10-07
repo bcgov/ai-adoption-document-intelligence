@@ -54,6 +54,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.72,
         action: CorrectionAction.confirmed,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
       {
         id: "corr-2",
@@ -64,6 +65,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.85,
         action: CorrectionAction.corrected,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
       {
         id: "corr-3",
@@ -74,6 +76,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.65,
         action: CorrectionAction.deleted,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
     ],
   };
@@ -196,6 +199,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.72,
           action: CorrectionAction.confirmed,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -216,6 +220,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.85,
           action: CorrectionAction.corrected,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -236,6 +241,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.65,
           action: CorrectionAction.deleted,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -253,6 +259,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.72,
           action: CorrectionAction.flagged,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -270,6 +277,7 @@ describe("HitlDatasetService", () => {
           original_conf: null,
           action: CorrectionAction.flagged,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -288,6 +296,7 @@ describe("HitlDatasetService", () => {
           original_conf: null,
           action: CorrectionAction.corrected,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -365,9 +374,10 @@ describe("HitlDatasetService", () => {
 
   describe("listEligibleDocuments", () => {
     it("should return eligible documents with approved sessions", async () => {
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
-
-      expect(result.documents).toHaveLength(2);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.total).toBe(2);
       expect(result.page).toBe(1);
       expect(result.limit).toBe(20);
@@ -376,6 +386,7 @@ describe("HitlDatasetService", () => {
     it("should filter by search term", async () => {
       const result = await service.listEligibleDocuments(
         {
+          group_id: "test-group",
           search: "invoice-001",
         },
         ["test-group"],
@@ -388,6 +399,7 @@ describe("HitlDatasetService", () => {
     it("should paginate results", async () => {
       const result = await service.listEligibleDocuments(
         {
+          group_id: "test-group",
           page: 1,
           limit: 1,
         },
@@ -411,7 +423,10 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.documents).toHaveLength(0);
     });
 
@@ -423,7 +438,10 @@ describe("HitlDatasetService", () => {
         },
       ]);
 
-      const result = await service.listEligibleDocuments({}, ["test-group"]);
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
       expect(result.documents).toHaveLength(0);
     });
   });

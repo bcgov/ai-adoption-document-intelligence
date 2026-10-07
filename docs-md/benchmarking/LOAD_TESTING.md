@@ -42,7 +42,7 @@ The backend registers **`ThrottlerGuard`** globally ([`apps/backend-services/src
 
 | Environment | Action |
 |-------------|--------|
-| Local | `export THROTTLE_GLOBAL_LIMIT=1000000` in `apps/backend-services/.env` or the shell that starts the backend |
+| Local | `export THROTTLE_GLOBAL_LIMIT=1000000` in the repo-root `.env` or the shell that starts the backend |
 | OpenShift disposable instance | Patch `<instance>-backend-services-config` and restart — [MANUAL_LOAD_TEST_INSTANCE.md](../operations/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load) |
 
 Re-apply the OpenShift patch after redeploying the instance; `oc-deploy-instance.sh` resets ConfigMap values from `dev.env`.
@@ -240,7 +240,7 @@ Routes used by the k6 script, matching the Nest controllers and Swagger decorato
 
 | Verb | Path and scenario params | Body | Notes |
 |------|--------------------------|------|-------|
-| `GET` | `/api/hitl/queue?group_id=<group>` plus optional `status`, `modelId`, `maxConfidence`, `limit`, `offset`, `reviewStatus` | None | Queue read from `HitlController.getQueue`. |
+| `GET` | `/api/hitl/queue?group_id=<group>` plus optional `status`, `modelId`, `limit`, `offset`, `reviewStatus` | None | Queue read from `HitlController.getQueue`. |
 | `GET` | `/api/hitl/queue/stats?group_id=<group>` plus optional `reviewStatus` | None | Queue stats from `HitlController.getQueueStats`. |
 | `GET` | `/api/hitl/analytics?group_id=<group>` plus optional `startDate`, `endDate`, `reviewerId` | None | Analytics read from `HitlController.getAnalytics`. |
 | `POST` | `/api/hitl/sessions/next?group_id=<group>` plus optional `modelId`, `maxConfidence`, `reviewStatus` | None | Claims the next eligible document when `LOAD_TEST_HITL_SESSION_MODE` is not `off`. |
@@ -249,7 +249,7 @@ Routes used by the k6 script, matching the Nest controllers and Swagger decorato
 | `POST` | `/api/hitl/sessions/:id/corrections` | `corrections[]` with `field_key`, optional `original_value`, optional `corrected_value`, optional `original_conf`, and `action` | Writes one synthetic correction. |
 | `GET` | `/api/hitl/sessions/:id/corrections` | None | Reads correction history. |
 | `POST` | `/api/hitl/sessions/:id/skip` | None | Default cleanup action for claimed sessions. |
-| `POST` | `/api/hitl/sessions/:id/submit` | None | Optional action with `LOAD_TEST_HITL_SESSION_MODE=submit`; marks documents approved. |
+| `POST` | `/api/hitl/sessions/:id/approve` | None | Optional action with `LOAD_TEST_HITL_SESSION_MODE=submit`; marks documents approved (route renamed from `/submit` to `/approve`). |
 | `POST` | `/api/hitl/sessions/:id/escalate` | `{ "reason": "..." }` | Optional action with `LOAD_TEST_HITL_SESSION_MODE=escalate`. |
 | `GET` | `/api/benchmark/datasets/from-hitl/eligible-documents?group_id=<group>` plus optional `page`, `limit`, `search` | None | Read-only HITL dataset eligibility route. |
 

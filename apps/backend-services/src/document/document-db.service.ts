@@ -5,6 +5,7 @@ import {
   OcrResult,
   Prisma,
   PrismaClient,
+  ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -15,7 +16,7 @@ import {
   KeyValuePair,
 } from "@/ocr/azure-types";
 import { PrismaService } from "../database/prisma.service";
-import type { DocumentData } from "./document-db.types";
+import type { DocumentData, DocumentListItem } from "./document-db.types";
 
 /** A terminal document to purge, with its workflow's ephemeral policy. */
 export interface PurgeableEphemeralDocument {
@@ -162,7 +163,7 @@ export class DocumentDbService {
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{
-    documents: (DocumentData & { workflow_name?: string | null })[];
+    documents: DocumentListItem[];
     total: number;
   }> {
     const client = tx ?? this.prisma;
@@ -247,7 +248,10 @@ export class DocumentDbService {
       const [documents, total] = await Promise.all([
         client.document.findMany({
           where,
-          orderBy,
+          // Documents that share the sorted value come back in no fixed
+          // order, and each page is a separate query, so the id settles
+          // ties; without it a page can repeat a document and skip another.
+          orderBy: [orderBy, { id: "asc" }],
           take,
           skip,
           include: {
@@ -260,6 +264,19 @@ export class DocumentDbService {
                 },
               },
             },
+            // The session that rejected the document, for the rejection
+            // details shown with a rejected document.
+            review_sessions: {
+              where: { status: ReviewStatus.rejected },
+              orderBy: { completed_at: "desc" },
+              take: 1,
+              select: {
+                rejection_reason: true,
+                rejection_comment: true,
+                completed_at: true,
+                actor: { select: { user: { select: { email: true } } } },
+              },
+            },
           },
         }),
         client.document.count({ where }),
@@ -267,14 +284,27 @@ export class DocumentDbService {
 
       this.logger.debug("Found documents", { count: documents.length, total });
 
-      // Map to include workflow_name at top level
-      const documentsWithWorkflow = documents.map((doc) => ({
-        ...doc,
-        workflow_name: doc.workflowVersion?.lineage?.name ?? null,
-        workflowVersion: undefined, // Remove the nested object
-      }));
+      // Flatten the workflow name and the rejection to top-level fields
+      const listItems = documents.map(
+        ({ workflowVersion, review_sessions, ...doc }): DocumentListItem => {
+          const rejectedSession = review_sessions[0];
+          return {
+            ...doc,
+            workflow_name: workflowVersion?.lineage?.name ?? null,
+            rejection:
+              doc.status === DocumentStatus.rejected && rejectedSession
+                ? {
+                    reason: rejectedSession.rejection_reason,
+                    comment: rejectedSession.rejection_comment,
+                    rejected_at: rejectedSession.completed_at,
+                    rejected_by: rejectedSession.actor.user?.email ?? null,
+                  }
+                : null,
+          };
+        },
+      );
 
-      return { documents: documentsWithWorkflow, total };
+      return { documents: listItems, total };
     } catch (error) {
       this.logger.error("Failed to find documents", {
         error: getErrorMessage(error),
@@ -297,7 +327,7 @@ export class DocumentDbService {
     awaiting_review: number;
     complete: number;
     failed: number;
-    rejected_by_human: number;
+    rejected: number;
     conversion_failed: number;
   }> {
     const where = groupIds ? { group_id: { in: groupIds } } : undefined;
@@ -325,7 +355,7 @@ export class DocumentDbService {
         awaiting_review: counts["awaiting_review"] ?? 0,
         complete: counts["complete"] ?? 0,
         failed: counts["failed"] ?? 0,
-        rejected_by_human: counts["rejected_by_human"] ?? 0,
+        rejected: counts["rejected"] ?? 0,
         conversion_failed: counts["conversion_failed"] ?? 0,
       };
     } catch (error) {
@@ -468,6 +498,34 @@ export class DocumentDbService {
       workflow_execution_id: row.workflow_execution_id,
       ephemeral: extractEphemeralConfig(row.workflowVersion?.config),
     }));
+  }
+
+  /**
+   * Finds terminal documents whose `created_at` is older than the given
+   * cutoff, eligible for retention-based permanent deletion.
+   *
+   * @param olderThan - Select documents created before this timestamp.
+   * @param statuses - Terminal statuses eligible for deletion.
+   * @param limit - Maximum number of documents to return in one batch.
+   * @returns Minimal records (id, group_id) needed for deletion.
+   */
+  async findExpiredDocuments(
+    olderThan: Date,
+    statuses: DocumentStatus[],
+    limit: number,
+  ): Promise<Array<{ id: string; group_id: string }>> {
+    return this.prisma.document.findMany({
+      where: {
+        created_at: { lt: olderThan },
+        status: { in: statuses },
+      },
+      select: {
+        id: true,
+        group_id: true,
+      },
+      orderBy: { created_at: "asc" },
+      take: limit,
+    });
   }
 
   /**

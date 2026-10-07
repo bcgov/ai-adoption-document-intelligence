@@ -13,6 +13,7 @@ const TestFactory = () => {
       actorId: "actor",
       groupRoles: {},
       isSystemAdmin: false,
+      resolvedGroups: [],
       ...props,
     };
   };

@@ -34,7 +34,7 @@ Azure Document Intelligence model training always uses Azure Blob Storage regard
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
 │  │       BlobStorageClient (singleton)               │   │
-│  │   Same interface, non-NestJS factory pattern      │   │
+│  │   Per-object ops, non-NestJS factory pattern      │   │
 │  │   Reads BLOB_STORAGE_PROVIDER to select backend   │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
@@ -50,6 +50,10 @@ Set `BLOB_STORAGE_PROVIDER` in your environment:
 | `azure`   | Azure Blob Storage     | Production / cloud      |
 
 Default: `minio`
+
+### `deleteByPrefix` on Azure
+
+`AzureBlobProvider.deleteByPrefix` lists every blob under the prefix, then deletes them in reverse lexicographic order, so each path goes before its parent directory. On a storage account with a hierarchical namespace, directories are listed as entries of their own ahead of their contents, and Azure rejects deleting a non-empty directory; on a flat account the order makes no difference.
 
 ## Container / Bucket Structure
 
@@ -237,7 +241,7 @@ export async function myActivity(blobKey: string): Promise<Buffer> {
 }
 ```
 
-The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and supports the same MinIO/Azure configuration.
+The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and supports the same MinIO/Azure configuration. It offers the per-object operations (`write`, `read`, `exists`, `delete`, `list`) plus `generateSasUrl`, but not `deleteByPrefix`: deleting a document's whole prefix (ephemeral cleanup, retention) happens in the backend.
 
 ## File Locations
 
