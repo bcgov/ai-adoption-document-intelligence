@@ -102,16 +102,16 @@ What the deploy script does on **`--blob-storage-provider minio`**:
 
 - Creates **`<instance>-minio-credentials`** Secret with random root user / password (skipped if it already exists, so re-deploys reuse the same credentials).
 - Pulls in the **`deployments/openshift/kustomize/components/minio`** component, which renders:
-  - **`<instance>-minio`** Deployment (image `minio/minio`, single replica, `Recreate` strategy, ports 9000 API / 9001 console).
+  - **`<instance>-minio`** Deployment (image `cgr.dev/chainguard/minio`, single replica, `Recreate` strategy, ports 9000 API / 9001 console).
   - **`<instance>-minio`** Service (ClusterIP).
   - **`<instance>-minio`** PVC (RWO, size from **`--minio-pvc-size`**, default `5Gi`).
-  - **`<instance>-minio-init`** Job (image `minio/mc`) that waits for MinIO to be ready and creates buckets **`document-blobs`** and **`benchmark-outputs`**.
+  - **`<instance>-minio-init`** Job (the same image, which also ships the `mc` client) that waits for MinIO to be ready and creates buckets **`document-blobs`** and **`benchmark-outputs`**.
 - Patches the backend and worker ConfigMaps so **`BLOB_STORAGE_PROVIDER=minio`**, **`MINIO_ENDPOINT=http://<instance>-minio:9000`**, and **`MINIO_DOCUMENT_BUCKET=document-blobs`**. **`MINIO_ACCESS_KEY`** / **`MINIO_SECRET_KEY`** come from the credentials Secret.
 - Deletes any prior **`<instance>-minio-init`** Job before re-applying (Job spec is immutable; this lets re-deploys recreate it cleanly).
 
 No Azure egress is needed for blob operations under this mode, and **`./scripts/oc-teardown.sh --instance <name>`** removes the MinIO Deployment, Service, PVC, Secret, and Job along with the rest of the stack (label-scoped delete).
 
-> **Image pulls:** the MinIO component references public images (**`minio/minio`**, **`minio/mc`**). If your cluster blocks egress to Docker Hub, mirror the images into **`${ARTIFACTORY_URL}/kfd3-fd34fb-local`** and patch the component to use the mirrored references before deploying.
+> **Image pulls:** the MinIO component pulls one public image, **`cgr.dev/chainguard/minio`**: Chainguard's build of the MinIO server, which also ships the `mc` client. MinIO no longer publishes **`minio/minio`** or **`minio/mc`** on Docker Hub. If your cluster blocks egress to `cgr.dev`, mirror the image into **`${ARTIFACTORY_URL}/kfd3-fd34fb-local`** and patch the component to use the mirrored reference before deploying.
 
 ### Optional
 
