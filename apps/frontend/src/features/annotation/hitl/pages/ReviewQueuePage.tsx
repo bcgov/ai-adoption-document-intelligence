@@ -148,6 +148,16 @@ export const ReviewQueuePage: FC = () => {
     reviewed: reviewedQueue,
   };
   const activeQueue = queuesByTab[activeTab ?? "pending"] ?? pendingQueue;
+  const totalPages = Math.ceil(activeQueue.total / PAGE_SIZE);
+
+  // The queue refreshes every 30 seconds and other reviewers claim documents,
+  // so a tab can shrink while someone is on its last page. Step back to the
+  // last page that still has documents rather than leave them on an empty one.
+  useEffect(() => {
+    if (pageNumber > 0 && pageNumber >= totalPages) {
+      setPageNumber(Math.max(totalPages - 1, 0));
+    }
+  }, [pageNumber, totalPages]);
 
   // Queue-wide figures: the same for every tab, so read them from one queue.
   const stats = pendingQueue.stats;
@@ -299,65 +309,67 @@ export const ReviewQueuePage: FC = () => {
               </Tabs.Tab>
             </Tabs.List>
 
-            <Box
-              style={{
-                marginBottom: "1em",
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "end",
-                gap: 10,
-              }}
-            >
-              <IconActionButton
-                icon={
-                  <IconPlayerSkipForwardFilled
-                    style={{ transform: "rotate(180deg)" }}
-                  />
-                }
-                tooltip={"First"}
-                disabled={pageNumber <= 0}
-                onClick={() => {
-                  setPageNumber(0);
+            {/* Only a tab that spans pages needs a pager, as on the Documents page. */}
+            {totalPages > 1 && (
+              <Box
+                style={{
+                  marginBottom: "1em",
+                  marginLeft: "auto",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "end",
+                  gap: 10,
                 }}
-                style={{ padding: 5 }}
-              />
-              <IconActionButton
-                icon={
-                  <IconPlayerPlayFilled
-                    style={{ transform: "rotate(180deg)" }}
-                  />
-                }
-                tooltip={"Previous"}
-                disabled={pageNumber <= 0}
-                onClick={() => {
-                  setPageNumber(pageNumber - 1);
-                }}
-                style={{ padding: 5 }}
-              />
-              <Typography>
-                Page {pageNumber + 1} of{" "}
-                {Math.ceil(activeQueue.total / PAGE_SIZE)}
-              </Typography>
-              <IconActionButton
-                icon={<IconPlayerPlayFilled />}
-                tooltip={"Next"}
-                disabled={offset + PAGE_SIZE >= activeQueue.total}
-                onClick={() => {
-                  setPageNumber(pageNumber + 1);
-                }}
-                style={{ padding: 5 }}
-              />
-              <IconActionButton
-                icon={<IconPlayerSkipForwardFilled />}
-                tooltip={"Last"}
-                disabled={offset + PAGE_SIZE >= activeQueue.total}
-                onClick={() => {
-                  setPageNumber(Math.ceil(activeQueue.total / PAGE_SIZE) - 1);
-                }}
-                style={{ padding: 5 }}
-              />
-            </Box>
+              >
+                <IconActionButton
+                  icon={
+                    <IconPlayerSkipForwardFilled
+                      style={{ transform: "rotate(180deg)" }}
+                    />
+                  }
+                  tooltip={"First"}
+                  disabled={pageNumber <= 0}
+                  onClick={() => {
+                    setPageNumber(0);
+                  }}
+                  style={{ padding: 5 }}
+                />
+                <IconActionButton
+                  icon={
+                    <IconPlayerPlayFilled
+                      style={{ transform: "rotate(180deg)" }}
+                    />
+                  }
+                  tooltip={"Previous"}
+                  disabled={pageNumber <= 0}
+                  onClick={() => {
+                    setPageNumber(pageNumber - 1);
+                  }}
+                  style={{ padding: 5 }}
+                />
+                <Typography>
+                  Page {pageNumber + 1} of {totalPages}
+                </Typography>
+                <IconActionButton
+                  icon={<IconPlayerPlayFilled />}
+                  tooltip={"Next"}
+                  disabled={offset + PAGE_SIZE >= activeQueue.total}
+                  onClick={() => {
+                    setPageNumber(pageNumber + 1);
+                  }}
+                  style={{ padding: 5 }}
+                />
+                <IconActionButton
+                  icon={<IconPlayerSkipForwardFilled />}
+                  tooltip={"Last"}
+                  disabled={offset + PAGE_SIZE >= activeQueue.total}
+                  onClick={() => {
+                    setPageNumber(totalPages - 1);
+                  }}
+                  style={{ padding: 5 }}
+                />
+              </Box>
+            )}
           </Box>
 
           <Tabs.Panel value="pending" pt="md">
