@@ -420,9 +420,10 @@ describe("ReviewDbService", () => {
       });
 
       const [args] = mockDocument.findMany.mock.calls.at(-1)!;
-      expect(args.orderBy).toEqual({
-        workflowVersion: { lineage: { name: "asc" } },
-      });
+      expect(args.orderBy).toEqual([
+        { workflowVersion: { lineage: { name: "asc" } } },
+        { id: "asc" },
+      ]);
     });
 
     it("should sort by the document column for the other sort keys, newest first by default", async () => {
@@ -432,16 +433,34 @@ describe("ReviewDbService", () => {
         statuses: [DocumentStatus.awaiting_review],
         sortBy: "filename",
       });
-      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual({
-        original_filename: "desc",
-      });
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { original_filename: "desc" },
+        { id: "asc" },
+      ]);
 
       await service.findReviewQueue({
         statuses: [DocumentStatus.awaiting_review],
       });
-      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual({
-        created_at: "desc",
+      expect(mockDocument.findMany.mock.calls.at(-1)![0].orderBy).toEqual([
+        { created_at: "desc" },
+        { id: "asc" },
+      ]);
+    });
+
+    it("should break ties by id, so documents that share a model page the same way every time", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        sortBy: "model",
+        sortDir: "asc",
+        limit: 50,
+        offset: 50,
       });
+
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.orderBy).toEqual([{ model_id: "asc" }, { id: "asc" }]);
+      expect(args).toMatchObject({ take: 50, skip: 50 });
     });
 
     it("should apply groupIds filter", async () => {

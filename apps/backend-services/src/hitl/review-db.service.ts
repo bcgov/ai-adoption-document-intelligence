@@ -317,11 +317,16 @@ export class ReviewDbService {
     const sortBy = filters.sortBy ?? "created_at";
     const sortDir = filters.sortDir ?? "desc";
     // Workflow sorts by the name the Workflow column shows, through the
-    // version's lineage, as the Documents page does.
-    const orderBy: Prisma.DocumentOrderByWithRelationInput =
+    // version's lineage, as the Documents page does. Documents that share the
+    // sorted value come back in no fixed order, and each page is a separate
+    // query, so the id settles ties; without it a page can repeat a document
+    // from the page before and skip another.
+    const orderBy: Prisma.DocumentOrderByWithRelationInput[] = [
       sortBy === "workflow"
         ? { workflowVersion: { lineage: { name: sortDir } } }
-        : { [sortFieldByKey[sortBy]]: sortDir };
+        : { [sortFieldByKey[sortBy]]: sortDir },
+      { id: "asc" },
+    ];
 
     // `lastSession` must be the session relevant to the tab being viewed, not
     // just whichever terminal session started most recently: a flagged
