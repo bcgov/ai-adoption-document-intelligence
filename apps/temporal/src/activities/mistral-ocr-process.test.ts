@@ -40,14 +40,47 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+interface TemplateRow {
+  id: string;
+  group_id: string;
+  field_schema: Array<{
+    field_key: string;
+    field_type: string;
+    field_format: string | null;
+    display_order: number;
+  }>;
+}
+
+/** In-memory `template_models` table behind the mocked Prisma delegate. */
+let templateRows: TemplateRow[] = [];
 const mockFindUnique = jest.fn();
+const mockFindFirst = jest.fn();
 jest.mock("./database-client", () => ({
   getPrismaClient: () => ({
     templateModel: {
       findUnique: mockFindUnique,
+      findFirst: mockFindFirst,
     },
   }),
 }));
+
+function amountTemplate(groupId: string): TemplateRow {
+  return {
+    id: "tm-1",
+    group_id: groupId,
+    field_schema: [
+      {
+        field_key: "amount",
+        field_type: "number",
+        field_format: null,
+        display_order: 0,
+      },
+    ],
+  };
+}
 
 describe("resolveMistralOcrModelId", () => {
   it("returns stored id when it is a Mistral OCR model", () => {
@@ -121,7 +154,7 @@ describe("mistralOcrProcess", () => {
     fileName: "doc.pdf",
     fileType: "pdf",
     contentType: "application/pdf",
-    blobKey: "cjld0cudp0000qzrmn0i2o72/ocr/doc.pdf",
+    blobKey: `${GROUP}/ocr/doc.pdf`,
     modelId: "prebuilt-layout",
   };
 
@@ -130,6 +163,19 @@ describe("mistralOcrProcess", () => {
     ocrBodies.clear();
     process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "true" };
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
+    templateRows = [];
+    mockFindUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) =>
+        templateRows.find((r) => r.id === where.id) ?? null,
+    );
+    mockFindFirst.mockImplementation(
+      async ({ where }: { where: { id: string; group_id?: string } }) =>
+        templateRows.find(
+          (r) =>
+            r.id === where.id &&
+            (where.group_id === undefined || r.group_id === where.group_id),
+        ) ?? null,
+    );
     jest
       .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
       .mockResolvedValue("gtestgroupidfortests01");
@@ -170,17 +216,7 @@ describe("mistralOcrProcess", () => {
       MISTRAL_API_KEY: "test-key",
     };
 
-    mockFindUnique.mockResolvedValue({
-      id: "tm-1",
-      field_schema: [
-        {
-          field_key: "amount",
-          field_type: "number",
-          field_format: null,
-          display_order: 0,
-        },
-      ],
-    });
+    templateRows = [amountTemplate(GROUP)];
 
     axiosPost.mockResolvedValue({
       data: {
@@ -199,6 +235,7 @@ describe("mistralOcrProcess", () => {
     const { ocrResult: ref } = await mistralOcrProcess({
       fileData: baseFile,
       documentId: DOC_ID,
+      groupId: GROUP,
       templateModelId: "tm-1",
     });
 
@@ -215,6 +252,83 @@ describe("mistralOcrProcess", () => {
     await expect(
       mistralOcrProcess({ fileData: baseFile, documentId: DOC_ID }),
     ).rejects.toThrow("MISTRAL_API_KEY");
+  });
+
+  describe("group scope", () => {
+    const okResponse = {
+      data: {
+        model: "mistral-ocr-latest",
+        pages: [
+          {
+            index: 0,
+            markdown: "ok",
+            dimensions: { width: 10, height: 10, dpi: 72 },
+          },
+        ],
+        usage_info: { pages_processed: 1 },
+      },
+    };
+
+    beforeEach(() => {
+      process.env = {
+        ...originalEnv,
+        MOCK_MISTRAL_OCR: "false",
+        MISTRAL_API_KEY: "test-key",
+      };
+      axiosPost.mockResolvedValue(okResponse);
+    });
+
+    it("loads the template model only within the run's group", async () => {
+      templateRows = [amountTemplate(GROUP)];
+
+      await mistralOcrProcess({
+        fileData: baseFile,
+        documentId: DOC_ID,
+        groupId: GROUP,
+        templateModelId: "tm-1",
+      });
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { id: "tm-1", group_id: GROUP },
+        include: { field_schema: { orderBy: { display_order: "asc" } } },
+      });
+      const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
+      expect(callBody.document_annotation_format).toBeDefined();
+    });
+
+    it("treats a template model from another group as not found", async () => {
+      templateRows = [amountTemplate(OTHER_GROUP)];
+
+      await mistralOcrProcess({
+        fileData: baseFile,
+        documentId: DOC_ID,
+        groupId: GROUP,
+        templateModelId: "tm-1",
+      });
+
+      const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
+      expect(callBody.document_annotation_format).toBeUndefined();
+    });
+
+    it("refuses a document blob that belongs to another group", async () => {
+      await expect(
+        mistralOcrProcess({
+          fileData: { ...baseFile, blobKey: `${OTHER_GROUP}/ocr/doc.pdf` },
+          documentId: DOC_ID,
+          groupId: GROUP,
+        }),
+      ).rejects.toThrow(/does not belong to group/);
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(axiosPost).not.toHaveBeenCalled();
+    });
+
+    it("refuses to read the document without a groupId", async () => {
+      await expect(
+        mistralOcrProcess({ fileData: baseFile, documentId: DOC_ID }),
+      ).rejects.toThrow(/groupId is required/);
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(axiosPost).not.toHaveBeenCalled();
+    });
   });
 
   describe("variant: azure (Foundry)", () => {
@@ -245,17 +359,7 @@ describe("mistralOcrProcess", () => {
         MISTRAL_DOC_AI_AZURE_KEY: "test-foundry-key",
       };
 
-      mockFindUnique.mockResolvedValue({
-        id: "tm-1",
-        field_schema: [
-          {
-            field_key: "amount",
-            field_type: "number",
-            field_format: null,
-            display_order: 0,
-          },
-        ],
-      });
+      templateRows = [amountTemplate(GROUP)];
 
       axiosPost.mockResolvedValue({
         data: {
@@ -274,6 +378,7 @@ describe("mistralOcrProcess", () => {
       const { ocrResult: ref, ocrResponse } = await mistralOcrProcess({
         fileData: baseFile,
         documentId: DOC_ID,
+        groupId: GROUP,
         variant: "azure",
         templateModelId: "tm-1",
         documentAnnotationPrompt: "Extract values from this form.",
@@ -330,17 +435,7 @@ describe("mistralOcrProcess", () => {
         MISTRAL_DOC_AI_AZURE_KEY: "test-foundry-key",
       };
 
-      mockFindUnique.mockResolvedValue({
-        id: "tm-1",
-        field_schema: [
-          {
-            field_key: "amount",
-            field_type: "number",
-            field_format: null,
-            display_order: 0,
-          },
-        ],
-      });
+      templateRows = [amountTemplate(GROUP)];
 
       axiosPost.mockResolvedValue({
         data: {
@@ -379,6 +474,7 @@ describe("mistralOcrProcess", () => {
       await mistralOcrProcess({
         fileData: baseFile,
         documentId: DOC_ID,
+        groupId: GROUP,
         variant: "azure",
         templateModelId: "tm-1",
         documentAnnotationPrompt: "extract",

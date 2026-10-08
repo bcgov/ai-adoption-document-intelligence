@@ -734,6 +734,46 @@ describe("IdentityGuard", () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it.each([
+    "__proto__",
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+  ])("should treat a group identifier that names an inherited object property (%s) as a group the caller is not a member of", async (groupId) => {
+    userService.findUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "clh7z2xk00000356u8e3h1234",
+          role: GroupRole.ADMIN,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { query: "group_id" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      query: { group_id: groupId },
+    };
+
+    const result = identityGuard.canActivate(createContext(request));
+    await expect(result).rejects.toThrow(ForbiddenException);
+    await expect(result).rejects.toThrow(
+      "User is not a member of the specified group",
+    );
+  });
+
   it("should pass for a system admin regardless of group membership when groupIdFrom is specified", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,

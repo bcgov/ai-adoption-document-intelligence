@@ -550,16 +550,15 @@ export class HitlService {
     // Fetch field definitions for format-aware HITL validation. Prefer the exact
     // template model recorded on the document (a Group can hold many templates;
     // only one was actually used). Fall back to the group lookup for older docs.
+    // Both lookups stay within the document's group.
     const templateModelId = readTemplateModelIdFromMetadata(
       session.document.metadata,
     );
     const fieldDefinitions =
-      templateModelId || session.document.group_id
-        ? await this.reviewDb.findFieldDefinitionsForDocument({
-            templateModelId,
-            groupId: session.document.group_id,
-          })
-        : [];
+      await this.reviewDb.findFieldDefinitionsForDocument({
+        templateModelId,
+        groupId: session.document.group_id,
+      });
 
     const reviewPlan = readReviewPlanFromDocument(
       (session.document as { review_plan?: unknown }).review_plan,

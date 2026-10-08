@@ -385,7 +385,11 @@ describe("ConfusionProfileService", () => {
 
       expect(result.id).toBe("profile-1");
       expect(prismaMock.prisma.benchmarkRun.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ["run-1"] }, status: "completed" },
+        where: {
+          id: { in: ["run-1"] },
+          status: "completed",
+          project: { group_id: "group-1" },
+        },
         select: { id: true, metrics: true },
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -536,7 +540,7 @@ describe("ConfusionProfileService", () => {
 
       // Template models should be queried
       expect(prismaMock.prisma.templateModel.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ["tm-1"] } },
+        where: { id: { in: ["tm-1"] }, group_id: "group-1" },
         include: { field_schema: { select: { field_key: true } } },
       });
 
@@ -613,6 +617,135 @@ describe("ConfusionProfileService", () => {
         Record<string, number>
       >;
       expect(fieldCounts["0"]["O"]).toBe(7);
+    });
+
+    it("only reads benchmark runs whose project belongs to the profile's group", async () => {
+      (
+        prismaMock.prisma.fieldCorrection.findMany as jest.Mock
+      ).mockResolvedValue([]);
+
+      const runsByGroup = [
+        {
+          id: "run-own",
+          groupId: "group-1",
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s1",
+                evaluationDetails: [
+                  {
+                    field: "amount",
+                    matched: false,
+                    predicted: "1O0",
+                    expected: "100",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          id: "run-other",
+          groupId: "group-2",
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "s2",
+                evaluationDetails: [
+                  {
+                    field: "code",
+                    matched: false,
+                    predicted: "5S",
+                    expected: "55",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ];
+      (prismaMock.prisma.benchmarkRun.findMany as jest.Mock).mockImplementation(
+        (args: {
+          where: { id: { in: string[] }; project?: { group_id: string } };
+        }) =>
+          Promise.resolve(
+            runsByGroup
+              .filter((r) => args.where.id.in.includes(r.id))
+              .filter(
+                (r) =>
+                  !args.where.project ||
+                  r.groupId === args.where.project.group_id,
+              )
+              .map(({ id, metrics }) => ({ id, metrics })),
+          ),
+      );
+      (
+        prismaMock.prisma.confusionProfile.create as jest.Mock
+      ).mockResolvedValue(buildProfile());
+
+      await service.deriveAndSave(
+        {
+          name: "Group Runs",
+          groupId: "group-1",
+          sources: { benchmarkRunIds: ["run-own", "run-other"] },
+        },
+        "actor-1",
+      );
+
+      const createCall = (
+        prismaMock.prisma.confusionProfile.create as jest.Mock
+      ).mock.calls[0][0];
+      const metadata = createCall.data.metadata as Record<string, unknown>;
+      expect(metadata.pairCount).toBe(1);
+      expect(createCall.data.matrix).toEqual({ "0": { O: 1 } });
+    });
+
+    it("only resolves field keys from template models in the profile's group", async () => {
+      const templateModels = [
+        {
+          id: "tm-own",
+          group_id: "group-1",
+          field_schema: [{ field_key: "amount" }],
+        },
+        {
+          id: "tm-other",
+          group_id: "group-2",
+          field_schema: [{ field_key: "code" }],
+        },
+      ];
+      (
+        prismaMock.prisma.templateModel.findMany as jest.Mock
+      ).mockImplementation(
+        (args: { where: { id: { in: string[] }; group_id?: string } }) =>
+          Promise.resolve(
+            templateModels
+              .filter((tm) => args.where.id.in.includes(tm.id))
+              .filter(
+                (tm) =>
+                  args.where.group_id === undefined ||
+                  tm.group_id === args.where.group_id,
+              ),
+          ),
+      );
+      (
+        prismaMock.prisma.fieldCorrection.findMany as jest.Mock
+      ).mockResolvedValue([]);
+      (
+        prismaMock.prisma.confusionProfile.create as jest.Mock
+      ).mockResolvedValue(buildProfile());
+
+      await service.deriveAndSave(
+        {
+          name: "Group Templates",
+          groupId: "group-1",
+          sources: { templateModelIds: ["tm-own", "tm-other"] },
+        },
+        "actor-1",
+      );
+
+      const hitlCall = (prismaMock.prisma.fieldCorrection.findMany as jest.Mock)
+        .mock.calls[0][0];
+      expect(hitlCall.where.field_key).toEqual({ in: ["amount"] });
     });
   });
 });

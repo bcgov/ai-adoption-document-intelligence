@@ -1,9 +1,8 @@
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { degrees, PDFDocument } from "pdf-lib";
 import type { Worker as TesseractWorker } from "tesseract.js";
 import { OEM } from "tesseract.js";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import { createActivityLogger } from "../logger";
 import { loadMupdf, loadTesseract } from "./esm-imports";
 
@@ -26,6 +25,8 @@ export interface PageOrientationResult {
 export interface NormalizeDocumentOrientationInput {
   /** Blob key of the normalized PDF to inspect and correct. */
   blobKey: string;
+  /** Group the workflow runs in; the blob key must belong to it. */
+  groupId: string;
   /**
    * Minimum Tesseract OSD confidence required before applying a correction.
    * Defaults to 2.0. Lower values correct more aggressively; higher values
@@ -100,6 +101,8 @@ function renderPageToPng(
  *
  * Pages with zero orientation or low confidence are copied unchanged.
  * If no pages require correction the input blob is returned as-is (no write).
+ * The blob key must belong to the run's group; corrections are written back
+ * to the same key.
  *
  * The per-page rotation-baking transform (the switch on 90 / 180 / 270 below)
  * is also implemented in
@@ -108,20 +111,24 @@ function renderPageToPng(
  * flag rather than OSD detection. Keep both sites in sync when changing
  * the math.
  *
- * @param input - Blob key of the normalized PDF and optional confidence threshold.
+ * @param input - Blob key of the normalized PDF, the run's group, and optional confidence threshold.
  * @returns Corrected blob key and per-page correction details.
  */
 export async function normalizeDocumentOrientation(
   input: NormalizeDocumentOrientationInput,
 ): Promise<NormalizeDocumentOrientationOutput> {
   const activityName = "normalizeDocumentOrientation";
-  const { blobKey, confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD } = input;
+  const {
+    blobKey,
+    groupId,
+    confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD,
+  } = input;
   const log = createActivityLogger(activityName, { blobKey });
 
   log.info("normalizeDocumentOrientation start", { event: "start", blobKey });
 
-  const blobStorage = getBlobStorageClient();
-  const pdfBuffer = await blobStorage.read(validateBlobFilePath(blobKey));
+  const blobStorage = getGroupBlobStorage(groupId);
+  const pdfBuffer = await blobStorage.read(blobKey);
 
   const mupdf = await getMupdf();
 
@@ -250,10 +257,7 @@ export async function normalizeDocumentOrientation(
     }
 
     const correctedBuffer = Buffer.from(await newDoc.save());
-    await blobStorage.write(
-      validateBlobFilePath(blobKey),
-      correctedBuffer as unknown as Buffer,
-    );
+    await blobStorage.write(blobKey, correctedBuffer as unknown as Buffer);
 
     const correctedCount = pageCorrections.filter((p) => p.corrected).length;
     log.info("normalizeDocumentOrientation complete", {

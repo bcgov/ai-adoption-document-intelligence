@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsObject, IsOptional, IsString } from "class-validator";
+import { IsObject, IsOptional, IsString, Matches } from "class-validator";
 
 export class CreateVersionDto {
   /**
@@ -35,12 +35,18 @@ export class CreateVersionDto {
   groundTruthSchema?: Record<string, unknown>;
 
   /**
-   * Optional manifest path. Defaults to 'dataset-manifest.json'.
+   * Optional manifest path, relative to the dataset root. Defaults to
+   * 'dataset-manifest.json'.
    */
   @ApiPropertyOptional({
-    description: "Manifest path (defaults to 'dataset-manifest.json')",
+    description:
+      "Manifest path relative to the dataset root, with no leading '/' and no '..' segments (defaults to 'dataset-manifest.json')",
   })
   @IsString()
+  @Matches(/^(?!\/)(?!(?:.*\/)?\.\.(?:\/|$))/, {
+    message:
+      "manifestPath must be relative to the dataset root, with no leading '/' and no '..' segments",
+  })
   @IsOptional()
   manifestPath?: string;
 }

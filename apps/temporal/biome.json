@@ -5,10 +5,34 @@
     "rules": {
       "suspicious": {
         "noConsole": "off"
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["**/blob-storage-client"],
+                "importNamePattern": "getBlobStorageClient",
+                "message": "Access blob storage through getGroupBlobStorage(groupId) or readGroupBlob(key, groupId) so every key is checked against the run's group."
+              }
+            ]
+          }
+        }
       }
     }
   },
   "overrides": [
+    {
+      "includes": ["src/blob-storage/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["**/jest.setup.ts"],
       "linter": {
@@ -25,6 +49,9 @@
         "rules": {
           "correctness": {
             "noUndeclaredVariables": "off"
+          },
+          "style": {
+            "noRestrictedImports": "off"
           },
           "suspicious": {
             "noExplicitAny": "off",

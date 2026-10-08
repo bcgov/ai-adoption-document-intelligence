@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-09-29
+updated: 2026-10-07
 canonical_sources:
   - docs-md/auth/AUTHENTICATION.md
   - docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md
@@ -24,7 +24,7 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 ## Source Map
 
 - Authentication details live in `docs-md/auth/AUTHENTICATION.md`.
-- Group-scoped authorization behavior lives in `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`.
+- Group-scoped authorization behavior lives in `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`, including how the Temporal worker enforces the run's group (Workflow Worker section).
 - Which pages and sidebar entries each role sees lives in `docs-md/auth/FRONTEND_ROUTE_PERMISSIONS.md` (code: `apps/frontend/src/routes.config.tsx`).
 - Group UI and workflow context docs live under `docs-md/groups/`.
 - Backend auth implementation, including API key guards, lives in `apps/backend-services/src/auth/`.
@@ -49,3 +49,4 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 - Frontend group context can drift from backend group membership and authorization checks. In particular, the frontend keeps its own copy of the `Permission` enum (`apps/frontend/src/auth/permissions.ts`) and `/api/auth/me` sends permissions by position, so the two enums must stay in the same order.
 - Documentation for group management pages can become endpoint-level; keep detailed API behavior in canonical docs or Swagger/OpenAPI.
 - Local development auth shortcuts should not leak into production-oriented guidance.
+- A new worker activity that takes a document id or template id from its input must scope the query to the injected `groupId` (`{ id, group_id }`); ctx and node parameters are not a group boundary. Blob access goes through `getGroupBlobStorage` / `readGroupBlob`, which a lint rule enforces; database queries have no such guard.

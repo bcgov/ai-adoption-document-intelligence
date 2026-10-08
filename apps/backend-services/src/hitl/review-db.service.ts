@@ -631,14 +631,18 @@ export class ReviewDbService {
    * used for this document. Falls back to the first TemplateModel in the group for
    * documents that predate metadata.templateModelId being recorded.
    *
+   * Both lookups are scoped to the document's group: a templateModelId that
+   * names a template model in another group resolves to nothing, exactly like
+   * an unknown id.
+   *
    * @param opts.templateModelId - The TemplateModel.id used by the OCR workflow, if known.
-   * @param opts.groupId - The document's group ID, used as fallback.
+   * @param opts.groupId - The document's group ID.
    * @returns Array of { field_key, format_spec } objects, or [] if nothing resolves.
    */
   async findFieldDefinitionsForDocument(
     opts: {
       templateModelId?: string | null;
-      groupId?: string | null;
+      groupId: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<Array<{ field_key: string; format_spec: string | null }>> {
@@ -654,17 +658,12 @@ export class ReviewDbService {
     // was recorded at OCR time won't carry it, so we look up by group_id instead.
     // A Group can hold multiple TemplateModels, so this fallback may pick the wrong
     // one — accepted only for legacy docs that predate the metadata field.
-    const templateModel = opts.templateModelId
-      ? await client.templateModel.findUnique({
-          where: { id: opts.templateModelId },
-          include: fieldSchemaInclude,
-        })
-      : opts.groupId
-        ? await client.templateModel.findFirst({
-            where: { group_id: opts.groupId },
-            include: fieldSchemaInclude,
-          })
-        : null;
+    const templateModel = await client.templateModel.findFirst({
+      where: opts.templateModelId
+        ? { id: opts.templateModelId, group_id: opts.groupId }
+        : { group_id: opts.groupId },
+      include: fieldSchemaInclude,
+    });
 
     return (
       templateModel?.field_schema?.map((f) => ({

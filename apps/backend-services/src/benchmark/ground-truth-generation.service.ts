@@ -116,8 +116,12 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Validate workflow version exists
-    const workflowVersion = await this.jobDb.findWorkflow(workflowVersionId);
+    // Validate the workflow version exists in the dataset's group
+    const groupId = version.dataset.group_id;
+    const workflowVersion = await this.jobDb.findWorkflow(
+      workflowVersionId,
+      groupId,
+    );
 
     if (!workflowVersion) {
       throw new NotFoundException(
@@ -143,10 +147,7 @@ export class GroundTruthGenerationService {
     }
 
     // Load manifest
-    const manifest = await this.loadManifest(
-      version.storagePrefix,
-      workflowVersion.lineage.group_id,
-    );
+    const manifest = await this.loadManifest(version.storagePrefix, groupId);
 
     // Find samples without ground truth
     const samplesWithoutGt = manifest.samples.filter(
@@ -228,7 +229,7 @@ export class GroundTruthGenerationService {
           resource_type: "dataset_version",
           resource_id: versionId,
           actor_id: _userId !== "anonymous" ? _userId : undefined,
-          group_id: workflowVersion.lineage.group_id,
+          group_id: groupId,
           payload: {
             dataset_id: datasetId,
             workflow_version_id: workflowVersionId,

@@ -703,53 +703,6 @@ describe("HitlService", () => {
       });
     });
 
-    it("should return empty fieldDefinitions when document has no group_id and no templateModelId", async () => {
-      const sessionNoGroup = {
-        ...mockReviewSession,
-        document: {
-          ...mockReviewSession.document,
-          group_id: null,
-          metadata: {},
-        },
-      };
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        sessionNoGroup as any,
-      );
-
-      const result = await service.getSession("session-1");
-
-      expect(
-        mockReviewDbService.findFieldDefinitionsForDocument,
-      ).not.toHaveBeenCalled();
-      expect(result.fieldDefinitions).toEqual([]);
-    });
-
-    it("should still call lookup when templateModelId is set even without group_id", async () => {
-      const sessionTemplateOnly = {
-        ...mockReviewSession,
-        document: {
-          ...mockReviewSession.document,
-          group_id: null,
-          metadata: { templateModelId: "tmpl-456" },
-        },
-      };
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        sessionTemplateOnly as any,
-      );
-      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
-        [],
-      );
-
-      await service.getSession("session-1");
-
-      expect(
-        mockReviewDbService.findFieldDefinitionsForDocument,
-      ).toHaveBeenCalledWith({
-        templateModelId: "tmpl-456",
-        groupId: null,
-      });
-    });
-
     it("should return reviewPlan when document.review_plan is a well-formed array", async () => {
       const reviewPlan = [
         {

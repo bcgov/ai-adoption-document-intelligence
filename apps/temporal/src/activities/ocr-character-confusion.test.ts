@@ -50,6 +50,9 @@ function ocrFromRef(ref: OcrPayloadRef): OCRResult {
   return JSON.parse(blobBody.toString("utf8")) as OCRResult;
 }
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 function correct(
   params: Omit<
     Parameters<typeof characterConfusionCorrection>[0],
@@ -58,7 +61,11 @@ function correct(
     documentId?: string;
   },
 ) {
-  return characterConfusionCorrection({ documentId: DOC_ID, ...params });
+  return characterConfusionCorrection({
+    documentId: DOC_ID,
+    groupId: GROUP,
+    ...params,
+  });
 }
 
 beforeEach(() => {
@@ -368,10 +375,10 @@ describe("characterConfusionCorrection", () => {
   describe("profile-driven confusion rules", () => {
     const prismaMock = {
       confusionProfile: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       templateModel: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
     };
 
@@ -403,7 +410,7 @@ describe("characterConfusionCorrection", () => {
       // matrix entry "1"→{":": 5, "l": 18} would give map[":"]=1 and map["l"]="1" ✓
       // Let's structure matrix that way for the test
 
-      prismaMock.confusionProfile.findUnique.mockResolvedValue({
+      prismaMock.confusionProfile.findFirst.mockResolvedValue({
         id: "profile-1",
         name: "Test profile",
         matrix: {
@@ -447,13 +454,177 @@ describe("characterConfusionCorrection", () => {
     });
   });
 
+  describe("group scope", () => {
+    interface Row {
+      id: string;
+      group_id: string;
+    }
+
+    function scopedTable<T extends Row>(rows: T[]) {
+      return {
+        findUnique: jest.fn(
+          async ({ where }: { where: { id: string } }) =>
+            rows.find((r) => r.id === where.id) ?? null,
+        ),
+        findFirst: jest.fn(
+          async ({ where }: { where: { id: string; group_id?: string } }) =>
+            rows.find(
+              (r) =>
+                r.id === where.id &&
+                (where.group_id === undefined || r.group_id === where.group_id),
+            ) ?? null,
+        ),
+      };
+    }
+
+    const profile = (groupId: string) => ({
+      id: "profile-1",
+      group_id: groupId,
+      name: "Test profile",
+      matrix: { "0": { O: 42 } },
+    });
+
+    const template = (groupId: string) => ({
+      id: "proj-1",
+      group_id: groupId,
+      field_schema: [
+        {
+          field_key: "total_amount",
+          field_type: "number",
+          field_format: null,
+          display_order: 0,
+        },
+      ],
+    });
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads a confusion profile only within the run's group", async () => {
+      const prisma = {
+        confusionProfile: scopedTable([profile(GROUP)]),
+        templateModel: scopedTable([template(GROUP)]),
+      };
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      const result = await correct({
+        ocrResult: makeOcrResult([
+          { key: "code", value: "2O", confidence: 0.9 },
+        ]),
+        confusionProfileId: "profile-1",
+        applyToAllFields: true,
+      });
+
+      expect(prisma.confusionProfile.findFirst).toHaveBeenCalledWith({
+        where: { id: "profile-1", group_id: GROUP },
+      });
+      expect(result.metadata?.useProfile).toBe(true);
+    });
+
+    it("treats a confusion profile from another group as not found", async () => {
+      getPrismaClientMock.mockReturnValue({
+        confusionProfile: scopedTable([profile(OTHER_GROUP)]),
+        templateModel: scopedTable([template(OTHER_GROUP)]),
+      });
+
+      const result = await correct({
+        ocrResult: makeOcrResult([
+          { key: "code", value: "2O", confidence: 0.9 },
+        ]),
+        confusionProfileId: "profile-1",
+        applyToAllFields: true,
+      });
+
+      expect(result.metadata?.useProfile).toBe(false);
+    });
+
+    it("refuses to load a confusion profile without a groupId", async () => {
+      const prisma = {
+        confusionProfile: scopedTable([profile(GROUP)]),
+        templateModel: scopedTable([template(GROUP)]),
+      };
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      await expect(
+        correct({
+          groupId: undefined,
+          ocrResult: makeOcrResult([
+            { key: "code", value: "2O", confidence: 0.9 },
+          ]),
+          confusionProfileId: "profile-1",
+        }),
+      ).rejects.toThrow(/groupId is required/);
+      expect(prisma.confusionProfile.findUnique).not.toHaveBeenCalled();
+      expect(prisma.confusionProfile.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("loads the field schema only within the run's group", async () => {
+      const prisma = {
+        confusionProfile: scopedTable([profile(GROUP)]),
+        templateModel: scopedTable([template(GROUP)]),
+      };
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      const result = await correct({
+        ocrResult: makeOcrResult([
+          { key: "total_amount", value: "2O24", confidence: 0.9 },
+        ]),
+        documentType: "proj-1",
+        fieldScope: ["total_amount"],
+      });
+
+      expect(prisma.templateModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "proj-1", group_id: GROUP } }),
+      );
+      expect(result.metadata?.schemaAware).toBe(true);
+    });
+
+    it("treats a template model from another group as not found", async () => {
+      getPrismaClientMock.mockReturnValue({
+        confusionProfile: scopedTable([profile(OTHER_GROUP)]),
+        templateModel: scopedTable([template(OTHER_GROUP)]),
+      });
+
+      const result = await correct({
+        ocrResult: makeOcrResult([
+          { key: "total_amount", value: "2O24", confidence: 0.9 },
+        ]),
+        documentType: "proj-1",
+        fieldScope: ["total_amount"],
+      });
+
+      expect(result.metadata?.schemaAware).toBe(false);
+    });
+
+    it("refuses to load the field schema without a groupId", async () => {
+      const prisma = {
+        confusionProfile: scopedTable([profile(GROUP)]),
+        templateModel: scopedTable([template(GROUP)]),
+      };
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      await expect(
+        correct({
+          groupId: undefined,
+          ocrResult: makeOcrResult([
+            { key: "total_amount", value: "2O24", confidence: 0.9 },
+          ]),
+          documentType: "proj-1",
+        }),
+      ).rejects.toThrow(/groupId is required/);
+      expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
+      expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
   describe("schema-aware (documentType)", () => {
     const prismaMock = {
       confusionProfile: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
       templateModel: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
     };
 
@@ -466,7 +637,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("loads field_schema and applies substitutions when field is in fieldScope", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -496,7 +667,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("omits slashToOne for schema string fields", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -525,7 +696,7 @@ describe("characterConfusionCorrection", () => {
     });
 
     it("applies no confusion rules for schema selectionMark fields", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {

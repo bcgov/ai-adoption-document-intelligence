@@ -354,6 +354,34 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // findTrainedModelGroupId
+  // ---------------------------------------------------------------------------
+
+  describe("findTrainedModelGroupId", () => {
+    it("returns the group of the template model that owns the trained model id", async () => {
+      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce({
+        template_model: { group_id: "clh7z2xk00000356u8e3h1234" },
+      });
+
+      const result = await service.findTrainedModelGroupId("km-invoice-v2");
+
+      expect(result).toBe("clh7z2xk00000356u8e3h1234");
+      expect(mockPrisma.trainedModel.findUnique).toHaveBeenCalledWith({
+        where: { model_id: "km-invoice-v2" },
+        select: { template_model: { select: { group_id: true } } },
+      });
+    });
+
+    it("returns null when no trained model has the id", async () => {
+      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(null);
+
+      const result = await service.findTrainedModelGroupId("prebuilt-layout");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // findAllTrainedModels
   // ---------------------------------------------------------------------------
 

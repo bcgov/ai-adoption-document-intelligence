@@ -31,8 +31,8 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
-  SAMPLE_IMAGE_ABS_PATH,
   seedTestDocument,
+  stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
@@ -387,7 +387,7 @@ describeRuntime(
     function runtimeCtx(documentId: string): Record<string, unknown> {
       return {
         documentId,
-        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        blobKey: stageSampleImage(),
         fileName: "1 81.jpg",
         fileType: "image",
         contentType: "image/jpeg",

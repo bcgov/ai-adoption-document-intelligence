@@ -240,6 +240,25 @@ leaked across groups.
 | Confusion profiles | `GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/:id` | The profile row is loaded/mutated only when `group_id` matches the path group (not just membership in the path group) | `ConfusionProfileService.findById` / `update` / `delete` |
 | Template field/label children | `PUT/DELETE .../template-models/:id/fields/:fieldId`, `DELETE .../documents/:docId/labels/:labelId` | The child write is scoped to the owning template model (and labeling document); a child id from another group's template matches nothing | `TemplateModelDbService.updateFieldDefinition` / `deleteFieldDefinition` / `deleteDocumentLabel` |
 | Trained model listing | `GET /api/models` | The trained-model picker is filtered to the caller's groups (via `getIdentityGroupIds`); prebuilt models remain global | `TrainingDbService.findAllTrainedModelIds` |
+| Labeling upload target | `POST /api/template-models/:id/upload` | The template model must belong to the body's `group_id`; a mismatch is `400` | `TemplateModelService.uploadLabelingDocument` |
+| Labeling document attach | `POST /api/template-models/:id/documents` | The template model must be in the labeling document's group; otherwise the template model is not found | `TemplateModelService.addDocumentToTemplateModel` |
+| Upload model | `POST /api/upload` (`model_id`, or the workflow's default) | A trained model of another group is not found; Azure `prebuilt-*` ids and ids that are not trained models (other engines) are not group-owned | `UploadController.uploadDocument`, `TrainingDbService.findTrainedModelGroupId` |
+| Upload ctx overrides | `POST /api/upload` (`ctx_overrides`) | Only ctx keys the workflow declares with a `defaultValue` are applied, and never the values the server derives from the stored document (`documentId`, `groupId`, `blobKey`, `fileName`, `fileType`, `contentType`, `modelId`, `documentMetadata`) | `OcrService.requestOcr` |
+| Document thumbnails | `GET /api/documents/thumbnails` | The requested ids are resolved within `group_id`; ids outside it return no thumbnail | `DocumentController.getBulkThumbnails`, `DocumentDbService.findDocumentIdsInGroup` |
+| HITL field schema | `GET /api/hitl/sessions/:id` | `metadata.templateModelId` is resolved only within the document's group | `ReviewDbService.findFieldDefinitionsForDocument` |
+| Confusion profile derivation | `POST /api/groups/:groupId/confusion-profiles/derive` | `benchmarkRunIds` (via the run's project) and `templateModelIds` are read only from the profile's group; other ids are skipped like unknown ones | `ConfusionProfileService` |
+| Format suggestions | `POST /api/template-models/:id/suggest-formats` | Benchmark runs are read only from projects in the template model's group | `FormatSuggestionService` |
+| Error-detection analysis | `GET .../projects/:projectId/runs/:runId/error-detection-analysis` | A cached analysis is returned only for the project that owns the run | `BenchmarkErrorDetectionService` |
+| Ground-truth generation | `POST /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation` (`workflowVersionId`) | The workflow version's lineage must be in the dataset's group | `GroundTruthGenerationService`, `GroundTruthJobDbService.findWorkflow` |
+| Baseline history | `GET .../projects/:projectId/definitions/:definitionId/baseline-history` | The definition must belong to the project before audit rows are read | `BenchmarkDefinitionController` |
+| Classification result | `GET /api/azure/classifier/classify` | Requires `group_id`; the operation location must name an existing classifier of that group | `AzureController`, `ClassifierService` |
+| Blob path components | Classifier `name` / `label` / `folder`; dataset version `manifestPath` | Caller-supplied path components may not contain `.` or `..` segments (`manifestPath` may not be absolute); rejected with `400` | Classifier request DTOs, `CreateVersionDto` |
+| Group membership check | All `groupPermissions` routes | Membership counts only the identity's own group entries (`Object.hasOwn`) | `IdentityGuard` |
+
+**Blob paths.** `@ai-di/blob-storage-paths` rejects `.` and `..` segments when it
+builds or validates a path, so a path component can never move a key into
+another group's `{groupId}/` prefix. `validateBlobFilePathInGroup(key, groupId)`
+additionally requires the key to belong to `groupId`.
 
 **Pattern for new code:** when an endpoint accepts a resource id (or a reference
 to another entity) that is not itself the group, scope the database query to the
@@ -248,6 +267,35 @@ via the owning parent relation (`where: { id, lineage: { group_id } }`,
 `template_model_id`, project group, etc.) for child rows that have no `group_id`
 of their own. Prefer reporting cross-group references as not-found over an
 explicit "forbidden" so existence is not disclosed.
+
+## Workflow Worker
+
+Graph workflows run in the Temporal worker without an HTTP identity, so the
+worker enforces the group itself:
+
+- **The run's group comes from execution state.** The backend starts every graph
+  workflow with the document's `groupId`. The engine injects it into each
+  activity's input last and drops any `groupId` set by node parameters or port
+  bindings. Activities that touch group data refuse to run without it.
+- **Blob storage is reached only through group-bound helpers.**
+  `getGroupBlobStorage(groupId)` validates every key and prefix against the group
+  before reading, writing, listing or signing it, and `readGroupBlob(key, groupId)`
+  reads document bytes from blob storage or the group's benchmark cache. This
+  covers blob keys, OCR payload refs and keys built from `documentId`. The
+  worker's Biome config (`style/noRestrictedImports`) rejects importing
+  `getBlobStorageClient` outside `src/blob-storage/`.
+- **Local files** are read only from the group's benchmark cache,
+  `{BENCHMARK_CACHE_DIR}/{groupId}`, where benchmark runs materialise their
+  datasets. Manifest paths must stay inside the materialised dataset, and benchmark
+  cleanup deletes only inside the group's cache.
+- **Rows loaded by an id from ctx or node parameters are scoped to the group:**
+  documents (`{ id, group_id }`, so a status or OCR write to another group's
+  document matches nothing), template models, confusion profiles, and child
+  workflow refs (`getWorkflowGraphConfig` resolves version ids, lineage ids and
+  lineage names only among the group's workflows).
+- **Azure Content Understanding analyzers** live on a shared resource, so each
+  group deploys under its own prefix (`{prefix}{groupId}…`); an explicit
+  `analyzerId` must be a `prebuilt-*` analyzer or one of the group's own.
 
 ## Related
 

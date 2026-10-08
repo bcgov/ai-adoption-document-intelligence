@@ -320,6 +320,11 @@ export class BenchmarkDefinitionController {
     await this.assertProjectGroupAccess(projectId, req, [
       Permission.BENCHMARK_RETRIEVE,
     ]);
+    // The definition must belong to this project; otherwise it is not found.
+    await this.benchmarkDefinitionService.getDefinitionById(
+      projectId,
+      definitionId,
+    );
 
     // Query audit logs for baseline_promoted events
     const auditLogs = await this.auditLogService.queryAuditLogs({

@@ -36,8 +36,7 @@ const REVIEW_PLAN: ReviewPlanEntry[] = [
 describe("persistReviewPlan activity", () => {
   let prismaMock: {
     document: {
-      update: jest.Mock;
-      findUnique: jest.Mock;
+      updateMany: jest.Mock;
     };
     auditEvent: {
       create: jest.Mock;
@@ -47,8 +46,7 @@ describe("persistReviewPlan activity", () => {
   beforeEach(() => {
     prismaMock = {
       document: {
-        update: jest.fn().mockResolvedValue({ id: "doc-1" }),
-        findUnique: jest.fn().mockResolvedValue({ id: "doc-1" }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       auditEvent: {
         create: jest.fn().mockResolvedValue({ id: "audit-1" }),
@@ -68,8 +66,8 @@ describe("persistReviewPlan activity", () => {
       groupId: "group-1",
     });
 
-    expect(prismaMock.document.update).toHaveBeenCalledWith({
-      where: { id: "doc-1" },
+    expect(prismaMock.document.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-1", group_id: "group-1" },
       data: { review_plan: REVIEW_PLAN },
     });
 
@@ -85,76 +83,89 @@ describe("persistReviewPlan activity", () => {
     });
   });
 
-  it("defaults group_id to null when not provided", async () => {
+  it("updates the document only within the run's group", async () => {
     await persistReviewPlan({
       documentId: "doc-1",
       reviewPlan: REVIEW_PLAN,
+      groupId: "group-2",
     });
 
-    expect(prismaMock.auditEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ group_id: null }),
+    expect(prismaMock.document.updateMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.document.updateMany.mock.calls[0][0].where).toEqual({
+      id: "doc-1",
+      group_id: "group-2",
+    });
+  });
+
+  it("skips without an audit event when the document is not in the run's group", async () => {
+    prismaMock.document.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      persistReviewPlan({
+        documentId: "doc-in-group-2",
+        reviewPlan: REVIEW_PLAN,
+        groupId: "group-1",
       }),
-    );
+    ).resolves.toBeUndefined();
+
+    expect(prismaMock.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("skips without an audit event for a benchmark document id that has no row", async () => {
+    prismaMock.document.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      persistReviewPlan({
+        documentId: "benchmark-doc-1",
+        reviewPlan: REVIEW_PLAN,
+        groupId: "group-1",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(prismaMock.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("throws when groupId is missing and does not touch the database", async () => {
+    await expect(
+      persistReviewPlan({ documentId: "doc-1", reviewPlan: REVIEW_PLAN }),
+    ).rejects.toThrow("groupId is required");
+
+    expect(prismaMock.document.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.auditEvent.create).not.toHaveBeenCalled();
   });
 
   it("does not fail the main operation when the audit insert fails", async () => {
     prismaMock.auditEvent.create.mockRejectedValue(new Error("audit down"));
 
     await expect(
-      persistReviewPlan({ documentId: "doc-1", reviewPlan: REVIEW_PLAN }),
-    ).resolves.toBeUndefined();
-
-    expect(prismaMock.document.update).toHaveBeenCalled();
-  });
-
-  it("skips gracefully on FK constraint violation (P2003 - benchmark mode)", async () => {
-    prismaMock.document.findUnique.mockResolvedValue(null);
-
-    await expect(
       persistReviewPlan({
-        documentId: "benchmark-doc-1",
+        documentId: "doc-1",
         reviewPlan: REVIEW_PLAN,
+        groupId: "group-1",
       }),
     ).resolves.toBeUndefined();
 
-    expect(prismaMock.document.update).not.toHaveBeenCalled();
-  });
-
-  it("proceeds normally for benchmark- prefixed docs that DO exist in DB", async () => {
-    prismaMock.document.findUnique.mockResolvedValue({
-      id: "benchmark-doc-1",
-    });
-
-    await persistReviewPlan({
-      documentId: "benchmark-doc-1",
-      reviewPlan: REVIEW_PLAN,
-    });
-
-    expect(prismaMock.document.update).toHaveBeenCalled();
-  });
-
-  it("skips gracefully when document update fails with P2025 (record not found)", async () => {
-    const notFoundError = Object.assign(new Error("not found"), {
-      code: "P2025",
-    });
-    prismaMock.document.update.mockRejectedValue(notFoundError);
-
-    await expect(
-      persistReviewPlan({ documentId: "doc-missing", reviewPlan: REVIEW_PLAN }),
-    ).resolves.toBeUndefined();
+    expect(prismaMock.document.updateMany).toHaveBeenCalled();
   });
 
   it("throws when the document update fails for an unexpected reason", async () => {
-    prismaMock.document.update.mockRejectedValue(new Error("db down"));
+    prismaMock.document.updateMany.mockRejectedValue(new Error("db down"));
 
     await expect(
-      persistReviewPlan({ documentId: "doc-1", reviewPlan: REVIEW_PLAN }),
+      persistReviewPlan({
+        documentId: "doc-1",
+        reviewPlan: REVIEW_PLAN,
+        groupId: "group-1",
+      }),
     ).rejects.toThrow("db down");
   });
 
   it("handles an empty review plan (field_count/review_field_count = 0)", async () => {
-    await persistReviewPlan({ documentId: "doc-1", reviewPlan: [] });
+    await persistReviewPlan({
+      documentId: "doc-1",
+      reviewPlan: [],
+      groupId: "group-1",
+    });
 
     expect(prismaMock.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -101,9 +101,13 @@ function buildActivityParams(
   inputs: Record<string, unknown>,
 ): Record<string, unknown> {
   const ctxDocumentId = state.ctx.documentId;
-  return {
+  // groupId only ever comes from ExecutionState; drop any authored value.
+  const { groupId: _authoredGroupId, ...authored } = {
     ...inputs,
     ...node.parameters,
+  };
+  return {
+    ...authored,
     ...(state.requestId && { requestId: state.requestId }),
     ...(state.groupId != null && { groupId: state.groupId }),
     ...(typeof ctxDocumentId === "string" &&
@@ -481,11 +485,16 @@ async function executeHumanGateNode(
 
     const updateStatusActivity = activityProxy[
       "document.updateStatus"
-    ] as (params: { documentId: string; status: string }) => Promise<void>;
+    ] as (params: {
+      documentId: string;
+      groupId: string | null;
+      status: string;
+    }) => Promise<void>;
 
     if (updateStatusActivity) {
       await updateStatusActivity({
         documentId,
+        groupId: state.groupId ?? null,
         status: "awaiting_review",
       });
     }
@@ -605,7 +614,10 @@ async function executeChildWorkflowNode(
     activityProxy.getWorkflowGraphConfig as (
       params: Record<string, unknown>,
     ) => Promise<Record<string, unknown>>
-  )({ workflowId: node.workflowRef.workflowId })) as {
+  )({
+    workflowId: node.workflowRef.workflowId,
+    groupId: state.groupId ?? null,
+  })) as {
     workflowVersionId: string;
     configHash: string;
   };

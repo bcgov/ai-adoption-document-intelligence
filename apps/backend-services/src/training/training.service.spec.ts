@@ -55,6 +55,7 @@ describe("TrainingService", () => {
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
+    findTrainedModelGroupId: jest.Mock;
     findAllTrainedModelIds: jest.Mock;
     getNextVersionNumber: jest.Mock;
     setActiveTrainedModel: jest.Mock;
@@ -181,6 +182,7 @@ describe("TrainingService", () => {
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
+      findTrainedModelGroupId: jest.fn(),
       findAllTrainedModelIds: jest.fn(),
       getNextVersionNumber: jest.fn().mockResolvedValue(1),
       setActiveTrainedModel: jest.fn(),
@@ -1470,6 +1472,21 @@ describe("TrainingService", () => {
       await expect(promise).rejects.toThrow(ServiceUnavailableException);
       await expect(promise).rejects.toThrow(
         "Azure Document Intelligence is not configured",
+      );
+    });
+  });
+
+  describe("findTrainedModelGroupId", () => {
+    it("returns the owning group from the db service", async () => {
+      mockTrainingDb.findTrainedModelGroupId.mockResolvedValueOnce(
+        "clh7z2xk00000356u8e3h1234",
+      );
+
+      const result = await service.findTrainedModelGroupId("km-invoice-v2");
+
+      expect(result).toBe("clh7z2xk00000356u8e3h1234");
+      expect(mockTrainingDb.findTrainedModelGroupId).toHaveBeenCalledWith(
+        "km-invoice-v2",
       );
     });
   });

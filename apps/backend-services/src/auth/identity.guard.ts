@@ -177,7 +177,10 @@ export class IdentityGuard implements CanActivate {
           throw new BadRequestException("Missing required group identifier");
         }
 
-        if (!request.resolvedIdentity.groupRoles?.[groupId]) {
+        // Object.hasOwn: only the caller's own group entries count as
+        // membership, never a property inherited from Object.prototype.
+        const groupRoles = request.resolvedIdentity.groupRoles;
+        if (!groupRoles || !Object.hasOwn(groupRoles, groupId)) {
           throw new ForbiddenException(
             "User is not a member of the specified group",
           );
@@ -193,7 +196,7 @@ export class IdentityGuard implements CanActivate {
           );
         }
 
-        const usersGroupRole = request.resolvedIdentity.groupRoles[groupId];
+        const usersGroupRole = groupRoles[groupId];
         const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
         if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
           throw new ForbiddenException("Insufficient role within the group");

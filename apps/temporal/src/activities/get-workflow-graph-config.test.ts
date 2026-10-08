@@ -27,14 +27,14 @@ const sampleConfig = (): GraphWorkflowConfig => ({
 
 describe("getWorkflowGraphConfig activity", () => {
   let prismaMock: {
-    workflowVersion: { findUnique: jest.Mock };
-    workflowLineage: { findUnique: jest.Mock; findFirst: jest.Mock };
+    workflowVersion: { findFirst: jest.Mock };
+    workflowLineage: { findFirst: jest.Mock };
   };
 
   beforeEach(() => {
     prismaMock = {
-      workflowVersion: { findUnique: jest.fn() },
-      workflowLineage: { findUnique: jest.fn(), findFirst: jest.fn() },
+      workflowVersion: { findFirst: jest.fn() },
+      workflowLineage: { findFirst: jest.fn() },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
   });
@@ -43,61 +43,77 @@ describe("getWorkflowGraphConfig activity", () => {
     jest.resetAllMocks();
   });
 
-  it("loads graph by WorkflowVersion id", async () => {
+  it("loads graph by WorkflowVersion id within the group", async () => {
     const cfg = sampleConfig();
-    prismaMock.workflowVersion.findUnique.mockResolvedValue({
+    prismaMock.workflowVersion.findFirst.mockResolvedValue({
       id: "wv-1",
       config: cfg,
     });
 
-    const result = await getWorkflowGraphConfig({ workflowId: "wv-1" });
+    const result = await getWorkflowGraphConfig({
+      workflowId: "wv-1",
+      groupId: "group-1",
+    });
 
     expect(result.graph).toEqual(cfg);
     expect(result.workflowVersionId).toBe("wv-1");
     expect(result.configHash).toBe(computeConfigHash(cfg));
-    expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
-      where: { id: "wv-1" },
+    expect(prismaMock.workflowVersion.findFirst).toHaveBeenCalledWith({
+      where: { id: "wv-1", lineage: { group_id: "group-1" } },
       select: { id: true, config: true },
     });
-    expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
   });
 
-  it("loads graph by WorkflowLineage id using head version", async () => {
+  it("loads graph by WorkflowLineage id within the group using head version", async () => {
     const cfg = sampleConfig();
-    prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
-    prismaMock.workflowLineage.findUnique.mockResolvedValue({
-      id: "lin-1",
-      headVersion: { id: "wv-head", config: cfg },
-    });
-
-    const result = await getWorkflowGraphConfig({ workflowId: "lin-1" });
-
-    expect(result.graph).toEqual(cfg);
-    expect(result.workflowVersionId).toBe("wv-head");
-    expect(prismaMock.workflowLineage.findUnique).toHaveBeenCalledWith({
-      where: { id: "lin-1" },
-      include: { headVersion: true },
-    });
-  });
-
-  it("loads graph by lineage name when id lookup misses", async () => {
-    const cfg = sampleConfig();
-    prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
-    prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
-    prismaMock.workflowLineage.findFirst.mockResolvedValue({
+    prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
+    prismaMock.workflowLineage.findFirst.mockResolvedValueOnce({
       id: "lin-1",
       headVersion: { id: "wv-head", config: cfg },
     });
 
     const result = await getWorkflowGraphConfig({
-      workflowId: "standard-ocr-workflow",
+      workflowId: "lin-1",
+      groupId: "group-1",
     });
 
     expect(result.graph).toEqual(cfg);
+    expect(result.workflowVersionId).toBe("wv-head");
     expect(prismaMock.workflowLineage.findFirst).toHaveBeenCalledWith({
-      where: { name: "standard-ocr-workflow" },
+      where: { id: "lin-1", group_id: "group-1" },
       include: { headVersion: true },
     });
+  });
+
+  it("loads graph by lineage name within the group when id lookup misses", async () => {
+    const cfg = sampleConfig();
+    prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
+    prismaMock.workflowLineage.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "lin-1",
+        headVersion: { id: "wv-head", config: cfg },
+      });
+
+    const result = await getWorkflowGraphConfig({
+      workflowId: "standard-ocr-workflow",
+      groupId: "group-1",
+    });
+
+    expect(result.graph).toEqual(cfg);
+    expect(prismaMock.workflowLineage.findFirst).toHaveBeenLastCalledWith({
+      where: { name: "standard-ocr-workflow", group_id: "group-1" },
+      include: { headVersion: true },
+    });
+  });
+
+  it("refuses to look up a workflow without a groupId", async () => {
+    await expect(
+      getWorkflowGraphConfig({ workflowId: "wv-1", groupId: null }),
+    ).rejects.toThrow("groupId is required");
+    expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
   });
 
   it("applies workflowConfigOverrides before hashing", async () => {
@@ -105,13 +121,14 @@ describe("getWorkflowGraphConfig activity", () => {
     cfg.ctx = {
       modelId: { type: "string", defaultValue: "prebuilt-layout" },
     };
-    prismaMock.workflowVersion.findUnique.mockResolvedValue({
+    prismaMock.workflowVersion.findFirst.mockResolvedValue({
       id: "wv-1",
       config: cfg,
     });
 
     const result = await getWorkflowGraphConfig({
       workflowId: "wv-1",
+      groupId: "group-1",
       workflowConfigOverrides: {
         "ctx.modelId.defaultValue": "prebuilt-read",
       },
@@ -132,12 +149,11 @@ describe("getWorkflowGraphConfig activity", () => {
   });
 
   it("throws when not found", async () => {
-    prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
-    prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
+    prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
     prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
 
     await expect(
-      getWorkflowGraphConfig({ workflowId: "missing" }),
+      getWorkflowGraphConfig({ workflowId: "missing", groupId: "group-1" }),
     ).rejects.toThrow("Workflow not found by ID or name: missing");
   });
 });

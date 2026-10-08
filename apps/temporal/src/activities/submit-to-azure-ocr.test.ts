@@ -33,6 +33,9 @@ type AnalyzeResponse = {
 const mockPost = jest.fn<Promise<AnalyzeResponse>, [Record<string, unknown>]>();
 const mockPath = jest.fn(() => ({ post: mockPost }));
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 describe("submitToAzureOCR activity", () => {
   const originalEnv = process.env;
 
@@ -95,7 +98,7 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    const result = await submitToAzureOCR({ fileData });
+    const result = await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe("test-request-id-123");
@@ -141,7 +144,7 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-read",
     };
 
-    const result = await submitToAzureOCR({ fileData });
+    const result = await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(result.statusCode).toBe(202);
     expect(mockPath).toHaveBeenCalledWith(
@@ -175,7 +178,7 @@ describe("submitToAzureOCR activity", () => {
       modelId: "custom-invoice-model",
     };
 
-    const result = await submitToAzureOCR({ fileData });
+    const result = await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe("test-request-id-456");
@@ -210,7 +213,7 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    const result = await submitToAzureOCR({ fileData });
+    const result = await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(result.apimRequestId).toBe("test-request-id-789");
   });
@@ -227,9 +230,9 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
-      "Azure Document Intelligence credentials not configured",
-    );
+    await expect(
+      submitToAzureOCR({ fileData, groupId: "atestgroup" }),
+    ).rejects.toThrow("Azure Document Intelligence credentials not configured");
   });
 
   it("throws error when status code is not 202", async () => {
@@ -248,7 +251,9 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
+    await expect(
+      submitToAzureOCR({ fileData, groupId: "atestgroup" }),
+    ).rejects.toThrow(
       "Failed to submit document to Azure OCR. Expected status code 202, got 400",
     );
   });
@@ -278,7 +283,10 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    const error = await submitToAzureOCR({
+      fileData,
+      groupId: "atestgroup",
+    }).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
     expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
     expect((error as Error).message).toContain(
@@ -302,7 +310,10 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    const error = await submitToAzureOCR({
+      fileData,
+      groupId: "atestgroup",
+    }).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
     expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
     expect((error as Error).message).toContain(
@@ -326,7 +337,10 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    const error = await submitToAzureOCR({
+      fileData,
+      groupId: "atestgroup",
+    }).catch((e) => e);
     expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
     expect((error as Error).message).toContain(
       "Failed to submit document to Azure OCR. Status: 429",
@@ -349,9 +363,9 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
-      "APIM Request ID not found in response headers",
-    );
+    await expect(
+      submitToAzureOCR({ fileData, groupId: "atestgroup" }),
+    ).rejects.toThrow("APIM Request ID not found in response headers");
   });
 
   it("rethrows SDK client errors with context", async () => {
@@ -366,9 +380,9 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
-      "Request failed",
-    );
+    await expect(
+      submitToAzureOCR({ fileData, groupId: "atestgroup" }),
+    ).rejects.toThrow("Request failed");
   });
 
   it("normalizes endpoint URL by removing trailing slash", async () => {
@@ -392,12 +406,64 @@ describe("submitToAzureOCR activity", () => {
       modelId: "prebuilt-layout",
     };
 
-    await submitToAzureOCR({ fileData });
+    await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
       "https://test.cognitiveservices.azure.com",
       expect.any(Object),
       expect.any(Object),
+    );
+  });
+  it("refuses a document blob that belongs to another group", async () => {
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: `${OTHER_GROUP}/ocr/doc-1/original.pdf`,
+      modelId: "prebuilt-layout",
+    };
+
+    await expect(
+      submitToAzureOCR({ fileData, groupId: GROUP }),
+    ).rejects.toThrow(/does not belong to group/);
+    expect(mockBlobRead).not.toHaveBeenCalled();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it("refuses to read the document without a groupId", async () => {
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: `${GROUP}/ocr/doc-1/original.pdf`,
+      modelId: "prebuilt-layout",
+    };
+
+    await expect(submitToAzureOCR({ fileData })).rejects.toThrow(
+      /groupId is required/,
+    );
+    expect(mockBlobRead).not.toHaveBeenCalled();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it("reads the document from the run's group", async () => {
+    mockPost.mockResolvedValue({
+      status: 202,
+      headers: { "apim-request-id": "test-request-id-group" },
+      body: {},
+    });
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: `${GROUP}/ocr/doc-1/original.pdf`,
+      modelId: "prebuilt-layout",
+    };
+
+    await submitToAzureOCR({ fileData, groupId: GROUP });
+
+    expect(mockBlobRead).toHaveBeenCalledWith(
+      `${GROUP}/ocr/doc-1/original.pdf`,
     );
   });
 });

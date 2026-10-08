@@ -103,7 +103,7 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
       );
       expect(result.groupId).toBe("atestgroup");
       expect(blobStorageMock.list).toHaveBeenCalledWith(
@@ -133,7 +133,7 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result).toEqual({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         groupId: "atestgroup",
       });
       expect(result.materializedPath).toMatch(/^\/tmp\/test-cache\//);
@@ -152,11 +152,11 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
       );
       expect(result.groupId).toBe("atestgroup");
       expect(fsMock.access).toHaveBeenCalledWith(
-        "/tmp/test-cache/dataset-1-version-1/dataset-manifest.json",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1/dataset-manifest.json",
       );
 
       // Should not download
@@ -204,7 +204,7 @@ describe("materializeDataset activity", () => {
       );
 
       expect(fsMock.rm).toHaveBeenCalledWith(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
         { recursive: true, force: true },
       );
     });
@@ -230,11 +230,14 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/benchmark-cache/dataset-1-version-1",
+        "/tmp/benchmark-cache/atestgroup/dataset-1-version-1",
       );
-      expect(fsMock.mkdir).toHaveBeenCalledWith("/tmp/benchmark-cache", {
-        recursive: true,
-      });
+      expect(fsMock.mkdir).toHaveBeenCalledWith(
+        "/tmp/benchmark-cache/atestgroup",
+        {
+          recursive: true,
+        },
+      );
     });
   });
 });
@@ -278,7 +281,7 @@ describe("loadDatasetManifest activity", () => {
     fsMock.readFile.mockResolvedValue(JSON.stringify(mockManifest));
 
     const result = await loadDatasetManifest({
-      materializedPath: "/tmp/test-cache/dataset-1-version-1",
+      materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
       datasetVersionId: "version-1",
     });
 
@@ -287,7 +290,7 @@ describe("loadDatasetManifest activity", () => {
       select: { manifestPath: true },
     });
     expect(fsMock.readFile).toHaveBeenCalledWith(
-      "/tmp/test-cache/dataset-1-version-1/dataset-manifest.json",
+      "/tmp/test-cache/atestgroup/dataset-1-version-1/dataset-manifest.json",
       "utf-8",
     );
     expect(result.manifest).toEqual(mockManifest);
@@ -298,10 +301,25 @@ describe("loadDatasetManifest activity", () => {
 
     await expect(
       loadDatasetManifest({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         datasetVersionId: "non-existent",
       }),
     ).rejects.toThrow("Dataset version not found: non-existent");
+  });
+
+  it.each([
+    "../dataset-2-version-1/dataset-manifest.json",
+    "/data/manifest.json",
+  ])("refuses a manifestPath outside the materialised dataset: %s", async (manifestPath) => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({ manifestPath });
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        datasetVersionId: "version-1",
+      }),
+    ).rejects.toThrow(/must stay inside the dataset/);
+    expect(fsMock.readFile).not.toHaveBeenCalled();
   });
 
   it("throws when manifest file does not exist", async () => {
@@ -314,7 +332,7 @@ describe("loadDatasetManifest activity", () => {
 
     await expect(
       loadDatasetManifest({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         datasetVersionId: "version-1",
       }),
     ).rejects.toThrow("Failed to load manifest");

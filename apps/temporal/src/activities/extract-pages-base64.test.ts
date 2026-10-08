@@ -116,4 +116,41 @@ describe("extractPagesBase64 activity", () => {
       }),
     ).rejects.toThrow();
   });
+
+  describe("limited to the run's group", () => {
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    it("refuses a source blob key from another group", async () => {
+      mockBlobRead.mockResolvedValue(await buildPdf(1));
+
+      await expect(
+        extractPagesBase64({
+          blobKey: `${OTHER_GROUP}/ocr/${DOCUMENT_ID}/original.pdf`,
+          startPage: 1,
+          endPage: 1,
+          groupId: GROUP_ID,
+          documentId: DOCUMENT_ID,
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockBlobWrite).not.toHaveBeenCalled();
+    });
+
+    it("refuses a documentId containing a dot segment", async () => {
+      mockBlobRead.mockResolvedValue(await buildPdf(1));
+
+      await expect(
+        extractPagesBase64({
+          blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/original.pdf`,
+          startPage: 1,
+          endPage: 1,
+          groupId: GROUP_ID,
+          documentId: `../../${OTHER_GROUP}/ocr/doc-2`,
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobWrite).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -157,7 +157,7 @@ This allows merge nodes after conditional branches to proceed when non-selected 
 - Timeout behavior controlled by `onTimeout` (`continue`, `fallback`, `fail`).
 
 ### `childWorkflow`
-- Uses inline graph config or loads one via `getWorkflowGraphConfig` activity.
+- Uses inline graph config or loads one via `getWorkflowGraphConfig` activity, which resolves the ref only among the running workflow's group's workflows.
 - Executes child `graphWorkflow` with inherited `configHash` and `runnerVersion`.
 - Maps parent context to child input/output via port mappings.
 

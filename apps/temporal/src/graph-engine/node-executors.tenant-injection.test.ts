@@ -215,6 +215,22 @@ describe("executePollUntilNode — tenant groupId injection", () => {
     >;
     expect(calledWith).not.toHaveProperty("groupId");
   });
+
+  it("drops a groupId from node.parameters when state.groupId is null", async () => {
+    const node = makePollUntilNode({
+      parameters: { groupId: "param-group", tableId: "t1" },
+    });
+    const state = makeState({ groupId: null });
+
+    await executeNode(node, graphConfig as never, state);
+
+    const calledWith = mockActivityFn.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(calledWith).not.toHaveProperty("groupId");
+    expect(calledWith.tableId).toBe("t1");
+  });
 });
 
 // ---------------------------------------------------------------------------

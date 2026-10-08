@@ -35,18 +35,23 @@ import { isOcrPayloadRef } from "./ocr-payload-ref-types";
 type PreExecutionActivities = {
   "document.updateStatus": (params: {
     documentId: string;
+    groupId: string | null;
     status: string;
     apimRequestId?: string;
   }) => Promise<void>;
   getWorkflowGraphConfig: (params: {
     workflowId: string;
+    groupId: string | null;
     workflowConfigOverrides?: Record<string, unknown>;
   }) => Promise<{
     graph: GraphWorkflowExecutionInput["graph"];
     workflowVersionId: string;
     configHash: string;
   }>;
-  "document.getStatus": (params: { documentId: string }) => Promise<{
+  "document.getStatus": (params: {
+    documentId: string;
+    groupId: string | null;
+  }) => Promise<{
     status: string;
   }>;
 };
@@ -164,6 +169,7 @@ export async function graphWorkflow(
 
     const loaded = await activityProxy.getWorkflowGraphConfig({
       workflowId: input.workflowVersionId,
+      groupId: input.groupId ?? null,
       ...(input.workflowConfigOverrides &&
       Object.keys(input.workflowConfigOverrides).length > 0
         ? { workflowConfigOverrides: input.workflowConfigOverrides }
@@ -202,6 +208,7 @@ export async function graphWorkflow(
 
       await updateStatusActivity({
         documentId: input.initialCtx.documentId,
+        groupId: input.groupId ?? null,
         status: "ongoing_ocr",
       });
 
@@ -259,6 +266,7 @@ export async function graphWorkflow(
           "document.getStatus"
         ]({
           documentId: input.initialCtx.documentId,
+          groupId: input.groupId ?? null,
         });
 
         // Only transition from extracted to complete
@@ -266,6 +274,7 @@ export async function graphWorkflow(
         if (currentStatus === "extracted") {
           await postExecutionProxy["document.updateStatus"]({
             documentId: input.initialCtx.documentId,
+            groupId: input.groupId ?? null,
             status: "complete",
           });
 
@@ -353,6 +362,7 @@ export async function graphWorkflow(
       typeof input.initialCtx.documentId === "string"
     ) {
       const documentId = input.initialCtx.documentId;
+      const groupId = input.groupId ?? null;
       try {
         const failureProxy = proxyActivities<PreExecutionActivities>({
           startToCloseTimeout: "30s",
@@ -360,10 +370,11 @@ export async function graphWorkflow(
         });
         const { status: currentStatus } = await failureProxy[
           "document.getStatus"
-        ]({ documentId });
+        ]({ documentId, groupId });
         if (currentStatus === "ongoing_ocr" || currentStatus === "pre_ocr") {
           await failureProxy["document.updateStatus"]({
             documentId,
+            groupId,
             status: "failed",
           });
           console.log(

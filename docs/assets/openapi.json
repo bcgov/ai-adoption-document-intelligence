@@ -1794,6 +1794,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Dataset version not found, or workflow version not found in the dataset's group"
           }
         },
         "security": [
@@ -3587,7 +3590,7 @@
     },
     "/api/documents/thumbnails": {
       "get": {
-        "description": "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document.",
+        "description": "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document, including when the id is not a document in the group.",
         "operationId": "DocumentController_getBulkThumbnails",
         "parameters": [
           {
@@ -5881,7 +5884,7 @@
             "description": "Access denied: not a group member"
           },
           "404": {
-            "description": "Labeling document not found"
+            "description": "Labeling document not found, or template model not found in the labeling document's group"
           }
         },
         "security": [
@@ -6792,7 +6795,9 @@
             "name": "name",
             "required": true,
             "in": "query",
+            "description": "Classifier name. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
             "schema": {
+              "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))",
               "type": "string"
             }
           },
@@ -6841,7 +6846,9 @@
             "name": "name",
             "required": true,
             "in": "query",
+            "description": "Classifier name. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
             "schema": {
+              "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))",
               "type": "string"
             }
           },
@@ -6857,7 +6864,9 @@
             "name": "folder",
             "required": false,
             "in": "query",
+            "description": "Label folder to delete; omit to delete all of the classifier's documents. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
             "schema": {
+              "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))",
               "type": "string"
             }
           }
@@ -7032,13 +7041,23 @@
         ]
       },
       "get": {
-        "description": "Get the result of a classification operation.",
+        "description": "Get the result of a classification operation. The operation location must name a classifier of the group in group_id.",
         "operationId": "AzureController_getClassificationResult",
         "parameters": [
           {
             "name": "operationLocation",
             "required": true,
             "in": "query",
+            "description": "Operation location returned when classification was requested. It must name a classifier of the group in group_id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_id",
+            "required": true,
+            "in": "query",
+            "description": "Group that owns the classifier.",
             "schema": {
               "type": "string"
             }
@@ -7054,6 +7073,12 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Caller is not a member of the group or lacks permission."
+          },
+          "404": {
+            "description": "The operation location does not name a classifier of the requested group."
           }
         },
         "security": [
@@ -8381,6 +8406,9 @@
           },
           "403": {
             "description": "Access denied: not a member of the requested group or insufficient role"
+          },
+          "404": {
+            "description": "The workflow was not found in the group, or model_id names a trained model of another group"
           },
           "422": {
             "description": "Stored original but PDF normalization failed (see message and document status)",
@@ -11025,7 +11053,7 @@
           },
           "manifestPath": {
             "type": "string",
-            "description": "Manifest path (defaults to 'dataset-manifest.json')"
+            "description": "Manifest path relative to the dataset root, with no leading '/' and no '..' segments (defaults to 'dataset-manifest.json')"
           }
         }
       },
@@ -15856,7 +15884,9 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Classifier name. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
+            "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))"
           },
           "description": {
             "type": "string"
@@ -15937,7 +15967,9 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Classifier name. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
+            "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))"
           },
           "group_id": {
             "type": "string"
@@ -16765,7 +16797,7 @@
           },
           "ctx_overrides": {
             "type": "object",
-            "description": "Per-upload overrides for the workflow's ctx defaults. Keys are ctx field names from the workflow config (e.g. outputFormat, confidenceThreshold). Values shallowly override the workflow's ctx.<key>.defaultValue at start time.",
+            "description": "Per-upload overrides for the workflow's ctx defaults. Keys are ctx field names from the workflow config (e.g. outputFormat, confidenceThreshold). Values shallowly override the workflow's ctx.<key>.defaultValue at start time. Only keys the workflow declares with a defaultValue are applied, and never the values the server derives from the uploaded document (such as documentId or modelId; choose the model with model_id). Other keys are ignored.",
             "example": {
               "outputFormat": "markdown"
             }

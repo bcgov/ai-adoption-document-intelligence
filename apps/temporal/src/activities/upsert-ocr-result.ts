@@ -11,6 +11,7 @@ import { getPrismaClient } from "./database-client";
 
 /**
  * Activity: Upsert OCR result in database
+ * Writes only for a document owned by `groupId`.
  * Determines extracted fields based on model type:
  * - Custom models: use fields directly from documents[0].fields
  * - Prebuilt models: convert keyValuePairs to fields format
@@ -22,9 +23,14 @@ export async function upsertOcrResult(params: {
   enrichmentSummary?: EnrichmentSummary | null;
 }): Promise<void> {
   const activityName = "upsertOcrResult";
-  const { documentId, enrichmentSummary } = params;
+  const { documentId, groupId, enrichmentSummary } = params;
+  if (!groupId) {
+    throw new Error(
+      `groupId is required to store the OCR result for document ${documentId}`,
+    );
+  }
   const ocrResult = isOcrPayloadRef(params.ocrResult)
-    ? await loadOcrResultFromPort(params.ocrResult, params.groupId)
+    ? await loadOcrResultFromPort(params.ocrResult, groupId)
     : params.ocrResult;
   const log = createActivityLogger(activityName, { documentId });
   const startTime = Date.now();
@@ -41,25 +47,6 @@ export async function upsertOcrResult(params: {
 
   try {
     const prisma = getPrismaClient();
-
-    // In benchmark mode, the documentId has a "benchmark-" prefix and no
-    // corresponding document record exists in the DB.  Detect this early and
-    // skip the Prisma operations to avoid noisy FK-constraint error logs.
-    if (documentId.startsWith("benchmark-")) {
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: { id: true },
-      });
-      if (!doc) {
-        const duration = Date.now() - startTime;
-        log.info("Upsert OCR result skipped", {
-          event: "skipped",
-          reason: "benchmark_mode_no_document",
-          durationMs: duration,
-        });
-        return;
-      }
-    }
 
     // Convert to JSON format for database
     const asJson = (
@@ -179,9 +166,19 @@ export async function upsertOcrResult(params: {
         enrichmentSummary != null ? enrichmentSummary : null;
     }
 
-    // Upsert OCR result and mark document extracted atomically.
+    // Mark document extracted and upsert OCR result atomically.
+    // OcrResult has no group column, so the document is marked first, scoped
+    // to the run's group, and the OCR result is written only when it matched.
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
-    await prisma.$transaction(async (tx) => {
+    const stored = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.document.updateMany({
+        where: { id: documentId, group_id: groupId },
+        data: { status: "extracted" as const },
+      });
+      if (count === 0) {
+        return false;
+      }
+
       await tx.ocrResult.upsert({
         where: {
           document_id: documentId,
@@ -192,12 +189,21 @@ export async function upsertOcrResult(params: {
           ...updateObject,
         },
       });
-
-      await tx.document.update({
-        where: { id: documentId },
-        data: { status: "extracted" as const },
-      });
+      return true;
     });
+
+    // No row matches in this group. Benchmark runs use synthetic
+    // "benchmark-" document ids with no document record, so this is expected
+    // there. Log and move on.
+    if (!stored) {
+      const duration = Date.now() - startTime;
+      log.info("Upsert OCR result skipped", {
+        event: "skipped",
+        reason: "document_not_found",
+        durationMs: duration,
+      });
+      return;
+    }
 
     log.info("Upsert OCR result complete", {
       event: "complete",
@@ -209,23 +215,6 @@ export async function upsertOcrResult(params: {
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-
-    // P2003 = FK constraint violation, P2025 = record not found.
-    // In benchmark mode the document doesn't exist in the DB, so DB writes
-    // are expected to fail. Log and move on.
-    const prismaCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-    if (prismaCode === "P2003" || prismaCode === "P2025") {
-      log.info("Upsert OCR result skipped", {
-        event: "skipped",
-        reason: "document_not_found",
-        durationMs: duration,
-      });
-      return;
-    }
-
     log.error("Upsert OCR result error", {
       event: "error",
       error: getErrorMessage(error),
