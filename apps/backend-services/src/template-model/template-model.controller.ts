@@ -343,7 +343,10 @@ export class TemplateModelController {
     description: "Document added to the template model",
     type: LabeledDocumentResponseDto,
   })
-  @ApiNotFoundResponse({ description: "Labeling document not found" })
+  @ApiNotFoundResponse({
+    description:
+      "Labeling document not found, or template model not found in the labeling document's group",
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async addDocumentToTemplateModel(
     @Param("id") id: string,

@@ -92,7 +92,7 @@ export class UploadDocumentDto {
   @ApiPropertyOptional({
     type: Object,
     description:
-      "Per-upload overrides for the workflow's ctx defaults. Keys are ctx field names from the workflow config (e.g. outputFormat, confidenceThreshold). Values shallowly override the workflow's ctx.<key>.defaultValue at start time.",
+      "Per-upload overrides for the workflow's ctx defaults. Keys are ctx field names from the workflow config (e.g. outputFormat, confidenceThreshold). Values shallowly override the workflow's ctx.<key>.defaultValue at start time. Only keys the workflow declares with a defaultValue are applied, and never the values the server derives from the uploaded document (such as documentId or modelId; choose the model with model_id). Other keys are ignored.",
     example: { outputFormat: "markdown" },
   })
   ctx_overrides?: Record<string, unknown>;

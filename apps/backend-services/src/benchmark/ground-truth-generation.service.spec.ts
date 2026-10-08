@@ -219,6 +219,7 @@ describe("GroundTruthGenerationService", () => {
         id: versionId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "group-1" },
       });
       mockJobDb.findWorkflow.mockResolvedValue(null);
 
@@ -232,12 +233,58 @@ describe("GroundTruthGenerationService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it("treats a workflow version outside the dataset's group as not found", async () => {
+      mockJobDb.findVersionForValidation.mockResolvedValue({
+        id: versionId,
+        datasetId,
+        frozen: false,
+        storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "group-1" },
+      });
+      const workflowInOtherGroup = {
+        id: workflowVersionId,
+        config: {},
+        lineage: { group_id: "group-2" },
+      };
+      mockJobDb.findWorkflow.mockImplementation(
+        (id: string, groupId?: string) =>
+          Promise.resolve(
+            id === workflowInOtherGroup.id &&
+              (groupId === undefined ||
+                groupId === workflowInOtherGroup.lineage.group_id)
+              ? workflowInOtherGroup
+              : null,
+          ),
+      );
+      (mockBlobStorage.read as jest.Mock).mockResolvedValue(
+        Buffer.from(JSON.stringify(sampleManifest)),
+      );
+      mockJobDb.findStaleJobs.mockResolvedValue([]);
+      mockJobDb.findCompletedJobSampleIds.mockResolvedValue([]);
+      mockJobDb.createManyJobs.mockResolvedValue([]);
+
+      await expect(
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
+      ).rejects.toThrow(
+        new NotFoundException(
+          `Workflow version ${workflowVersionId} not found`,
+        ),
+      );
+      expect(mockJobDb.createManyJobs).not.toHaveBeenCalled();
+    });
+
     it("should create jobs only for samples without ground truth", async () => {
       mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         datasetId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "testgroup" },
       });
       mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,
@@ -279,6 +326,10 @@ describe("GroundTruthGenerationService", () => {
 
       expect(result.jobCount).toBe(2);
       expect(result.message).toContain("2 samples");
+      expect(mockJobDb.findWorkflow).toHaveBeenCalledWith(
+        workflowVersionId,
+        "testgroup",
+      );
       expect(mockJobDb.createManyJobs).toHaveBeenCalledTimes(1);
       expect(mockJobDb.createManyJobs.mock.calls[0][0]).toHaveLength(2);
     });
@@ -303,6 +354,7 @@ describe("GroundTruthGenerationService", () => {
         id: "version-1",
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "testgroup" },
       });
       mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,

@@ -70,7 +70,10 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
     async function poll() {
       if (!polling || !operationLocation) return;
       try {
-        const res = await fetchClassificationResult(operationLocation);
+        const res = await fetchClassificationResult(
+          operationLocation,
+          model.group_id,
+        );
         if (cancelled) return;
         if (res.status === "succeeded") {
           setResult(JSON.stringify(res.analyzeResult, null, 2));

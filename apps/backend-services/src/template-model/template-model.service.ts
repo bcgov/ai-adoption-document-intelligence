@@ -5,6 +5,7 @@ import {
   LabelingStatus,
 } from "@generated/client";
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -342,6 +343,14 @@ export class TemplateModelService {
     if (!document) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
+      );
+    }
+
+    // The caller is authorized against the labeling document's group, so the
+    // template model must live in that same group.
+    if (templateModel.group_id !== document.group_id) {
+      throw new NotFoundException(
+        `Template model with id ${templateModelId} not found`,
       );
     }
 
@@ -788,6 +797,13 @@ export class TemplateModelService {
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
+      );
+    }
+    // The caller is authorized against dto.group_id, so the template model
+    // must belong to that group.
+    if (templateModel.group_id !== dto.group_id) {
+      throw new BadRequestException(
+        "group_id does not match the template model's group",
       );
     }
 

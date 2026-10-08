@@ -21,6 +21,7 @@ const mockPrismaClient = {
   },
   workflowVersion: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -465,6 +466,10 @@ describe("GroundTruthJobDbService", () => {
       });
       const result = await service.findVersionForValidation("v-1", "d-1");
       expect(result).toEqual({ id: "v-1" });
+      expect(mockPrismaClient.datasetVersion.findFirst).toHaveBeenCalledWith({
+        where: { id: "v-1", datasetId: "d-1" },
+        include: { dataset: { select: { group_id: true } } },
+      });
     });
 
     it("uses provided tx client", async () => {
@@ -479,24 +484,25 @@ describe("GroundTruthJobDbService", () => {
   });
 
   describe("findWorkflow", () => {
-    it("finds a workflow (no tx)", async () => {
-      mockPrismaClient.workflowVersion.findUnique.mockResolvedValue({
+    it("finds a workflow version whose lineage belongs to the group (no tx)", async () => {
+      mockPrismaClient.workflowVersion.findFirst.mockResolvedValue({
         id: "w-1",
       });
-      const result = await service.findWorkflow("w-1");
+      const result = await service.findWorkflow("w-1", "g-1");
       expect(result).toEqual({ id: "w-1" });
+      expect(mockPrismaClient.workflowVersion.findFirst).toHaveBeenCalledWith({
+        where: { id: "w-1", lineage: { group_id: "g-1" } },
+      });
     });
 
     it("uses provided tx client", async () => {
-      const txWf = { findUnique: jest.fn().mockResolvedValue(null) };
+      const txWf = { findFirst: jest.fn().mockResolvedValue(null) };
       const tx = {
         workflowVersion: txWf,
       } as unknown as import("@generated/client").Prisma.TransactionClient;
-      await service.findWorkflow("w-1", tx);
-      expect(txWf.findUnique).toHaveBeenCalled();
-      expect(
-        mockPrismaClient.workflowVersion.findUnique,
-      ).not.toHaveBeenCalled();
+      await service.findWorkflow("w-1", "g-1", tx);
+      expect(txWf.findFirst).toHaveBeenCalled();
+      expect(mockPrismaClient.workflowVersion.findFirst).not.toHaveBeenCalled();
     });
   });
 

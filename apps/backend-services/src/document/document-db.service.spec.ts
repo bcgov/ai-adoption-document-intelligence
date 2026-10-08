@@ -146,6 +146,40 @@ describe("DocumentDbService", () => {
     });
   });
 
+  describe("findDocumentIdsInGroup", () => {
+    it("returns the ids of the requested documents that belong to the group", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([{ id: "doc-1" }]);
+
+      const result = await service.findDocumentIdsInGroup(
+        ["doc-1", "doc-2"],
+        "clh7z2xk00000356u8e3h1234",
+      );
+
+      expect(result).toEqual(["doc-1"]);
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ["doc-1", "doc-2"] },
+          group_id: "clh7z2xk00000356u8e3h1234",
+        },
+        select: { id: true },
+      });
+    });
+
+    it("uses the transaction client when one is passed", async () => {
+      const txFindMany = jest.fn().mockResolvedValue([]);
+      const tx = { document: { findMany: txFindMany } } as never;
+
+      await service.findDocumentIdsInGroup(
+        ["doc-1"],
+        "clh7z2xk00000356u8e3h1234",
+        tx,
+      );
+
+      expect(txFindMany).toHaveBeenCalled();
+      expect(mockPrismaDocument.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("findAllDocuments", () => {
     const listInclude = {
       workflowVersion: {

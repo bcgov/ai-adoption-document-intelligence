@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import {
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -57,6 +58,10 @@ export class GroundTruthGenerationController {
   @ApiCreatedResponse({
     description: "Ground truth generation started",
     type: StartGroundTruthGenerationResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Dataset version not found, or workflow version not found in the dataset's group",
   })
   async startGeneration(
     @Param("id") datasetId: string,

@@ -142,6 +142,27 @@ export class DocumentDbService {
   }
 
   /**
+   * Returns the ids, among `ids`, of the documents that belong to `groupId`.
+   * Ids of documents in other groups, or of no document, are left out.
+   *
+   * @param ids - The document ids to look up.
+   * @param groupId - The group the documents must belong to.
+   * @returns The subset of `ids` that are documents in the group.
+   */
+  async findDocumentIdsInGroup(
+    ids: string[],
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.document.findMany({
+      where: { id: { in: ids }, group_id: groupId },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * Returns documents, optionally filtered by group IDs, with pagination.
    *
    * @param groupIds - Optional list of group IDs to filter by.

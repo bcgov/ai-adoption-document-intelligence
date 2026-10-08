@@ -50,6 +50,7 @@ describe("DocumentService", () => {
     documentDbService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
+      findDocumentIdsInGroup: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
       findAllDocuments: jest.fn(),
@@ -449,6 +450,26 @@ describe("DocumentService", () => {
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(null);
       const result = await service.findDocument("notfound");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findDocumentIdsInGroup", () => {
+    it("delegates to the db service with the group", async () => {
+      (documentDbService.findDocumentIdsInGroup as jest.Mock).mockResolvedValue(
+        ["doc-1"],
+      );
+
+      const result = await service.findDocumentIdsInGroup(
+        ["doc-1", "doc-2"],
+        "clh7z2xk00000356u8e3h1234",
+      );
+
+      expect(result).toEqual(["doc-1"]);
+      expect(documentDbService.findDocumentIdsInGroup).toHaveBeenCalledWith(
+        ["doc-1", "doc-2"],
+        "clh7z2xk00000356u8e3h1234",
+        undefined,
+      );
     });
   });
 

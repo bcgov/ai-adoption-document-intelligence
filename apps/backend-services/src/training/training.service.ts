@@ -772,6 +772,17 @@ export class TrainingService {
   }
 
   /**
+   * Returns the group that owns a trained model id, or null when the id is
+   * not a trained model (for example a prebuilt model or another engine's model).
+   *
+   * @param modelId - The model id to look up.
+   * @returns The owning group ID, or null.
+   */
+  async findTrainedModelGroupId(modelId: string): Promise<string | null> {
+    return this.trainingDb.findTrainedModelGroupId(modelId);
+  }
+
+  /**
    * Proxy of Azure Document Intelligence `GET /info`. Surfaces only the
    * Azure region and neural model quota so the frontend can show an FYI
    * banner when the user picks neural mode. The full Azure body is not

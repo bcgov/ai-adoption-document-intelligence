@@ -400,6 +400,22 @@ export class DocumentService {
   }
 
   /**
+   * Returns the ids, among `ids`, of the documents that belong to `groupId`.
+   *
+   * @param ids - The document ids to look up.
+   * @param groupId - The group the documents must belong to.
+   * @param tx - Optional transaction client for atomic operations.
+   * @returns The subset of `ids` that are documents in the group.
+   */
+  async findDocumentIdsInGroup(
+    ids: string[],
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string[]> {
+    return this.documentDb.findDocumentIdsInGroup(ids, groupId, tx);
+  }
+
+  /**
    * Returns documents, optionally filtered by group IDs, with pagination, search, status filter, and sorting.
    *
    * @param groupIds - Optional list of group IDs to filter by.

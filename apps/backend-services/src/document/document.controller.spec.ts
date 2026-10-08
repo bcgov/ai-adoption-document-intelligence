@@ -41,6 +41,7 @@ describe("DocumentController", () => {
     documentService = {
       findAllDocuments: jest.fn(),
       findDocument: jest.fn(),
+      findDocumentIdsInGroup: jest.fn(),
       findOcrResult: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
@@ -916,6 +917,10 @@ describe("DocumentController", () => {
 
   describe("getBulkThumbnails", () => {
     it("returns base64 data URLs for available thumbnails", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue([
+        "doc-1",
+        "doc-2",
+      ]);
       const buf = Buffer.from("webp");
       blobStorage.read.mockResolvedValue(buf);
 
@@ -929,9 +934,14 @@ describe("DocumentController", () => {
         { documentId: "doc-1", thumbnailData: expected },
         { documentId: "doc-2", thumbnailData: expected },
       ]);
+      expect(documentService.findDocumentIdsInGroup).toHaveBeenCalledWith(
+        ["doc-1", "doc-2"],
+        mockGroupId,
+      );
     });
 
     it("returns null for documents without a thumbnail", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue(["doc-1"]);
       blobStorage.read.mockRejectedValue(new Error("not found"));
 
       const result = await controller.getBulkThumbnails(mockGroupId, "doc-1");
@@ -940,6 +950,10 @@ describe("DocumentController", () => {
     });
 
     it("mixes data URLs and nulls for mixed availability", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue([
+        "doc-1",
+        "doc-2",
+      ]);
       const buf = Buffer.from("webp");
       blobStorage.read
         .mockResolvedValueOnce(buf)
@@ -959,10 +973,35 @@ describe("DocumentController", () => {
       ]);
     });
 
+    it("reports ids that are not documents in the group as having no thumbnail, without reading storage for them", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue(["doc-1"]);
+      const buf = Buffer.from("webp");
+      blobStorage.read.mockResolvedValue(buf);
+
+      const result = await controller.getBulkThumbnails(
+        mockGroupId,
+        "doc-1,clh7z2xk00000356u8e3h5678,../other",
+      );
+
+      expect(result).toEqual([
+        {
+          documentId: "doc-1",
+          thumbnailData: `data:image/webp;base64,${buf.toString("base64")}`,
+        },
+        { documentId: "clh7z2xk00000356u8e3h5678", thumbnailData: null },
+        { documentId: "../other", thumbnailData: null },
+      ]);
+      expect(blobStorage.read).toHaveBeenCalledTimes(1);
+      expect(blobStorage.read).toHaveBeenCalledWith(
+        `${mockGroupId}/ocr/doc-1/thumbnail.webp`,
+      );
+    });
+
     it("returns empty array when ids is an empty string", async () => {
       const result = await controller.getBulkThumbnails(mockGroupId, "");
       expect(result).toEqual([]);
       expect(blobStorage.read).not.toHaveBeenCalled();
+      expect(documentService.findDocumentIdsInGroup).not.toHaveBeenCalled();
     });
 
     it("throws BadRequestException when more than 200 IDs are requested", async () => {

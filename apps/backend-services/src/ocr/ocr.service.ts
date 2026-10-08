@@ -25,6 +25,7 @@ import {
 } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { WorkflowService } from "@/workflow/workflow.service";
 
 export interface OcrRequestResponse {
@@ -51,6 +52,36 @@ function readTemplateModelIdFromDocumentMetadata(
   }
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Selects the caller-supplied ctx overrides that a run may apply. A caller
+ * tunes a workflow's declared settings — the ctx keys it declares with a
+ * `defaultValue` — and never the values the server derives from the stored
+ * document (`serverCtx`), whatever the workflow declares.
+ */
+function selectCallerCtxOverrides(
+  config: GraphWorkflowConfig,
+  serverCtx: Record<string, unknown>,
+  ctxOverrides: Record<string, unknown> | undefined,
+): { accepted: Record<string, unknown>; ignoredKeys: string[] } {
+  const accepted: Record<string, unknown> = {};
+  const ignoredKeys: string[] = [];
+  const declared = config.ctx ?? {};
+  for (const [key, value] of Object.entries(ctxOverrides ?? {})) {
+    const declaration = Object.hasOwn(declared, key)
+      ? declared[key]
+      : undefined;
+    if (
+      declaration?.defaultValue === undefined ||
+      Object.hasOwn(serverCtx, key)
+    ) {
+      ignoredKeys.push(key);
+      continue;
+    }
+    accepted[key] = value;
+  }
+  return { accepted, ignoredKeys };
 }
 
 @Injectable()
@@ -121,11 +152,19 @@ export class OcrService {
         );
       }
 
+      const workflowConfig =
+        await this.workflowService.getWorkflowVersionById(workflowConfigId);
+      if (!workflowConfig) {
+        throw new BadRequestException(
+          `Workflow configuration not found: ${workflowConfigId}`,
+        );
+      }
+
       const templateModelId = readTemplateModelIdFromDocumentMetadata(
         document.metadata,
       );
 
-      const initialCtx: Record<string, unknown> = {
+      const serverCtx: Record<string, unknown> = {
         documentId,
         groupId: document.group_id,
         blobKey: document.normalized_file_path,
@@ -140,19 +179,25 @@ export class OcrService {
         documentMetadata: {
           receivedAt: document.created_at.toISOString(),
         },
-        ...(templateModelId !== undefined && { templateModelId }),
-        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold, templateModelId)
       };
-
-      // Pre-flight cost estimation and cap check
-      const workflowConfig =
-        await this.workflowService.getWorkflowVersionById(workflowConfigId);
-      if (!workflowConfig) {
-        throw new BadRequestException(
-          `Workflow configuration not found: ${workflowConfigId}`,
+      const callerCtx = selectCallerCtxOverrides(
+        workflowConfig.config as GraphWorkflowConfig,
+        serverCtx,
+        ctxOverrides,
+      );
+      if (callerCtx.ignoredKeys.length > 0) {
+        this.logger.warn(
+          `Ignoring ctx overrides for document ${documentId} that are not declared workflow settings: ${callerCtx.ignoredKeys.join(", ")}`,
         );
       }
 
+      const initialCtx: Record<string, unknown> = {
+        ...serverCtx,
+        ...(templateModelId !== undefined && { templateModelId }),
+        ...callerCtx.accepted,
+      };
+
+      // Pre-flight cost estimation and cap check
       const costEstimation =
         await this.preflightCostEstimatorService.estimateWorkflowCost(
           workflowConfig.config,

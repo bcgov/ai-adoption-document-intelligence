@@ -38,6 +38,15 @@ const defaultDocument = {
 } as DocumentData;
 
 const defaultWorkflowConfig = {
+  ctx: {
+    documentId: { type: "string" },
+    groupId: { type: "string" },
+    blobKey: { type: "string" },
+    modelId: { type: "string", defaultValue: "prebuilt-layout" },
+    templateModelId: { type: "string", defaultValue: "" },
+    confidenceThreshold: { type: "number", defaultValue: 0.9 },
+    ocrResultRef: { type: "object" },
+  },
   nodes: {},
   edges: [],
   entryNodeId: "start",
@@ -248,6 +257,36 @@ describe("OcrService", () => {
         defaultDocument.group_id,
         undefined,
       );
+    });
+
+    it("keeps the server-set context values when overrides name them", async () => {
+      await service.requestOcr("doc-3", {
+        documentId: "doc-other",
+        groupId: "group-other",
+        blobKey: "group-other/doc-other/normalized.pdf",
+        modelId: "model-other",
+      });
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx).toMatchObject({
+        documentId: "doc-3",
+        groupId: defaultDocument.group_id,
+        blobKey: defaultDocument.normalized_file_path,
+        modelId: defaultDocument.model_id,
+      });
+    });
+
+    it("applies only overrides for ctx keys the workflow declares with a default", async () => {
+      await service.requestOcr("doc-4", {
+        confidenceThreshold: 0.5,
+        ocrResultRef: { blobKey: "group-other/doc-other/ocr.json" },
+        undeclaredKey: "value",
+      });
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.confidenceThreshold).toBe(0.5);
+      expect(initialCtx).not.toHaveProperty("ocrResultRef");
+      expect(initialCtx).not.toHaveProperty("undeclaredKey");
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {

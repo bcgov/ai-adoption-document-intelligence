@@ -213,6 +213,25 @@ export class TrainingDbService {
   }
 
   /**
+   * Returns the group that owns a trained model id (through its template
+   * model), including tombstoned versions.
+   * @param modelId The Azure model ID.
+   * @param tx Optional transaction client.
+   * @returns The owning group ID, or null when no trained model has this id.
+   */
+  async findTrainedModelGroupId(
+    modelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string | null> {
+    const client = tx ?? this.prisma;
+    const trainedModel = await client.trainedModel.findUnique({
+      where: { model_id: modelId },
+      select: { template_model: { select: { group_id: true } } },
+    });
+    return trainedModel?.template_model.group_id ?? null;
+  }
+
+  /**
    * Finds all trained models for a template model. By default tombstoned
    * (deleted) versions are excluded.
    * @param templateModelId The ID of the template model.

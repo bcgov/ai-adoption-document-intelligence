@@ -1027,8 +1027,8 @@ describe("ReviewDbService", () => {
       { field_key: "total", format_spec: '{"canonicalize":"digits"}' },
     ];
 
-    it("looks up by templateModelId when provided, ignoring groupId", async () => {
-      mockTemplateModel.findUnique.mockResolvedValue({
+    it("looks up the recorded templateModelId within the document's group", async () => {
+      mockTemplateModel.findFirst.mockResolvedValue({
         field_schema: fieldSchema,
       });
 
@@ -1037,8 +1037,9 @@ describe("ReviewDbService", () => {
         groupId: "group-1",
       });
 
-      expect(mockTemplateModel.findUnique).toHaveBeenCalledWith({
-        where: { id: "tmpl-1" },
+      expect(mockTemplateModel.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockTemplateModel.findFirst).toHaveBeenCalledWith({
+        where: { id: "tmpl-1", group_id: "group-1" },
         include: {
           field_schema: {
             orderBy: { display_order: "asc" },
@@ -1046,8 +1047,29 @@ describe("ReviewDbService", () => {
           },
         },
       });
-      expect(mockTemplateModel.findFirst).not.toHaveBeenCalled();
+      expect(mockTemplateModel.findUnique).not.toHaveBeenCalled();
       expect(result).toEqual(fieldSchema);
+    });
+
+    it("returns [] when the recorded templateModelId is not a template model in the document's group", async () => {
+      mockTemplateModel.findFirst.mockResolvedValue(null);
+
+      const result = await service.findFieldDefinitionsForDocument({
+        templateModelId: "clh7z2xk00000356u8e3h5678",
+        groupId: "clh7z2xk00000356u8e3h1234",
+      });
+
+      expect(mockTemplateModel.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockTemplateModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: "clh7z2xk00000356u8e3h5678",
+            group_id: "clh7z2xk00000356u8e3h1234",
+          },
+        }),
+      );
+      expect(mockTemplateModel.findUnique).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
     });
 
     it("falls back to groupId findFirst when templateModelId is missing", async () => {
@@ -1070,24 +1092,6 @@ describe("ReviewDbService", () => {
         },
       });
       expect(result).toEqual(fieldSchema);
-    });
-
-    it("returns [] when templateModelId resolves to no template", async () => {
-      mockTemplateModel.findUnique.mockResolvedValue(null);
-
-      const result = await service.findFieldDefinitionsForDocument({
-        templateModelId: "missing",
-      });
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns [] when neither templateModelId nor groupId is provided", async () => {
-      const result = await service.findFieldDefinitionsForDocument({});
-
-      expect(mockTemplateModel.findUnique).not.toHaveBeenCalled();
-      expect(mockTemplateModel.findFirst).not.toHaveBeenCalled();
-      expect(result).toEqual([]);
     });
 
     it("returns [] when fallback group has no template models", async () => {

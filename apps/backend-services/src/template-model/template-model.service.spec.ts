@@ -3,7 +3,11 @@ import {
   LabelingStatus,
   FieldType as PrismaFieldType,
 } from "@generated/client";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { ResolvedIdentity } from "@/auth/types";
@@ -45,6 +49,7 @@ describe("TemplateModelService", () => {
     name: "Test Template Model",
     model_id: "test-template-model",
     description: "Test Description",
+    group_id: "group-1",
     created_by: "user-1",
     created_at: new Date(),
     updated_at: new Date(),
@@ -76,6 +81,7 @@ describe("TemplateModelService", () => {
     updated_at: new Date(),
     apim_request_id: null,
     model_id: "prebuilt-layout",
+    group_id: "group-1",
     ocr_result: {
       analyzeResult: {
         apiVersion: "2024-11-30",
@@ -649,6 +655,25 @@ describe("TemplateModelService", () => {
           labelingDocumentId: "non-existent",
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should treat a template model from another group as not found", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce({
+        ...mockTemplateModel,
+        group_id: "group-2",
+      });
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        mockLabelingDocument as never,
+      );
+
+      await expect(
+        service.addDocumentToTemplateModel("tm-1", {
+          labelingDocumentId: "labeling-doc-1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -1291,6 +1316,29 @@ describe("TemplateModelService", () => {
           group_id: "group-1",
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should reject a group_id that does not match the template model's group", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce({
+        ...mockTemplateModel,
+        group_id: "group-2",
+      });
+
+      await expect(
+        service.uploadLabelingDocument("tm-1", {
+          title: "test",
+          file: "data:application/pdf;base64,dGVzdA==",
+          file_type: LabelingFileType.PDF,
+          group_id: "group-1",
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockOcrService.prepareLabelingDocument).not.toHaveBeenCalled();
+      expect(
+        mockLabelingDocumentDbService.createLabelingDocument,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).not.toHaveBeenCalled();
     });
   });
 });

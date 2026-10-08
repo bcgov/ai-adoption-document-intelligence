@@ -248,7 +248,11 @@ describe("FormatSuggestionService", () => {
       const result = await service.gatherErrorData("tm-1", ["run-1"]);
 
       expect(mockPrisma.benchmarkRun.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ["run-1"] }, status: "completed" },
+        where: {
+          id: { in: ["run-1"] },
+          status: "completed",
+          project: { group_id: "group-1" },
+        },
         select: { id: true, metrics: true },
       });
 
@@ -262,6 +266,56 @@ describe("FormatSuggestionService", () => {
         original: "987-654-321",
         corrected: "987654321",
       });
+      expect(result.corrections["phone"]).toBeUndefined();
+      expect(result.totalCorrectionCount).toBe(2);
+    });
+
+    it("only reads benchmark runs whose project belongs to the template model's group", async () => {
+      mockPrisma.fieldCorrection.findMany.mockResolvedValueOnce([]);
+      const runsByGroup = [
+        { ...mockBenchmarkRuns[0], groupId: "group-1" },
+        {
+          id: "run-other",
+          groupId: "group-2",
+          metrics: {
+            perSampleResults: [
+              {
+                sampleId: "sample-3",
+                evaluationDetails: [
+                  {
+                    field: "phone",
+                    matched: false,
+                    predicted: "604 555 0000",
+                    expected: "(604) 555-0000",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ];
+      mockPrisma.benchmarkRun.findMany.mockImplementationOnce(
+        (args: {
+          where: { id: { in: string[] }; project?: { group_id: string } };
+        }) =>
+          Promise.resolve(
+            runsByGroup
+              .filter((r) => args.where.id.in.includes(r.id))
+              .filter(
+                (r) =>
+                  !args.where.project ||
+                  r.groupId === args.where.project.group_id,
+              )
+              .map(({ id, metrics }) => ({ id, metrics })),
+          ),
+      );
+
+      const result = await service.gatherErrorData("tm-1", [
+        "run-1",
+        "run-other",
+      ]);
+
+      expect(result.corrections["sin"]).toHaveLength(2);
       expect(result.corrections["phone"]).toBeUndefined();
       expect(result.totalCorrectionCount).toBe(2);
     });

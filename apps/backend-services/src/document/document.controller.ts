@@ -110,7 +110,7 @@ export class DocumentController {
   @ApiOperation({
     summary: "Get thumbnails for multiple documents",
     description:
-      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document.",
+      "Returns base64 WebP data URLs for up to 200 documents in a single request. Null thumbnailData indicates that no thumbnail is available for that document, including when the id is not a document in the group.",
   })
   @ApiQuery({
     name: "group_id",
@@ -151,8 +151,17 @@ export class DocumentController {
       return [];
     }
 
+    // Only documents that belong to the group get a storage path; any other
+    // id is reported like a document without a thumbnail.
+    const idsInGroup = new Set(
+      await this.documentService.findDocumentIdsInGroup(ids, groupId),
+    );
+
     const results = await Promise.all(
       ids.map(async (documentId) => {
+        if (!idsInGroup.has(documentId)) {
+          return { documentId, thumbnailData: null };
+        }
         const thumbnailKey = buildBlobFilePath(
           groupId,
           OperationCategory.OCR,

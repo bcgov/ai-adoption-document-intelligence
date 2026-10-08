@@ -597,20 +597,47 @@ export class AzureController {
   }
 
   @Get("classifier/classify")
-  // No identity check, as caller is providing only the operation location url, which we do not store.
-  @Identity()
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_USE],
+    },
+  })
   @ApiOperation({
     summary: "Get classification result",
-    description: "Get the result of a classification operation.",
+    description:
+      "Get the result of a classification operation. The operation location must name a classifier of the group in group_id.",
   })
   @ApiOkResponse({
     description: "Classification result retrieved",
     type: ClassificationResultDto,
   })
+  @ApiNotFoundResponse({
+    description:
+      "The operation location does not name a classifier of the requested group.",
+  })
+  @ApiForbiddenResponse({
+    description: "Caller is not a member of the group or lacks permission.",
+  })
   async getClassificationResult(
     @Query() query: GetClassificationResultQueryDto,
   ): Promise<ClassificationResultDto> {
-    const { operationLocation } = query;
+    const { operationLocation, group_id } = query;
+    const classifierName =
+      this.classifierService.getClassifierNameFromOperationLocation(
+        operationLocation,
+        group_id,
+      );
+    const classifier =
+      classifierName == null
+        ? null
+        : await this.classifierService.findClassifierModel(
+            classifierName,
+            group_id,
+          );
+    if (classifier == null) {
+      throw new NotFoundException("Classification operation not found.");
+    }
     let returnValue: unknown;
     await this.azureService.pollOperationUntilResolved(
       operationLocation,

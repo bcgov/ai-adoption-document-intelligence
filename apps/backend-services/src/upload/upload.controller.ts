@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  NotFoundException,
   Post,
   Req,
 } from "@nestjs/common";
@@ -14,6 +15,7 @@ import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -27,6 +29,7 @@ import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
+import { TrainingService } from "../training/training.service";
 import { WorkflowService } from "../workflow/workflow.service";
 import { UploadConversionFailedResponseDto } from "./dto/upload-conversion-failed-response.dto";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -39,6 +42,7 @@ export class UploadController {
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
     private readonly workflowService: WorkflowService,
+    private readonly trainingService: TrainingService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
   ) {}
@@ -62,6 +66,10 @@ export class UploadController {
   @ApiForbiddenResponse({
     description:
       "Access denied: not a member of the requested group or insufficient role",
+  })
+  @ApiNotFoundResponse({
+    description:
+      "The workflow was not found in the group, or model_id names a trained model of another group",
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
@@ -125,6 +133,17 @@ export class UploadController {
         throw new BadRequestException(
           "model_id is required when the workflow does not declare a default",
         );
+      }
+
+      // A trained (custom) model belongs to its template model's group; another
+      // group's trained model reads as not found. Azure prebuilt models and
+      // ids that are not trained models (other engines) are not group-owned.
+      if (!modelId.startsWith("prebuilt-")) {
+        const modelGroupId =
+          await this.trainingService.findTrainedModelGroupId(modelId);
+        if (modelGroupId !== null && modelGroupId !== groupId) {
+          throw new NotFoundException(`Model not found: ${modelId}`);
+        }
       }
 
       this.logger.debug(
