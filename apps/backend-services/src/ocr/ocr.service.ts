@@ -54,6 +54,9 @@ function readTemplateModelIdFromDocumentMetadata(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** Key names that would reach an object's prototype; never valid ctx keys. */
+const UNSAFE_CTX_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Selects the caller-supplied ctx overrides that a run may apply. A caller
  * tunes a workflow's declared settings — the ctx keys it declares with a
@@ -65,23 +68,20 @@ function selectCallerCtxOverrides(
   serverCtx: Record<string, unknown>,
   ctxOverrides: Record<string, unknown> | undefined,
 ): { accepted: Record<string, unknown>; ignoredKeys: string[] } {
-  const accepted: Record<string, unknown> = {};
-  const ignoredKeys: string[] = [];
   const declared = config.ctx ?? {};
-  for (const [key, value] of Object.entries(ctxOverrides ?? {})) {
-    const declaration = Object.hasOwn(declared, key)
-      ? declared[key]
-      : undefined;
-    if (
-      declaration?.defaultValue === undefined ||
-      Object.hasOwn(serverCtx, key)
-    ) {
-      ignoredKeys.push(key);
-      continue;
-    }
-    accepted[key] = value;
-  }
-  return { accepted, ignoredKeys };
+  const isOverridable = (key: string): boolean =>
+    !UNSAFE_CTX_KEYS.has(key) &&
+    Object.hasOwn(declared, key) &&
+    declared[key].defaultValue !== undefined &&
+    !Object.hasOwn(serverCtx, key);
+
+  const entries = Object.entries(ctxOverrides ?? {});
+  return {
+    accepted: Object.fromEntries(entries.filter(([key]) => isOverridable(key))),
+    ignoredKeys: entries
+      .filter(([key]) => !isOverridable(key))
+      .map(([key]) => key),
+  };
 }
 
 @Injectable()
