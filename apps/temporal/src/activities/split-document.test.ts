@@ -200,4 +200,40 @@ describe("splitDocument activity", () => {
       "customRanges is required for custom-ranges strategy",
     );
   });
+
+  describe("limited to the run's group", () => {
+    const GROUP = "clh7z2xk00000356u8e3h1234";
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    it("refuses a source blob key from another group", async () => {
+      setupPdfLibMocks(2);
+
+      await expect(
+        splitDocument({
+          blobKey: `${OTHER_GROUP}/ocr/doc-1/original.pdf`,
+          groupId: GROUP,
+          documentId: "doc-1",
+          strategy: "per-page",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockBlobWrite).not.toHaveBeenCalled();
+    });
+
+    it("refuses a documentId containing a dot segment", async () => {
+      setupPdfLibMocks(2);
+
+      await expect(
+        splitDocument({
+          blobKey: `${GROUP}/ocr/doc-1/original.pdf`,
+          groupId: GROUP,
+          documentId: `../../${OTHER_GROUP}/ocr/doc-2`,
+          strategy: "per-page",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobWrite).not.toHaveBeenCalled();
+    });
+  });
 });

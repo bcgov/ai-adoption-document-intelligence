@@ -29,6 +29,7 @@ import {
   type BenchmarkExecuteOutput,
   benchmarkExecuteWorkflow,
 } from "./activities/benchmark-execute";
+import { joinDatasetPath } from "./benchmark-dataset-paths";
 import type { DatasetManifest, EvaluationResult } from "./benchmark-types";
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ type BenchmarkActivities = {
   }>;
 
   "benchmark.cleanup": (input: {
+    groupId?: string;
     materializedDatasetPaths?: string[];
     temporaryOutputPaths?: string[];
     preserveCachedDatasets?: boolean;
@@ -459,12 +461,12 @@ export async function benchmarkRunWorkflow(
             try {
               // Build input paths
               const inputPaths = sample.inputs.map((input) =>
-                joinPath(materializedPath!, input.path),
+                joinDatasetPath(materializedPath!, input.path),
               );
 
               // Build ground truth paths
               const groundTruthPaths = sample.groundTruth.map((gt) =>
-                joinPath(materializedPath!, gt.path),
+                joinDatasetPath(materializedPath!, gt.path),
               );
 
               // Output directory for this sample
@@ -626,6 +628,7 @@ export async function benchmarkRunWorkflow(
       // Clean up temporary files
       if (materializedPath) {
         await customActivities["benchmark.cleanup"]({
+          groupId: datasetGroupId,
           materializedDatasetPaths: [materializedPath],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -737,6 +740,7 @@ export async function benchmarkRunWorkflow(
     currentPhase = "cleanup";
 
     await customActivities["benchmark.cleanup"]({
+      groupId: datasetGroupId,
       materializedDatasetPaths: [], // Keep cached datasets
       temporaryOutputPaths: outputPaths,
       preserveCachedDatasets: true,
@@ -761,6 +765,7 @@ export async function benchmarkRunWorkflow(
       // Clean up temporary files
       if (materializedPath) {
         await customActivities["benchmark.cleanup"]({
+          groupId: datasetGroupId,
           materializedDatasetPaths: [],
           temporaryOutputPaths: outputPaths,
           preserveCachedDatasets: true,
@@ -791,6 +796,7 @@ export async function benchmarkRunWorkflow(
     // Clean up temporary files
     if (materializedPath) {
       await customActivities["benchmark.cleanup"]({
+        groupId: datasetGroupId,
         materializedDatasetPaths: [],
         temporaryOutputPaths: outputPaths,
         preserveCachedDatasets: true,

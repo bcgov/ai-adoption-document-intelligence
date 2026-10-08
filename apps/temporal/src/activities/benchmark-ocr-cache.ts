@@ -7,7 +7,10 @@
 
 import type { Prisma } from "../generated";
 import { createActivityLogger } from "../logger";
-import { type OcrPayloadRef, readOcrPayloadBlob } from "../ocr-payload-ref";
+import {
+  type OcrPayloadRef,
+  readOcrPayloadBlobInGroup,
+} from "../ocr-payload-ref";
 import { getPrismaClient } from "./database-client";
 
 export interface BenchmarkLoadOcrCacheInput {
@@ -21,6 +24,8 @@ export interface BenchmarkLoadOcrCacheOutput {
 
 export interface BenchmarkPersistOcrCacheInput {
   sourceRunId: string;
+  /** Group that owns the run; `ocrResponseRef` must point into its blobs */
+  groupId?: string;
   sampleId: string;
   ocrResponse?: unknown;
   ocrResponseRef?: OcrPayloadRef;
@@ -63,7 +68,10 @@ export async function benchmarkPersistOcrCache(
 
   let ocrResponse = input.ocrResponse;
   if (input.ocrResponseRef) {
-    ocrResponse = await readOcrPayloadBlob(input.ocrResponseRef);
+    ocrResponse = await readOcrPayloadBlobInGroup(
+      input.ocrResponseRef,
+      input.groupId,
+    );
   }
   if (ocrResponse === undefined) {
     throw new Error(

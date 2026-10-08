@@ -557,10 +557,12 @@ describe("Graph Workflow", () => {
     }
 
     it("transitions an in-flight document to `failed` when the workflow fails", async () => {
+      const getStatusCalls: Array<Record<string, unknown>> = [];
       const updateStatusCalls: Array<Record<string, unknown>> = [];
-      const input = makeMockInput(makeFailingGraph(), {
-        documentId: "doc-fail-1",
-      });
+      const input = {
+        ...makeMockInput(makeFailingGraph(), { documentId: "doc-fail-1" }),
+        groupId: "group-1",
+      };
 
       await expect(
         runWorkflow(testEnv, input, "test-failure-status-hook", {
@@ -570,7 +572,11 @@ describe("Graph Workflow", () => {
               nonRetryable: true,
             });
           },
-          "document.getStatus": async () => ({ status: "ongoing_ocr" }),
+          "billing.recordWorkflowLifecycle": async () => ({}),
+          "document.getStatus": async (params: Record<string, unknown>) => {
+            getStatusCalls.push(params);
+            return { status: "ongoing_ocr" };
+          },
           "document.updateStatus": async (params: Record<string, unknown>) => {
             updateStatusCalls.push(params);
             return { success: true };
@@ -578,11 +584,19 @@ describe("Graph Workflow", () => {
         }),
       ).rejects.toThrow();
 
-      expect(
-        updateStatusCalls.some(
-          (c) => c.documentId === "doc-fail-1" && c.status === "failed",
-        ),
-      ).toBe(true);
+      expect(getStatusCalls).toContainEqual(
+        expect.objectContaining({
+          documentId: "doc-fail-1",
+          groupId: "group-1",
+        }),
+      );
+      expect(updateStatusCalls).toContainEqual(
+        expect.objectContaining({
+          documentId: "doc-fail-1",
+          groupId: "group-1",
+          status: "failed",
+        }),
+      );
     });
 
     it("does not clobber a document that already progressed past OCR", async () => {
@@ -1402,6 +1416,7 @@ describe("Graph Workflow", () => {
       };
 
       const statusUpdates: unknown[] = [];
+      let gateUpdate: Record<string, unknown> | undefined;
       let gateReachedResolve: (() => void) | undefined;
       const gateReached = new Promise<void>((resolve) => {
         gateReachedResolve = resolve;
@@ -1410,6 +1425,7 @@ describe("Graph Workflow", () => {
         "document.updateStatus": async (params: Record<string, unknown>) => {
           statusUpdates.push(params.status);
           if (params.status === "awaiting_review") {
+            gateUpdate = params;
             gateReachedResolve?.();
           }
           return { success: true };
@@ -1418,7 +1434,7 @@ describe("Graph Workflow", () => {
 
       const { worker, handle } = await startWorkflowWithWorker(
         testEnv,
-        makeMockInput(graph),
+        { ...makeMockInput(graph), groupId: "group-1" },
         "test-humangate-no-timeout-cancel",
         activitiesOverride,
       );
@@ -1442,6 +1458,9 @@ describe("Graph Workflow", () => {
       expect(outcome.failure).toBe("CancelledFailure");
       expect(outcome.after).toBe("CANCELLED");
       expect(statusUpdates).not.toContain("approved");
+      expect(gateUpdate).toEqual(
+        expect.objectContaining({ documentId: "test-doc", groupId: "group-1" }),
+      );
     });
 
     it("continues on timeout when onTimeout is continue", async () => {

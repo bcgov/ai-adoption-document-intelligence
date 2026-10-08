@@ -1,4 +1,4 @@
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
+import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 
 /**
@@ -7,6 +7,8 @@ import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 export interface BlobReadInput {
   /** Blob storage key of the file to read. */
   blobKey: string;
+  /** Group the workflow runs in; the blob key must belong to it. */
+  groupId: string;
 }
 
 /**
@@ -23,12 +25,15 @@ export interface BlobReadOutput {
  * Reads the raw bytes of the file at `blobKey` and returns them as a
  * base64-encoded string suitable for embedding directly in a field-mapping
  * binding (e.g., for inclusion in an XML payload via `data.transform`).
+ * The key must belong to the run's group.
  *
  * @param input - Activity input parameters.
  * @returns The base64-encoded file contents.
  */
 export async function blobRead(input: BlobReadInput): Promise<BlobReadOutput> {
   const blobStorage = getBlobStorageClient();
-  const data = await blobStorage.read(validateBlobFilePath(input.blobKey));
+  const data = await blobStorage.read(
+    validateBlobFilePathInGroup(input.blobKey, input.groupId),
+  );
   return { base64: data.toString("base64") };
 }

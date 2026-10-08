@@ -24,6 +24,42 @@ export function readEnv(name: string): string | undefined {
   return v && v.trim().length > 0 ? v.trim() : undefined;
 }
 
+const DEFAULT_ANALYZER_PREFIX = "di-experiment";
+
+/**
+ * CU rejects analyzer IDs that contain `-` (HTTP 400 "InvalidAnalyzerId" /
+ * "The 'analyzerId' cannot contain '-'"). Collapse to lowercase alphanumeric.
+ */
+export function sanitizeAnalyzerId(raw: string): string {
+  const sanitized = raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return sanitized || "default";
+}
+
+/** Configured analyzer prefix, sanitised. */
+export function analyzerIdPrefix(): string {
+  return sanitizeAnalyzerId(
+    readEnv("AZURE_CU_ANALYZER_PREFIX") ?? DEFAULT_ANALYZER_PREFIX,
+  );
+}
+
+/**
+ * Prefix of every analyzer a group deploys: `{prefix}{groupId}`. The CU
+ * resource is shared, so each group's analyzers live under their own names.
+ */
+export function groupAnalyzerIdPrefix(groupId: string): string {
+  return `${analyzerIdPrefix()}${sanitizeAnalyzerId(groupId)}`;
+}
+
+/** Throws unless `analyzerId` is one of `groupId`'s own analyzers. */
+export function assertGroupAnalyzerId(
+  analyzerId: string,
+  groupId: string,
+): void {
+  if (!analyzerId.startsWith(groupAnalyzerIdPrefix(groupId))) {
+    throw new Error(`Analyzer ${analyzerId} is not in group ${groupId}`);
+  }
+}
+
 /** Promise-based delay. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

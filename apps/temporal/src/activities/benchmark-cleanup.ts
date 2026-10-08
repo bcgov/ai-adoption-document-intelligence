@@ -7,11 +7,18 @@
  */
 
 import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
 
 /**
  * Input for benchmark.cleanup activity
  */
 export interface BenchmarkCleanupInput {
+  /**
+   * Group that owns the run; only paths inside its benchmark cache are removed
+   */
+  groupId?: string;
+
   /**
    * Paths to materialized dataset files to clean up
    */
@@ -37,12 +44,22 @@ export async function benchmarkCleanup(
   input: BenchmarkCleanupInput,
 ): Promise<void> {
   const { materializedDatasetPaths = [], temporaryOutputPaths = [] } = input;
+  if (!input.groupId) {
+    throw new Error("groupId is required to clean up benchmark files");
+  }
+  const groupCacheDir = path.resolve(getGroupBenchmarkCacheDir(input.groupId));
 
   const errors: string[] = [];
 
   // Clean up materialized dataset files (respecting cache preservation)
   if (materializedDatasetPaths.length > 0) {
     for (const filePath of materializedDatasetPaths) {
+      if (!isInsideDirectory(filePath, groupCacheDir)) {
+        errors.push(
+          `Not deleting ${filePath}: outside the group's benchmark cache`,
+        );
+        continue;
+      }
       try {
         await removeFileOrDirectory(filePath);
       } catch (error) {
@@ -61,6 +78,12 @@ export async function benchmarkCleanup(
   // Clean up temporary per-run output files
   if (temporaryOutputPaths.length > 0) {
     for (const filePath of temporaryOutputPaths) {
+      if (!isInsideDirectory(filePath, groupCacheDir)) {
+        errors.push(
+          `Not deleting ${filePath}: outside the group's benchmark cache`,
+        );
+        continue;
+      }
       try {
         await removeFileOrDirectory(filePath);
       } catch (error) {
@@ -83,6 +106,13 @@ export async function benchmarkCleanup(
 // ============================================================================
 // Helper functions
 // ============================================================================
+
+/**
+ * Whether `filePath` resolves to a location strictly inside `directory`
+ */
+function isInsideDirectory(filePath: string, directory: string): boolean {
+  return path.resolve(filePath).startsWith(directory + path.sep);
+}
 
 /**
  * Remove a file or directory (recursively)

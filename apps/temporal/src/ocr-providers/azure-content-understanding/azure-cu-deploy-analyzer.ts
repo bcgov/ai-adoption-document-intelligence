@@ -25,6 +25,7 @@ import {
 } from "./analyzer-schema-builder";
 import {
   analyzerDefinitionMatches,
+  assertGroupAnalyzerId,
   type CuAuthMode,
   createCuAxiosInstance,
   cuAnalyzerUrl,
@@ -37,6 +38,8 @@ const deployCache = new Map<string, string>();
 
 export interface AzureCuDeployAnalyzerParams {
   analyzerId: string;
+  /** Group of the running workflow; `analyzerId` must be one of its analyzers. */
+  groupId?: string | null;
   analyzer: CuAnalyzerDefinition;
   endpoint?: string;
   apiKey?: string;
@@ -102,6 +105,10 @@ export async function azureCuDeployAnalyzer(
   if (!params.analyzerId.trim()) {
     throw new Error("azureCuDeployAnalyzer: analyzerId is required.");
   }
+  if (!params.groupId) {
+    throw new Error("azureCuDeployAnalyzer: groupId is required.");
+  }
+  assertGroupAnalyzerId(params.analyzerId, params.groupId);
 
   const bodyHash = hashCuAnalyzerDefinition(params.analyzer);
   const cacheKey = `${params.analyzerId}::${bodyHash}`;

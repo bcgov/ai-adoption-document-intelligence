@@ -12,11 +12,14 @@ export interface WorkflowGraphConfigLoaded {
 
 export interface GetWorkflowGraphConfigInput {
   workflowId: string;
+  /** Group of the running workflow; only that group's workflows resolve. */
+  groupId?: string | null;
   workflowConfigOverrides?: Record<string, unknown>;
 }
 
 /**
- * Activity: Load a graph workflow config by version ID, lineage ID, or lineage name.
+ * Activity: Load a graph workflow config by version ID, lineage ID, or lineage name,
+ * limited to the workflows owned by `groupId`.
  *
  * When `workflowConfigOverrides` is set, merges overrides into the loaded config before
  * returning (same paths as benchmark definition overrides).
@@ -26,6 +29,12 @@ export interface GetWorkflowGraphConfigInput {
 export async function getWorkflowGraphConfig(
   input: GetWorkflowGraphConfigInput,
 ): Promise<WorkflowGraphConfigLoaded> {
+  const groupId = input.groupId;
+  if (!groupId) {
+    throw new Error(
+      `groupId is required to load workflow: ${input.workflowId}`,
+    );
+  }
   const prisma = getPrismaClient();
   const overrides = input.workflowConfigOverrides;
   const hasOverrides =
@@ -45,8 +54,8 @@ export async function getWorkflowGraphConfig(
     };
   };
 
-  const byVersion = await prisma.workflowVersion.findUnique({
-    where: { id: input.workflowId },
+  const byVersion = await prisma.workflowVersion.findFirst({
+    where: { id: input.workflowId, lineage: { group_id: groupId } },
     select: { id: true, config: true },
   });
   if (byVersion?.config) {
@@ -56,8 +65,8 @@ export async function getWorkflowGraphConfig(
     );
   }
 
-  const lineageById = await prisma.workflowLineage.findUnique({
-    where: { id: input.workflowId },
+  const lineageById = await prisma.workflowLineage.findFirst({
+    where: { id: input.workflowId, group_id: groupId },
     include: { headVersion: true },
   });
   if (lineageById?.headVersion?.config) {
@@ -68,7 +77,7 @@ export async function getWorkflowGraphConfig(
   }
 
   const lineageByName = await prisma.workflowLineage.findFirst({
-    where: { name: input.workflowId },
+    where: { name: input.workflowId, group_id: groupId },
     include: { headVersion: true },
   });
   if (lineageByName?.headVersion?.config) {

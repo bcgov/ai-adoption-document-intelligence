@@ -1,7 +1,7 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePath,
+  validateBlobFilePathInGroup,
 } from "@ai-di/blob-storage-paths";
 import { PDFDocument } from "pdf-lib";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
@@ -41,9 +41,10 @@ export interface ExtractPagesBase64Output {
 /**
  * Activity: Extract a page range from a PDF blob and persist it to blob storage.
  *
- * Downloads the source PDF, copies the requested page range into a new PDF,
- * writes it under `{groupId}/ocr/{documentId}/page-range-{start}-{end}.pdf`,
- * and returns `pageBlobPath` (no inline base64 in Temporal history).
+ * Downloads the source PDF (which must belong to the run's group), copies the
+ * requested page range into a new PDF, writes it under
+ * `{groupId}/ocr/{documentId}/page-range-{start}-{end}.pdf`, and returns
+ * `pageBlobPath` (no inline base64 in Temporal history).
  */
 export async function extractPagesBase64(
   input: ExtractPagesBase64Input,
@@ -60,7 +61,7 @@ export async function extractPagesBase64(
 
   const blobStorage = getBlobStorageClient();
   const sourceData = await blobStorage.read(
-    validateBlobFilePath(input.blobKey),
+    validateBlobFilePathInGroup(input.blobKey, input.groupId),
   );
 
   const outputBytes = await extractPageRangeBytes(
@@ -78,7 +79,10 @@ export async function extractPagesBase64(
     fileName,
   );
 
-  await blobStorage.write(validateBlobFilePath(pageBlobPath), outputBytes);
+  await blobStorage.write(
+    validateBlobFilePathInGroup(pageBlobPath, input.groupId),
+    outputBytes,
+  );
 
   return {
     pageBlobPath,

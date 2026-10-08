@@ -9,6 +9,15 @@ jest.mock("./split-document", () => ({
   extractDocumentId: (...args: unknown[]) => mockExtractDocumentId(...args),
 }));
 
+const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    read: mockBlobRead,
+    write: mockBlobWrite,
+  }),
+}));
+
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
     info: jest.fn(),
@@ -104,6 +113,29 @@ describe("extractPageRange activity", () => {
           "atestgroup/ocr/documents/docid/segments/segment-001-pages-2-4.pdf",
         pageRange: { start: 2, end: 4 },
       });
+    });
+  });
+
+  describe("limited to the run's group", () => {
+    it("refuses a source blob key from another group", async () => {
+      const actualSplitDocument =
+        jest.requireActual<typeof import("./split-document")>(
+          "./split-document",
+        ).splitDocument;
+      mockSplitDocument.mockImplementation(actualSplitDocument);
+      mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
+
+      await expect(
+        extractPageRange({
+          blobKey: "clh7z2xk00000356u8e3h5678/ocr/doc-1/original.pdf",
+          groupId: "clh7z2xk00000356u8e3h1234",
+          pageRange: { start: 1, end: 1 },
+          documentId: "doc-1",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockBlobWrite).not.toHaveBeenCalled();
     });
   });
 });

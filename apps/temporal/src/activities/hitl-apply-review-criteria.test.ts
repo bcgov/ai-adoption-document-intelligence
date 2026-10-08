@@ -21,6 +21,8 @@ jest.mock("./database-client", () => ({
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
 const DOC_ID = "doc-review-criteria-test";
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
 
 function run(
   params: Omit<ApplyReviewCriteriaParams, "documentId" | "rules"> &
@@ -28,7 +30,7 @@ function run(
       rules: ApplyReviewCriteriaParams["rules"];
     },
 ) {
-  return applyReviewCriteria({ documentId: DOC_ID, ...params });
+  return applyReviewCriteria({ documentId: DOC_ID, groupId: GROUP, ...params });
 }
 
 beforeEach(() => {
@@ -201,7 +203,7 @@ describe("applyReviewCriteria activity", () => {
   it("flags a field via formatValidationFails using documentType schema", async () => {
     const prismaMock = {
       templateModel: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -247,7 +249,7 @@ describe("applyReviewCriteria activity", () => {
   it("does not flag formatValidationFails when the value matches the pattern", async () => {
     const prismaMock = {
       templateModel: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -284,6 +286,110 @@ describe("applyReviewCriteria activity", () => {
     });
 
     expect(result.reviewPlan[0].decision).toBe("skip");
+  });
+
+  describe("group scope of the documentType schema", () => {
+    const sinTemplate = (groupId: string) => ({
+      id: "proj-1",
+      group_id: groupId,
+      field_schema: [
+        {
+          field_key: "sin_number",
+          field_type: "string",
+          field_format: null,
+          format_spec: JSON.stringify({
+            canonicalize: "digits",
+            pattern: "^\\d{9}$",
+          }),
+        },
+      ],
+    });
+
+    function templateTable(rows: Array<ReturnType<typeof sinTemplate>>) {
+      return {
+        templateModel: {
+          findUnique: jest.fn(
+            async ({ where }: { where: { id: string } }) =>
+              rows.find((r) => r.id === where.id) ?? null,
+          ),
+          findFirst: jest.fn(
+            async ({ where }: { where: { id: string; group_id?: string } }) =>
+              rows.find(
+                (r) =>
+                  r.id === where.id &&
+                  (where.group_id === undefined ||
+                    r.group_id === where.group_id),
+              ) ?? null,
+          ),
+        },
+      };
+    }
+
+    const formatRule: ApplyReviewCriteriaParams["rules"] = [
+      {
+        name: "bad-format",
+        select: {},
+        when: [{ formatValidationFails: true }],
+        action: "review",
+        reason: "Fails format validation",
+      },
+    ];
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads the field schema only within the run's group", async () => {
+      const prisma = templateTable([sinTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      const result = await run({
+        ocrResult: makeOcrResult({
+          sin_number: { content: "12-34", confidence: 0.99 },
+        }),
+        documentType: "proj-1",
+        rules: formatRule,
+      });
+
+      expect(prisma.templateModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "proj-1", group_id: GROUP } }),
+      );
+      expect(result.reviewPlan[0].decision).toBe("review");
+    });
+
+    it("treats a template model from another group as not found", async () => {
+      getPrismaClientMock.mockReturnValue(
+        templateTable([sinTemplate(OTHER_GROUP)]),
+      );
+
+      const result = await run({
+        ocrResult: makeOcrResult({
+          sin_number: { content: "12-34", confidence: 0.99 },
+        }),
+        documentType: "proj-1",
+        rules: formatRule,
+      });
+
+      expect(result.reviewPlan[0].decision).toBe("skip");
+    });
+
+    it("refuses to load the field schema without a groupId", async () => {
+      const prisma = templateTable([sinTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      await expect(
+        run({
+          groupId: undefined,
+          ocrResult: makeOcrResult({
+            sin_number: { content: "12-34", confidence: 0.99 },
+          }),
+          documentType: "proj-1",
+          rules: formatRule,
+        }),
+      ).rejects.toThrow(/groupId is required/);
+      expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
+      expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
+    });
   });
 
   it("applies defaultAction 'skip' when no rule matches", async () => {

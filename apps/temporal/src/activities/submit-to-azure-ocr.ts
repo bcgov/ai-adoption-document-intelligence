@@ -1,12 +1,9 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";
 
@@ -18,31 +15,13 @@ function normalizeEndpoint(url: string | undefined): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
-async function readBlobData(blobKey: string): Promise<Buffer> {
-  // If blobKey is an absolute path on disk (e.g. materialized by benchmark),
-  // read directly from the filesystem instead of object storage.
-  if (path.isAbsolute(blobKey)) {
-    try {
-      return await fs.promises.readFile(blobKey);
-    } catch (_error) {
-      throw new Error(`File not found on disk: "${blobKey}"`);
-    }
-  }
-
-  const client = getBlobStorageClient();
-  try {
-    return await client.read(validateBlobFilePath(blobKey));
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
-  }
-}
-
 /**
  * Activity: Submit document to Azure Document Intelligence OCR API
  * Returns serializable response data with headers including apim-request-id
  */
 export async function submitToAzureOCR(params: {
   fileData: PreparedFileData;
+  groupId?: string | null;
   locale?: string;
   __benchmarkOcrCache?: { ocrResponse?: unknown };
 }): Promise<SubmissionResult> {
@@ -131,7 +110,7 @@ export async function submitToAzureOCR(params: {
       },
     );
 
-    const fileBuffer = await readBlobData(fileData.blobKey);
+    const fileBuffer = await readGroupBlob(fileData.blobKey, params.groupId);
 
     // keyValuePairs add-on is only supported by prebuilt-layout / prebuilt-document
     // (and custom models built on those). prebuilt-read is read-only OCR and rejects it.

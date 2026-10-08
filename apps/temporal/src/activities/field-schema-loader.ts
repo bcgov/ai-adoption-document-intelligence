@@ -7,13 +7,15 @@ import { buildFieldMap, type FieldMap } from "./enrichment-rules";
 
 /**
  * Resolve field definitions for a TemplateModel id (same as ocr.enrich `documentType`).
+ * Limited to `groupId`: a template model from another group is treated as not found.
  */
 export async function loadFieldMapFromProject(
   documentType: string,
+  groupId: string,
 ): Promise<FieldMap | null> {
   const prisma = getPrismaClient();
-  const templateModel = await prisma.templateModel.findUnique({
-    where: { id: documentType },
+  const templateModel = await prisma.templateModel.findFirst({
+    where: { id: documentType, group_id: groupId },
     include: { field_schema: { orderBy: { display_order: "asc" } } },
   });
   if (!templateModel?.field_schema?.length) return null;

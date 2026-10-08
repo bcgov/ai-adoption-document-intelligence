@@ -1,7 +1,7 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePath,
+  validateBlobFilePathInGroup,
 } from "@ai-di/blob-storage-paths";
 import { PDFDocument } from "pdf-lib";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
@@ -31,7 +31,7 @@ export async function splitDocument(
 ): Promise<SplitDocumentOutput> {
   const blobStorage = getBlobStorageClient();
   const sourceData = await blobStorage.read(
-    validateBlobFilePath(input.blobKey),
+    validateBlobFilePathInGroup(input.blobKey, input.groupId),
   );
 
   const srcDoc = await PDFDocument.load(new Uint8Array(sourceData));

@@ -38,8 +38,8 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
-  SAMPLE_IMAGE_ABS_PATH,
   seedTestDocument,
+  stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
@@ -545,7 +545,7 @@ describeRuntime(
       // diModelId/outputFormat come from the graph ctx defaults.
       return {
         documentId,
-        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        blobKey: stageSampleImage(),
         fileName: "1 81.jpg",
         fileType: "image",
         contentType: "image/jpeg",

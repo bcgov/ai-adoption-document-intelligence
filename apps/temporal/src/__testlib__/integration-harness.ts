@@ -22,12 +22,14 @@
 
 import "../env-loader";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { DocumentStatus } from "@generated/client";
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
 import { getPrismaClient } from "../activities/database-client";
 import { getActivityRegistry } from "../activity-registry";
+import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
 import { computeConfigHash } from "../config-hash";
 import type {
   GraphWorkflowConfig,
@@ -45,12 +47,8 @@ export const TEMPORAL_NAMESPACE =
 /** Seeded default group every test document is attached to. */
 export const SEED_GROUP_ID = "seeddefaultgroup";
 
-/**
- * Absolute path to a real sample image on disk. `file.prepare`/provider
- * activities read absolute blobKeys straight from the filesystem, so pointing
- * the workflow's `blobKey` here avoids having to upload to blob storage.
- */
-export const SAMPLE_IMAGE_ABS_PATH = path.resolve(
+/** A real sample image in the repo. */
+const SAMPLE_IMAGE_SOURCE_PATH = path.resolve(
   __dirname,
   "..",
   "..",
@@ -62,6 +60,23 @@ export const SAMPLE_IMAGE_ABS_PATH = path.resolve(
   "public",
   "1 81.jpg",
 );
+
+/**
+ * Copies the sample image into the seed group's benchmark cache and returns
+ * its absolute path. `file.prepare`/provider activities read an absolute
+ * blobKey from the filesystem when it lies inside the run's group cache, so
+ * pointing the workflow's `blobKey` here avoids uploading to blob storage.
+ */
+export function stageSampleImage(): string {
+  const target = path.join(
+    getGroupBenchmarkCacheDir(SEED_GROUP_ID),
+    "itest",
+    path.basename(SAMPLE_IMAGE_SOURCE_PATH),
+  );
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(SAMPLE_IMAGE_SOURCE_PATH, target);
+  return target;
+}
 
 type ActivityFn = (...args: unknown[]) => Promise<unknown>;
 
@@ -105,7 +120,7 @@ export async function seedTestDocument(opts?: {
       id: documentId,
       title: fileName,
       original_filename: fileName,
-      file_path: SAMPLE_IMAGE_ABS_PATH,
+      file_path: SAMPLE_IMAGE_SOURCE_PATH,
       file_type: "image",
       file_size: 0,
       source: "integration-test",
@@ -235,5 +250,6 @@ export function makeWorkflowInput(
     initialCtx,
     configHash: computeConfigHash(graph),
     runnerVersion: "1.0.0",
+    groupId: SEED_GROUP_ID,
   };
 }

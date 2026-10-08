@@ -1,4 +1,4 @@
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
+import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
@@ -41,6 +41,7 @@ export interface AzureClassifySubmitOutput {
  *
  * Checks the DB for a READY classifier, then submits the document either as
  * a SAS URL (Azure storage provider) or base64 (Minio / any other provider).
+ * The document's blob key must belong to the run's group.
  * Returns the resultId required to poll for results.
  */
 export async function azureClassifySubmit(
@@ -49,6 +50,7 @@ export async function azureClassifySubmit(
   const activityName = "azureClassifySubmit";
   const { blobKey, groupId, classifierName, documentId } = input;
   const log = createActivityLogger(activityName, { groupId, classifierName });
+  const blobPath = validateBlobFilePathInGroup(blobKey, groupId);
 
   // Guard: ensure classifier exists and is READY
   const prisma = getPrismaClient();
@@ -94,15 +96,10 @@ export async function azureClassifySubmit(
     let requestBody: { urlSource: string } | { base64Source: string };
 
     if (provider === "azure") {
-      const sasUrl = await blobStorageClient.generateSasUrl(
-        validateBlobFilePath(blobKey),
-        15,
-      );
+      const sasUrl = await blobStorageClient.generateSasUrl(blobPath, 15);
       requestBody = { urlSource: sasUrl };
     } else {
-      const fileData = await blobStorageClient.read(
-        validateBlobFilePath(blobKey),
-      );
+      const fileData = await blobStorageClient.read(blobPath);
       requestBody = { base64Source: fileData.toString("base64") };
     }
 

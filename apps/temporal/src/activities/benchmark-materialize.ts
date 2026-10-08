@@ -6,8 +6,10 @@ import {
   validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { joinDatasetPath } from "../benchmark-dataset-paths";
 import type { DatasetManifest } from "../benchmark-types";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
@@ -72,11 +74,11 @@ export async function materializeDataset(
       [storagePrefix],
     );
 
-    // Determine cache directory
-    const cacheBaseDir =
-      process.env.BENCHMARK_CACHE_DIR || "/tmp/benchmark-cache";
+    // Each group's datasets live in their own cache directory, the only
+    // local location readGroupBlob accepts for that group's runs.
+    const groupCacheDir = getGroupBenchmarkCacheDir(groupId);
     const cacheKey = `${datasetId}-${datasetVersionId}`;
-    const materializedPath = path.join(cacheBaseDir, cacheKey);
+    const materializedPath = path.join(groupCacheDir, cacheKey);
 
     log.info("Check cache", {
       event: "check_cache",
@@ -108,8 +110,8 @@ export async function materializeDataset(
       });
     }
 
-    // Ensure cache base directory exists
-    await fs.mkdir(cacheBaseDir, { recursive: true });
+    // Ensure the group's cache directory exists
+    await fs.mkdir(groupCacheDir, { recursive: true });
     await fs.mkdir(materializedPath, { recursive: true });
 
     // Download all files from object storage
@@ -246,7 +248,7 @@ export async function loadDatasetManifest(
       throw new Error(`Dataset version not found: ${datasetVersionId}`);
     }
 
-    const manifestPath = path.join(
+    const manifestPath = joinDatasetPath(
       materializedPath,
       datasetVersion.manifestPath,
     );

@@ -275,4 +275,40 @@ describe("azureClassifySubmit activity", () => {
       expect(result.documentId).toBe("doc42");
     });
   });
+
+  describe("limited to the run's group", () => {
+    const GROUP = "clh7z2xk00000356u8e3h1234";
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    it("refuses a blob key from another group when generating a SAS URL", async () => {
+      process.env.BLOB_STORAGE_PROVIDER = "azure";
+      mockGenerateSasUrl.mockResolvedValue(
+        "https://example.test/doc.pdf?sas=1",
+      );
+
+      await expect(
+        azureClassifySubmit({
+          blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+          groupId: GROUP,
+          classifierName: "my-classifier",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockGenerateSasUrl).not.toHaveBeenCalled();
+      expect(mockPath).not.toHaveBeenCalled();
+    });
+
+    it("refuses a blob key from another group when reading the bytes", async () => {
+      await expect(
+        azureClassifySubmit({
+          blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+          groupId: GROUP,
+          classifierName: "my-classifier",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockPath).not.toHaveBeenCalled();
+    });
+  });
 });
