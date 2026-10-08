@@ -265,7 +265,7 @@ interface ChildWorkflowNode extends GraphNodeBase {
 ```
 
 **Implementation details**:
-- Library refs load the graph config via an activity (`getWorkflowGraphConfig`) since workflow code cannot access the database directly.
+- Library refs load the graph config via an activity (`getWorkflowGraphConfig`) since workflow code cannot access the database directly. `workflowId` resolves as a workflow version id, then a lineage id (head version), then a lineage name (head version), and only among workflows owned by the running workflow's group; the activity refuses a lookup without a `groupId`.
 - Inline refs use the embedded graph as-is.
 - `inputMappings` populate the child workflow `initialCtx` (mapping port -> parent ctx value).
 - `outputMappings` read from the child workflow `ctx` and write to the parent ctx.

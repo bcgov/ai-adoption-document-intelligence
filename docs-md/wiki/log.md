@@ -143,3 +143,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
 - `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
 - `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.
+
+## [2026-10-07] ingest | Group scope for references and the workflow worker
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: more reference rules (labeling upload and attach, upload `model_id` and `ctx_overrides`, thumbnails, HITL field schema, confusion-profile derivation, format suggestions, benchmark error detection, ground-truth generation, baseline history, classification results, blob path components, membership check), the blob path rules, and a Workflow Worker section.
+- `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/03-content-understanding-OCR.md`: child workflow refs resolve within the run's group; Content Understanding analyzers are named per group.
+- `auth-and-groups.md`: pointer to the worker rules, and the drift risk of a new activity trusting an id from its input.

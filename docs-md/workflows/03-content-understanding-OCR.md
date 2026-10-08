@@ -26,7 +26,7 @@ model token charges (LLM layer).
 | Analyzer upsert | `PUT /analyzers/{analyzerId}?api-version=2025-11-01` | same; the deploy activity skips PUT when an existing analyzer matches the desired body |
 | Analyze submit | `POST /analyzers/{analyzerId}:analyze?api-version=2025-11-01` body `{ inputs: [{ url: <data-url> }] }` → `202 + Operation-Location` | same; the activity polls `Operation-Location` every 1.5 s until terminal |
 | Analyze poll | `GET /analyzerResults/{request-id}?api-version=2025-11-01` | same |
-| **Analyzer ID constraint** | alphanumeric only | **CU rejects `-` in `analyzerId` with HTTP 400 `InvalidAnalyzerId`. We sanitise `${AZURE_CU_ANALYZER_PREFIX}-${templateModelId}` to lowercase alphanumeric, dropping all separators.** |
+| **Analyzer ID constraint** | alphanumeric only | **CU rejects `-` in `analyzerId` with HTTP 400 `InvalidAnalyzerId`. We sanitise `${AZURE_CU_ANALYZER_PREFIX}-${groupId}-${templateModelId}` to lowercase alphanumeric, dropping all separators.** |
 | **Defaults pre-flight** | required before any analyzer can be deployed | `PATCH /contentunderstanding/defaults` must wire the `gpt-5.2`, `gpt-4.1-mini`, and `text-embedding-3-large` aliases to actual deployment names; without it, PUT analyzer fails with `DefaultsNotSet`. **One-time setup** at the resource level; the iteration script does NOT do this for you. |
 
 ## Analyzer JSON schema vocabulary
@@ -80,11 +80,15 @@ Two activities are registered in all three registries (per
 - **`azureContentUnderstanding.deployAnalyzer`** — idempotent PUT against
   `/analyzers/{id}`. GETs first; skips PUT when the deployed body
   matches. In-memory cache keyed on `analyzerId + bodyHash` short-circuits
-  repeats. Default timeout 2 min, 3 retries.
+  repeats. Default timeout 2 min, 3 retries. The CU resource is shared by
+  every group, so the activity only deploys analyzer ids that start with the
+  running workflow's group prefix (`{prefix}{groupId}`, sanitised).
 
 - **`azureContentUnderstanding.analyze`** — submits one document, polls
   the operation, returns `{ ocrResult, cuResponse }`. Calls
-  `deployAnalyzer` first when a `templateModelId` is supplied. Default
+  `deployAnalyzer` first when a `templateModelId` is supplied. An explicit
+  `analyzerId` parameter must be an Azure `prebuilt-*` analyzer or one of
+  the group's own analyzers. Default
   timeout 20 min, retry policy **30 attempts × 15 s × 1.5x × 60 s cap**
   (mirrors `mistralAzureOcr.process` because the Foundry RPM quota model
   applies — and the LLM layer can be slower than OCR-only paths).
