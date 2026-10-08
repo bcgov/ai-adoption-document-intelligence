@@ -277,9 +277,13 @@ worker enforces the group itself:
   workflow with the document's `groupId`. The engine injects it into each
   activity's input last and drops any `groupId` set by node parameters or port
   bindings. Activities that touch group data refuse to run without it.
-- **Blob keys from activity input must belong to the run's group** (`validateBlobFilePathInGroup`,
-  or `readGroupBlob` for document bytes). This covers blob keys, OCR payload refs
-  and keys built from `documentId`.
+- **Blob storage is reached only through group-bound helpers.**
+  `getGroupBlobStorage(groupId)` validates every key and prefix against the group
+  before reading, writing, listing or signing it, and `readGroupBlob(key, groupId)`
+  reads document bytes from blob storage or the group's benchmark cache. This
+  covers blob keys, OCR payload refs and keys built from `documentId`. The
+  worker's Biome config (`style/noRestrictedImports`) rejects importing
+  `getBlobStorageClient` outside `src/blob-storage/`.
 - **Local files** are read only from the group's benchmark cache,
   `{BENCHMARK_CACHE_DIR}/{groupId}`, where benchmark runs materialise their
   datasets. Manifest paths must stay inside the materialised dataset, and benchmark
