@@ -4,10 +4,12 @@ import {
   buildBlobPrefixPath,
   buildSharedBlobPrefixPath,
   validateBlobFilePath,
+  validateBlobFilePathInGroup,
   validateBlobPrefixPath,
 } from "./storage-path-builder";
 
 const VALID_CUID = "clh7z2xk00000356u8e3h1234";
+const OTHER_CUID = "clh7z2xk00000356u8e3h5678";
 
 describe("buildSharedBlobPrefixPath", () => {
   it("builds a shared prefix starting with _shared", () => {
@@ -55,6 +57,15 @@ describe("buildBlobPrefixPath", () => {
     );
   });
 
+  it.each([[[".."]], [["doc1", "../../other"]], [["./doc1"]]])(
+    "throws when a prefix component contains a dot segment: %j",
+    (components) => {
+      expect(() =>
+        buildBlobPrefixPath(VALID_CUID, OperationCategory.OCR, components)
+      ).toThrow(/dot segment/);
+    }
+  );
+
   it("collapses double slashes from prefix components", () => {
     // path.posix.join normalises these, but guard the behaviour
     const result = buildBlobPrefixPath(VALID_CUID, OperationCategory.BENCHMARK, ["a//b"]);
@@ -76,6 +87,12 @@ describe("buildBlobFilePath", () => {
   it("builds a file path with no intermediate prefix components", () => {
     const result = buildBlobFilePath(VALID_CUID, OperationCategory.CLASSIFICATION, [""], "result.txt");
     expect(result).toBe(`${VALID_CUID}/classification/result.txt`);
+  });
+
+  it("throws when the file name contains a dot segment", () => {
+    expect(() =>
+      buildBlobFilePath(VALID_CUID, OperationCategory.OCR, ["doc1"], "../output.json")
+    ).toThrow(/dot segment/);
   });
 
   it("inherits the illegal-character restriction from buildBlobPrefixPath", () => {
@@ -145,5 +162,41 @@ describe("validateBlobFilePath", () => {
     expect(() => validateBlobFilePath(`${VALID_CUID}/badcat/file.json`)).toThrow(
       /not a valid category/
     );
+  });
+
+  it.each([
+    `${VALID_CUID}/ocr/../../${OTHER_CUID}/ocr/doc1/output.json`,
+    `${VALID_CUID}/ocr/./doc1/output.json`,
+    `${VALID_CUID}/ocr/doc1/..`,
+  ])("throws when the path contains a dot segment: %s", (blobPath) => {
+    expect(() => validateBlobFilePath(blobPath)).toThrow(/dot segment/);
+  });
+});
+
+describe("validateBlobFilePathInGroup", () => {
+  it("returns the path unchanged when it belongs to the group", () => {
+    const validPath = `${VALID_CUID}/ocr/doc1/output.json`;
+    expect(validateBlobFilePathInGroup(validPath, VALID_CUID)).toBe(validPath);
+  });
+
+  it("throws when the path belongs to another group", () => {
+    expect(() =>
+      validateBlobFilePathInGroup(`${OTHER_CUID}/ocr/doc1/output.json`, VALID_CUID)
+    ).toThrow(/does not belong to group/);
+  });
+
+  it("throws when the path climbs out of the group", () => {
+    expect(() =>
+      validateBlobFilePathInGroup(
+        `${VALID_CUID}/ocr/../../${OTHER_CUID}/ocr/doc1/output.json`,
+        VALID_CUID
+      )
+    ).toThrow(/dot segment/);
+  });
+
+  it("throws when the path is not a valid blob path", () => {
+    expect(() =>
+      validateBlobFilePathInGroup("/var/data/output.json", VALID_CUID)
+    ).toThrow(/not a valid cuid/);
   });
 });
