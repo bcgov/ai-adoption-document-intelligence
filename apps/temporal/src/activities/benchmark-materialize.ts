@@ -3,12 +3,11 @@ import * as path from "node:path";
 import {
   buildBlobPrefixPath,
   OperationCategory,
-  validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { joinDatasetPath } from "../benchmark-dataset-paths";
 import type { DatasetManifest } from "../benchmark-types";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
@@ -115,7 +114,7 @@ export async function materializeDataset(
     await fs.mkdir(materializedPath, { recursive: true });
 
     // Download all files from object storage
-    const blobStorage = getBlobStorageClient();
+    const blobStorage = getGroupBlobStorage(groupId);
 
     log.info("Download start", {
       event: "download_start",
@@ -144,7 +143,7 @@ export async function materializeDataset(
 
         await fs.mkdir(localDir, { recursive: true });
 
-        const data = await blobStorage.read(validateBlobFilePath(key));
+        const data = await blobStorage.read(key);
         // wx flag is exclusive creation. Will fail if already exists.
         // 0x600 permissions restrict to read/write only for the owner
         const fileHandle = await fs.open(localPath, "wx", 0o600);

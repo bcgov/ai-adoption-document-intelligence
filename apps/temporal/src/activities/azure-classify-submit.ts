@@ -4,7 +4,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
@@ -88,7 +88,7 @@ export async function azureClassifySubmit(
       { credentials: { apiKeyHeaderName: "api-key" } },
     );
 
-    const blobStorageClient = getBlobStorageClient();
+    const blobStorage = getGroupBlobStorage(groupId);
     const provider = (
       process.env.BLOB_STORAGE_PROVIDER ?? "minio"
     ).toLowerCase();
@@ -96,10 +96,10 @@ export async function azureClassifySubmit(
     let requestBody: { urlSource: string } | { base64Source: string };
 
     if (provider === "azure") {
-      const sasUrl = await blobStorageClient.generateSasUrl(blobPath, 15);
+      const sasUrl = await blobStorage.generateSasUrl(blobPath, 15);
       requestBody = { urlSource: sasUrl };
     } else {
-      const fileData = await blobStorageClient.read(blobPath);
+      const fileData = await blobStorage.read(blobPath);
       requestBody = { base64Source: fileData.toString("base64") };
     }
 

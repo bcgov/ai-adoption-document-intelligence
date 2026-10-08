@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
-import { getBlobStorageClient } from "./blob-storage-client";
+import { getGroupBlobStorage } from "./group-blob-storage";
 
 /**
  * Directory where benchmark runs materialise one group's dataset files on the
@@ -44,9 +44,8 @@ export async function readGroupBlob(
   }
 
   const blobPath = validateBlobFilePathInGroup(key, groupId);
-  const client = getBlobStorageClient();
   try {
-    return await client.read(blobPath);
+    return await getGroupBlobStorage(groupId).read(blobPath);
   } catch (error) {
     throw new Error(`Blob not found: "${key}" — ${error}`);
   }

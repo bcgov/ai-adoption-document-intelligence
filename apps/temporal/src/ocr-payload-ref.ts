@@ -5,10 +5,8 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePath,
-  validateBlobFilePathInGroup,
 } from "@ai-di/blob-storage-paths";
-import { getBlobStorageClient } from "./blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "./blob-storage/group-blob-storage";
 import { isOcrPayloadRef, type OcrPayloadRef } from "./ocr-payload-ref-types";
 import type { OCRResult } from "./types";
 
@@ -70,22 +68,8 @@ export async function writeOcrPayloadBlob(
     fileName,
   );
   const body = JSON.stringify(json);
-  const client = getBlobStorageClient();
-  await client.write(validateBlobFilePath(blobPath), Buffer.from(body, "utf8"));
+  await getGroupBlobStorage(groupId).write(blobPath, Buffer.from(body, "utf8"));
   return { blobPath, byteLength: Buffer.byteLength(body, "utf8") };
-}
-
-export async function readOcrPayloadBlob<T = unknown>(
-  ref: OcrPayloadRef,
-): Promise<T> {
-  if (!ref.blobPath) {
-    throw new Error(
-      `OCR payload blob path is empty for document ${ref.documentId}`,
-    );
-  }
-  const client = getBlobStorageClient();
-  const data = await client.read(validateBlobFilePath(ref.blobPath));
-  return JSON.parse(data.toString("utf8")) as T;
 }
 
 /**
@@ -101,8 +85,13 @@ export async function readOcrPayloadBlobInGroup<T = unknown>(
       `groupId is required to read the OCR payload for document ${ref.documentId}`,
     );
   }
-  validateBlobFilePathInGroup(ref.blobPath, groupId);
-  return readOcrPayloadBlob<T>(ref);
+  if (!ref.blobPath) {
+    throw new Error(
+      `OCR payload blob path is empty for document ${ref.documentId}`,
+    );
+  }
+  const data = await getGroupBlobStorage(groupId).read(ref.blobPath);
+  return JSON.parse(data.toString("utf8")) as T;
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   validateBlobFilePath,
   validateBlobFilePathInGroup,
   validateBlobPrefixPath,
+  validateBlobPrefixPathInGroup,
 } from "./storage-path-builder";
 
 const VALID_CUID = "clh7z2xk00000356u8e3h1234";
@@ -198,5 +199,24 @@ describe("validateBlobFilePathInGroup", () => {
     expect(() =>
       validateBlobFilePathInGroup("/var/data/output.json", VALID_CUID)
     ).toThrow(/not a valid cuid/);
+  });
+});
+
+describe("validateBlobPrefixPathInGroup", () => {
+  it("returns the prefix unchanged when it belongs to the group", () => {
+    const prefix = `${VALID_CUID}/benchmark/datasets/ds1/v1`;
+    expect(validateBlobPrefixPathInGroup(prefix, VALID_CUID)).toBe(prefix);
+  });
+
+  it("throws when the prefix belongs to another group", () => {
+    expect(() =>
+      validateBlobPrefixPathInGroup(`${OTHER_CUID}/benchmark/datasets`, VALID_CUID)
+    ).toThrow(/does not belong to group/);
+  });
+
+  it("throws when the prefix has a dot segment", () => {
+    expect(() =>
+      validateBlobPrefixPathInGroup(`${VALID_CUID}/benchmark/../x`, VALID_CUID)
+    ).toThrow(/dot segment/);
   });
 });

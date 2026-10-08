@@ -1,5 +1,4 @@
-import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 
 /**
  * Input parameters for the blobRead activity.
@@ -31,9 +30,6 @@ export interface BlobReadOutput {
  * @returns The base64-encoded file contents.
  */
 export async function blobRead(input: BlobReadInput): Promise<BlobReadOutput> {
-  const blobStorage = getBlobStorageClient();
-  const data = await blobStorage.read(
-    validateBlobFilePathInGroup(input.blobKey, input.groupId),
-  );
+  const data = await getGroupBlobStorage(input.groupId).read(input.blobKey);
   return { base64: data.toString("base64") };
 }

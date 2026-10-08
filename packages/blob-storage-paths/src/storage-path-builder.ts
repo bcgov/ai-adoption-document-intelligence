@@ -111,6 +111,22 @@ export const validateBlobFilePathInGroup = (blobPath: string, groupId: string): 
 }
 
 /**
+ * Validates a blob prefix path and confirms it belongs to `groupId`.
+ * Throws if the prefix is malformed or its group segment is a different group.
+ *
+ * @param blobPath - The raw prefix string to validate.
+ * @param groupId - The group the prefix must belong to.
+ * @returns A branded `BlobPrefixPath`.
+ */
+export const validateBlobPrefixPathInGroup = (blobPath: string, groupId: string): BlobPrefixPath => {
+  const validated = validateBlobPrefixPath(blobPath);
+  if (validated.split("/")[0] !== groupId) {
+    throw new Error(`Blob prefix path does not belong to group ${groupId}`);
+  }
+  return validated;
+}
+
+/**
  * Casts an arbitrary string to a `BlobPrefixPath` after validating its structure.
  * Throws if the path does not start with a valid CUID group ID and a known category,
  * or if any segment is `.` or `..`.

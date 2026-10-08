@@ -1,10 +1,9 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePathInGroup,
 } from "@ai-di/blob-storage-paths";
 import { PDFDocument } from "pdf-lib";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import { extractDocumentId } from "./split-document";
 
 /**
@@ -59,10 +58,8 @@ export async function extractPagesBase64(
     );
   }
 
-  const blobStorage = getBlobStorageClient();
-  const sourceData = await blobStorage.read(
-    validateBlobFilePathInGroup(input.blobKey, input.groupId),
-  );
+  const blobStorage = getGroupBlobStorage(input.groupId);
+  const sourceData = await blobStorage.read(input.blobKey);
 
   const outputBytes = await extractPageRangeBytes(
     sourceData,
@@ -79,10 +76,7 @@ export async function extractPagesBase64(
     fileName,
   );
 
-  await blobStorage.write(
-    validateBlobFilePathInGroup(pageBlobPath, input.groupId),
-    outputBytes,
-  );
+  await blobStorage.write(pageBlobPath, outputBytes);
 
   return {
     pageBlobPath,

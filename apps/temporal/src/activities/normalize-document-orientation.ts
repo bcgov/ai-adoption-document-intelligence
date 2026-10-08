@@ -1,9 +1,8 @@
-import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { degrees, PDFDocument } from "pdf-lib";
 import type { Worker as TesseractWorker } from "tesseract.js";
 import { OEM } from "tesseract.js";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import { createActivityLogger } from "../logger";
 import { loadMupdf, loadTesseract } from "./esm-imports";
 
@@ -128,9 +127,8 @@ export async function normalizeDocumentOrientation(
 
   log.info("normalizeDocumentOrientation start", { event: "start", blobKey });
 
-  const blobPath = validateBlobFilePathInGroup(blobKey, groupId);
-  const blobStorage = getBlobStorageClient();
-  const pdfBuffer = await blobStorage.read(blobPath);
+  const blobStorage = getGroupBlobStorage(groupId);
+  const pdfBuffer = await blobStorage.read(blobKey);
 
   const mupdf = await getMupdf();
 
@@ -259,7 +257,7 @@ export async function normalizeDocumentOrientation(
     }
 
     const correctedBuffer = Buffer.from(await newDoc.save());
-    await blobStorage.write(blobPath, correctedBuffer as unknown as Buffer);
+    await blobStorage.write(blobKey, correctedBuffer as unknown as Buffer);
 
     const correctedCount = pageCorrections.filter((p) => p.corrected).length;
     log.info("normalizeDocumentOrientation complete", {
