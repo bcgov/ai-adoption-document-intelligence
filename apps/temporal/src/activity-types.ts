@@ -3,6 +3,9 @@
  *
  * List of registered activity types that can be used in graph node definitions.
  * This file can be safely imported into workflow code (no Prisma/activity dependencies).
+ *
+ * The benchmark orchestration activities (`benchmark.*`) are not listed: only
+ * the benchmark workflows call them, directly, and a graph node cannot.
  */
 
 export const REGISTERED_ACTIVITY_TYPES = [
@@ -30,18 +33,6 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "document.validateFields",
   "document.extractPageRange",
   "segment.combineResult",
-  "benchmark.evaluate",
-  "benchmark.aggregate",
-  "benchmark.cleanup",
-  "benchmark.updateRunStatus",
-  "benchmark.compareAgainstBaseline",
-  "benchmark.writePrediction",
-  "benchmark.flattenPredictionFromRefs",
-  "benchmark.materializeDataset",
-  "benchmark.loadDatasetManifest",
-  "benchmark.loadOcrCache",
-  "benchmark.persistOcrCache",
-  "benchmark.persistEvaluationDetails",
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
