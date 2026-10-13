@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { ApplicationFailure } from "@temporalio/common";
 import { benchmarkWritePrediction } from "./benchmark-write-prediction";
 
 const GROUP = "clh7z2xk00000356u8e3h1234";
@@ -115,6 +116,18 @@ describe("benchmarkWritePrediction", () => {
     await expect(
       fs.access(path.join(cacheDir, OTHER_GROUP, "escape-prediction.json")),
     ).rejects.toThrow();
+  });
+
+  it("refuses another group's cache with a failure Temporal does not retry", async () => {
+    const failure = await benchmarkWritePrediction({
+      predictionData: {},
+      outputDir: path.join(cacheDir, OTHER_GROUP, "ds", "s1"),
+      sampleId: "s1",
+      groupId: GROUP,
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApplicationFailure);
+    expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 
   it("refuses to write without a groupId", async () => {

@@ -14,6 +14,7 @@
  */
 
 import axios, { AxiosError, type AxiosInstance } from "axios";
+import { groupScopeViolation } from "../../group-scope-violation";
 
 export const CU_API_VERSION = "2025-11-01";
 export const CU_BASE_PATH = "/contentunderstanding";
@@ -56,7 +57,9 @@ export function assertGroupAnalyzerId(
   groupId: string,
 ): void {
   if (!analyzerId.startsWith(groupAnalyzerIdPrefix(groupId))) {
-    throw new Error(`Analyzer ${analyzerId} is not in group ${groupId}`);
+    throw groupScopeViolation(
+      `Analyzer ${analyzerId} is not in group ${groupId}`,
+    );
   }
 }
 

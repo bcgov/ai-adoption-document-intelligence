@@ -35,6 +35,8 @@ import {
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
+  groupAnalyzerIdPrefix,
+  sanitizeAnalyzerId,
 } from "../src/ocr-providers/azure-content-understanding/azure-cu-client";
 import { azureCuDeployAnalyzer } from "../src/ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
 import type { CuAnalyzeOperation } from "../src/ocr-providers/azure-content-understanding/cu-types";
@@ -189,14 +191,6 @@ function diffToMarkdown(opts: {
   return `${lines.join("\n")}\n`;
 }
 
-/**
- * CU rejects analyzer IDs that contain `-` (HTTP 400 "InvalidAnalyzerId").
- * Collapse to alphanumeric and lowercase-prefix.
- */
-function sanitizeAnalyzerId(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
 function shortHash(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) {
@@ -223,8 +217,6 @@ async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;
   const endpoint = process.env.AZURE_CU_ENDPOINT?.replace(/\/+$/, "");
   const apiKey = process.env.AZURE_CU_KEY;
-  const analyzerPrefix =
-    process.env.AZURE_CU_ANALYZER_PREFIX ?? "di-experiment";
   const authMode: CuAuthMode =
     (process.env.AZURE_CU_AUTH_MODE as CuAuthMode | undefined) ??
     DEFAULT_AUTH_MODE;
@@ -278,11 +270,9 @@ async function main(): Promise<void> {
     throw new Error("Failed to build CU analyzer (no fields).");
   }
   const bodyHash = hashCuAnalyzerDefinition(analyzer);
-  // CU rejects analyzer IDs that contain `-`. Strip non-alphanumeric chars
-  // (incl. underscores/dashes) and concatenate prefix+template.
-  const analyzerId = sanitizeAnalyzerId(
-    `${analyzerPrefix}-${TEMPLATE_MODEL_ID}`,
-  );
+  // Same id the worker deploys for this template: the template's group
+  // prefix plus the sanitized template id.
+  const analyzerId = `${groupAnalyzerIdPrefix(tm.group_id)}${sanitizeAnalyzerId(TEMPLATE_MODEL_ID)}`;
 
   console.log(`→ analyzer: ${analyzerId}  (body hash: ${bodyHash})`);
   console.log(`  sample: ${sampleId}`);
@@ -321,6 +311,7 @@ async function main(): Promise<void> {
   //    skips work if remote already matches).
   const deployResult = await azureCuDeployAnalyzer({
     analyzerId,
+    groupId: tm.group_id,
     analyzer,
     endpoint,
     apiKey,

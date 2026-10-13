@@ -12,9 +12,13 @@
           "options": {
             "patterns": [
               {
-                "group": ["**/blob-storage-client"],
-                "importNamePattern": "getBlobStorageClient",
-                "message": "Access blob storage through getGroupBlobStorage(groupId) or readGroupBlob(key, groupId) so every key is checked against the run's group."
+                "group": [
+                  "**/blob-storage-client",
+                  "**/blob-storage-client.js"
+                ],
+                "importNamePattern": "initStorageLedger",
+                "invertImportNamePattern": true,
+                "message": "Outside src/blob-storage, only initStorageLedger may be imported from blob-storage-client. Access blob storage through getGroupBlobStorage(groupId) or readGroupBlob(key, groupId) so every key is checked against the run's group."
               }
             ]
           }

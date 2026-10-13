@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { ApplicationFailure } from "@temporalio/common";
 import type { CuAnalyzerDefinition } from "./analyzer-schema-builder";
 import { azureCuDeployAnalyzer } from "./azure-cu-deploy-analyzer";
 
@@ -61,6 +62,19 @@ describe("azureCuDeployAnalyzer group scope", () => {
     expect(mockCuGet).not.toHaveBeenCalled();
     expect(mockCuDelete).not.toHaveBeenCalled();
     expect(mockCuPut).not.toHaveBeenCalled();
+  });
+
+  it("refuses another group's analyzerId with a failure Temporal does not retry", async () => {
+    const failure = await azureCuDeployAnalyzer({
+      analyzerId: `diexperiment${OTHER_GROUP}tm1`,
+      groupId: GROUP,
+      analyzer,
+      endpoint: "https://example.cognitiveservices.azure.com",
+      apiKey: "test-key",
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApplicationFailure);
+    expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 
   it("refuses to deploy without a groupId", async () => {

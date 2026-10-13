@@ -314,15 +314,9 @@ export async function characterConfusionCorrection(
 
   let profileMap: Record<string, string> | null = null;
   if (params.confusionProfileId) {
-    const profileGroupId = params.groupId;
-    if (!profileGroupId) {
-      throw new Error(
-        `groupId is required to load confusion profile "${params.confusionProfileId}"`,
-      );
-    }
     profileMap = await loadConfusionProfileRules(
       params.confusionProfileId,
-      profileGroupId,
+      groupId,
     );
   }
 
@@ -340,17 +334,8 @@ export async function characterConfusionCorrection(
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
-    const schemaGroupId = params.groupId;
-    if (!schemaGroupId) {
-      throw new Error(
-        `groupId is required to load the field schema for "${documentType}"`,
-      );
-    }
     try {
-      fieldMap = await loadFieldMapFromProject(
-        documentType.trim(),
-        schemaGroupId,
-      );
+      fieldMap = await loadFieldMapFromProject(documentType.trim(), groupId);
     } catch (err) {
       log.error("Character confusion: failed to load field schema", {
         event: "schema_load_error",

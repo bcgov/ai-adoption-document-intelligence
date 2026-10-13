@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/common";
 import { getGroupBlobStorage } from "./group-blob-storage";
 
 const mockClient = {
@@ -83,5 +84,16 @@ describe("getGroupBlobStorage", () => {
       storage.read(`${GROUP}/ocr/../../${OTHER_GROUP}/ocr/doc-1/a.pdf`),
     ).rejects.toThrow(/dot segment/);
     expect(mockClient.read).not.toHaveBeenCalled();
+  });
+
+  it("refuses another group's key with a failure Temporal does not retry", async () => {
+    const storage = getGroupBlobStorage(GROUP);
+
+    const failure = await storage
+      .read(OTHER_KEY)
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApplicationFailure);
+    expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 });

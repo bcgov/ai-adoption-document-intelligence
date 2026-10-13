@@ -1,4 +1,4 @@
-import { ApplicationFailure } from "@temporalio/common";
+import { groupScopeViolation } from "../group-scope-violation";
 import { getPrismaClient } from "./database-client";
 
 /**
@@ -25,10 +25,6 @@ export async function assertModelUsableByGroup(
     select: { template_model: { select: { group_id: true } } },
   });
   if (trainedModel && trainedModel.template_model.group_id !== groupId) {
-    throw ApplicationFailure.create({
-      type: "GROUP_SCOPE_VIOLATION",
-      message: `Model not found: ${modelId}`,
-      nonRetryable: true,
-    });
+    throw groupScopeViolation(`Model not found: ${modelId}`);
   }
 }

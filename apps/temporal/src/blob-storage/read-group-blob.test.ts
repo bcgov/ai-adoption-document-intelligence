@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/common";
 import { getGroupBenchmarkCacheDir, readGroupBlob } from "./read-group-blob";
 
 const mockRead = jest.fn();
@@ -110,6 +111,18 @@ describe("readGroupBlob", () => {
     await expect(readGroupBlob(localPath, GROUP)).rejects.toThrow(
       `File not found on disk: "${localPath}"`,
     );
+  });
+
+  it.each([
+    `${OTHER_GROUP}/ocr/doc-1/normalized.pdf`,
+    `/tmp/benchmark-cache/${OTHER_GROUP}/ds-1-v-1/inputs/a.pdf`,
+  ])("refuses another group's data with a failure Temporal does not retry: %s", async (key) => {
+    const failure = await readGroupBlob(key, GROUP).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(ApplicationFailure);
+    expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 });
 

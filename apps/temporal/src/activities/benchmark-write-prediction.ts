@@ -12,6 +12,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
+import { groupScopeViolation } from "../group-scope-violation";
 
 export interface BenchmarkWritePredictionInput {
   /** Extracted prediction fields to write (flat key-value object) */
@@ -57,7 +58,7 @@ export async function benchmarkWritePrediction(
   );
   for (const target of [resolvedOutputDir, predictionPath]) {
     if (!target.startsWith(groupCacheDir + path.sep)) {
-      throw new Error(
+      throw groupScopeViolation(
         `Prediction output is outside the group's benchmark cache: "${target}"`,
       );
     }

@@ -517,17 +517,8 @@ export async function normalizeOcrFields(
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
-    const schemaGroupId = params.groupId;
-    if (!schemaGroupId) {
-      throw new Error(
-        `groupId is required to load the field schema for "${documentType}"`,
-      );
-    }
     try {
-      fieldMap = await loadFieldMapFromProject(
-        documentType.trim(),
-        schemaGroupId,
-      );
+      fieldMap = await loadFieldMapFromProject(documentType.trim(), groupId);
     } catch (err) {
       log.error("Normalize fields: failed to load field schema", {
         event: "schema_load_error",
