@@ -49,6 +49,15 @@ const ALL_VALID_OPERATORS = [
   ...VALID_LIST_MEMBERSHIP_OPERATORS,
 ];
 
+/**
+ * The parts of a workflow a node group may expose for overriding: a node
+ * parameter (`nodes.<id>.parameters.<name>`, at any depth below it), a node
+ * timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`).
+ * A node's type, activity or wiring is not a setting.
+ */
+const EXPOSED_PARAM_PATH =
+  /^(?:ctx\.[^.]+\.defaultValue|nodes\.[^.]+\.(?:parameters(?:\.[^.]+)+|timeout))$/;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -776,6 +785,15 @@ function validateNodeGroups(
       for (let i = 0; i < group.exposedParams.length; i++) {
         const param = group.exposedParams[i];
         const paramPath = param.path;
+
+        if (!EXPOSED_PARAM_PATH.test(paramPath)) {
+          errors.push({
+            path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
+            message: `Exposed parameter path "${paramPath}" must be a node parameter (nodes.<id>.parameters.<name>), a node timeout (nodes.<id>.timeout) or a ctx default (ctx.<key>.defaultValue)`,
+            severity: "error",
+          });
+          continue;
+        }
 
         if (paramPath.startsWith("nodes.")) {
           const parts = paramPath.split(".");

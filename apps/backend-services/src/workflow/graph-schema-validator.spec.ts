@@ -1438,6 +1438,51 @@ describe("graph-schema-validator", () => {
       expect(error).toBeDefined();
     });
 
+    function withExposedPath(path: string): GraphWorkflowConfig {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a"],
+          exposedParams: [{ label: "Param", path, type: "string" }],
+        },
+      };
+      return config;
+    }
+
+    it.each([
+      "nodes.a.activityType",
+      "nodes.a.type",
+      "nodes.a",
+      "nodes.a.parameters",
+      "edges",
+      "entryNodeId",
+      "orientationConfidenceThreshold",
+      "ctx.modelId",
+    ])("refuses an exposed path that is not a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("must be a node parameter"),
+        }),
+      );
+    });
+
+    it.each([
+      "nodes.a.parameters.testParam",
+      "nodes.a.parameters.nested.key",
+      "nodes.a.timeout",
+      "ctx.modelId.defaultValue",
+    ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
     it("config without nodeGroups passes validation", () => {
       const config = makeLinearGraph();
       // No nodeGroups field
