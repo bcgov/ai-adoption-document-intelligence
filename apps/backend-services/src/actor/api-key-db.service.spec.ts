@@ -155,14 +155,14 @@ describe("ApiKeyDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("findApiKeysByPrefix", () => {
-    it("should return matching keys from this.prisma when no tx", async () => {
+    it("should return matching keys of groups that are not deleted", async () => {
       mockApiKeyPrisma.findMany.mockResolvedValue([mockApiKey]);
 
       const result = await service.findApiKeysByPrefix("abcd1234");
 
       expect(result).toEqual([mockApiKey]);
       expect(mockApiKeyPrisma.findMany).toHaveBeenCalledWith({
-        where: { key_prefix: "abcd1234" },
+        where: { key_prefix: "abcd1234", group: { deleted_at: null } },
       });
     });
 
