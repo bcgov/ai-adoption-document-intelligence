@@ -106,7 +106,7 @@ export class OcrService {
    * @param documentId ID from documents table
    * @param ctxOverrides Caller-supplied ctx settings; only the workflow's declared settings apply
    * @param workflowConfigOverrides Overrides merged into the workflow config when the worker loads it
-   * @param serverSettings Ctx values the server itself chooses for this run, applied after the caller's settings
+   * @param serverSettings Ctx values the server itself chooses for this run, applied after the caller's settings; they never replace the values derived from the stored document
    * @returns New status of document and workflow ID.
    */
   async requestOcr(
@@ -194,11 +194,13 @@ export class OcrService {
         );
       }
 
+      // The values derived from the stored document go last, so nothing
+      // spread before them can replace them.
       const initialCtx: Record<string, unknown> = {
-        ...serverCtx,
         ...(templateModelId !== undefined && { templateModelId }),
         ...callerCtx.accepted,
         ...serverSettings,
+        ...serverCtx,
       };
 
       // Pre-flight cost estimation and cap check
