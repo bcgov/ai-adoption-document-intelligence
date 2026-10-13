@@ -62,8 +62,9 @@ export class TemplateModelService {
    * 5. Trim leading/trailing `-`
    * 6. Truncate to 64 chars
    * 7. Ensure starts with letter/number
-   * 8. Prefix `model-` when it starts with `prebuilt-`, the namespace of
-   *    Azure's shared prebuilt models
+   * 8. Prefix `model-` when it is `prebuilt` or starts with `prebuilt-`, so
+   *    neither the id nor its versions (`-v<n>`) or suffixes (`-<n>`) fall in
+   *    the namespace of Azure's shared prebuilt models
    * 9. On uniqueness collision, append `-2`, `-3`, etc.
    */
   generateModelIdBase(name: string): string {
@@ -74,7 +75,7 @@ export class TemplateModelService {
       .filter(Boolean)
       .join("-");
     const trimmed = slug.replace(/^[^a-z0-9]+/, "").slice(0, 64);
-    if (trimmed.startsWith("prebuilt-")) {
+    if (trimmed === "prebuilt" || trimmed.startsWith("prebuilt-")) {
       return `model-${trimmed}`.slice(0, 64);
     }
     return trimmed || "model";

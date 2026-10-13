@@ -17,10 +17,12 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
-const mockTrainedModelFindUnique = jest.fn();
+const mockTrainedModelFindFirst = jest.fn();
+const mockTrainingJobFindFirst = jest.fn();
 jest.mock("./database-client", () => ({
   getPrismaClient: () => ({
-    trainedModel: { findUnique: mockTrainedModelFindUnique },
+    trainedModel: { findFirst: mockTrainedModelFindFirst },
+    trainingJob: { findFirst: mockTrainingJobFindFirst },
   }),
 }));
 
@@ -55,7 +57,8 @@ describe("submitToAzureOCR activity", () => {
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
     };
     mockBlobRead.mockResolvedValue(Buffer.from("test file content"));
-    mockTrainedModelFindUnique.mockResolvedValue(null);
+    mockTrainedModelFindFirst.mockResolvedValue(null);
+    mockTrainingJobFindFirst.mockResolvedValue(null);
     isUnexpectedMock.mockReturnValue(false);
     mockPost.mockReset();
     mockPath.mockClear();
@@ -476,9 +479,7 @@ describe("submitToAzureOCR activity", () => {
   });
 
   it("refuses another group's trained model before reading the document or calling Azure", async () => {
-    mockTrainedModelFindUnique.mockResolvedValue({
-      template_model: { group_id: OTHER_GROUP },
-    });
+    mockTrainedModelFindFirst.mockResolvedValue({ id: "trained-other-group" });
     const fileData: PreparedFileData = {
       fileName: "test.pdf",
       fileType: "pdf",
@@ -496,9 +497,7 @@ describe("submitToAzureOCR activity", () => {
 
   it("refuses another group's trained model in mock mode too", async () => {
     process.env.MOCK_AZURE_OCR = "true";
-    mockTrainedModelFindUnique.mockResolvedValue({
-      template_model: { group_id: OTHER_GROUP },
-    });
+    mockTrainedModelFindFirst.mockResolvedValue({ id: "trained-other-group" });
     const fileData: PreparedFileData = {
       fileName: "test.pdf",
       fileType: "pdf",
@@ -513,9 +512,6 @@ describe("submitToAzureOCR activity", () => {
   });
 
   it("runs the group's own trained model", async () => {
-    mockTrainedModelFindUnique.mockResolvedValue({
-      template_model: { group_id: GROUP },
-    });
     mockPost.mockResolvedValue({
       status: 202,
       headers: { "apim-request-id": "own-model-request" },

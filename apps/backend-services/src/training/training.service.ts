@@ -786,14 +786,18 @@ export class TrainingService {
   }
 
   /**
-   * Returns the group that owns a trained model id, or null when the id is
-   * not a trained model (for example a prebuilt model or another engine's model).
+   * Whether a model id belongs to a group other than `groupId`, as a trained
+   * model or the target of an in-flight training job. Prebuilt models and
+   * other engines' models belong to no group.
    *
    * @param modelId - The model id to look up.
-   * @returns The owning group ID, or null.
+   * @param groupId - The group that wants to use the model.
    */
-  async findTrainedModelGroupId(modelId: string): Promise<string | null> {
-    return this.trainingDb.findTrainedModelGroupId(modelId);
+  async isModelIdOwnedByAnotherGroup(
+    modelId: string,
+    groupId: string,
+  ): Promise<boolean> {
+    return this.trainingDb.isModelIdOwnedByAnotherGroup(modelId, groupId);
   }
 
   /**

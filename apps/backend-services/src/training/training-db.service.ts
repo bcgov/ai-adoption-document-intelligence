@@ -252,22 +252,38 @@ export class TrainingDbService {
   }
 
   /**
-   * Returns the group that owns a trained model id (through its template
-   * model), including tombstoned versions.
+   * Whether an Azure model id belongs to a group other than `groupId`: one of
+   * that group's template models trained it (tombstoned versions included), or
+   * has a training job in flight that will produce it. Ids are compared without
+   * case, since template model ids are lowercase. An id that is neither, such
+   * as an Azure prebuilt model, belongs to no group.
    * @param modelId The Azure model ID.
+   * @param groupId The group that wants to use the model.
    * @param tx Optional transaction client.
-   * @returns The owning group ID, or null when no trained model has this id.
    */
-  async findTrainedModelGroupId(
+  async isModelIdOwnedByAnotherGroup(
     modelId: string,
+    groupId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<string | null> {
+  ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    const trainedModel = await client.trainedModel.findUnique({
-      where: { model_id: modelId },
-      select: { template_model: { select: { group_id: true } } },
-    });
-    return trainedModel?.template_model.group_id ?? null;
+    const sameId = { equals: modelId, mode: "insensitive" as const };
+    const otherGroup = { group_id: { not: groupId } };
+    const [trainedModel, trainingJob] = await Promise.all([
+      client.trainedModel.findFirst({
+        where: { model_id: sameId, template_model: otherGroup },
+        select: { id: true },
+      }),
+      client.trainingJob.findFirst({
+        where: {
+          target_model_id: sameId,
+          status: { in: IN_FLIGHT_TRAINING_STATUSES },
+          template_model: otherGroup,
+        },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(trainedModel || trainingJob);
   }
 
   /**

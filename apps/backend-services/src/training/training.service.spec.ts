@@ -55,7 +55,7 @@ describe("TrainingService", () => {
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
-    findTrainedModelGroupId: jest.Mock;
+    isModelIdOwnedByAnotherGroup: jest.Mock;
     findAllTrainedModelIds: jest.Mock;
     getNextVersionNumber: jest.Mock;
     isModelIdUsedByAnotherTemplate: jest.Mock;
@@ -183,7 +183,7 @@ describe("TrainingService", () => {
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
-      findTrainedModelGroupId: jest.fn(),
+      isModelIdOwnedByAnotherGroup: jest.fn().mockResolvedValue(false),
       findAllTrainedModelIds: jest.fn(),
       getNextVersionNumber: jest.fn().mockResolvedValue(1),
       isModelIdUsedByAnotherTemplate: jest.fn().mockResolvedValue(false),
@@ -1495,17 +1495,16 @@ describe("TrainingService", () => {
     });
   });
 
-  describe("findTrainedModelGroupId", () => {
-    it("returns the owning group from the db service", async () => {
-      mockTrainingDb.findTrainedModelGroupId.mockResolvedValueOnce(
-        "clh7z2xk00000356u8e3h1234",
-      );
+  describe("isModelIdOwnedByAnotherGroup", () => {
+    it("asks the db service whether another group owns the model id", async () => {
+      mockTrainingDb.isModelIdOwnedByAnotherGroup.mockResolvedValueOnce(true);
 
-      const result = await service.findTrainedModelGroupId("km-invoice-v2");
-
-      expect(result).toBe("clh7z2xk00000356u8e3h1234");
-      expect(mockTrainingDb.findTrainedModelGroupId).toHaveBeenCalledWith(
+      await expect(
+        service.isModelIdOwnedByAnotherGroup("km-invoice-v2", "group-1"),
+      ).resolves.toBe(true);
+      expect(mockTrainingDb.isModelIdOwnedByAnotherGroup).toHaveBeenCalledWith(
         "km-invoice-v2",
+        "group-1",
       );
     });
   });

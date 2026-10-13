@@ -7,39 +7,52 @@ jest.mock("./database-client", () => ({
 }));
 
 const GROUP = "clh7z2xk00000356u8e3h1234";
-const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
 
 describe("assertModelUsableByGroup", () => {
-  const findUnique = jest.fn();
+  const trainedModelFindFirst = jest.fn();
+  const trainingJobFindFirst = jest.fn();
 
   beforeEach(() => {
-    findUnique.mockReset();
+    trainedModelFindFirst.mockReset().mockResolvedValue(null);
+    trainingJobFindFirst.mockReset().mockResolvedValue(null);
     (getPrismaClient as jest.Mock).mockReturnValue({
-      trainedModel: { findUnique },
+      trainedModel: { findFirst: trainedModelFindFirst },
+      trainingJob: { findFirst: trainingJobFindFirst },
     });
   });
 
-  it("allows a prebuilt model without a database lookup", async () => {
-    await expect(
-      assertModelUsableByGroup("prebuilt-layout", GROUP),
-    ).resolves.toBeUndefined();
-    expect(findUnique).not.toHaveBeenCalled();
+  it("looks the id up, ignoring case, among other groups' trained models and in-flight training jobs", async () => {
+    await assertModelUsableByGroup("invoice-v2", GROUP);
+
+    expect(trainedModelFindFirst).toHaveBeenCalledWith({
+      where: {
+        model_id: { equals: "invoice-v2", mode: "insensitive" },
+        template_model: { group_id: { not: GROUP } },
+      },
+      select: { id: true },
+    });
+    expect(trainingJobFindFirst).toHaveBeenCalledWith({
+      where: {
+        target_model_id: { equals: "invoice-v2", mode: "insensitive" },
+        status: { in: ["PENDING", "UPLOADING", "UPLOADED", "TRAINING"] },
+        template_model: { group_id: { not: GROUP } },
+      },
+      select: { id: true },
+    });
   });
 
-  it("allows a trained model that belongs to the run's group", async () => {
-    findUnique.mockResolvedValue({ template_model: { group_id: GROUP } });
-
+  it.each([
+    "invoice-v2",
+    "prebuilt-layout",
+    "external-model",
+  ])("allows a model no other group trained or is training: %s", async (modelId) => {
     await expect(
-      assertModelUsableByGroup("invoice-v2", GROUP),
+      assertModelUsableByGroup(modelId, GROUP),
     ).resolves.toBeUndefined();
-    expect(findUnique).toHaveBeenCalledWith({
-      where: { model_id: "invoice-v2" },
-      select: { template_model: { select: { group_id: true } } },
-    });
   });
 
   it("refuses another group's trained model as not found, without retries", async () => {
-    findUnique.mockResolvedValue({ template_model: { group_id: OTHER_GROUP } });
+    trainedModelFindFirst.mockResolvedValue({ id: "trained-other-group" });
 
     const failure = await assertModelUsableByGroup("invoice-v2", GROUP).catch(
       (error: unknown) => error,
@@ -52,18 +65,30 @@ describe("assertModelUsableByGroup", () => {
     expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 
-  it("allows a model id that no trained model records", async () => {
-    findUnique.mockResolvedValue(null);
+  it("refuses a model another group is still training", async () => {
+    trainingJobFindFirst.mockResolvedValue({ id: "job-other-group" });
 
-    await expect(
-      assertModelUsableByGroup("external-model", GROUP),
-    ).resolves.toBeUndefined();
+    await expect(assertModelUsableByGroup("invoice-v3", GROUP)).rejects.toThrow(
+      "Model not found: invoice-v3",
+    );
   });
 
-  it("refuses a custom model without a groupId", async () => {
+  it("checks an id that starts with prebuilt- like any other", async () => {
+    trainedModelFindFirst.mockResolvedValue({ id: "trained-other-group" });
+
     await expect(
-      assertModelUsableByGroup("invoice-v2", undefined),
-    ).rejects.toThrow(/groupId is required/);
-    expect(findUnique).not.toHaveBeenCalled();
+      assertModelUsableByGroup("prebuilt-v2", GROUP),
+    ).rejects.toThrow("Model not found: prebuilt-v2");
+  });
+
+  it.each([
+    "invoice-v2",
+    "prebuilt-layout",
+  ])("refuses to look up %s without a groupId", async (modelId) => {
+    await expect(assertModelUsableByGroup(modelId, undefined)).rejects.toThrow(
+      `groupId is required to use model ${modelId}`,
+    );
+    expect(trainedModelFindFirst).not.toHaveBeenCalled();
+    expect(trainingJobFindFirst).not.toHaveBeenCalled();
   });
 });

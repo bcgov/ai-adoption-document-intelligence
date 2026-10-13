@@ -241,10 +241,15 @@ describe("TemplateModelService", () => {
       expect(service.generateModelIdBase("Model (v2.1)")).toBe("model-v2.1");
     });
 
-    it("gives a name that starts with prebuilt- a model- prefix", () => {
-      expect(service.generateModelIdBase("Prebuilt Invoice")).toBe(
-        "model-prebuilt-invoice",
-      );
+    it.each([
+      ["Prebuilt Invoice", "model-prebuilt-invoice"],
+      ["Prebuilt", "model-prebuilt"],
+    ])("keeps %j out of Azure's prebuilt- namespace: %s", (name, expected) => {
+      expect(service.generateModelIdBase(name)).toBe(expected);
+    });
+
+    it("leaves a name that only begins with the letters prebuilt alone", () => {
+      expect(service.generateModelIdBase("Prebuilts")).toBe("prebuilts");
     });
   });
 
