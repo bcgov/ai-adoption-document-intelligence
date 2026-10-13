@@ -486,14 +486,16 @@ export class GroundTruthGenerationService {
         );
       });
 
-      // Start OCR workflow with confidenceThreshold=0 to skip humanGate.
-      // Overrides are merged when the worker loads graph config.
+      // Start OCR workflow with confidenceThreshold=0 to skip humanGate. It is
+      // a server setting, so it applies whether or not the workflow declares a
+      // default for it. Overrides are merged when the worker loads graph config.
       const ocrResult = await this.ocrService.requestOcr(
         documentId,
-        { confidenceThreshold: 0 },
+        undefined,
         jobOverrides && Object.keys(jobOverrides).length > 0
           ? jobOverrides
           : undefined,
+        { confidenceThreshold: 0 },
       );
 
       // Update job with temporal workflow ID

@@ -104,13 +104,16 @@ export class OcrService {
   /**
    * Sends a document to Azure for OCR processing via Temporal workflow.
    * @param documentId ID from documents table
-   * @param steps Optional workflow steps configuration
+   * @param ctxOverrides Caller-supplied ctx settings; only the workflow's declared settings apply
+   * @param workflowConfigOverrides Overrides merged into the workflow config when the worker loads it
+   * @param serverSettings Ctx values the server itself chooses for this run, applied after the caller's settings
    * @returns New status of document and workflow ID.
    */
   async requestOcr(
     documentId: string,
     ctxOverrides?: Record<string, unknown>,
     workflowConfigOverrides?: Record<string, unknown>,
+    serverSettings?: Record<string, unknown>,
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
@@ -195,6 +198,7 @@ export class OcrService {
         ...serverCtx,
         ...(templateModelId !== undefined && { templateModelId }),
         ...callerCtx.accepted,
+        ...serverSettings,
       };
 
       // Pre-flight cost estimation and cap check

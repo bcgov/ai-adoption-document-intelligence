@@ -291,6 +291,25 @@ describe("OcrService", () => {
       expect(initialCtx).not.toHaveProperty("undeclaredKey");
     });
 
+    it("applies server settings even for a ctx key the workflow declares without a default", async () => {
+      (
+        workflowService.getWorkflowVersionById as jest.Mock
+      ).mockResolvedValueOnce({
+        id: "workflow-config-123",
+        config: JSON.parse(
+          '{"ctx":{"confidenceThreshold":{"type":"number"}},"nodes":{},"edges":[],"entryNodeId":"start"}',
+        ),
+      });
+
+      await service.requestOcr("doc-6", undefined, undefined, {
+        confidenceThreshold: 0,
+      });
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.confidenceThreshold).toBe(0);
+    });
+
     it("ignores __proto__, constructor and prototype overrides even when the workflow declares them", async () => {
       (
         workflowService.getWorkflowVersionById as jest.Mock
