@@ -394,7 +394,9 @@ describe("applyReviewCriteria activity", () => {
           documentType: "proj-1",
           rules: formatRule,
         }),
-      ).rejects.toThrow(/groupId is required/);
+      ).rejects.toThrow(
+        `groupId is required for OCR payloads of document ${DOC_ID}`,
+      );
       expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
       expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
     });

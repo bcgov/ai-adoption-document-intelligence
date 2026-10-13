@@ -9,6 +9,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
+import { groupScopeViolation } from "../group-scope-violation";
 
 /**
  * Input for benchmark.cleanup activity
@@ -49,13 +50,14 @@ export async function benchmarkCleanup(
   }
   const groupCacheDir = path.resolve(getGroupBenchmarkCacheDir(input.groupId));
 
+  const refused: string[] = [];
   const errors: string[] = [];
 
   // Clean up materialized dataset files (respecting cache preservation)
   if (materializedDatasetPaths.length > 0) {
     for (const filePath of materializedDatasetPaths) {
       if (!isInsideDirectory(filePath, groupCacheDir)) {
-        errors.push(
+        refused.push(
           `Not deleting ${filePath}: outside the group's benchmark cache`,
         );
         continue;
@@ -79,7 +81,7 @@ export async function benchmarkCleanup(
   if (temporaryOutputPaths.length > 0) {
     for (const filePath of temporaryOutputPaths) {
       if (!isInsideDirectory(filePath, groupCacheDir)) {
-        errors.push(
+        refused.push(
           `Not deleting ${filePath}: outside the group's benchmark cache`,
         );
         continue;
@@ -95,6 +97,14 @@ export async function benchmarkCleanup(
         // If file doesn't exist, cleanup is idempotent - continue silently
       }
     }
+  }
+
+  // A path outside the group's cache is refused on every attempt, so the
+  // activity fails without retries once it has cleaned up what it may.
+  if (refused.length > 0) {
+    throw groupScopeViolation(
+      `Cleanup refused paths outside the group's benchmark cache:\n${[...refused, ...errors].join("\n")}`,
+    );
   }
 
   // If there were any actual deletion errors (not just missing files), throw
