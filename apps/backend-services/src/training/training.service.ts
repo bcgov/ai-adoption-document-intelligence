@@ -322,6 +322,20 @@ export class TrainingService {
       await this.trainingDb.getNextVersionNumber(templateModelId);
     const versionedModelId = mintVersionedModelId(baseModelId, nextVersion);
 
+    // Azure model ids are shared by every group, so the next version's id
+    // may already belong to another template (e.g. one named "<name>-v2").
+    // Training under it would fail in Azure, or remove that template's model.
+    if (
+      await this.trainingDb.isModelIdUsedByAnotherTemplate(
+        versionedModelId,
+        templateModelId,
+      )
+    ) {
+      throw new ConflictException(
+        "This template cannot train a new version: its next model id is already in use.",
+      );
+    }
+
     this.logger.log(
       `Starting training v${nextVersion} for template model ${templateModelId} with Azure model ID: ${versionedModelId}`,
     );

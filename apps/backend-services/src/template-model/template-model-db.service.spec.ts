@@ -23,6 +23,12 @@ function makePrismaMock() {
       documentLabel: {
         deleteMany: jest.fn(),
       },
+      templateModel: {
+        findMany: jest.fn(),
+      },
+      trainedModel: {
+        findMany: jest.fn(),
+      },
     },
   } as unknown as PrismaService;
 }
@@ -143,5 +149,100 @@ describe("TemplateModelDbService — child-write group scoping", () => {
       });
       expect(result).toBe(false);
     });
+  });
+});
+
+describe("TemplateModelDbService.isModelIdTaken", () => {
+  let service: TemplateModelDbService;
+  let prismaMock: ReturnType<typeof makePrismaMock>;
+
+  function given(templateIds: string[], trainedIds: string[]): void {
+    (prismaMock.prisma.templateModel.findMany as jest.Mock).mockResolvedValue(
+      templateIds.map((model_id) => ({ model_id })),
+    );
+    (prismaMock.prisma.trainedModel.findMany as jest.Mock).mockResolvedValue(
+      trainedIds.map((model_id) => ({ model_id })),
+    );
+  }
+
+  beforeEach(() => {
+    prismaMock = makePrismaMock();
+    service = new TemplateModelDbService(prismaMock, makeLoggerMock());
+  });
+
+  it("looks up the id, its version names and the template it would be a version of", async () => {
+    given([], []);
+
+    await service.isModelIdTaken("invoice-v2");
+
+    expect(prismaMock.prisma.templateModel.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { model_id: "invoice-v2" },
+          { model_id: { startsWith: "invoice-v2-v" } },
+          { model_id: "invoice" },
+        ],
+      },
+      select: { model_id: true },
+    });
+    expect(prismaMock.prisma.trainedModel.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { model_id: "invoice-v2" },
+          { model_id: { startsWith: "invoice-v2-v" } },
+        ],
+      },
+      select: { model_id: true },
+    });
+  });
+
+  it.each<[string, string, string[], string[], boolean]>([
+    ["is free when nothing uses it", "invoice", [], [], false],
+    [
+      "is taken when a template model uses it",
+      "invoice",
+      ["invoice"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a trained model uses it",
+      "invoice-v2",
+      [],
+      ["invoice-v2"],
+      true,
+    ],
+    [
+      "is taken when it names a version of an existing template",
+      "invoice-v2",
+      ["invoice"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a template already uses one of its version names",
+      "invoice",
+      ["invoice-v2"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a trained model already uses one of its version names",
+      "invoice",
+      [],
+      ["invoice-v3"],
+      true,
+    ],
+    [
+      "is free when another id only shares its prefix",
+      "invoice",
+      ["invoice-very-long"],
+      [],
+      false,
+    ],
+  ])("%s", async (_label, candidate, templateIds, trainedIds, expected) => {
+    given(templateIds, trainedIds);
+
+    await expect(service.isModelIdTaken(candidate)).resolves.toBe(expected);
   });
 });

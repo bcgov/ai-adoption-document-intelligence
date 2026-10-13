@@ -30,6 +30,9 @@ describe("TrainingDbService", () => {
     labeledDocument: {
       findMany: jest.Mock;
     };
+    templateModel: {
+      findFirst: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -87,6 +90,9 @@ describe("TrainingDbService", () => {
       },
       labeledDocument: {
         findMany: jest.fn(),
+      },
+      templateModel: {
+        findFirst: jest.fn(),
       },
       $transaction: jest.fn(),
     };
@@ -356,6 +362,55 @@ describe("TrainingDbService", () => {
   // ---------------------------------------------------------------------------
   // findTrainedModelGroupId
   // ---------------------------------------------------------------------------
+
+  describe("isModelIdUsedByAnotherTemplate", () => {
+    beforeEach(() => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
+      mockPrisma.templateModel.findFirst.mockResolvedValue(null);
+      mockPrisma.trainingJob.findFirst.mockResolvedValue(null);
+    });
+
+    it("is false when no other template holds the id", async () => {
+      await expect(
+        service.isModelIdUsedByAnotherTemplate("invoice-v2", "tm-1"),
+      ).resolves.toBe(false);
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: { model_id: "invoice-v2", template_model_id: { not: "tm-1" } },
+        select: { id: true },
+      });
+      expect(mockPrisma.templateModel.findFirst).toHaveBeenCalledWith({
+        where: { model_id: "invoice-v2", id: { not: "tm-1" } },
+        select: { id: true },
+      });
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          target_model_id: "invoice-v2",
+          template_model_id: { not: "tm-1" },
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+        },
+        select: { id: true },
+      });
+    });
+
+    it.each([
+      "trainedModel",
+      "templateModel",
+      "trainingJob",
+    ] as const)("is true when another template's %s holds the id", async (table) => {
+      mockPrisma[table].findFirst.mockResolvedValue({ id: "other" });
+
+      await expect(
+        service.isModelIdUsedByAnotherTemplate("invoice-v2", "tm-1"),
+      ).resolves.toBe(true);
+    });
+  });
 
   describe("findTrainedModelGroupId", () => {
     it("returns the group of the template model that owns the trained model id", async () => {

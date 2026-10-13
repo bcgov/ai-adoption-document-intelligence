@@ -130,7 +130,7 @@ describe("TemplateModelService", () => {
       findAllTemplateModels: jest.fn(),
       createTemplateModel: jest.fn(),
       findTemplateModel: jest.fn(),
-      findTemplateModelByModelId: jest.fn(),
+      isModelIdTaken: jest.fn(),
       updateTemplateModel: jest.fn(),
       deleteTemplateModel: jest.fn(),
       createFieldDefinition: jest.fn(),
@@ -240,33 +240,48 @@ describe("TemplateModelService", () => {
     it("should handle special characters", () => {
       expect(service.generateModelIdBase("Model (v2.1)")).toBe("model-v2.1");
     });
+
+    it("gives a name that starts with prebuilt- a model- prefix", () => {
+      expect(service.generateModelIdBase("Prebuilt Invoice")).toBe(
+        "model-prebuilt-invoice",
+      );
+    });
   });
 
   describe("generateUniqueModelId", () => {
     it("should return base model_id when no collision", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
-        null,
-      );
+      mockTemplateModelDbService.isModelIdTaken.mockResolvedValue(false);
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template");
     });
 
     it("should append suffix on collision", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId
-        .mockResolvedValueOnce(mockTemplateModel) // base collides
-        .mockResolvedValueOnce(null); // -2 is free
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true) // base is taken
+        .mockResolvedValueOnce(false); // -2 is free
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template-2");
     });
 
     it("should increment suffix until unique", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId
-        .mockResolvedValueOnce(mockTemplateModel) // base collides
-        .mockResolvedValueOnce(mockTemplateModel) // -2 collides
-        .mockResolvedValueOnce(mockTemplateModel) // -3 collides
-        .mockResolvedValueOnce(null); // -4 is free
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true) // base is taken
+        .mockResolvedValueOnce(true) // -2 is taken
+        .mockResolvedValueOnce(true) // -3 is taken
+        .mockResolvedValueOnce(false); // -4 is free
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template-4");
+    });
+
+    it("checks each candidate against every template's and trained model's ids", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      await service.generateUniqueModelId("Invoice v2");
+      expect(mockTemplateModelDbService.isModelIdTaken.mock.calls).toEqual([
+        ["invoice-v2"],
+        ["invoice-v2-2"],
+      ]);
     });
   });
 
@@ -310,9 +325,7 @@ describe("TemplateModelService", () => {
         group_id: "group-1",
       };
 
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
-        null,
-      );
+      mockTemplateModelDbService.isModelIdTaken.mockResolvedValue(false);
       mockTemplateModelDbService.createTemplateModel.mockResolvedValueOnce(
         mockTemplateModel,
       );

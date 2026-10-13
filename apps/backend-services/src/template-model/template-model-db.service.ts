@@ -99,24 +99,55 @@ export class TemplateModelDbService {
   }
 
   /**
-   * Finds a template model by its model_id (Azure-safe identifier).
+   * Whether an Azure model id is unavailable to a new template model.
    *
-   * @param modelId - The model_id to search for.
-   * @returns The template model with field schema, or null if not found.
+   * Every group's trained models share one Azure resource, and a template's
+   * later versions train under `<model_id>-v<n>`. So an id is taken when a
+   * template model or trained model already uses it, when it has the form
+   * `<id>-v<n>` and a template model uses `<id>`, or when a template model or
+   * trained model already uses one of its own version names.
+   *
+   * @param modelId - The candidate model_id.
+   * @param tx - Optional transaction client.
+   * @returns `true` when the id must not be given to a new template model.
    */
-  async findTemplateModelByModelId(
+  async isModelIdTaken(
     modelId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<TemplateModelData | null> {
+  ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding template model by model_id", { modelId });
-    const templateModel = await client.templateModel.findUnique({
-      where: { model_id: modelId },
-      include: {
-        field_schema: { orderBy: { display_order: "asc" } },
-      },
-    });
-    return templateModel as TemplateModelData | null;
+    const versionPrefix = `${modelId}-v`;
+    const versionOf = /^(.+)-v\d+$/.exec(modelId)?.[1];
+    const [templateModels, trainedModels] = await Promise.all([
+      client.templateModel.findMany({
+        where: {
+          OR: [
+            { model_id: modelId },
+            { model_id: { startsWith: versionPrefix } },
+            ...(versionOf !== undefined ? [{ model_id: versionOf }] : []),
+          ],
+        },
+        select: { model_id: true },
+      }),
+      client.trainedModel.findMany({
+        where: {
+          OR: [
+            { model_id: modelId },
+            { model_id: { startsWith: versionPrefix } },
+          ],
+        },
+        select: { model_id: true },
+      }),
+    ]);
+    const isOwnVersion = (id: string): boolean =>
+      id.startsWith(versionPrefix) &&
+      /^\d+$/.test(id.slice(versionPrefix.length));
+    return [...templateModels, ...trainedModels].some(
+      ({ model_id }) =>
+        model_id === modelId ||
+        model_id === versionOf ||
+        isOwnVersion(model_id),
+    );
   }
 
   /**

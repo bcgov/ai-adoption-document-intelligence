@@ -30,6 +30,14 @@ export type TrainingJobWithTemplateModel = TrainingJob & {
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
+/** Training job statuses that have not reached SUCCEEDED or FAILED. */
+const IN_FLIGHT_TRAINING_STATUSES = [
+  TrainingStatus.PENDING,
+  TrainingStatus.UPLOADING,
+  TrainingStatus.UPLOADED,
+  TrainingStatus.TRAINING,
+];
+
 export interface TrainingJobCreateData {
   template_model_id: string;
   status: TrainingStatus;
@@ -136,14 +144,7 @@ export class TrainingDbService {
     return client.trainingJob.findFirst({
       where: {
         template_model_id: templateModelId,
-        status: {
-          in: [
-            TrainingStatus.PENDING,
-            TrainingStatus.UPLOADING,
-            TrainingStatus.UPLOADED,
-            TrainingStatus.TRAINING,
-          ],
-        },
+        status: { in: IN_FLIGHT_TRAINING_STATUSES },
       },
       orderBy: { started_at: "desc" },
     });
@@ -210,6 +211,44 @@ export class TrainingDbService {
   ): Promise<TrainedModel | null> {
     const client = tx ?? this.prisma;
     return client.trainedModel.findUnique({ where: { model_id: modelId } });
+  }
+
+  /**
+   * Whether an Azure model id belongs to a template model other than
+   * `templateModelId`: as one of its trained models, as its model_id, or as
+   * the target of one of its in-flight training jobs.
+   * @param modelId The Azure model ID.
+   * @param templateModelId The template model that wants to use the id.
+   * @param tx Optional transaction client.
+   */
+  async isModelIdUsedByAnotherTemplate(
+    modelId: string,
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const [trainedModel, templateModel, trainingJob] = await Promise.all([
+      client.trainedModel.findFirst({
+        where: {
+          model_id: modelId,
+          template_model_id: { not: templateModelId },
+        },
+        select: { id: true },
+      }),
+      client.templateModel.findFirst({
+        where: { model_id: modelId, id: { not: templateModelId } },
+        select: { id: true },
+      }),
+      client.trainingJob.findFirst({
+        where: {
+          target_model_id: modelId,
+          template_model_id: { not: templateModelId },
+          status: { in: IN_FLIGHT_TRAINING_STATUSES },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(trainedModel || templateModel || trainingJob);
   }
 
   /**
