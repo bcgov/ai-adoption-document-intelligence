@@ -22,6 +22,17 @@ function buildReq(groupId = "group-1"): Request {
   } as unknown as Request;
 }
 
+/** Builds a request whose identity holds the given roles, as a JWT user's would. */
+function buildReqWithRoles(groupRoles: Record<string, GroupRole>): Request {
+  return {
+    resolvedIdentity: {
+      isSystemAdmin: false,
+      groupRoles,
+      actorId: "actor-1",
+    },
+  } as unknown as Request;
+}
+
 describe("OcrController", () => {
   let controller: OcrController;
 
@@ -65,7 +76,7 @@ describe("OcrController", () => {
 
   describe("getModels", () => {
     it("should return prebuilt models from config when no trained models", async () => {
-      const result = await controller.getModels(buildReq());
+      const result = await controller.getModels(buildReq(), {});
       // Controller returns models sorted alphabetically
       expect(result).toEqual({
         models: ["prebuilt-invoice", "prebuilt-layout", "prebuilt-receipt"],
@@ -74,7 +85,7 @@ describe("OcrController", () => {
     });
 
     it("scopes the trained-model lookup to the caller's groups (cross-group isolation)", async () => {
-      await controller.getModels(buildReq("group-1"));
+      await controller.getModels(buildReq("group-1"), {});
       // The caller is a member of exactly one group; only that group's models
       // may be enumerated, never another group's.
       expect(mockTrainingService.findAllTrainedModelIds).toHaveBeenCalledWith([
@@ -87,7 +98,7 @@ describe("OcrController", () => {
         "sdpr-custom1",
         "my-invoice-model",
       ]);
-      const result = await controller.getModels(buildReq());
+      const result = await controller.getModels(buildReq(), {});
       // Controller returns models sorted alphabetically
       expect(result.models).toEqual([
         "my-invoice-model",
@@ -98,11 +109,41 @@ describe("OcrController", () => {
       ]);
     });
 
+    it("lists only the requested group's trained models when group_id is given", async () => {
+      const req = buildReqWithRoles({
+        "group-1": GroupRole.EDITOR,
+        "group-2": GroupRole.EDITOR,
+      });
+
+      await controller.getModels(req, { group_id: "group-2" });
+
+      expect(mockTrainingService.findAllTrainedModelIds).toHaveBeenCalledWith([
+        "group-2",
+      ]);
+    });
+
+    it("refuses a group_id the caller is not a member of", async () => {
+      await expect(
+        controller.getModels(buildReq("group-1"), { group_id: "group-other" }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockTrainingService.findAllTrainedModelIds).not.toHaveBeenCalled();
+    });
+
+    it("lets a reviewer list their group's models", async () => {
+      const req = buildReqWithRoles({ "group-1": GroupRole.REVIEWER });
+
+      await controller.getModels(req, { group_id: "group-1" });
+
+      expect(mockTrainingService.findAllTrainedModelIds).toHaveBeenCalledWith([
+        "group-1",
+      ]);
+    });
+
     it("should not duplicate trained model ID if it matches a prebuilt config entry", async () => {
       mockTrainingService.findAllTrainedModelIds.mockResolvedValueOnce([
         "prebuilt-layout",
       ]);
-      const result = await controller.getModels(buildReq());
+      const result = await controller.getModels(buildReq(), {});
       // Controller returns models sorted alphabetically
       expect(result.models).toEqual([
         "prebuilt-invoice",
@@ -174,7 +215,7 @@ describe("OcrController", () => {
 
       const controllerWithEmptyConfig =
         module.get<OcrController>(OcrController);
-      const result = await controllerWithEmptyConfig.getModels(buildReq());
+      const result = await controllerWithEmptyConfig.getModels(buildReq(), {});
       expect(result).toEqual({
         models: ["prebuilt-layout"],
       });
