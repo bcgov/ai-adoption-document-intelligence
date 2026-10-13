@@ -95,6 +95,12 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
   const queryClient = useQueryClient();
   const { activeGroup } = useGroup();
   const { data: models, isLoading: modelsLoading } = useModels();
+  // The model list follows the active group, so a model chosen before a group
+  // switch is used only while the current list still offers it.
+  const modelInGroup =
+    selectedModel !== null && models?.includes(selectedModel)
+      ? selectedModel
+      : null;
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
 
   useEffect(
@@ -156,7 +162,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             size: item.file.size,
             lastModified: item.file.lastModified,
           },
-          model_id: selectedModel!,
+          model_id: modelInGroup!,
           group_id: activeGroup!.id,
           ...(selectedWorkflow && {
             workflow_config_id: selectedWorkflow,
@@ -274,7 +280,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       return;
     }
 
-    if (!selectedModel) {
+    if (!modelInGroup) {
       notifications.show({
         title: "Select a model",
         message: "Please select a processing model before uploading.",
@@ -315,7 +321,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           label="Processing model"
           placeholder="Select a model"
           data={models?.map((m) => ({ value: m, label: m })) || []}
-          value={selectedModel}
+          value={modelInGroup}
           onChange={setSelectedModel}
           disabled={modelsLoading}
           searchable
@@ -410,7 +416,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                 disabled={
                   queue.length === 0 ||
                   isUploading ||
-                  !selectedModel ||
+                  !modelInGroup ||
                   activeGroup === null
                 }
                 loading={isUploading}

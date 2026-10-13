@@ -44,20 +44,27 @@ const idleWorkflows = () => ({ data: [], isLoading: false });
 const createTestFile = (name = "test.pdf") =>
   new File(["hello"], name, { type: "application/pdf" });
 
+const panel = (queryClient: QueryClient) => (
+  <QueryClientProvider client={queryClient}>
+    <MantineProvider>
+      <DocumentUploadPanel />
+    </MantineProvider>
+  </QueryClientProvider>
+);
+
 /**
- * Renders the component inside required providers.
+ * Renders the component inside required providers. `rerenderPanel` renders it
+ * again in the same providers, keeping its state.
  */
 const renderPanel = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MantineProvider>
-        <DocumentUploadPanel />
-      </MantineProvider>
-    </QueryClientProvider>,
-  );
+  const result = render(panel(queryClient));
+  return {
+    ...result,
+    rerenderPanel: () => result.rerender(panel(queryClient)),
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -181,6 +188,36 @@ describe("DocumentUploadPanel", () => {
       const uploadBtn = screen.getByRole("button", { name: /upload/i });
       // When no files and no model, disabled but tooltip should not show group message
       expect(uploadBtn).toBeDisabled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 3 – a model chosen before switching groups is not uploaded
+  // -------------------------------------------------------------------------
+  describe("Scenario 3 – model chosen in another group", () => {
+    it("does not upload a model the active group's list no longer contains", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      const { container, rerenderPanel } = renderPanel();
+
+      const fileInput = container.querySelector('input[type="file"]');
+      fireEvent.change(fileInput!, {
+        target: { files: [createTestFile()] },
+      });
+      const [modelInput] = screen.getAllByLabelText(/processing model/i);
+      fireEvent.focus(modelInput);
+      fireEvent.change(modelInput, { target: { value: "model-a" } });
+      await waitFor(() => screen.getByText("model-a"));
+      fireEvent.click(screen.getByText("model-a"));
+      expect(screen.getByRole("button", { name: /upload/i })).toBeEnabled();
+
+      // Switching groups swaps the model list.
+      mockUseModels.mockReturnValue({ data: ["model-c"], isLoading: false });
+      rerenderPanel();
+
+      const uploadBtn = screen.getByRole("button", { name: /upload/i });
+      expect(uploadBtn).toBeDisabled();
+      fireEvent.click(uploadBtn);
+      expect(apiService.post).not.toHaveBeenCalled();
     });
   });
 });
