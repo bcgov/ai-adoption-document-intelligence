@@ -625,6 +625,67 @@ describe("Graph Workflow", () => {
     });
   });
 
+  describe("Run group on workflow-level calls", () => {
+    it("passes the run's group to the config load, the node activities and both status hooks", async () => {
+      const graph = makeOverrideProbeGraph();
+      const input = {
+        ...makeMockInput(graph, { documentId: "doc-group-1" }),
+        groupId: "group-1",
+      };
+      const loadConfig = createGetWorkflowGraphConfigHandler(
+        graph,
+        input.workflowVersionId,
+      );
+      const configCalls: Array<Record<string, unknown>> = [];
+      const getStatusCalls: Array<Record<string, unknown>> = [];
+      const updateStatusCalls: Array<Record<string, unknown>> = [];
+
+      const result = await runWorkflow(testEnv, input, "test-run-group", {
+        getWorkflowGraphConfig: async (params: Record<string, unknown>) => {
+          configCalls.push(params);
+          return loadConfig(params as { workflowId: string });
+        },
+        "billing.recordWorkflowLifecycle": async () => ({}),
+        "document.getStatus": async (params: Record<string, unknown>) => {
+          getStatusCalls.push(params);
+          return { status: "extracted" };
+        },
+        "document.updateStatus": async (params: Record<string, unknown>) => {
+          updateStatusCalls.push(params);
+          return { success: true };
+        },
+      });
+
+      expect(result.status).toBe("completed");
+      expect(configCalls).toEqual([
+        expect.objectContaining({ groupId: "group-1" }),
+      ]);
+      expect(updateStatusCalls).toEqual([
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "ongoing_ocr",
+        }),
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "base",
+        }),
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "complete",
+        }),
+      ]);
+      expect(getStatusCalls).toEqual([
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+        }),
+      ]);
+    });
+  });
+
   describe("US-008: Switch Node Handler", () => {
     it("follows the true case when condition matches", async () => {
       const graph: GraphWorkflowConfig = {
