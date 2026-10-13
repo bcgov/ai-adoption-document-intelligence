@@ -96,7 +96,7 @@ export const buildBlobPrefixPath = (groupId: string, category: OperationCategory
 /**
  * Casts an arbitrary string to a `BlobFilePath` after validating its structure.
  * Throws if the path does not start with a valid CUID group ID and a known category,
- * or if any segment is `.` or `..`.
+ * if any segment is `.` or `..`, or if it contains a backslash.
  *
  * @param blobPath - The raw path string to validate.
  * @returns A branded `BlobFilePath`.

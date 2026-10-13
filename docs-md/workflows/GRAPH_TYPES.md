@@ -173,6 +173,7 @@ The backend and temporal validators perform lightweight checks on `nodeGroups`:
 - Each group's `nodeIds` must be non-empty
 - All referenced `nodeIds` must exist in `config.nodes`
 - `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
+- Each segment of an `exposedParams` path must start with a letter and contain only letters, digits, `_` or `-` (the segments `applyWorkflowConfigOverrides` can set)
 - `exposedParams` paths starting with `nodes.` must reference existing nodes
 - A node appearing in multiple groups produces a **warning** (not an error)
 

@@ -242,7 +242,7 @@ leaked across groups.
 | Trained model listing | `GET /api/models` (`group_id`) | Trained models are listed for `group_id` after a membership check (`GROUP_RETRIEVE`), or for all of the caller's groups when it is omitted (via `getIdentityGroupIds`); prebuilt models remain global. The frontend passes the active group, so a picker offers only models that group can run | `OcrController.getModels`, `TrainingDbService.findAllTrainedModelIds` |
 | Labeling upload target | `POST /api/template-models/:id/upload` | The template model must belong to the body's `group_id`; a mismatch is `400` | `TemplateModelService.uploadLabelingDocument` |
 | Labeling document attach | `POST /api/template-models/:id/documents` | The template model must be in the labeling document's group; otherwise the template model is not found | `TemplateModelService.addDocumentToTemplateModel` |
-| Upload model | `POST /api/upload` (`model_id`, or the workflow's `ctx.modelId` default) | A trained model of another group is not found; Azure `prebuilt-*` ids and ids that are not trained models (other engines) are not group-owned. This checks the model the upload names; a model id that reaches the OCR step any other way is checked in the worker (see [Workflow Worker](#workflow-worker)) | `UploadController.uploadDocument`, `TrainingDbService.findTrainedModelGroupId` |
+| Upload model | `POST /api/upload` (`model_id`, or the workflow's `ctx.modelId` default) | A model id belongs to a group when one of the group's template models trained it or has a training job in flight that will produce it, compared without case; another group's is not found. Other ids (Azure prebuilt models, other engines) belong to no group. This checks the model the upload names; a model id that reaches the OCR step any other way is checked in the worker (see [Workflow Worker](#workflow-worker)) | `UploadController.uploadDocument`, `TrainingDbService.isModelIdOwnedByAnotherGroup` |
 | Upload ctx overrides | `POST /api/upload` (`ctx_overrides`) | Only ctx keys the workflow declares with a `defaultValue` are applied, and never the values the server derives from the stored document (`documentId`, `groupId`, `blobKey`, `fileName`, `fileType`, `contentType`, `modelId`, `documentMetadata`) | `OcrService.requestOcr` |
 | Document thumbnails | `GET /api/documents/thumbnails` | The requested ids are resolved within `group_id`; ids outside it return no thumbnail | `DocumentController.getBulkThumbnails`, `DocumentDbService.findDocumentIdsInGroup` |
 | HITL field schema | `GET /api/hitl/sessions/:id` | `metadata.templateModelId` is resolved only within the document's group | `ReviewDbService.findFieldDefinitionsForDocument` |
@@ -255,8 +255,8 @@ leaked across groups.
 | Blob path components | Classifier `name` / `label` / `folder`; dataset version `manifestPath` | Classifier values may not contain a `.` or `..` segment; `manifestPath` may not start with `/` or contain a `..` segment; rejected with `400` | Classifier request DTOs, `CreateVersionDto` |
 | Group membership check | All `groupPermissions` routes | Membership counts only the identity's own group entries (`Object.hasOwn`) | `IdentityGuard` |
 | API keys of a deleted group | Every API-key request | A key whose group is soft-deleted does not authenticate (`401`) | `ApiKeyDbService.findApiKeysByPrefix` |
-| Workflow overrides | `POST/PUT .../projects/:projectId/definitions`, `POST .../ground-truth-generation` (`workflowConfigOverrides`) | An override path must be one of the workflow's exposed parameters, and an exposed parameter may only name a node parameter (`nodes.<id>.parameters.<name>`), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`). An override can change a node's settings, but not its activity type, ports or edges | `validateWorkflowConfigOverrides`, `@ai-di/graph-workflow` validator |
-| Template model ids | `POST /api/template-models`, `POST /api/template-models/:modelId/training/train` | Azure model ids are shared by every group. A new template's `model_id` may not equal another template or trained model id, a version id of one (`<id>-v<n>`), or the template it would read as a version of; names that start with `prebuilt-` get a `model-` prefix. Training answers `409` when the next version id belongs to another template | `TemplateModelDbService.isModelIdTaken`, `TrainingService.startTraining` |
+| Workflow overrides | `POST/PUT .../projects/:projectId/definitions`, `POST .../ground-truth-generation` (`workflowConfigOverrides`) | An override path must be one of the workflow's exposed parameters, and an exposed parameter may only name a node parameter (`nodes.<id>.parameters.<name>`), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`), with each segment starting with a letter and holding only letters, digits, `_` or `-`. An override can change a node's settings, but not its activity type, ports or edges | `validateWorkflowConfigOverrides`, `@ai-di/graph-workflow` validator |
+| Template model ids | `POST /api/template-models`, `POST /api/template-models/:modelId/training/train` | Azure model ids are shared by every group. A new template's `model_id` may not equal another template or trained model id, a version id of one (`<id>-v<n>`), or the template it would read as a version of; a name whose id would be `prebuilt` or start with `prebuilt-` gets a `model-` prefix. Training answers `409` when the next version id belongs to another template | `TemplateModelDbService.isModelIdTaken`, `TrainingService.startTraining` |
 
 **Blob paths.** `@ai-di/blob-storage-paths` rejects `.` and `..` segments, and
 backslashes (which Azure reads as `/`), when it builds or validates a path, so a
@@ -304,17 +304,24 @@ worker enforces the group itself:
   group deploys under its own prefix (`{prefix}{groupId}…`); an explicit
   `analyzerId` must be a `prebuilt-*` analyzer or one of the group's own.
 - **Azure Document Intelligence models** also live on a shared resource. Before
-  `azureOcr.submit` sends a document to Azure, it checks that a trained model
-  belongs to the run's group (`assertModelUsableByGroup`); another group's model
-  is not found. This covers a model id from any source: the upload, a node
-  parameter, a ctx key, or a benchmark or ground-truth override. `prebuilt-*` ids
-  and ids that are not trained models are not group-owned.
+  `azureOcr.submit` sends a document to Azure, it refuses a model that another
+  group trained or is training (`assertModelUsableByGroup`, the same rule as the
+  upload check); another group's model is not found. This covers a model id from
+  any source: the upload, a node parameter, a ctx key, or a benchmark or
+  ground-truth override. No id is skipped by name, since a template's model id
+  can start with `prebuilt-` too; ids that no group trained or is training, such
+  as Azure's prebuilt models, belong to no group.
 - **Graph steps** may use only the activity types in `REGISTERED_ACTIVITY_TYPES`.
   The benchmark orchestration activities (`benchmark.*`) are not among them: the
   benchmark workflows call them directly, and a graph that names one fails
   validation when it is saved and when the worker loads it.
-- **Cross-group refusals are not retried.** They throw a non-retryable
-  `GROUP_SCOPE_VIOLATION` failure; a missing `groupId` is an ordinary error.
+- **Group refusals fail without retries.** A blob key or prefix outside the
+  run's group, a local path outside its benchmark cache (when reading, writing a
+  prediction or cleaning up), another group's Document Intelligence model, an
+  analyzer id outside the group's prefix, and a rejection for a document outside
+  the group throw a non-retryable `GROUP_SCOPE_VIOLATION` failure. A missing
+  `groupId`, and a row that a group-scoped lookup does not find, are ordinary
+  errors that Temporal retries.
 
 ## Related
 
