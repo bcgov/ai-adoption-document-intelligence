@@ -4426,22 +4426,32 @@
     },
     "/api/models": {
       "get": {
+        "description": "Lists the prebuilt models and the trained models of the caller's groups. With group_id, only that group's trained models are listed, and the caller must be a member of it.",
         "operationId": "OcrController_getModels",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "group_id",
+            "required": false,
+            "in": "query",
+            "description": "Group whose trained models to list. Omit it to list the trained models of every group the caller belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "default": {
-                    "models": [
-                      "string"
-                    ]
-                  }
+                  "$ref": "#/components/schemas/ModelsResponseDto"
                 }
               }
             }
+          },
+          "403": {
+            "description": "The caller is not a member of the group in group_id"
           }
         },
         "security": [
@@ -6663,6 +6673,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The body is invalid, e.g. the name contains a '.' or '..' path segment."
           }
         },
         "security": [
@@ -6747,10 +6760,14 @@
                     }
                   },
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Classifier name. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
+                    "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))"
                   },
                   "label": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Label name. The following labels are reserved and cannot be used: other, others. Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.",
+                    "pattern": "^(?![\\s\\S]*(?:^|\\/)\\.{1,2}(?:\\/|$))"
                   }
                 },
                 "required": [
@@ -6772,6 +6789,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The body is invalid, e.g. the name or label contains a '.' or '..' path segment, or the label is reserved."
           }
         },
         "security": [
@@ -6823,6 +6843,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The query is invalid, e.g. the name contains a '.' or '..' path segment."
           }
         },
         "security": [
@@ -6881,6 +6904,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The query is invalid, e.g. the name or folder contains a '.' or '..' path segment."
           }
         },
         "security": [
@@ -6923,6 +6949,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The body is invalid, e.g. the name contains a '.' or '..' path segment."
           }
         },
         "security": [
@@ -7073,6 +7102,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "operationLocation or group_id is missing."
           },
           "403": {
             "description": "Caller is not a member of the group or lacks permission."
@@ -14437,6 +14469,21 @@
           "name",
           "config",
           "groupId"
+        ]
+      },
+      "ModelsResponseDto": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "description": "Prebuilt model ids and trained model ids, sorted",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "models"
         ]
       },
       "ReprocessDocumentResponseDto": {
