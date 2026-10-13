@@ -25,6 +25,7 @@ import type {
   SwitchNode,
   ValueRef,
 } from "../types";
+import { isSafeOverridePathSegment } from "../workflow-config-overrides";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
 
 const SUPPORTED_SCHEMA_VERSIONS = ["1.0"];
@@ -53,7 +54,8 @@ const ALL_VALID_OPERATORS = [
  * The parts of a workflow a node group may expose for overriding: a node
  * parameter (`nodes.<id>.parameters.<name>`, at any depth below it), a node
  * timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`).
- * A node's type, activity or wiring is not a setting.
+ * A node's type, activity or wiring is not a setting. Each segment must also
+ * be one `applyWorkflowConfigOverrides` accepts, or no override could set it.
  */
 const EXPOSED_PARAM_PATH =
   /^(?:ctx\.[^.]+\.defaultValue|nodes\.[^.]+\.(?:parameters(?:\.[^.]+)+|timeout))$/;
@@ -790,6 +792,15 @@ function validateNodeGroups(
           errors.push({
             path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
             message: `Exposed parameter path "${paramPath}" must be a node parameter (nodes.<id>.parameters.<name>), a node timeout (nodes.<id>.timeout) or a ctx default (ctx.<key>.defaultValue)`,
+            severity: "error",
+          });
+          continue;
+        }
+
+        if (!paramPath.split(".").every(isSafeOverridePathSegment)) {
+          errors.push({
+            path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
+            message: `Exposed parameter path "${paramPath}" has a segment an override cannot set: each segment must start with a letter and contain only letters, digits, "_" or "-"`,
             severity: "error",
           });
           continue;

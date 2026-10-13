@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateGraphConfig } from "./graph-schema-validator";
 import type {
@@ -1252,67 +1252,31 @@ describe("graph-schema-validator", () => {
   });
 
   describe("template validation", () => {
-    it("validates the standard OCR template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+    const templatesDir = join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "docs-md",
+      "workflows",
+      "templates",
+    );
+    const templateFiles = readdirSync(templatesDir).filter((file) =>
+      file.endsWith(".json"),
+    );
+
+    it("finds the shipped templates", () => {
+      expect(templateFiles.length).toBeGreaterThan(0);
     });
 
-    it("validates the multi-page report template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "multi-page-report-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
+    it.each(templateFiles)("validates the shipped template %s", (file) => {
       const template = JSON.parse(
-        templateJson,
+        readFileSync(join(templatesDir, file), "utf8"),
       ) as unknown as GraphWorkflowConfig;
       const result = validateGraphConfig(template);
+      expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it("validates the SDPR operational workflow template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow-sdpr.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -1472,8 +1436,27 @@ describe("graph-schema-validator", () => {
     });
 
     it.each([
+      "nodes.a.parameters.__proto__",
+      "nodes.a.parameters.rules.0",
+      "nodes.a.parameters.1st",
+      "nodes.a.parameters.two words",
+      "ctx.constructor.defaultValue",
+    ])("refuses an exposed path with a segment an override cannot set: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("a segment an override cannot set"),
+        }),
+      );
+    });
+
+    it.each([
       "nodes.a.parameters.testParam",
       "nodes.a.parameters.nested.key",
+      "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
       "nodes.a.timeout",
       "ctx.modelId.defaultValue",
     ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
