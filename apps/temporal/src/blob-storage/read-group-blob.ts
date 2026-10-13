@@ -1,13 +1,17 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
+import { isCuid, validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
 import { getGroupBlobStorage } from "./group-blob-storage";
 
 /**
  * Directory where benchmark runs materialise one group's dataset files on the
- * worker: `{BENCHMARK_CACHE_DIR}/{groupId}`.
+ * worker: `{BENCHMARK_CACHE_DIR}/{groupId}`. The group id must be a cuid, so
+ * the directory is always one level below the cache root.
  */
 export function getGroupBenchmarkCacheDir(groupId: string): string {
+  if (!isCuid(groupId)) {
+    throw new Error(`"${groupId}" is not a valid group id`);
+  }
   const cacheBaseDir =
     process.env.BENCHMARK_CACHE_DIR || "/tmp/benchmark-cache";
   return path.join(cacheBaseDir, groupId);

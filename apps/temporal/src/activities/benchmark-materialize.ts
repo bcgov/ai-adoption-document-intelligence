@@ -16,6 +16,21 @@ interface MaterializeDatasetParams {
   datasetVersionId: string;
 }
 
+/**
+ * A sample id names files and folders on the worker, so it must be a single
+ * path segment: a non-empty string with no `/`, `\` or NUL that is not `.`
+ * or `..`.
+ */
+function isSafeSampleId(id: unknown): boolean {
+  return (
+    typeof id === "string" &&
+    id.length > 0 &&
+    id !== "." &&
+    id !== ".." &&
+    !/[/\\\0]/.test(id)
+  );
+}
+
 interface MaterializeDatasetResult {
   materializedPath: string;
   /** Dataset tenant scope for OCR blob paths (`{groupId}/ocr/...`). */
@@ -253,6 +268,13 @@ export async function loadDatasetManifest(
     );
     const manifestContent = await fs.readFile(manifestPath, "utf-8");
     const manifest: DatasetManifest = JSON.parse(manifestContent);
+    for (const sample of manifest.samples) {
+      if (!isSafeSampleId(sample.id)) {
+        throw new Error(
+          `Dataset manifest has an invalid sample id: ${JSON.stringify(sample.id)}`,
+        );
+      }
+    }
 
     log.info("Load dataset manifest complete", {
       event: "complete",

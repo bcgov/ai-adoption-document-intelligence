@@ -59,6 +59,7 @@ interface BenchmarkActivities {
     predictionData: Record<string, unknown>;
     outputDir: string;
     sampleId: string;
+    groupId?: string;
   }) => Promise<{ predictionPath: string }>;
   "benchmark.persistOcrCache": (input: {
     sourceRunId: string;
@@ -161,6 +162,7 @@ export async function benchmarkSampleWorkflow(
     predictionData,
     outputDir: predictionOutputDir,
     sampleId,
+    groupId,
   });
 
   if (persistOcrCache && graphResult.refs?.ocrResponseRef?.blobPath) {

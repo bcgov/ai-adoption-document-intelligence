@@ -337,4 +337,48 @@ describe("loadDatasetManifest activity", () => {
       }),
     ).rejects.toThrow("Failed to load manifest");
   });
+
+  function manifestWithSampleId(id: unknown): string {
+    return JSON.stringify({
+      schemaVersion: "1.0",
+      samples: [{ id, inputs: [], groundTruth: [], metadata: {} }],
+    });
+  }
+
+  it.each([
+    "../../../tmp/x",
+    "a/b",
+    "a\\b",
+    ".",
+    "..",
+    "",
+    "a\u0000b",
+    undefined,
+  ])("refuses a manifest whose sample id is not a single name: %j", async (sampleId) => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: "dataset-manifest.json",
+    });
+    fsMock.readFile.mockResolvedValue(manifestWithSampleId(sampleId));
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        datasetVersionId: "version-1",
+      }),
+    ).rejects.toThrow(/invalid sample id/);
+  });
+
+  it("accepts a sample id with dots that are not path separators", async () => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: "dataset-manifest.json",
+    });
+    fsMock.readFile.mockResolvedValue(manifestWithSampleId("inv.2024..v1"));
+
+    const result = await loadDatasetManifest({
+      materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+      datasetVersionId: "version-1",
+    });
+
+    expect(result.manifest.samples[0].id).toBe("inv.2024..v1");
+  });
 });

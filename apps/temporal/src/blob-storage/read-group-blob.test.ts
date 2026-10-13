@@ -131,4 +131,17 @@ describe("getGroupBenchmarkCacheDir", () => {
       `/tmp/benchmark-cache/${GROUP}`,
     );
   });
+
+  it.each([
+    "..",
+    ".",
+    "",
+    "a/b",
+    "Group1",
+  ])("refuses a group id that is not a cuid: %j", (groupId) => {
+    process.env.BENCHMARK_CACHE_DIR = "/data/cache";
+    expect(() => getGroupBenchmarkCacheDir(groupId)).toThrow(
+      /not a valid group id/,
+    );
+  });
 });
