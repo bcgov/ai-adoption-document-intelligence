@@ -1186,7 +1186,7 @@
     <tr>
         <td><code>benchmark.materializeDataset</code></td>
         <td><code>activities/benchmark-materialize.ts</code></td>
-        <td>Downloads dataset version from object storage to a local cache directory. Uses cache key <code>{datasetId}-{datasetVersionId}</code>.</td>
+        <td>Downloads dataset version from object storage to a local cache directory, <code>{BENCHMARK_CACHE_DIR}/{groupId}/{datasetId}-{datasetVersionId}</code>.</td>
     </tr>
     <tr>
         <td><code>benchmark.loadDatasetManifest</code></td>
@@ -1479,8 +1479,8 @@ interface MetricThreshold {
 <p>The materialization activity downloads all files under the <code>storagePrefix</code> to a local cache directory:</p>
 
 <ul>
-    <li>Cache base: <code>BENCHMARK_CACHE_DIR</code> environment variable (default: <code>/tmp/benchmark-cache</code>).</li>
-    <li>Cache key: <code>{datasetId}-{datasetVersionId}</code>.</li>
+    <li>Cache directory: <code>{BENCHMARK_CACHE_DIR}/{groupId}/{datasetId}-{datasetVersionId}</code>, where <code>groupId</code> is the dataset's group and <code>BENCHMARK_CACHE_DIR</code> defaults to <code>/tmp/benchmark-cache</code>.</li>
+    <li>A run reads and writes local files only inside its own group's directory, <code>{BENCHMARK_CACHE_DIR}/{groupId}</code>.</li>
     <li>On cache hit (manifest file exists locally), the download is skipped.</li>
     <li>On failure, the partial cache directory is removed.</li>
 </ul>
@@ -1492,7 +1492,7 @@ interface MetricThreshold {
     <tr><td><code>TEMPORAL_ADDRESS</code></td><td><code>localhost:7233</code></td><td>Temporal server address.</td></tr>
     <tr><td><code>TEMPORAL_NAMESPACE</code></td><td><code>default</code></td><td>Temporal namespace.</td></tr>
     <tr><td><code>BENCHMARK_TASK_QUEUE</code></td><td><code>benchmark-processing</code></td><td>Task queue for benchmark workflows.</td></tr>
-    <tr><td><code>BENCHMARK_CACHE_DIR</code></td><td><code>/tmp/benchmark-cache</code></td><td>Local directory for materialized dataset cache.</td></tr>
+    <tr><td><code>BENCHMARK_CACHE_DIR</code></td><td><code>/tmp/benchmark-cache</code></td><td>Root of the materialized dataset cache; each group's datasets go in a <code>{groupId}</code> subdirectory.</td></tr>
     <tr><td><code>WORKER_IMAGE_DIGEST</code></td><td>(none)</td><td>Docker image digest of the benchmark worker (optional, for reproducibility tracking).</td></tr>
     <tr><td><code>DATABASE_URL</code></td><td>(required)</td><td>PostgreSQL connection string.</td></tr>
     <tr><td colspan="3" style="background: var(--bc-blue); color: white; font-weight: 600;">Object Storage</td></tr>

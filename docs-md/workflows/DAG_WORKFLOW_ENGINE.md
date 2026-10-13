@@ -695,7 +695,7 @@ Each ref is a small object: `{ documentId, blobPath, storage: "blob", byteLength
 
 On **document delete**, `DocumentService.deleteDocument` best-effort deletes the `{groupId}/ocr/{documentId}/` prefix and cancels the document's workflow (`graph-<documentId>`) if it is still running, so a run waiting at a `humanGate` with no timeout does not wait forever.
 
-**Benchmark / ground-truth overrides:** optional `workflowConfigOverrides` on `GraphWorkflowInput` (dot paths from `exposedParams`). The worker merges them in `getWorkflowGraphConfig` before hash check and execution; `configHash` must be `hash(merged config)`.
+**Benchmark / ground-truth overrides:** optional `workflowConfigOverrides` on `GraphWorkflowInput` (dot paths from `exposedParams`). The worker merges them in `getWorkflowGraphConfig` before hash check and execution; `configHash` must be `hash(merged config)`. An exposed parameter path must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`); the shared validator refuses any other path, so an override can change a node's settings but not its activity type, ports or edges (see Node Groups → Validation in [GRAPH_TYPES.md](./GRAPH_TYPES.md)).
 
 See [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) and [TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md](../archive/TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md).
 
@@ -918,7 +918,7 @@ Current registered activity types (see `apps/temporal/src/activity-registry.ts` 
 |---|---|
 | `getWorkflowGraphConfig` | Load workflow configuration from database (used internally by `childWorkflow` nodes) |
 
-**Benchmarking** (temporal-only; not in the backend registry)
+**Benchmarking** (worker-only: the benchmark workflows call these directly; they are in neither `REGISTERED_ACTIVITY_TYPES` nor the backend registry, so a graph node cannot use them)
 
 | activityType | Description |
 |---|---|
@@ -928,6 +928,7 @@ Current registered activity types (see `apps/temporal/src/activity-registry.ts` 
 | `benchmark.updateRunStatus` | Update benchmark run status in database |
 | `benchmark.compareAgainstBaseline` | Compare results against baseline benchmark run |
 | `benchmark.writePrediction` | Write OCR prediction to benchmark dataset |
+| `benchmark.flattenPredictionFromRefs` | Build flat benchmark prediction maps from OCR blob refs |
 | `benchmark.materializeDataset` | Materialize benchmark dataset from source documents |
 | `benchmark.loadDatasetManifest` | Load benchmark dataset manifest |
 | `benchmark.loadOcrCache` | Load cached OCR results for benchmark run |

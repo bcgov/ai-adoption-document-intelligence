@@ -150,3 +150,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/03-content-understanding-OCR.md`: child workflow refs resolve within the run's group; Content Understanding analyzers are named per group.
 - `auth-and-groups.md`: pointer to the worker rules, and the drift risk of a new activity trusting an id from its input.
 - `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `auth-and-groups.md`: worker blob access goes through `getGroupBlobStorage` / `readGroupBlob`, enforced by a lint rule; the group-scope rule is also in `CLAUDE.md` and `.github/copilot-instructions.md`.
+
+## [2026-10-13] ingest | Group scope follow-ups
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: API keys of a deleted group, the `group_id` filter on `GET /api/models`, what the upload model check covers, the `manifestPath` rule, workflow overrides limited to node settings and ctx defaults, and template model ids on the shared Azure resource; worker rules for Document Intelligence models, graph steps, sample ids and refusals that are not retried; benchmark runs take the dataset's group.
+- `architecture/BLOB_STORAGE.md`: the worker example uses `getGroupBlobStorage` / `readGroupBlob`; the file table and the import lint rule.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`, `workflows/DAG_WORKFLOW_ENGINE.md`: the exposed-parameter path rule; `benchmark.*` activities are worker-only.
+- `workflows/03-content-understanding-OCR.md`: the iteration script deploys under the group prefix. `docs/_pages/benchmarking-technical.html`: the benchmark cache is per group.
+- `blob-storage.md`, `auth-and-groups.md`: worker blob routing, and the drift risk of ids on shared Azure resources.

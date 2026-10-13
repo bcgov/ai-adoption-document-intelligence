@@ -21,7 +21,7 @@ Document bytes, training artifacts, and workflow I/O flow through a unified blob
 
 - Architecture and provider selection live in `docs-md/architecture/BLOB_STORAGE.md`.
 - NestJS provider implementations live in `apps/backend-services/src/blob-storage/`.
-- Temporal worker access uses the parallel client under `apps/temporal/src/blob-storage/`.
+- Temporal worker access goes through the group-bound helpers `getGroupBlobStorage` / `readGroupBlob` under `apps/temporal/src/blob-storage/` (Temporal Worker Usage section of `BLOB_STORAGE.md`).
 - Workflow blob read activity lives in `apps/temporal/src/activities/blob-read.ts`.
 
 ## Design Notes

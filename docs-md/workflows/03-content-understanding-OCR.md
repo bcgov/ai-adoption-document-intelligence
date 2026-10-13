@@ -136,7 +136,9 @@ generative engines. The canonical pattern (E02 standard, applied here):
 - Iteration script:
   [`apps/temporal/scripts/iterate-cu-extraction.ts`](../../apps/temporal/scripts/iterate-cu-extraction.ts)
   hits CU once for one sample and writes a per-field diff so prompt
-  tweaks can be validated without burning a 40-sample run.
+  tweaks can be validated without burning a 40-sample run. It deploys
+  the analyzer under the template model's group prefix, the same id the
+  workflow uses.
 
 ## Engine-internal preprocessing
 

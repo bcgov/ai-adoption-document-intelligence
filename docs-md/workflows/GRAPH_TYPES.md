@@ -73,7 +73,7 @@ Values are referenced via `ValueRef`:
 Activities are identified by string keys (e.g., `"azureOcr.submit"`):
 
 - **Temporal runtime registry**: `apps/temporal/src/activity-registry.ts` -- maps activity type strings to actual Temporal activity functions, with `defaultTimeout`, `defaultRetry`, and `description`
-- **Temporal workflow-safe list**: `apps/temporal/src/activity-types.ts` -- `REGISTERED_ACTIVITY_TYPES` constant array (workflow code imports this instead of the worker registry to avoid non-determinism)
+- **Temporal workflow-safe list**: `apps/temporal/src/activity-types.ts` -- `REGISTERED_ACTIVITY_TYPES` constant array, the activity types a graph node may use (workflow code imports this instead of the worker registry to avoid non-determinism)
 - **Backend constant registry**: `apps/backend-services/src/workflow/activity-registry.ts` -- descriptions only, used for save-time validation
 
 Current activity types, grouped by category:
@@ -94,7 +94,7 @@ Current activity types, grouped by category:
 
 **Internal**: `getWorkflowGraphConfig` (used by `childWorkflow` nodes; not for direct use in user-defined graphs)
 
-**Benchmarking** (temporal-only; not in the backend registry): `benchmark.evaluate`, `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.updateRunStatus`, `benchmark.compareAgainstBaseline`, `benchmark.writePrediction`, `benchmark.materializeDataset`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`
+**Benchmarking** (worker-only: the benchmark workflows call these directly; they are in neither `REGISTERED_ACTIVITY_TYPES` nor the backend registry, so a graph node cannot use them): `benchmark.evaluate`, `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.updateRunStatus`, `benchmark.compareAgainstBaseline`, `benchmark.writePrediction`, `benchmark.flattenPredictionFromRefs`, `benchmark.materializeDataset`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`
 
 ## Validation
 
@@ -161,7 +161,7 @@ interface ExposedParam {
 - Edges between groups are aggregated (if multiple nodes in group A connect to group B, only one edge is shown)
 - Internal edges (both source and target in the same group) are hidden
 
-**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation to reference any field in the config.
+**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, ports or edges.
 
 ### Config Hash Behavior
 
@@ -172,6 +172,7 @@ interface ExposedParam {
 The backend and temporal validators perform lightweight checks on `nodeGroups`:
 - Each group's `nodeIds` must be non-empty
 - All referenced `nodeIds` must exist in `config.nodes`
+- `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
 - `exposedParams` paths starting with `nodes.` must reference existing nodes
 - A node appearing in multiple groups produces a **warning** (not an error)
 

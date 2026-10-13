@@ -50,3 +50,4 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 - Documentation for group management pages can become endpoint-level; keep detailed API behavior in canonical docs or Swagger/OpenAPI.
 - Local development auth shortcuts should not leak into production-oriented guidance.
 - A new worker activity that takes a document id or template id from its input must scope the query to the injected `groupId` (`{ id, group_id }`); ctx and node parameters are not a group boundary. Blob access goes through `getGroupBlobStorage` / `readGroupBlob`, which a lint rule enforces; database queries have no such guard.
+- Azure Document Intelligence model ids and Content Understanding analyzer ids live on resources shared by every group. A new code path that runs, trains or deploys one must check it against the caller's or run's group (Template model ids row and Workflow Worker section of `GROUP_RESOURCE_AUTHORIZATION.md`).
