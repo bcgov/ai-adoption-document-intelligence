@@ -5,6 +5,7 @@ import {
   buildSharedBlobPrefixPath,
   validateBlobFilePath,
   validateBlobFilePathInGroup,
+  isCuid,
   validateBlobPrefixPath,
   validateBlobPrefixPathInGroup,
 } from "./storage-path-builder";
@@ -100,6 +101,27 @@ describe("buildBlobFilePath", () => {
     expect(() =>
       buildBlobFilePath(VALID_CUID, OperationCategory.OCR, ["bad:component"], "file.txt")
     ).toThrow("Blob storage path includes illegal characters.");
+  });
+
+  it("throws when the file name contains a backslash", () => {
+    expect(() =>
+      buildBlobFilePath(VALID_CUID, OperationCategory.OCR, ["doc1"], "..\\output.json")
+    ).toThrow(/backslash/);
+  });
+});
+
+describe("isCuid", () => {
+  it.each([
+    ["clh7z2xk00000356u8e3h1234", true],
+    ["a1", true],
+    ["", false],
+    ["c", false],
+    [".", false],
+    ["..", false],
+    ["Clh7z2xk00000356u8e3h1234", false],
+    ["clh7z2xk/00000356u8e3h1234", false],
+  ])("isCuid(%j) is %s", (value, expected) => {
+    expect(isCuid(value)).toBe(expected);
   });
 });
 
@@ -199,6 +221,15 @@ describe("validateBlobFilePathInGroup", () => {
     expect(() =>
       validateBlobFilePathInGroup("/var/data/output.json", VALID_CUID)
     ).toThrow(/not a valid cuid/);
+  });
+
+  it("throws when the path climbs out of the group with backslashes", () => {
+    expect(() =>
+      validateBlobFilePathInGroup(
+        `${VALID_CUID}/ocr/..\\..\\${OTHER_CUID}\\ocr\\doc1\\output.json`,
+        VALID_CUID
+      )
+    ).toThrow(/backslash/);
   });
 });
 
