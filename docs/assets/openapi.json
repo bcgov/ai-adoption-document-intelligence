@@ -4643,6 +4643,9 @@
           },
           "404": {
             "description": "Template model not found"
+          },
+          "409": {
+            "description": "A training job is already in progress for this template, or the model id of its next version is already in use"
           }
         },
         "security": [
@@ -12001,7 +12004,7 @@
           },
           "workflowConfigOverrides": {
             "type": "object",
-            "description": "Optional workflow config overrides keyed by exposed-parameter path (e.g. { 'ctx.modelId': 'prebuilt-layout' }).",
+            "description": "Optional workflow config overrides keyed by exposed-parameter path (e.g. { 'ctx.modelId.defaultValue': 'prebuilt-layout' }).",
             "additionalProperties": true
           }
         },
