@@ -43,7 +43,7 @@ export class CreateVersionDto {
       "Manifest path relative to the dataset root, with no leading '/' and no '..' segments (defaults to 'dataset-manifest.json')",
   })
   @IsString()
-  @Matches(/^(?!\/)(?!(?:.*\/)?\.\.(?:\/|$))/, {
+  @Matches(/^(?!\/)(?!(?:[\s\S]*\/)?\.\.(?:\/|$))/, {
     message:
       "manifestPath must be relative to the dataset root, with no leading '/' and no '..' segments",
   })
