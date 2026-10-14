@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import { ApplicationFailure } from "@temporalio/common";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import {
   loadDatasetManifest,
@@ -203,6 +204,33 @@ describe("materializeDataset activity", () => {
         "Dataset download from object storage failed: Storage connection failed",
       );
 
+      expect(fsMock.rm).toHaveBeenCalledWith(
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        { recursive: true, force: true },
+      );
+    });
+
+    it("keeps a group refusal non-retryable after cleaning up", async () => {
+      prismaMock.datasetVersion.findUnique.mockResolvedValue(
+        mockDatasetVersion,
+      );
+      fsMock.access.mockRejectedValue(new Error("ENOENT"));
+      fsMock.mkdir.mockResolvedValue(undefined);
+      fsMock.rm.mockResolvedValue(undefined);
+      blobStorageMock.list.mockResolvedValue([
+        "anothergroup/benchmark/datasets/dataset-1/version-1/inputs/doc1.pdf",
+      ]);
+
+      const failure = await materializeDataset({
+        datasetVersionId: "version-1",
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApplicationFailure);
+      expect((failure as ApplicationFailure).type).toBe(
+        "GROUP_SCOPE_VIOLATION",
+      );
+      expect((failure as ApplicationFailure).nonRetryable).toBe(true);
+      expect(blobStorageMock.read).not.toHaveBeenCalled();
       expect(fsMock.rm).toHaveBeenCalledWith(
         "/tmp/test-cache/atestgroup/dataset-1-version-1",
         { recursive: true, force: true },

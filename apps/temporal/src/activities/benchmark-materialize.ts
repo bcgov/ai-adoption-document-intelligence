@@ -5,6 +5,7 @@ import {
   OperationCategory,
 } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { ApplicationFailure } from "@temporalio/common";
 import { joinDatasetPath } from "../benchmark-dataset-paths";
 import type { DatasetManifest } from "../benchmark-types";
 import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
@@ -188,6 +189,11 @@ export async function materializeDataset(
           /* intentional: best-effort cleanup */
         });
 
+      // A refusal of a key outside the dataset's group fails the same way on
+      // every attempt, so it keeps its non-retryable failure.
+      if (error instanceof ApplicationFailure) {
+        throw error;
+      }
       throw new Error(
         `Dataset download from object storage failed: ${errorMessage}`,
       );
