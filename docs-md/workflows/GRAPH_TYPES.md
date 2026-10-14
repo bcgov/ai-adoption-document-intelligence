@@ -161,7 +161,7 @@ interface ExposedParam {
 - Edges between groups are aggregated (if multiple nodes in group A connect to group B, only one edge is shown)
 - Internal edges (both source and target in the same group) are hidden
 
-**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value.
+**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value.
 
 ### Config Hash Behavior
 
@@ -172,7 +172,7 @@ interface ExposedParam {
 The backend and temporal validators perform lightweight checks on `nodeGroups`:
 - Each group's `nodeIds` must be non-empty
 - All referenced `nodeIds` must exist in `config.nodes`
-- `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
+- `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
 - Each segment of an `exposedParams` path must start with a letter and contain only letters, digits, `_` or `-` (the segments `applyWorkflowConfigOverrides` can set)
 - `exposedParams` paths starting with `nodes.` must reference existing nodes
 - A node appearing in multiple groups produces a **warning** (not an error)

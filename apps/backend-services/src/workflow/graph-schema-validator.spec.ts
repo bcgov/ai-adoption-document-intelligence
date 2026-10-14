@@ -1423,6 +1423,7 @@ describe("graph-schema-validator", () => {
       "entryNodeId",
       "orientationConfidenceThreshold",
       "ctx.modelId",
+      "nodes.a.timeout.scheduleToClose",
     ])("refuses an exposed path that is not a node parameter, node timeout or ctx default: %s", (path) => {
       const result = validateGraphConfig(withExposedPath(path));
 
@@ -1457,13 +1458,74 @@ describe("graph-schema-validator", () => {
       "nodes.a.parameters.testParam",
       "nodes.a.parameters.nested.key",
       "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
-      "nodes.a.timeout",
+      "nodes.a.timeout.startToClose",
       "ctx.modelId.defaultValue",
     ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
       const result = validateGraphConfig(withExposedPath(path));
 
       expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
+    });
+
+    /** The linear graph followed by a pollUntil node and a humanGate node. */
+    function withTimeoutNodesAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.status = { type: "string" };
+      config.nodes.poll = {
+        id: "poll",
+        type: "pollUntil",
+        label: "Poll",
+        activityType: "azureOcr.poll",
+        outputs: [{ port: "response", ctxKey: "status" }],
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.status" },
+          right: { literal: "running" },
+        },
+        interval: "10s",
+        maxAttempts: 3,
+        timeout: "5m",
+      };
+      config.nodes.gate = {
+        id: "gate",
+        type: "humanGate",
+        label: "Review",
+        signal: { name: "humanApproval" },
+        timeout: "24h",
+        onTimeout: "fail",
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "poll", type: "normal" },
+        { id: "e4", source: "poll", target: "gate", type: "normal" },
+      );
+      return config;
+    }
+
+    it.each([
+      "nodes.gate.timeout",
+      "nodes.poll.timeout",
+      "nodes.a.timeout.startToClose",
+    ])("accepts a timeout path that fits its node: %s", (path) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
+    it.each([
+      ["nodes.a.timeout", "nodes.a.timeout.startToClose"],
+      ["nodes.gate.timeout.startToClose", "activity timeout"],
+      ["nodes.poll.timeout.startToClose", "activity timeout"],
+    ])("refuses a timeout path that does not fit its node: %s", (path, hint) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(hint),
+        }),
+      );
     });
 
     it("config without nodeGroups passes validation", () => {

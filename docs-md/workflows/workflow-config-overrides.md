@@ -6,7 +6,7 @@ When creating a benchmark definition, users can override exposed workflow parame
 
 ## How It Works
 
-1. Workflow templates define `exposedParams` in their `nodeGroups`, each with a `path`, `type`, `default`, and optional `options`. A path must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`) (see Node Groups → Validation in [GRAPH_TYPES.md](./GRAPH_TYPES.md))
+1. Workflow templates define `exposedParams` in their `nodeGroups`, each with a `path`, `type`, `default`, and optional `options`. A path must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`) (see Node Groups → Validation in [GRAPH_TYPES.md](./GRAPH_TYPES.md))
 2. When creating/editing a benchmark definition, users provide a JSON object mapping exposed param paths to override values
 3. Overrides are validated against the workflow's `exposedParams` — unknown paths are rejected, `select`-type values must be in the allowed options
 4. When a run starts, overrides are deep-applied to a copy of the workflow config before it's passed to Temporal

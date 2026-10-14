@@ -53,12 +53,41 @@ const ALL_VALID_OPERATORS = [
 /**
  * The parts of a workflow a node group may expose for overriding: a node
  * parameter (`nodes.<id>.parameters.<name>`, at any depth below it), a node
- * timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`).
- * A node's type, activity or wiring is not a setting. Each segment must also
- * be one `applyWorkflowConfigOverrides` accepts, or no override could set it.
+ * timeout (`nodes.<id>.timeout`, or `nodes.<id>.timeout.startToClose` for an
+ * activity node) or a ctx default (`ctx.<key>.defaultValue`). A node's type,
+ * activity or wiring is not a setting. Each segment must also be one
+ * `applyWorkflowConfigOverrides` accepts, or no override could set it.
  */
 const EXPOSED_PARAM_PATH =
-  /^(?:ctx\.[^.]+\.defaultValue|nodes\.[^.]+\.(?:parameters(?:\.[^.]+)+|timeout))$/;
+  /^(?:ctx\.[^.]+\.defaultValue|nodes\.[^.]+\.(?:parameters(?:\.[^.]+)+|timeout(?:\.startToClose)?))$/;
+
+/** Node types whose `timeout` is a duration string. */
+const DURATION_TIMEOUT_NODE_TYPES = new Set(["humanGate", "pollUntil"]);
+
+/**
+ * Why an exposed timeout path does not fit its node, or null when it does. A
+ * humanGate or pollUntil node takes `timeout` as a duration string. An
+ * activity node takes a timeout policy, and the worker reads only its
+ * `startToClose`, so a duration set on `timeout` itself would replace the
+ * policy and leave the activity on its default timeout.
+ */
+function describeTimeoutMismatch(
+  paramPath: string,
+  setsActivityTimeout: boolean,
+  nodeType: string,
+): string | null {
+  if (setsActivityTimeout) {
+    return nodeType === "activity"
+      ? null
+      : `Exposed parameter path "${paramPath}" sets an activity timeout, but the node is a ${nodeType} node`;
+  }
+  if (DURATION_TIMEOUT_NODE_TYPES.has(nodeType)) {
+    return null;
+  }
+  return nodeType === "activity"
+    ? `Exposed parameter path "${paramPath}" would replace an activity node's timeout policy; expose "${paramPath}.startToClose" instead`
+    : `Exposed parameter path "${paramPath}" sets a timeout, which a ${nodeType} node does not have`;
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -791,7 +820,7 @@ function validateNodeGroups(
         if (!EXPOSED_PARAM_PATH.test(paramPath)) {
           errors.push({
             path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
-            message: `Exposed parameter path "${paramPath}" must be a node parameter (nodes.<id>.parameters.<name>), a node timeout (nodes.<id>.timeout) or a ctx default (ctx.<key>.defaultValue)`,
+            message: `Exposed parameter path "${paramPath}" must be a node parameter (nodes.<id>.parameters.<name>), a node timeout (nodes.<id>.timeout, or nodes.<id>.timeout.startToClose for an activity node) or a ctx default (ctx.<key>.defaultValue)`,
             severity: "error",
           });
           continue;
@@ -816,6 +845,19 @@ function validateNodeGroups(
                 message: `Exposed parameter path "${paramPath}" references non-existent node: "${referencedNodeId}"`,
                 severity: "error",
               });
+            } else if (parts[2] === "timeout") {
+              const mismatch = describeTimeoutMismatch(
+                paramPath,
+                parts.length === 4,
+                config.nodes[referencedNodeId].type,
+              );
+              if (mismatch) {
+                errors.push({
+                  path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
+                  message: mismatch,
+                  severity: "error",
+                });
+              }
             }
           }
         }
