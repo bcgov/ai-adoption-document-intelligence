@@ -422,20 +422,20 @@ describe("TrainingDbService", () => {
       mockPrisma.trainingJob.findFirst.mockResolvedValue(null);
     });
 
-    it("looks the id up, ignoring case, among other groups' trained models and in-flight training jobs", async () => {
+    it("looks the lowercased id up exactly among other groups' trained models and in-flight training jobs", async () => {
       await expect(
-        service.isModelIdOwnedByAnotherGroup("km-invoice-v2", "group-1"),
+        service.isModelIdOwnedByAnotherGroup("KM-Invoice-V2", "group-1"),
       ).resolves.toBe(false);
       expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
         where: {
-          model_id: { equals: "km-invoice-v2", mode: "insensitive" },
+          model_id: "km-invoice-v2",
           template_model: { group_id: { not: "group-1" } },
         },
         select: { id: true },
       });
       expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
         where: {
-          target_model_id: { equals: "km-invoice-v2", mode: "insensitive" },
+          target_model_id: "km-invoice-v2",
           status: {
             in: [
               TrainingStatus.PENDING,
@@ -448,6 +448,21 @@ describe("TrainingDbService", () => {
         },
         select: { id: true },
       });
+    });
+
+    it("compares an id containing _ or % as written, not as a pattern", async () => {
+      await service.isModelIdOwnedByAnotherGroup("Pay_Stub%", "group-1");
+
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ model_id: "pay_stub%" }),
+        }),
+      );
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ target_model_id: "pay_stub%" }),
+        }),
+      );
     });
 
     it.each([

@@ -21,24 +21,39 @@ describe("assertModelUsableByGroup", () => {
     });
   });
 
-  it("looks the id up, ignoring case, among other groups' trained models and in-flight training jobs", async () => {
-    await assertModelUsableByGroup("invoice-v2", GROUP);
+  it("looks the lowercased id up exactly among other groups' trained models and in-flight training jobs", async () => {
+    await assertModelUsableByGroup("Invoice-V2", GROUP);
 
     expect(trainedModelFindFirst).toHaveBeenCalledWith({
       where: {
-        model_id: { equals: "invoice-v2", mode: "insensitive" },
+        model_id: "invoice-v2",
         template_model: { group_id: { not: GROUP } },
       },
       select: { id: true },
     });
     expect(trainingJobFindFirst).toHaveBeenCalledWith({
       where: {
-        target_model_id: { equals: "invoice-v2", mode: "insensitive" },
+        target_model_id: "invoice-v2",
         status: { in: ["PENDING", "UPLOADING", "UPLOADED", "TRAINING"] },
         template_model: { group_id: { not: GROUP } },
       },
       select: { id: true },
     });
+  });
+
+  it("compares an id containing _ or % as written, not as a pattern", async () => {
+    await assertModelUsableByGroup("Pay_Stub%", GROUP);
+
+    expect(trainedModelFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ model_id: "pay_stub%" }),
+      }),
+    );
+    expect(trainingJobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ target_model_id: "pay_stub%" }),
+      }),
+    );
   });
 
   it.each([

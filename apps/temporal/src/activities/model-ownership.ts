@@ -15,10 +15,12 @@ const IN_FLIGHT_TRAINING_STATUSES = [
  *
  * Every group's trained models share one Azure resource. A model id belongs to
  * a group when one of the group's template models trained it, or has a
- * training job in flight that will produce it. Ids are compared without case,
- * since template model ids are lowercase. Any other id, such as an Azure
- * prebuilt model, is not group-owned. Nothing is skipped by name: a template's
- * model id can start with `prebuilt-` too.
+ * training job in flight that will produce it. Ids are compared without case:
+ * every stored model id is lowercase, so the lowercased id is looked up
+ * exactly, and `_` or `%` in an id never match other characters the way a
+ * pattern match would. Any other id, such as an Azure prebuilt model, is not
+ * group-owned. Nothing is skipped by name: a template's model id can start
+ * with `prebuilt-` too.
  */
 export async function assertModelUsableByGroup(
   modelId: string,
@@ -29,7 +31,7 @@ export async function assertModelUsableByGroup(
   }
 
   const prisma = getPrismaClient();
-  const sameId = { equals: modelId, mode: "insensitive" as const };
+  const sameId = modelId.toLowerCase();
   const otherGroup = { group_id: { not: groupId } };
   const [trainedModel, trainingJob] = await Promise.all([
     prisma.trainedModel.findFirst({

@@ -255,8 +255,10 @@ export class TrainingDbService {
    * Whether an Azure model id belongs to a group other than `groupId`: one of
    * that group's template models trained it (tombstoned versions included), or
    * has a training job in flight that will produce it. Ids are compared without
-   * case, since template model ids are lowercase. An id that is neither, such
-   * as an Azure prebuilt model, belongs to no group.
+   * case: every stored model id is lowercase, so the lowercased id is looked up
+   * exactly, and `_` or `%` in an id never match other characters the way a
+   * pattern match would. An id that is neither, such as an Azure prebuilt
+   * model, belongs to no group.
    * @param modelId The Azure model ID.
    * @param groupId The group that wants to use the model.
    * @param tx Optional transaction client.
@@ -267,7 +269,7 @@ export class TrainingDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    const sameId = { equals: modelId, mode: "insensitive" as const };
+    const sameId = modelId.toLowerCase();
     const otherGroup = { group_id: { not: groupId } };
     const [trainedModel, trainingJob] = await Promise.all([
       client.trainedModel.findFirst({
