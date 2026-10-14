@@ -5,9 +5,11 @@ import { ReviewQueuePage } from "./ReviewQueuePage";
 
 // Each tab's document count, keyed by the reviewStatus the page asks for.
 let totals: Record<string, number> = {};
-// The active group's models, and the filters the page last asked for per tab.
+// The active group's models and workflows, and the filters the page last asked
+// for per tab.
 let models: string[] = [];
-let lastFilters: Record<string, { modelId?: string }> = {};
+let workflows: { id: string; name: string }[] = [];
+let lastFilters: Record<string, { modelId?: string; workflowId?: string }> = {};
 
 vi.mock("react-router-dom", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-router-dom")>()),
@@ -17,10 +19,14 @@ vi.mock("../../../../data/hooks/useModels", () => ({
   useModels: () => ({ data: models }),
 }));
 vi.mock("../../../../data/hooks/useWorkflows", () => ({
-  useWorkflows: () => ({ data: [] }),
+  useWorkflows: () => ({ data: workflows }),
 }));
 vi.mock("../hooks/useReviewQueue", () => ({
-  useReviewQueue: (filters: { reviewStatus: string; modelId?: string }) => {
+  useReviewQueue: (filters: {
+    reviewStatus: string;
+    modelId?: string;
+    workflowId?: string;
+  }) => {
     lastFilters[filters.reviewStatus] = filters;
     return {
       queue: [],
@@ -126,5 +132,32 @@ describe("ReviewQueuePage model filter", () => {
     rerender(page());
 
     expect(lastFilters.pending.modelId).toBeUndefined();
+  });
+});
+
+describe("ReviewQueuePage workflow filter", () => {
+  beforeEach(() => {
+    totals = {};
+    models = [];
+    workflows = [];
+    lastFilters = {};
+  });
+
+  it("stops filtering by a workflow the active group's list no longer contains", async () => {
+    workflows = [{ id: "lineage-1", name: "Invoices" }];
+    const { rerender } = render(page());
+
+    const workflowInput = screen.getByPlaceholderText("All workflows");
+    fireEvent.focus(workflowInput);
+    fireEvent.change(workflowInput, { target: { value: "Invoices" } });
+    await waitFor(() => screen.getByText("Invoices"));
+    fireEvent.click(screen.getByText("Invoices"));
+    expect(lastFilters.pending.workflowId).toBe("lineage-1");
+
+    // Switching groups swaps the workflow list.
+    workflows = [{ id: "lineage-2", name: "Receipts" }];
+    rerender(page());
+
+    expect(lastFilters.pending.workflowId).toBeUndefined();
   });
 });

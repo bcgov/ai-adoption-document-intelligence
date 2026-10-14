@@ -82,6 +82,11 @@ export const ReviewQueuePage: FC = () => {
   const modelInGroup =
     modelFilter !== null && models?.includes(modelFilter) ? modelFilter : null;
   const { data: workflows } = useWorkflows();
+  // The workflow list follows the active group too.
+  const workflowInGroup =
+    workflowFilter !== null && workflows?.some((w) => w.id === workflowFilter)
+      ? workflowFilter
+      : null;
 
   // Debounce search input (500ms delay)
   useEffect(() => {
@@ -95,7 +100,7 @@ export const ReviewQueuePage: FC = () => {
   // Reset to the first page when a filter or sort changes
   useEffect(() => {
     setPageNumber(0);
-  }, [search, modelInGroup, workflowFilter, sortField, sortDir]);
+  }, [search, modelInGroup, workflowInGroup, sortField, sortDir]);
 
   const toggleSort = (field: SortField): void => {
     if (sortField === field) {
@@ -112,7 +117,7 @@ export const ReviewQueuePage: FC = () => {
     offset,
     search: search || undefined,
     modelId: modelInGroup ?? undefined,
-    workflowId: workflowFilter || undefined,
+    workflowId: workflowInGroup ?? undefined,
     sortBy: sortField,
     sortDir,
   });
@@ -123,7 +128,7 @@ export const ReviewQueuePage: FC = () => {
     offset,
     search: search || undefined,
     modelId: modelInGroup ?? undefined,
-    workflowId: workflowFilter || undefined,
+    workflowId: workflowInGroup ?? undefined,
     sortBy: sortField,
     sortDir,
   });
@@ -134,7 +139,7 @@ export const ReviewQueuePage: FC = () => {
     offset,
     search: search || undefined,
     modelId: modelInGroup ?? undefined,
-    workflowId: workflowFilter || undefined,
+    workflowId: workflowInGroup ?? undefined,
     sortBy: sortField,
     sortDir,
   });
@@ -145,7 +150,7 @@ export const ReviewQueuePage: FC = () => {
     offset,
     search: search || undefined,
     modelId: modelInGroup ?? undefined,
-    workflowId: workflowFilter || undefined,
+    workflowId: workflowInGroup ?? undefined,
     sortBy: sortField,
     sortDir,
   });
@@ -283,7 +288,7 @@ export const ReviewQueuePage: FC = () => {
               value: workflow.id,
               label: workflow.name,
             }))}
-            value={workflowFilter}
+            value={workflowInGroup}
             onChange={setWorkflowFilter}
             placeholder="All workflows"
             clearable

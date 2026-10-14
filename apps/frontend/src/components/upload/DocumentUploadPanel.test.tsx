@@ -220,4 +220,56 @@ describe("DocumentUploadPanel", () => {
       expect(apiService.post).not.toHaveBeenCalled();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Scenario 4 – a workflow chosen before switching groups is not sent
+  // -------------------------------------------------------------------------
+  describe("Scenario 4 – workflow chosen in another group", () => {
+    it("does not send a workflow the active group's list no longer contains", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      mockUseWorkflows.mockReturnValue({
+        data: [
+          {
+            id: "lineage-1",
+            workflowVersionId: "version-1",
+            name: "Invoices",
+            version: 2,
+          },
+        ],
+        isLoading: false,
+      });
+      vi.mocked(apiService.post).mockResolvedValue({
+        success: true,
+        data: { document: { id: "doc-1", status: "pre_ocr" } },
+      });
+      const { container, rerenderPanel } = renderPanel();
+
+      const fileInput = container.querySelector('input[type="file"]');
+      fireEvent.change(fileInput!, {
+        target: { files: [createTestFile()] },
+      });
+      const [modelInput] = screen.getAllByLabelText(/processing model/i);
+      fireEvent.focus(modelInput);
+      fireEvent.change(modelInput, { target: { value: "model-a" } });
+      await waitFor(() => screen.getByText("model-a"));
+      fireEvent.click(screen.getByText("model-a"));
+      const [workflowInput] = screen.getAllByLabelText(
+        /workflow \(optional\)/i,
+      );
+      fireEvent.focus(workflowInput);
+      fireEvent.change(workflowInput, { target: { value: "Invoices" } });
+      await waitFor(() => screen.getByText("Invoices (v2)"));
+      fireEvent.click(screen.getByText("Invoices (v2)"));
+
+      // Switching groups swaps the workflow list; model-a is still offered.
+      mockUseWorkflows.mockReturnValue({ data: [], isLoading: false });
+      rerenderPanel();
+
+      fireEvent.click(screen.getByRole("button", { name: /upload/i }));
+      await waitFor(() => expect(apiService.post).toHaveBeenCalled());
+      expect(vi.mocked(apiService.post).mock.calls[0][1]).not.toHaveProperty(
+        "workflow_config_id",
+      );
+    });
+  });
 });

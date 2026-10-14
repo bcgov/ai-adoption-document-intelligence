@@ -102,6 +102,13 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
       ? selectedModel
       : null;
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
+  // The workflow list follows the active group too, so a workflow chosen
+  // before a group switch is sent only while the current list still offers it.
+  const workflowInGroup =
+    selectedWorkflow !== null &&
+    workflows?.some((w) => w.workflowVersionId === selectedWorkflow)
+      ? selectedWorkflow
+      : null;
 
   useEffect(
     () => () => {
@@ -164,8 +171,8 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
           },
           model_id: modelInGroup!,
           group_id: activeGroup!.id,
-          ...(selectedWorkflow && {
-            workflow_config_id: selectedWorkflow,
+          ...(workflowInGroup && {
+            workflow_config_id: workflowInGroup,
           }),
         };
 
@@ -338,7 +345,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
               label: `${w.name} (v${w.version})`,
             })) || []
           }
-          value={selectedWorkflow}
+          value={workflowInGroup}
           onChange={(value) => setSelectedWorkflow(value || null)}
           disabled={workflowsLoading}
           searchable
