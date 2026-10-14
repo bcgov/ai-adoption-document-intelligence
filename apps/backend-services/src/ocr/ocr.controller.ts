@@ -12,6 +12,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import {
   ApiAcceptedResponse,
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -19,6 +20,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
@@ -61,6 +63,11 @@ export class OcrController {
   })
   @Identity({ allowApiKey: true })
   @ApiOkResponse({ type: ModelsResponseDto })
+  @ApiBadRequestResponse({
+    description:
+      "A query parameter other than group_id, or a group_id that is not a string",
+  })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({
     description: "The caller is not a member of the group in group_id",
   })

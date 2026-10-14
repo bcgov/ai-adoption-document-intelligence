@@ -4450,6 +4450,12 @@
               }
             }
           },
+          "400": {
+            "description": "A query parameter other than group_id, or a group_id that is not a string"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
           "403": {
             "description": "The caller is not a member of the group in group_id"
           }
@@ -8443,7 +8449,7 @@
             "description": "Access denied: not a member of the requested group or insufficient role"
           },
           "404": {
-            "description": "The workflow was not found in the group, or model_id names a trained model of another group"
+            "description": "The workflow was not found in the group, or model_id names a model another group trained or is training"
           },
           "422": {
             "description": "Stored original but PDF normalization failed (see message and document status)",

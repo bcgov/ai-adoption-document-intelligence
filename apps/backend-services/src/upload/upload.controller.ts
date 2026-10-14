@@ -69,7 +69,7 @@ export class UploadController {
   })
   @ApiNotFoundResponse({
     description:
-      "The workflow was not found in the group, or model_id names a trained model of another group",
+      "The workflow was not found in the group, or model_id names a model another group trained or is training",
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
