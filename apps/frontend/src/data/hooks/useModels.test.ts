@@ -48,6 +48,30 @@ describe("useModels", () => {
     expect(result.current.data).toEqual(["invoice", "prebuilt-layout"]);
   });
 
+  it("lists the new group's models when the active group changes", async () => {
+    mockUseGroup.mockReturnValue({
+      activeGroup: { id: "group-abc", name: "Group A" },
+    });
+    vi.mocked(apiService.get)
+      .mockResolvedValueOnce({ success: true, data: { models: ["model-a"] } })
+      .mockResolvedValueOnce({ success: true, data: { models: ["model-b"] } });
+
+    const { result, rerender } = renderHook(() => useModels(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.data).toEqual(["model-a"]));
+
+    mockUseGroup.mockReturnValue({
+      activeGroup: { id: "group-xyz", name: "Group B" },
+    });
+    rerender();
+
+    await waitFor(() => expect(result.current.data).toEqual(["model-b"]));
+    expect(apiService.get).toHaveBeenLastCalledWith(
+      "/models?group_id=group-xyz",
+    );
+  });
+
   it("requests nothing until a group is active", () => {
     mockUseGroup.mockReturnValue({ activeGroup: null });
 
