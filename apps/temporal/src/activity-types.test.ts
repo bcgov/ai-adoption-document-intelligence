@@ -1,6 +1,15 @@
-import { isRegisteredActivityType } from "./activity-types";
+import {
+  isRegisteredActivityType,
+  REGISTERED_ACTIVITY_TYPES,
+} from "./activity-types";
 
 describe("activity-types", () => {
+  it("lists no benchmark.* activity, since only the benchmark workflows run them", () => {
+    expect(
+      REGISTERED_ACTIVITY_TYPES.filter((type) => type.startsWith("benchmark.")),
+    ).toEqual([]);
+  });
+
   describe("isRegisteredActivityType", () => {
     it("accepts an activity a graph node may run", () => {
       expect(isRegisteredActivityType("azureOcr.submit")).toBe(true);
