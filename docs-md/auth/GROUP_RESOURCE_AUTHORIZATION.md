@@ -255,7 +255,7 @@ leaked across groups.
 | Blob path components | Classifier `name` / `label` / `folder`; dataset version `manifestPath` | Classifier values may not contain a `.` or `..` segment; `manifestPath` may not start with `/` or contain a `..` segment; rejected with `400` | Classifier request DTOs, `CreateVersionDto` |
 | Group membership check | All `groupPermissions` routes | Membership counts only the identity's own group entries (`Object.hasOwn`) | `IdentityGuard` |
 | API keys of a deleted group | Every API-key request | A key whose group is soft-deleted does not authenticate (`401`) | `ApiKeyDbService.findApiKeysByPrefix` |
-| Workflow overrides | `POST/PUT .../projects/:projectId/definitions`, `POST .../ground-truth-generation` (`workflowConfigOverrides`) | An override path must be one of the workflow's exposed parameters, and an exposed parameter may only name a node parameter (`nodes.<id>.parameters.<name>`), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`), with each segment starting with a letter and holding only letters, digits, `_` or `-`. An override can change a node's settings, but not its activity type, ports or edges | `validateWorkflowConfigOverrides`, `@ai-di/graph-workflow` validator |
+| Workflow overrides | `POST/PUT .../projects/:projectId/definitions`, `POST .../ground-truth-generation` (`workflowConfigOverrides`) | An override path must be one of the workflow's exposed parameters, and an exposed parameter may only name a node parameter (`nodes.<id>.parameters.<name>`), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`), with each segment starting with a letter and holding only letters, digits, `_` or `-`. An override can change a node's settings, but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value | `validateWorkflowConfigOverrides`, `@ai-di/graph-workflow` validator |
 | Template model ids | `POST /api/template-models`, `POST /api/template-models/:modelId/training/train` | Azure model ids are shared by every group. A new template's `model_id` may not equal another template or trained model id, a version id of one (`<id>-v<n>`), or the template it would read as a version of; a name whose id would be `prebuilt` or start with `prebuilt-` gets a `model-` prefix. Training answers `409` when the next version id belongs to another template | `TemplateModelDbService.isModelIdTaken`, `TrainingService.startTraining` |
 
 **Blob paths.** `@ai-di/blob-storage-paths` rejects `.` and `..` segments, and
@@ -315,8 +315,8 @@ worker enforces the group itself:
   The benchmark orchestration activities (`benchmark.*`) are not among them: the
   benchmark workflows call them directly, and a graph that names one fails
   validation when it is saved and when the worker loads it.
-- **Group refusals fail without retries.** A blob key or prefix outside the
-  run's group, a local path outside its benchmark cache (when reading, writing a
+- **Group refusals fail without retries.** A blob key or prefix that is outside
+  the run's group or fails validation, a local path outside its benchmark cache (when reading, writing a
   prediction or cleaning up), another group's Document Intelligence model, an
   analyzer id outside the group's prefix, and a rejection for a document outside
   the group throw a non-retryable `GROUP_SCOPE_VIOLATION` failure. A missing

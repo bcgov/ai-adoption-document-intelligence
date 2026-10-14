@@ -16,8 +16,8 @@ When creating a benchmark definition, users can override exposed workflow parame
 ## Example
 
 For the standard-ocr-workflow which exposes:
-- `ctx.modelId.defaultValue` (select: prebuilt-layout, prebuilt-read, prebuilt-document)
-- `nodes.checkConfidence.parameters.threshold` (number, default: 0.95)
+- `ctx.modelId.defaultValue` (string)
+- `ctx.confidenceThreshold.defaultValue` (number)
 - `nodes.humanReview.timeout` (duration, no default: without one the gate waits until a reviewer acts)
 
 A definition can override:
@@ -25,7 +25,7 @@ A definition can override:
 ```json
 {
   "ctx.modelId.defaultValue": "prebuilt-read",
-  "nodes.checkConfidence.parameters.threshold": 0.8
+  "ctx.confidenceThreshold.defaultValue": 0.8
 }
 ```
 
@@ -44,7 +44,7 @@ A definition can override:
 
 ## Security
 
-`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`, and the graph validator limits those paths to node parameters, node timeouts and ctx defaults, so an override cannot change a node's activity type, ports or edges.
+`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`, and the graph validator limits those paths to node parameters, node timeouts and ctx defaults, so an override cannot change a node's activity type, port bindings or edges. A parameter named after one of the node's input ports replaces the value that port delivers.
 
 ## Known Limitations
 

@@ -816,7 +816,7 @@ These activities are registered in the activity registry and usable in workflow 
 
 # Benchmarking and internal activities (not palette nodes)
 
-The `benchmark.*` activities belong to the benchmarking subsystem: the benchmark workflows call them directly. They are in neither the backend registry nor the worker's `REGISTERED_ACTIVITY_TYPES`, so a graph node cannot use them and they do not appear in the palette. `getWorkflowGraphConfig` stays registered, but only `childWorkflow` nodes use it, to load the child's configuration.
+The `benchmark.*` activities belong to the benchmarking subsystem: the benchmark workflows call them directly. They are in neither the backend registry nor the worker's `REGISTERED_ACTIVITY_TYPES`, so a graph node cannot use them and they do not appear in the palette. `getWorkflowGraphConfig` stays registered: every run loads its own configuration through it, and `childWorkflow` nodes use it to load the child's configuration.
 
 | Display name | Activity ID | One-line description |
 |---|---|---|

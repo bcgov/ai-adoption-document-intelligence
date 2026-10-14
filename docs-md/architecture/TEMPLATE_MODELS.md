@@ -230,6 +230,6 @@ From the RunDetailPage, the "Suggest Formats" button opens a modal to select a t
 
 ## Model Availability
 
-Trained models automatically appear in the "Processing Model" dropdown on the upload page. The `/api/models` endpoint merges:
+Trained models appear in the "Processing Model" dropdown on the upload page and in the review queue's model filter. The `/api/models` endpoint merges:
 - Prebuilt models from `AZURE_DOC_INTELLIGENCE_MODELS` env var
-- All `TrainedModel.model_id` values from the database
+- The `TrainedModel.model_id` values, without tombstoned versions, of the template models of the group in `group_id` (the caller must belong to it), or of every group the caller belongs to when `group_id` is omitted. The frontend passes the active group.

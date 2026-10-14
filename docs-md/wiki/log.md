@@ -158,3 +158,4 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`, `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/WORKFLOW_NODE_CATALOG.md`: the exposed-parameter path rule; `benchmark.*` activities are worker-only, not palette nodes.
 - `workflows/03-content-understanding-OCR.md`: the iteration script deploys under the group prefix. `docs/_pages/benchmarking-technical.html`: the benchmark cache is per group.
 - `blob-storage.md`, `auth-and-groups.md`: worker blob routing, and the drift risk of ids on shared Azure resources.
+- `workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`: worker-only activities stay out of `REGISTERED_ACTIVITY_TYPES`. `extraction/ground-truth-generation.md`, `architecture/TEMPLATE_MODELS.md`: the override example and what `GET /api/models` lists.

@@ -161,7 +161,7 @@ interface ExposedParam {
 - Edges between groups are aggregated (if multiple nodes in group A connect to group B, only one edge is shown)
 - Internal edges (both source and target in the same group) are hidden
 
-**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, ports or edges.
+**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout`) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value.
 
 ### Config Hash Behavior
 
