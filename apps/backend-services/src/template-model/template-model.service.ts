@@ -14,6 +14,7 @@ import { AuditService } from "@/audit/audit.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { ResolvedIdentity } from "@/auth/types";
+import { AzureService } from "@/azure/azure.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
@@ -49,6 +50,7 @@ export class TemplateModelService {
     private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly prismaService: PrismaService,
     private readonly auditService: AuditService,
+    private readonly azureService: AzureService,
   ) {}
 
   // ========== MODEL ID GENERATION ==========
@@ -170,6 +172,10 @@ export class TemplateModelService {
     if (!existing) {
       throw new NotFoundException(`Template model with id ${id} not found`);
     }
+    // Read before the delete: the trained model and training job rows that
+    // name these ids are deleted with the template.
+    const azureModelIds =
+      await this.templateModelDb.findAzureModelIdsForTemplate(id);
     const deleted = await this.templateModelDb.deleteTemplateModel(id);
     if (!deleted) {
       throw new NotFoundException(`Template model with id ${id} not found`);
@@ -180,9 +186,27 @@ export class TemplateModelService {
       resource_id: id,
       actor_id: actorId,
       group_id: existing.group_id,
-      payload: { name: existing.name },
+      payload: { name: existing.name, azure_model_ids: azureModelIds },
     });
+    await this.deleteAzureModels(azureModelIds);
     return { success: true, id };
+  }
+
+  /**
+   * Deletes a deleted template's models from Azure. A failure is logged, not
+   * thrown: the template is already gone, and the models' owner records keep
+   * them the group's for as long as they remain in Azure.
+   */
+  private async deleteAzureModels(modelIds: string[]): Promise<void> {
+    for (const modelId of modelIds) {
+      try {
+        await this.azureService.deleteDocumentModel(modelId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete Azure model ${modelId} of a deleted template: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   // ========== FIELD SCHEMA OPERATIONS ==========

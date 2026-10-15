@@ -159,3 +159,10 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `workflows/03-content-understanding-OCR.md`: the iteration script deploys under the group prefix. `docs/_pages/benchmarking-technical.html`: the benchmark cache is per group.
 - `blob-storage.md`, `auth-and-groups.md`: worker blob routing, and the drift risk of ids on shared Azure resources.
 - `workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`: worker-only activities stay out of `REGISTERED_ACTIVITY_TYPES`. `extraction/ground-truth-generation.md`, `architecture/TEMPLATE_MODELS.md`: the override example and what `GET /api/models` lists.
+
+## [2026-10-15] ingest | Owner records for model ids, per-caller limits, undeclared ctx keys
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `architecture/TEMPLATE_MODELS.md`: owner records (`model_owners`) keep a model id its group's after the template is deleted; training claims the id with the job; deleting a template deletes its models from Azure, best effort.
+- `auth/AUTHENTICATION.md`: the per-IP limits count the caller's own address behind the cluster's proxies.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`: an exposed ctx path whose key is not declared is a warning, and an override on it is refused.
+- `auth-and-groups.md`: a training records its model id's group.

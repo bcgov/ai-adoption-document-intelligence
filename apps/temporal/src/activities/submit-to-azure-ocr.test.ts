@@ -17,10 +17,12 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+const mockModelOwnerFindFirst = jest.fn();
 const mockTrainedModelFindFirst = jest.fn();
 const mockTrainingJobFindFirst = jest.fn();
 jest.mock("./database-client", () => ({
   getPrismaClient: () => ({
+    modelOwner: { findFirst: mockModelOwnerFindFirst },
     trainedModel: { findFirst: mockTrainedModelFindFirst },
     trainingJob: { findFirst: mockTrainingJobFindFirst },
   }),
@@ -57,6 +59,7 @@ describe("submitToAzureOCR activity", () => {
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
     };
     mockBlobRead.mockResolvedValue(Buffer.from("test file content"));
+    mockModelOwnerFindFirst.mockResolvedValue(null);
     mockTrainedModelFindFirst.mockResolvedValue(null);
     mockTrainingJobFindFirst.mockResolvedValue(null);
     isUnexpectedMock.mockReturnValue(false);

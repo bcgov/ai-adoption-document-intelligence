@@ -11,6 +11,7 @@ import {
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { ResolvedIdentity } from "@/auth/types";
+import { AzureService } from "@/azure/azure.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -43,6 +44,8 @@ describe("TemplateModelService", () => {
   let mockOcrService: jest.Mocked<TemplateModelOcrService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
   let mockSuggestionService: jest.Mocked<SuggestionService>;
+  let mockAzureService: { deleteDocumentModel: jest.Mock };
+  let mockAuditService: { recordEvent: jest.Mock };
 
   const mockTemplateModel: TemplateModelData = {
     id: "tm-1",
@@ -133,6 +136,7 @@ describe("TemplateModelService", () => {
       isModelIdTaken: jest.fn(),
       updateTemplateModel: jest.fn(),
       deleteTemplateModel: jest.fn(),
+      findAzureModelIdsForTemplate: jest.fn().mockResolvedValue([]),
       createFieldDefinition: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
@@ -191,10 +195,18 @@ describe("TemplateModelService", () => {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: AzureService,
+          useValue: {
+            deleteDocumentModel: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<TemplateModelService>(TemplateModelService);
+    mockAzureService = module.get(AzureService);
+    mockAuditService = module.get(AuditService);
     mockTemplateModelDbService = module.get(TemplateModelDbService);
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(TemplateModelOcrService);
@@ -428,6 +440,81 @@ describe("TemplateModelService", () => {
 
       await expect(service.deleteTemplateModel("non-existent")).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it("deletes the template's models from Azure after deleting the template", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub", "pay-stub-v2"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+
+      await service.deleteTemplateModel("tm-1");
+
+      expect(
+        mockTemplateModelDbService.findAzureModelIdsForTemplate,
+      ).toHaveBeenCalledWith("tm-1");
+      expect(mockAzureService.deleteDocumentModel.mock.calls).toEqual([
+        ["pay-stub"],
+        ["pay-stub-v2"],
+      ]);
+      expect(
+        mockTemplateModelDbService.deleteTemplateModel.mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(
+        mockAzureService.deleteDocumentModel.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("still deletes the template when deleting one of its Azure models fails", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub", "pay-stub-v2"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+      mockAzureService.deleteDocumentModel.mockRejectedValueOnce(
+        new Error("Azure unavailable"),
+      );
+
+      await expect(service.deleteTemplateModel("tm-1")).resolves.toEqual({
+        success: true,
+        id: "tm-1",
+      });
+      expect(mockAzureService.deleteDocumentModel).toHaveBeenCalledWith(
+        "pay-stub-v2",
+      );
+    });
+
+    it("records the Azure model ids it deletes in the audit event", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+
+      await service.deleteTemplateModel("tm-1");
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "template_model_deleted",
+          payload: {
+            name: mockTemplateModel.name,
+            azure_model_ids: ["pay-stub"],
+          },
+        }),
       );
     });
   });

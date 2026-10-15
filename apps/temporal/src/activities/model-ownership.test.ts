@@ -9,20 +9,28 @@ jest.mock("./database-client", () => ({
 const GROUP = "clh7z2xk00000356u8e3h1234";
 
 describe("assertModelUsableByGroup", () => {
+  const modelOwnerFindFirst = jest.fn();
   const trainedModelFindFirst = jest.fn();
   const trainingJobFindFirst = jest.fn();
 
   beforeEach(() => {
+    modelOwnerFindFirst.mockReset().mockResolvedValue(null);
     trainedModelFindFirst.mockReset().mockResolvedValue(null);
     trainingJobFindFirst.mockReset().mockResolvedValue(null);
     (getPrismaClient as jest.Mock).mockReturnValue({
+      modelOwner: { findFirst: modelOwnerFindFirst },
       trainedModel: { findFirst: trainedModelFindFirst },
       trainingJob: { findFirst: trainingJobFindFirst },
     });
   });
 
-  it("looks the lowercased id up exactly among other groups' trained models and in-flight training jobs", async () => {
+  it("looks the lowercased id up exactly among other groups' owner records, trained models and in-flight training jobs", async () => {
     await assertModelUsableByGroup("Invoice-V2", GROUP);
+
+    expect(modelOwnerFindFirst).toHaveBeenCalledWith({
+      where: { model_id: "invoice-v2", group_id: { not: GROUP } },
+      select: { model_id: true },
+    });
 
     expect(trainedModelFindFirst).toHaveBeenCalledWith({
       where: {
@@ -80,6 +88,14 @@ describe("assertModelUsableByGroup", () => {
     expect((failure as ApplicationFailure).nonRetryable).toBe(true);
   });
 
+  it("refuses a model whose owner record names another group, after its template is deleted", async () => {
+    modelOwnerFindFirst.mockResolvedValue({ model_id: "invoice-v2" });
+
+    await expect(assertModelUsableByGroup("invoice-v2", GROUP)).rejects.toThrow(
+      "Model not found: invoice-v2",
+    );
+  });
+
   it("refuses a model another group is still training", async () => {
     trainingJobFindFirst.mockResolvedValue({ id: "job-other-group" });
 
@@ -103,6 +119,7 @@ describe("assertModelUsableByGroup", () => {
     await expect(assertModelUsableByGroup(modelId, undefined)).rejects.toThrow(
       `groupId is required to use model ${modelId}`,
     );
+    expect(modelOwnerFindFirst).not.toHaveBeenCalled();
     expect(trainedModelFindFirst).not.toHaveBeenCalled();
     expect(trainingJobFindFirst).not.toHaveBeenCalled();
   });
