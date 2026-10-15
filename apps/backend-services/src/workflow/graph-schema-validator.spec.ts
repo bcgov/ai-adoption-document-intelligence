@@ -1459,12 +1459,29 @@ describe("graph-schema-validator", () => {
       "nodes.a.parameters.nested.key",
       "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
       "nodes.a.timeout.startToClose",
-      "ctx.modelId.defaultValue",
+      "ctx.result.defaultValue",
     ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
       const result = validateGraphConfig(withExposedPath(path));
 
       expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
+    });
+
+    it("warns about an exposed ctx path whose key the workflow does not declare", () => {
+      const result = validateGraphConfig(
+        withExposedPath("ctx.modelID.defaultValue"),
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          severity: "warning",
+          message: expect.stringContaining(
+            'ctx key "modelID", which the workflow does not declare',
+          ),
+        }),
+      ]);
     });
 
     /** The linear graph followed by a pollUntil node and a humanGate node. */

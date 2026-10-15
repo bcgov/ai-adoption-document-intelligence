@@ -860,6 +860,17 @@ function validateNodeGroups(
               }
             }
           }
+        } else {
+          // A warning rather than an error: the worker validates every stored
+          // workflow it runs, and warnings do not stop a run.
+          const ctxKey = paramPath.split(".")[1];
+          if (!(config.ctx && Object.hasOwn(config.ctx, ctxKey))) {
+            errors.push({
+              path: `nodeGroups.${groupId}.exposedParams[${i}].path`,
+              message: `Exposed parameter path "${paramPath}" names ctx key "${ctxKey}", which the workflow does not declare, so an override on it sets a value nothing reads`,
+              severity: "warning",
+            });
+          }
         }
       }
     }

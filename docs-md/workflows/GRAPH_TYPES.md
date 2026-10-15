@@ -175,6 +175,7 @@ The backend and temporal validators perform lightweight checks on `nodeGroups`:
 - `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
 - Each segment of an `exposedParams` path must start with a letter and contain only letters, digits, `_` or `-` (the segments `applyWorkflowConfigOverrides` can set)
 - `exposedParams` paths starting with `nodes.` must reference existing nodes
+- An `exposedParams` path naming a ctx key the workflow does not declare produces a **warning**: it does not stop a stored workflow from running, and the workflow editor asks for it to be fixed before saving
 - A node appearing in multiple groups produces a **warning** (not an error)
 
 ### Example
