@@ -6,16 +6,22 @@ import "./env-loader";
 import { createLogger } from "@ai-di/shared-logging";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { applyTrustProxy } from "./trust-proxy";
 
 const logger = createLogger("backend-services");
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // request.ip is the caller's own address behind the cluster's proxies, so the
+  // per-IP limits count each caller separately (see trust-proxy.ts).
+  applyTrustProxy(app);
 
   // Enable graceful shutdown: allows NestJS to call onModuleDestroy hooks
   // when receiving SIGTERM (Kubernetes pod termination signal).
