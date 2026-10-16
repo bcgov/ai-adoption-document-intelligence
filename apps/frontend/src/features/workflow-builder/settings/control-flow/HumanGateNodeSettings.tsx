@@ -8,14 +8,17 @@
  *   - `signal.payloadSchema` — read-only JSON preview with an "advanced"
  *     hint. Schema authoring is out of scope for V2.
  *   - `timeout` — `TextInput` validated as a Temporal duration string,
- *     required. Invalid drafts surface an inline error and are not
- *     propagated through `onConfigChange`.
+ *     optional. Empty means no time limit: the run waits until the signal
+ *     arrives, and clearing the field removes the timeout from the node.
+ *     Invalid drafts surface an inline error and are not propagated
+ *     through `onConfigChange`.
  *   - `onTimeout` — `SegmentedControl` with `fail` / `continue` /
- *     `fallback`.
+ *     `fallback`. Only rendered while the node has a timeout.
  *   - `fallbackEdgeId` — `EdgePicker` (FR-1b) scoped to edges originating
- *     from this node. Only rendered when `onTimeout === "fallback"`.
- *     Switching `onTimeout` away from `fallback` drops the field from the
- *     emitted node so the JSON stays clean.
+ *     from this node. Only rendered while the node has a timeout and
+ *     `onTimeout === "fallback"`. Switching `onTimeout` away from
+ *     `fallback` drops the field from the emitted node so the JSON stays
+ *     clean.
  *
  * The common header (label / type badge / delete) and footer
  * (input / output port bindings) live in the shared `NodeSettingsPanel`;
@@ -161,29 +164,37 @@ export function HumanGateNodeSettings({
     });
   };
 
-  // ── timeout (required Temporal duration) ───────────────────────────────
+  // ── timeout (optional Temporal duration) ───────────────────────────────
   // Mirror the PollUntilNodeSettings pattern: keep a local draft so the
   // user can type invalid values briefly with an inline error, without
-  // propagating broken values into the graph config.
-  const [timeoutDraft, setTimeoutDraft] = useState(node.timeout);
+  // propagating broken values into the graph config. An empty value means
+  // no time limit, so clearing the field removes the timeout.
+  const [timeoutDraft, setTimeoutDraft] = useState(node.timeout ?? "");
   useEffect(() => {
-    setTimeoutDraft(node.timeout);
+    setTimeoutDraft(node.timeout ?? "");
   }, [node.timeout]);
 
-  const timeoutDraftValid = isValidTemporalDuration(timeoutDraft);
   const timeoutError =
-    !timeoutDraftValid && timeoutDraft.length > 0
+    timeoutDraft.length > 0 && !isValidTemporalDuration(timeoutDraft)
       ? "Enter a Temporal duration like 30s, 5m, 1h."
-      : timeoutDraft.length === 0
-        ? "Timeout is required."
-        : null;
+      : null;
 
   const commitTimeout = (raw: string) => {
     setTimeoutDraft(raw);
+    if (raw.length === 0) {
+      if (node.timeout === undefined) return;
+      const cleared: HumanGateNode = { ...node };
+      delete cleared.timeout;
+      updateNode(cleared);
+      return;
+    }
     if (!isValidTemporalDuration(raw)) return;
     if (raw === node.timeout) return;
     updateNode({ ...node, timeout: raw });
   };
+
+  // What happens on timeout only matters while there is a timeout.
+  const hasTimeout = node.timeout !== undefined;
 
   // ── onTimeout (SegmentedControl) ───────────────────────────────────────
   const setOnTimeout = (next: string) => {
@@ -288,32 +299,33 @@ export function HumanGateNodeSettings({
         <Stack gap="xs">
           <TextInput
             label="Timeout"
-            description={TEMPORAL_DURATION_HELP_TEXT}
-            placeholder="e.g. 1h"
+            description={`Leave empty for no time limit: the run waits until the signal arrives. ${TEMPORAL_DURATION_HELP_TEXT}`}
+            placeholder="No time limit"
             size="xs"
-            withAsterisk
             value={timeoutDraft}
             error={timeoutError}
             onChange={(event) => commitTimeout(event.currentTarget.value)}
             data-testid="human-gate-node-settings-timeout"
           />
-          <Box>
-            <Text size="xs" fw={500} mb={4}>
-              On timeout
-            </Text>
-            <Text size="10px" c="dimmed" mb={4}>
-              Choose what happens when the gate times out: fail the workflow,
-              continue past the gate, or follow a fallback edge.
-            </Text>
-            <SegmentedControl
-              size="xs"
-              value={node.onTimeout}
-              data={ON_TIMEOUT_OPTIONS}
-              onChange={setOnTimeout}
-              data-testid="human-gate-node-settings-on-timeout"
-            />
-          </Box>
-          {node.onTimeout === "fallback" && (
+          {hasTimeout && (
+            <Box>
+              <Text size="xs" fw={500} mb={4}>
+                On timeout
+              </Text>
+              <Text size="10px" c="dimmed" mb={4}>
+                Choose what happens when the gate times out: fail the workflow,
+                continue past the gate, or follow a fallback edge.
+              </Text>
+              <SegmentedControl
+                size="xs"
+                value={node.onTimeout}
+                data={ON_TIMEOUT_OPTIONS}
+                onChange={setOnTimeout}
+                data-testid="human-gate-node-settings-on-timeout"
+              />
+            </Box>
+          )}
+          {hasTimeout && node.onTimeout === "fallback" && (
             <EdgePicker
               config={config}
               fromNodeId={node.id}
