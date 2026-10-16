@@ -210,11 +210,11 @@ describe("HumanGateNodeSettings — Scenario 2: payloadSchema is editable JSON",
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 3: timeout is a required TextInput validated as Temporal duration
+// Scenario 3: timeout is an optional TextInput validated as Temporal duration
 // ---------------------------------------------------------------------------
 
-describe("HumanGateNodeSettings — Scenario 3: timeout is validated as a Temporal duration", () => {
-  it("'1h' commits; empty and 'abc' show inline errors and are not propagated", () => {
+describe("HumanGateNodeSettings — Scenario 3: timeout is optional and validated as a Temporal duration", () => {
+  it("'1h' commits; 'abc' shows an inline error and is not propagated; empty removes the timeout", () => {
     const initial = humanGateNode("hg1", "Approve gate", { timeout: "30s" });
     const config = makeConfig([initial]);
 
@@ -231,19 +231,45 @@ describe("HumanGateNodeSettings — Scenario 3: timeout is validated as a Tempor
     const callCountAfter1h = spy.mock.calls.length;
     expect(timeoutInput).toHaveAttribute("aria-invalid", "false");
 
-    // ── 2) Empty value is rejected — no new onConfigChange, inline error. ─
-    fireEvent.change(timeoutInput, { target: { value: "" } });
+    // ── 2) 'abc' is rejected — no new onConfigChange, inline error. ──────
+    fireEvent.change(timeoutInput, { target: { value: "abc" } });
     expect(spy.mock.calls.length).toBe(callCountAfter1h);
     const stillAt1h = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((stillAt1h.nodes.hg1 as HumanGateNode).timeout).toBe("1h");
     expect(timeoutInput).toHaveAttribute("aria-invalid", "true");
 
-    // ── 3) 'abc' is rejected — no new onConfigChange, inline error. ──────
-    fireEvent.change(timeoutInput, { target: { value: "abc" } });
-    expect(spy.mock.calls.length).toBe(callCountAfter1h);
-    const stillAt1hAgain = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
-    expect((stillAt1hAgain.nodes.hg1 as HumanGateNode).timeout).toBe("1h");
-    expect(timeoutInput).toHaveAttribute("aria-invalid", "true");
+    // ── 3) Empty means no time limit — the timeout key is removed. ───────
+    fireEvent.change(timeoutInput, { target: { value: "" } });
+    expect(spy.mock.calls.length).toBe(callCountAfter1h + 1);
+    const cleared = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect("timeout" in (cleared.nodes.hg1 as HumanGateNode)).toBe(false);
+    expect(timeoutInput).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("a gate without a timeout hides the on-timeout choices until a timeout is set", () => {
+    const initial: HumanGateNode = {
+      id: "hg1",
+      type: "humanGate",
+      label: "Approve gate",
+      signal: { name: "approve" },
+      onTimeout: "fail",
+    };
+    const config = makeConfig([initial]);
+    mountWithSpy(config, "hg1");
+
+    const timeoutInput = screen.getByTestId(
+      "human-gate-node-settings-timeout",
+    ) as HTMLInputElement;
+    expect(timeoutInput.value).toBe("");
+    expect(timeoutInput).toHaveAttribute("aria-invalid", "false");
+    expect(
+      screen.queryByTestId("human-gate-node-settings-on-timeout"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(timeoutInput, { target: { value: "2h" } });
+    expect(
+      screen.getByTestId("human-gate-node-settings-on-timeout"),
+    ).toBeInTheDocument();
   });
 });
 
