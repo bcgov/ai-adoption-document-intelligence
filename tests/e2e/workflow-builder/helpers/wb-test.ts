@@ -1,4 +1,5 @@
 import { Page } from "@playwright/test";
+import { Permission } from "../../../../apps/frontend/src/auth/permissions";
 
 /**
  * Shared setup for the workflow-builder Playwright suite.
@@ -29,6 +30,12 @@ export const SEED_WORKFLOW_IDS = {
   multiPageReport: "seed-workflow-multi-page-report",
 } as const;
 
+/**
+ * The mock user is an ADMIN of the seed group, as the seeded test user is, and
+ * an ADMIN holds every permission. The frontend's route guards and sidebar
+ * read the group's `permissions` from `/api/auth/me`; without them every
+ * builder route renders empty.
+ */
 const MOCK_PROFILE = {
   sub: "test-user",
   name: "Test User",
@@ -37,7 +44,14 @@ const MOCK_PROFILE = {
   roles: ["user"],
   isAdmin: false,
   expires_in: 3600,
-  groups: [{ id: SEED_GROUP_ID, name: "Default" }],
+  groups: [
+    {
+      id: SEED_GROUP_ID,
+      name: "Default",
+      role: "ADMIN",
+      permissions: Object.values(Permission),
+    },
+  ],
 };
 
 /**
