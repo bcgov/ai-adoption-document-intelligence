@@ -997,6 +997,37 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
     expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
   });
 
+  it("re-fits the view each time the switch is flipped, in both directions", () => {
+    // The two views differ in extent by an order of magnitude, so keeping the
+    // camera where it was shows tiny blocks one way and a corner of the
+    // workflow the other.
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const toggle = screen.getByTestId("simplified-view-toggle");
+    // Run the page's animation frames inside the click, so each flip's fit is
+    // counted on its own and nothing another test left pending can land in
+    // between.
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback: FrameRequestCallback) => {
+        callback(0);
+        return 0;
+      });
+    try {
+      for (const flip of ["on", "off"]) {
+        const before = fitViewMock.mock.calls.length;
+        act(() => {
+          fireEvent.click(toggle);
+        });
+        expect(
+          fitViewMock.mock.calls.length - before,
+          `switching ${flip}`,
+        ).toBe(1);
+      }
+    } finally {
+      raf.mockRestore();
+    }
+  });
+
   it("Scenario 5: a chip click opens GroupNodeSettings for that group via onGroupChipClick", () => {
     // A chip only exists for a group that IS in the config — chips are
     // projected from `nodeGroups`. Since G-091 the page drops an

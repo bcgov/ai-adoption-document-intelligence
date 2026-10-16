@@ -350,6 +350,70 @@ export function layoutGraphSimplified(
   config: GraphWorkflowConfig,
   options: LayoutGraphOptions = {},
 ): GraphWorkflowConfig {
+  const { projected, placed } = placeSimplifiedBoxes(config, options);
+
+  // W-1 — write ONLY the simplified view's own geometry. `placed` holds a
+  // position for each visible box and for nothing else: grouped members were
+  // never registered, so their `metadata.position` cannot be touched here even
+  // by accident, and the expanded canvas survives an arrange in this view.
+  const nextNodes: Record<string, GraphNode> = {};
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    const simplifiedPosition = placed.get(nodeId);
+    nextNodes[nodeId] = simplifiedPosition
+      ? ({
+          ...node,
+          metadata: { ...(node.metadata ?? {}), simplifiedPosition },
+        } as GraphNode)
+      : node;
+  }
+
+  // Each chip's placement lands on its group, which is where the simplified
+  // view reads it back from (`projectGroupedConfig`).
+  const nextGroups: Record<string, NodeGroup> = {
+    ...(config.nodeGroups ?? {}),
+  };
+  for (const chip of projected.chips) {
+    const position = placed.get(chip.id);
+    const group = nextGroups[chip.groupId];
+    if (!position || !group) continue;
+    nextGroups[chip.groupId] = { ...group, position };
+  }
+
+  return projected.chips.length > 0
+    ? { ...config, nodes: nextNodes, nodeGroups: nextGroups }
+    : { ...config, nodes: nextNodes };
+}
+
+/**
+ * Where the simplified view shows each chip and ungrouped node until the
+ * author arranges that view: the same compact layout Auto-arrange would write
+ * there, computed for display and never saved. Keyed by chip id and node id.
+ *
+ * Without it a chip sits at the centroid of its members' EXPANDED positions,
+ * so the chips inherit the expanded canvas's spread — on a long chain, small
+ * blocks strung out thousands of pixels apart. Positions the author stores in
+ * that view (an Auto-arrange there, a chip drag) win over these.
+ */
+export function defaultSimplifiedPositions(
+  config: GraphWorkflowConfig,
+  options: LayoutGraphOptions = {},
+): ReadonlyMap<string, { x: number; y: number }> {
+  return placeSimplifiedBoxes(config, options).placed;
+}
+
+/**
+ * Lay out what the simplified view renders — one box per chip and per
+ * ungrouped node, wired by the projection's edges. Shared by the arrange that
+ * saves (`layoutGraphSimplified`) and the default that does not
+ * (`defaultSimplifiedPositions`), so the two always agree.
+ */
+function placeSimplifiedBoxes(
+  config: GraphWorkflowConfig,
+  options: LayoutGraphOptions,
+): {
+  projected: ReturnType<typeof projectGroupedConfig>;
+  placed: Map<string, { x: number; y: number }>;
+} {
   const projected = projectGroupedConfig(config);
 
   const boxes: LayoutBox[] = projected.visibleNodes.map((node) => ({
@@ -385,36 +449,7 @@ export function layoutGraphSimplified(
     options,
   );
 
-  // W-1 — write ONLY the simplified view's own geometry. `placed` holds a
-  // position for each visible box and for nothing else: grouped members were
-  // never registered, so their `metadata.position` cannot be touched here even
-  // by accident, and the expanded canvas survives an arrange in this view.
-  const nextNodes: Record<string, GraphNode> = {};
-  for (const [nodeId, node] of Object.entries(config.nodes)) {
-    const simplifiedPosition = placed.get(nodeId);
-    nextNodes[nodeId] = simplifiedPosition
-      ? ({
-          ...node,
-          metadata: { ...(node.metadata ?? {}), simplifiedPosition },
-        } as GraphNode)
-      : node;
-  }
-
-  // Each chip's placement lands on its group, which is where the simplified
-  // view reads it back from (`projectGroupedConfig`).
-  const nextGroups: Record<string, NodeGroup> = {
-    ...(config.nodeGroups ?? {}),
-  };
-  for (const chip of projected.chips) {
-    const position = placed.get(chip.id);
-    const group = nextGroups[chip.groupId];
-    if (!position || !group) continue;
-    nextGroups[chip.groupId] = { ...group, position };
-  }
-
-  return projected.chips.length > 0
-    ? { ...config, nodes: nextNodes, nodeGroups: nextGroups }
-    : { ...config, nodes: nextNodes };
+  return { projected, placed };
 }
 
 /**

@@ -353,6 +353,26 @@ describe("projectGroupedConfig — chip placement (W-1)", () => {
     expect(result.chips[0].position).toEqual({ x: 100, y: 50 });
   });
 
+  it("takes the default placement it is given when the group has no position", () => {
+    const result = projectGroupedConfig(
+      fixture({ label: "G1", nodeIds: ["a", "b"] }),
+      new Map([[chipIdForGroup("g1"), { x: 5, y: 6 }]]),
+    );
+    expect(result.chips[0].position).toEqual({ x: 5, y: 6 });
+  });
+
+  it("keeps the group's stored position over a default placement", () => {
+    const result = projectGroupedConfig(
+      fixture({
+        label: "G1",
+        nodeIds: ["a", "b"],
+        position: { x: 900, y: -50 },
+      }),
+      new Map([[chipIdForGroup("g1"), { x: 5, y: 6 }]]),
+    );
+    expect(result.chips[0].position).toEqual({ x: 900, y: -50 });
+  });
+
   it("does not alias the stored position — moving the chip cannot mutate the config", () => {
     const config = fixture({
       label: "G1",
@@ -382,5 +402,23 @@ describe("readSimplifiedNodePosition — W-1", () => {
     expect(readSimplifiedNodePosition(makeActivity("a"))).toEqual(
       readNodePosition(makeActivity("a")),
     );
+  });
+
+  it("takes the default placement it is given over the expanded position", () => {
+    expect(
+      readSimplifiedNodePosition(makeActivity("a", { x: 1, y: 2 }), {
+        x: 30,
+        y: 40,
+      }),
+    ).toEqual({ x: 30, y: 40 });
+  });
+
+  it("keeps the simplified position over a default placement", () => {
+    const node = makeActivity("a", { x: 1, y: 2 });
+    node.metadata = { ...node.metadata, simplifiedPosition: { x: 7, y: 8 } };
+    expect(readSimplifiedNodePosition(node, { x: 30, y: 40 })).toEqual({
+      x: 7,
+      y: 8,
+    });
   });
 });
