@@ -50,6 +50,7 @@ import {
   producerCtxKey,
   resolveCtxKeyToProducer,
 } from "./condition-producer-binding";
+import { describeCondition } from "./condition-sentence";
 import { operatorSelectData } from "./operator-labels";
 import { VariablePicker } from "./VariablePicker";
 
@@ -123,6 +124,14 @@ export interface ConditionExpressionEditorProps {
   depth?: number;
   /** Test-id prefix used on key inputs for stable selectors in tests. */
   "data-testid"?: string;
+  /**
+   * The words a panel puts before the condition — "Polling stops when",
+   * "This case matches when". When given, the editor opens with the whole
+   * condition as one sentence ("Polling stops when Poll OCR Results → Poll
+   * status is not equal to "running"."), kept in step with every edit.
+   * Nested operand editors are not given one.
+   */
+  sentencePrefix?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +292,7 @@ export function ConditionExpressionEditor({
   currentNodeId,
   depth = 0,
   "data-testid": testId,
+  sentencePrefix,
 }: ConditionExpressionEditorProps) {
   const current: ConditionExpression =
     value ?? makeDefaultForKind("comparison", undefined);
@@ -310,6 +320,14 @@ export function ConditionExpressionEditor({
           : undefined
       }
     >
+      {sentencePrefix !== undefined && (
+        <Text
+          size="xs"
+          data-testid={`${testId ?? "condition-expression-editor"}-sentence`}
+        >
+          {sentencePrefix} {describeCondition(current, config, currentNodeId)}.
+        </Text>
+      )}
       <Select
         label={depth === 0 ? "Expression type" : undefined}
         size="xs"
@@ -449,10 +467,24 @@ function ComparisonBody({
   currentNodeId,
   testId,
 }: ComparisonBodyProps) {
+  // Reading order — the value, how it is compared, what it is compared with —
+  // so the fields read as the sentence they make. The two sides are named for
+  // their role: "Left" and "Right" read as a card's inputs and outputs, which
+  // sit on the left and right of every card on the canvas. "How to compare"
+  // rather than "Comparison", which is already the expression type's name.
   return (
     <Stack gap="xs" data-testid={`${testId}-body-comparison`}>
+      <ValueRefEditor
+        label="Value to check"
+        value={expr.left}
+        onChange={(left) => onChange({ ...expr, left })}
+        config={config}
+        onCreateCtxKey={onCreateCtxKey}
+        currentNodeId={currentNodeId}
+        testId={`${testId}-left`}
+      />
       <Select
-        label="Operator"
+        label="How to compare"
         size="xs"
         value={expr.operator}
         allowDeselect={false}
@@ -467,16 +499,7 @@ function ComparisonBody({
         }}
       />
       <ValueRefEditor
-        label="Left"
-        value={expr.left}
-        onChange={(left) => onChange({ ...expr, left })}
-        config={config}
-        onCreateCtxKey={onCreateCtxKey}
-        currentNodeId={currentNodeId}
-        testId={`${testId}-left`}
-      />
-      <ValueRefEditor
-        label="Right"
+        label="Compare with"
         value={expr.right}
         onChange={(right) => onChange({ ...expr, right })}
         config={config}

@@ -77,3 +77,12 @@ export function operatorSelectData<T extends PickableOperator>(
 ): { value: T; label: string }[] {
   return operators.map((op) => ({ value: op, label: OPERATOR_LABELS[op] }));
 }
+
+/**
+ * An operator's words inside a sentence: its dropdown label without the
+ * trailing symbol ("is not equal to (≠)" → "is not equal to"), so a condition
+ * written out in words uses the same vocabulary as the dropdown.
+ */
+export function operatorPhrase(operator: PickableOperator): string {
+  return OPERATOR_LABELS[operator].replace(/ \([^)]*\)$/, "");
+}
