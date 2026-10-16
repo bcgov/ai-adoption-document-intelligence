@@ -506,7 +506,14 @@ export function CodePane({
 
   return (
     <Stack gap="xs" h="100%" data-testid="code-pane">
+      {/* `nokey` tells React Flow that keys pressed in here are not for the
+          canvas. The editor also opens over the builder canvas, and React Flow
+          claims Space (it pans while Space is held) from anything it doesn't
+          recognise as a text field. In Chromium, Monaco takes typing on a
+          plain `div` through the EditContext API, so without this every space
+          typed into the editor would be swallowed. */}
       <Box
+        className="nokey"
         data-testid="code-pane-editor"
         style={{
           border: "1px solid var(--mantine-color-default-border)",
