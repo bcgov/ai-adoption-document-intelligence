@@ -118,6 +118,7 @@
       "label": "Extract Each Document Segment",
       "collectionCtxKey": "classifiedSegments",
       "itemCtxKey": "currentSegment",
+      "maxConcurrency": 10,
       "bodyEntryNodeId": "extractSegment",
       "bodyExitNodeId": "extractSegment"
     },
