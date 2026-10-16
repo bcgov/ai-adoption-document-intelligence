@@ -12,7 +12,9 @@
  * from the Upload page or the documents API does. The real `graphWorkflow`
  * executes the shipped template, and the real Prepare File activity runs
  * against a small file on disk; everything that would reach Azure or the
- * database is faked.
+ * database is faked. Like every run, it carries a group, and the file sits in
+ * that group's benchmark cache: the one place on the worker's disk a run may
+ * read a local file from.
  */
 
 import * as fs from "node:fs";
@@ -41,6 +43,8 @@ const TEMPLATE_PATH = path.resolve(
 const RUN_MODEL = "custom-invoice-model-v2";
 /** What the Azure activities fall back to when they are given no model. */
 const AZURE_DEFAULT_MODEL = "prebuilt-layout";
+/** The group the run belongs to (a cuid, as group ids are). */
+const GROUP_ID = "clh7z2xk00000356u8e3h1234";
 
 type AzureStep = "submit" | "poll" | "extract";
 
@@ -103,6 +107,7 @@ describe("standard OCR template: one model from submit to extract", () => {
   let testEnv: TestWorkflowEnvironment;
   let tempDir: string;
   let samplePdf: string;
+  const originalCacheDir = process.env.BENCHMARK_CACHE_DIR;
 
   jest.setTimeout(60_000);
 
@@ -111,11 +116,19 @@ describe("standard OCR template: one model from submit to extract", () => {
     // cold cache can take well over a minute.
     testEnv = await TestWorkflowEnvironment.createLocal();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "standard-ocr-model-"));
-    samplePdf = path.join(tempDir, "sample.pdf");
+    process.env.BENCHMARK_CACHE_DIR = tempDir;
+    const groupCacheDir = path.join(tempDir, GROUP_ID);
+    fs.mkdirSync(groupCacheDir);
+    samplePdf = path.join(groupCacheDir, "sample.pdf");
     fs.writeFileSync(samplePdf, "%PDF-1.4\n%%EOF\n");
   }, 180_000);
 
   afterAll(async () => {
+    if (originalCacheDir === undefined) {
+      delete process.env.BENCHMARK_CACHE_DIR;
+    } else {
+      process.env.BENCHMARK_CACHE_DIR = originalCacheDir;
+    }
     if (testEnv) await testEnv.teardown();
     if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -131,6 +144,7 @@ describe("standard OCR template: one model from submit to extract", () => {
       configHash: computeConfigHash(graph),
       runnerVersion: "1.0.0",
       trigger: "api",
+      groupId: GROUP_ID,
       initialCtx: {
         documentId: "doc-1",
         blobKey: samplePdf,
