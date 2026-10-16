@@ -681,3 +681,34 @@ describe("SwitchNodeSettings — Scenario 5: defaultEdge EdgePicker is scoped to
     expect(updated.defaultEdge).toBe("e1");
   });
 });
+
+describe("SwitchNodeSettings — each case reads as a sentence", () => {
+  it("says when the case matches", () => {
+    const node = switchNode("sw1", "Needs review?", [
+      {
+        condition: {
+          operator: "equals",
+          left: { ref: "ctx.requiresReview" },
+          right: { literal: true },
+        },
+        edgeId: "e1",
+      },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Human Review")],
+      [edge("e1", "sw1", "n2", "conditional")],
+    );
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "This case matches when requiresReview is equal to true.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

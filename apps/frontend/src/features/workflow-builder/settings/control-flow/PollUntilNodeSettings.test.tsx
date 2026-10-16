@@ -533,3 +533,34 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
     }
   });
 });
+
+describe("PollUntilNodeSettings — the termination condition reads as a sentence", () => {
+  it("says when polling stops, naming the step output it reads", () => {
+    const node = pollUntilNode("pollOcrResults", "Poll OCR Results", {
+      activityType: "azureOcr.poll",
+      outputs: [{ port: "status", ctxKey: "ocrStatus" }],
+      condition: {
+        operator: "not-equals",
+        left: { ref: "ctx.ocrStatus" },
+        right: { literal: "running" },
+      },
+    });
+    renderSettings(
+      <PollUntilNodeSettings
+        node={node}
+        config={makeConfig([node])}
+        onConfigChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Polling stops when Poll OCR Results → Poll status is not equal to "running".',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Polling stops when this condition evaluates to true.",
+      ),
+    ).toBeNull();
+  });
+});

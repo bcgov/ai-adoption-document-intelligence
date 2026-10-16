@@ -299,15 +299,13 @@ export function PollUntilNodeSettings({
         <Title order={5} mb="xs">
           Termination condition
         </Title>
-        <Text size="10px" c="dimmed" mb="xs">
-          Polling stops when this condition evaluates to true.
-        </Text>
         <ConditionExpressionEditor
           value={node.condition}
           onChange={setCondition}
           config={config}
           onCreateCtxKey={createCtxKey}
           currentNodeId={node.id}
+          sentencePrefix="Polling stops when"
           data-testid="poll-until-node-settings-condition"
         />
       </Box>
