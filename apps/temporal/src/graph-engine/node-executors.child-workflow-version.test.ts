@@ -135,11 +135,18 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
       version: 3,
     });
 
-    await executeNode(node, parentGraphConfig as never, makeState());
+    await executeNode(
+      node,
+      parentGraphConfig as never,
+      makeState({ groupId: "group-1" }),
+    );
 
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledTimes(1);
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledWith({
       workflowId: "lineage-abc",
+      // The library child is looked up only within the running workflow's
+      // group, pinned version included.
+      groupId: "group-1",
       version: 3,
       // G-019: the calling node id rides along so a missing library child
       // fails with the offending step named.
@@ -171,11 +178,16 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
 
     const node = makeLibraryChildNode({ workflowId: "lineage-abc" });
 
-    await executeNode(node, parentGraphConfig as never, makeState());
+    await executeNode(
+      node,
+      parentGraphConfig as never,
+      makeState({ groupId: "group-1" }),
+    );
 
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledTimes(1);
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledWith({
       workflowId: "lineage-abc",
+      groupId: "group-1",
       version: undefined,
       parentNodeId: "child-node",
     });
