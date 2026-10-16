@@ -16,6 +16,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -177,7 +178,11 @@ export class TemplateModelController {
 
   @Delete(":id")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Delete template model and all associated data" })
+  @ApiOperation({
+    summary: "Delete template model and all associated data",
+    description:
+      "Deletes the template model with its trained versions and training jobs, then deletes its trained models from Azure (best effort; a failure is logged). The active version is deleted too, so a workflow or integration that names one of these models stops working.",
+  })
   @ApiParam({ name: "id", description: "Template Model ID" })
   @ApiOkResponse({
     description: "Template model deleted successfully",
@@ -185,6 +190,11 @@ export class TemplateModelController {
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
+  @ApiConflictResponse({
+    description:
+      "A training job is in progress for the template, or a benchmark definition names one of its trained versions",
+  })
   async deleteTemplateModel(@Param("id") id: string, @Req() req: Request) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [

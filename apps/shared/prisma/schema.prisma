@@ -330,6 +330,22 @@ model TrainingJob {
   @@map("training_jobs")
 }
 
+/// The group an Azure Document Intelligence model id belongs to on the resource
+/// every group shares. Written when a training starts, and kept when the
+/// template, its trained models or its training jobs are deleted, because the
+/// model can outlive them in Azure (a deleted template's models, or a build
+/// that finishes after its training was cancelled). No foreign key, for the
+/// same reason.
+model ModelOwner {
+  /// Azure model id, lowercase like every id the app mints.
+  model_id   String   @id
+  group_id   String
+  created_at DateTime @default(now())
+
+  @@index([group_id])
+  @@map("model_owners")
+}
+
 model TrainedModel {
   id                String        @id @default(cuid())
   template_model_id String

@@ -731,6 +731,8 @@ All endpoints are protected by `@nestjs/throttler` with a default global rate li
 | `/api/auth/me` | GET | 100 requests (global default) | 1 minute | (uses global) |
 | API key failed attempts | Any `@Identity({ allowApiKey: true })` route | 20 failures per IP | 1 minute | `API_KEY_MAX_FAILED_ATTEMPTS`, `API_KEY_FAILED_WINDOW_MS` |
 
+**Which IP the limits count.** Requests reach the backend through the OpenShift router, and browser requests to `/api` also pass through the frontend's nginx. The backend trusts `X-Forwarded-For` entries added by loopback, link-local and private (cluster-internal) addresses (`TRUST_PROXY` in `apps/backend-services/src/trust-proxy.ts`), so the IP every limit above counts is the caller's own public address, on either route. A caller that comes through the router cannot choose it by sending its own `X-Forwarded-For`, because the router appends the address the connection came from after anything the caller sent.
+
 **Why strict limits on auth endpoints?**
 - `/api/auth/refresh` is the most sensitive — it can generate unlimited CSRF tokens and probe for valid refresh tokens. Limited to 5/minute by default.
 - `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` are rate-limited to 10/minute by default to prevent login flood attacks and authorization code brute-forcing.

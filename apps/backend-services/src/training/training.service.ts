@@ -28,6 +28,7 @@ import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service"
 import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
 import { UsageEventService } from "@/billing/usage-event.service";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
+import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
 import {
@@ -98,6 +99,7 @@ export class TrainingService {
     private readonly rateVersionSeeder: RateVersionSeederService,
     private readonly preflightCapCheck: PreflightCapCheckService,
     private readonly usageEventService: UsageEventService,
+    private readonly prismaService: PrismaService,
   ) {
     this.diMode = resolveDocumentIntelligenceMode(
       this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
@@ -329,6 +331,7 @@ export class TrainingService {
       await this.trainingDb.isModelIdUsedByAnotherTemplate(
         versionedModelId,
         templateModelId,
+        templateModel.group_id,
       )
     ) {
       throw new ConflictException(
@@ -379,14 +382,33 @@ export class TrainingService {
       );
     }
 
-    const trainingJob = await this.trainingDb.createTrainingJob({
-      template_model_id: templateModelId,
-      status: TrainingStatus.PENDING,
-      container_name: containerName,
-      target_model_id: versionedModelId,
-      target_version: nextVersion,
-      build_mode: buildMode,
-      max_training_hours: maxTrainingHours,
+    // The owner record keeps the id this group's after the template and its
+    // rows are deleted, since the model can outlive them in Azure. Claiming it
+    // in the transaction that creates the job refuses an id another group took
+    // after the check above.
+    const trainingJob = await this.prismaService.transaction(async (tx) => {
+      const ownerGroupId = await this.trainingDb.claimModelId(
+        versionedModelId,
+        templateModel.group_id,
+        tx,
+      );
+      if (ownerGroupId !== templateModel.group_id) {
+        throw new ConflictException(
+          "This template cannot train a new version: its next model id is already in use.",
+        );
+      }
+      return this.trainingDb.createTrainingJob(
+        {
+          template_model_id: templateModelId,
+          status: TrainingStatus.PENDING,
+          container_name: containerName,
+          target_model_id: versionedModelId,
+          target_version: nextVersion,
+          build_mode: buildMode,
+          max_training_hours: maxTrainingHours,
+        },
+        tx,
+      );
     });
 
     // Start async upload and training process
@@ -786,9 +808,10 @@ export class TrainingService {
   }
 
   /**
-   * Whether a model id belongs to a group other than `groupId`, as a trained
-   * model or the target of an in-flight training job. Prebuilt models and
-   * other engines' models belong to no group.
+   * Whether a model id belongs to a group other than `groupId`: its owner
+   * record names that group, which keeps it after the template is deleted, or
+   * that group's template models trained it or are training it. Prebuilt
+   * models and other engines' models belong to no group.
    *
    * @param modelId - The model id to look up.
    * @param groupId - The group that wants to use the model.

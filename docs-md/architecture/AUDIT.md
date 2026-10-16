@@ -193,7 +193,7 @@ Recorded by `TablesService`. Row-level events use `resource_type: "table_row"`; 
 |------------|------|---------------|-------------|-----------------|
 | `template_model_created` | Template model created | template_model | model.id | name, model_id |
 | `template_model_updated` | Template model metadata updated | template_model | model.id | — |
-| `template_model_deleted` | Template model deleted | template_model | model.id | name |
+| `template_model_deleted` | Template model deleted | template_model | model.id | name, azure_model_ids |
 | `template_model_field_created` | Field added to schema | template_model | model.id | field_id, field_key |
 | `template_model_field_updated` | Field definition updated | template_model | model.id | field_id |
 | `template_model_field_deleted` | Field removed from schema | template_model | model.id | field_id |

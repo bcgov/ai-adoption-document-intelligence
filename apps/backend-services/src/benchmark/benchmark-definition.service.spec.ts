@@ -275,6 +275,9 @@ describe("BenchmarkDefinitionService", () => {
         ...mockWorkflowVersion,
         config: {
           ...mockWorkflowVersion.config,
+          ctx: {
+            modelId: { type: "string", defaultValue: "prebuilt-layout" },
+          },
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",
@@ -366,6 +369,9 @@ describe("BenchmarkDefinitionService", () => {
         ...mockWorkflowVersion,
         config: {
           ...mockWorkflowVersion.config,
+          ctx: {
+            modelId: { type: "string", defaultValue: "prebuilt-layout" },
+          },
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",

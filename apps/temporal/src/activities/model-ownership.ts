@@ -14,8 +14,10 @@ const IN_FLIGHT_TRAINING_STATUSES = [
  * Refuses an Azure Document Intelligence model that belongs to another group.
  *
  * Every group's trained models share one Azure resource. A model id belongs to
- * a group when one of the group's template models trained it, or has a
- * training job in flight that will produce it. Ids are compared without case:
+ * a group when its owner record names the group, one of the group's template
+ * models trained it, or has a training job in flight that will produce it. The
+ * owner record still holds after the template and its rows are deleted, since
+ * the model can remain in Azure. Ids are compared without case:
  * every stored model id is lowercase, so the lowercased id is looked up
  * exactly, and `_` or `%` in an id never match other characters the way a
  * pattern match would. Any other id, such as an Azure prebuilt model, is not
@@ -33,7 +35,11 @@ export async function assertModelUsableByGroup(
   const prisma = getPrismaClient();
   const sameId = modelId.toLowerCase();
   const otherGroup = { group_id: { not: groupId } };
-  const [trainedModel, trainingJob] = await Promise.all([
+  const [owner, trainedModel, trainingJob] = await Promise.all([
+    prisma.modelOwner.findFirst({
+      where: { model_id: sameId, ...otherGroup },
+      select: { model_id: true },
+    }),
     prisma.trainedModel.findFirst({
       where: { model_id: sameId, template_model: otherGroup },
       select: { id: true },
@@ -47,7 +53,7 @@ export async function assertModelUsableByGroup(
       select: { id: true },
     }),
   ]);
-  if (trainedModel || trainingJob) {
+  if (owner || trainedModel || trainingJob) {
     throw groupScopeViolation(`Model not found: ${modelId}`);
   }
 }

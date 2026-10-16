@@ -144,6 +144,8 @@ describe("ReviewQueuePage workflow filter", () => {
   });
 
   it("stops filtering by a workflow the active group's list no longer contains", async () => {
+    // Every tab and its count come from its own query.
+    const statuses = ["pending", "claimed", "reviewed", "flagged"];
     workflows = [{ id: "lineage-1", name: "Invoices" }];
     const { rerender } = render(page());
 
@@ -152,12 +154,16 @@ describe("ReviewQueuePage workflow filter", () => {
     fireEvent.change(workflowInput, { target: { value: "Invoices" } });
     await waitFor(() => screen.getByText("Invoices"));
     fireEvent.click(screen.getByText("Invoices"));
-    expect(lastFilters.pending.workflowId).toBe("lineage-1");
+    for (const status of statuses) {
+      expect(lastFilters[status].workflowId).toBe("lineage-1");
+    }
 
     // Switching groups swaps the workflow list.
     workflows = [{ id: "lineage-2", name: "Receipts" }];
     rerender(page());
 
-    expect(lastFilters.pending.workflowId).toBeUndefined();
+    for (const status of statuses) {
+      expect(lastFilters[status].workflowId).toBeUndefined();
+    }
   });
 });

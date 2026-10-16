@@ -1459,12 +1459,29 @@ describe("graph-schema-validator", () => {
       "nodes.a.parameters.nested.key",
       "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
       "nodes.a.timeout.startToClose",
-      "ctx.modelId.defaultValue",
+      "ctx.result.defaultValue",
     ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
       const result = validateGraphConfig(withExposedPath(path));
 
       expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
+    });
+
+    it("warns about an exposed ctx path whose key the workflow does not declare", () => {
+      const result = validateGraphConfig(
+        withExposedPath("ctx.modelID.defaultValue"),
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          severity: "warning",
+          message: expect.stringContaining(
+            'ctx key "modelID", which the workflow does not declare',
+          ),
+        }),
+      ]);
     });
 
     /** The linear graph followed by a pollUntil node and a humanGate node. */
@@ -1526,6 +1543,67 @@ describe("graph-schema-validator", () => {
           message: expect.stringContaining(hint),
         }),
       );
+    });
+
+    /** The linear graph followed by a switch node, which has no timeout. */
+    function withSwitchNodeAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.requiresReview = { type: "boolean" };
+      config.nodes.route = {
+        id: "route",
+        type: "switch",
+        label: "Route",
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.requiresReview" },
+              right: { literal: true },
+            },
+            edgeId: "e-review",
+          },
+        ],
+        defaultEdge: "e-done",
+      };
+      config.nodes.review = {
+        id: "review",
+        type: "activity",
+        label: "Review",
+        activityType: "document.updateStatus",
+      };
+      config.nodes.done = {
+        id: "done",
+        type: "activity",
+        label: "Done",
+        activityType: "document.updateStatus",
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "route", type: "normal" },
+        {
+          id: "e-review",
+          source: "route",
+          target: "review",
+          type: "conditional",
+        },
+        { id: "e-done", source: "route", target: "done", type: "conditional" },
+      );
+      return config;
+    }
+
+    it("refuses a timeout path on a node type that has no timeout", () => {
+      const result = validateGraphConfig(
+        withSwitchNodeAndExposedPath("nodes.route.timeout"),
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(
+            "sets a timeout, which a switch node does not have",
+          ),
+        }),
+      ]);
     });
 
     it("config without nodeGroups passes validation", () => {
