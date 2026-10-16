@@ -9,7 +9,7 @@
  *   - join          → empty sourceMapNodeId, strategy: "all"
  *   - childWorkflow → workflowRef: { type: "library", workflowId: "" }
  *   - pollUntil     → empty activityType, interval: "30s"
- *   - humanGate     → signal.name: "humanApproval", timeout: "1h", onTimeout: "fail"
+ *   - humanGate     → signal.name: "humanApproval", no timeout, onTimeout: "fail"
  *
  * Position metadata is intentionally NOT set here — the host
  * (`WorkflowEditorV2Page.addControlFlowNode`) injects the same
@@ -155,7 +155,8 @@ function buildHumanGateSkeleton(id: string): HumanGateNode {
     // freshly dropped gate is resumable by default. An empty name would save
     // clean and produce a gate nothing could ever open.
     signal: { name: "humanApproval" },
-    timeout: "1h",
+    // No timeout: a review waits until someone acts on it, however long
+    // that takes. `onTimeout` only applies once the author sets a timeout.
     onTimeout: "fail",
   };
 }
