@@ -16,7 +16,10 @@ describe("CreateVersionDto", () => {
     "../other/manifest.json",
     "manifests/../../manifest.json",
     "manifests/..",
-  ])("rejects a manifestPath outside the dataset: %s", (manifestPath) => {
+    "a\n/../../manifest.json",
+    "a\r/../manifest.json",
+    "a /../manifest.json",
+  ])("rejects a manifestPath outside the dataset: %j", (manifestPath) => {
     const dto = plainToInstance(CreateVersionDto, { manifestPath });
     const errors = validateSync(dto);
     expect(errors).toHaveLength(1);

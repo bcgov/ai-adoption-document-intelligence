@@ -56,7 +56,8 @@ export class ApiKeyDbService {
   }
 
   /**
-   * Finds all API keys matching a given key prefix.
+   * Finds the API keys matching a given key prefix, among the keys of groups
+   * that are not deleted. A deleted group's keys no longer authenticate.
    * @param prefix - The key prefix to match.
    * @param tx - Optional transaction client.
    * @returns An array of matching ApiKey records.
@@ -66,7 +67,9 @@ export class ApiKeyDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey[]> {
     const client = tx ?? this.prisma;
-    return client.apiKey.findMany({ where: { key_prefix: prefix } });
+    return client.apiKey.findMany({
+      where: { key_prefix: prefix, group: { deleted_at: null } },
+    });
   }
 
   /**

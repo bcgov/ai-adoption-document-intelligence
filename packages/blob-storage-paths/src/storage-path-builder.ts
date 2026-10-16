@@ -20,6 +20,17 @@ const assertNoDotSegments = (value: string): void => {
   }
 }
 
+/**
+ * Throws if `value` contains a backslash. Azure Blob Storage treats `\` as `/`
+ * in blob names, so a backslash would act as a separator that the dot-segment
+ * check above does not see.
+ */
+const assertNoBackslash = (value: string): void => {
+  if (value.includes("\\")) {
+    throw new Error("Blob storage path must not contain a backslash")
+  }
+}
+
 const buildPrefix = (prefixComponents: string[]): string => {
   for (const component of prefixComponents) {
     assertNoDotSegments(component);
@@ -47,6 +58,7 @@ const buildPrefix = (prefixComponents: string[]): string => {
  */
 export const buildBlobFilePath = (groupId: string, category: OperationCategory, prefixComponents: string[], fileName: string): BlobFilePath => {
   assertNoDotSegments(fileName);
+  assertNoBackslash(fileName);
   // Combine elements for final storage path
   return path.posix.join(...[buildBlobPrefixPath(groupId, category, prefixComponents), fileName]) as BlobFilePath;
 }
@@ -84,7 +96,7 @@ export const buildBlobPrefixPath = (groupId: string, category: OperationCategory
 /**
  * Casts an arbitrary string to a `BlobFilePath` after validating its structure.
  * Throws if the path does not start with a valid CUID group ID and a known category,
- * or if any segment is `.` or `..`.
+ * if any segment is `.` or `..`, or if it contains a backslash.
  *
  * @param blobPath - The raw path string to validate.
  * @returns A branded `BlobFilePath`.
@@ -129,7 +141,7 @@ export const validateBlobPrefixPathInGroup = (blobPath: string, groupId: string)
 /**
  * Casts an arbitrary string to a `BlobPrefixPath` after validating its structure.
  * Throws if the path does not start with a valid CUID group ID and a known category,
- * or if any segment is `.` or `..`.
+ * if any segment is `.` or `..`, or if it contains a backslash.
  *
  * @param blobPath - The raw path string to validate.
  * @returns A branded `BlobPrefixPath`.
@@ -146,6 +158,7 @@ export const validateBlobPrefixPath = (blobPath: string): BlobPrefixPath => {
     throw new Error(`Category ${category} in blob file path not a valid category`)
   }
   assertNoDotSegments(blobPath);
+  assertNoBackslash(blobPath);
   return blobPath as BlobPrefixPath;
 }
 
@@ -158,7 +171,7 @@ export const validateBlobPrefixPath = (blobPath: string): BlobPrefixPath => {
  * @param value - The value to check.
  * @returns `true` if the value matches CUID format.
  */
-const isCuid = (value: string): boolean => {
+export const isCuid = (value: string): boolean => {
   if (value.length < 2) return false;
   return /^[a-z][0-9a-z]+$/.test(value);
 }

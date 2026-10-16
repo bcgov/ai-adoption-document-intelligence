@@ -69,7 +69,7 @@ export class UploadController {
   })
   @ApiNotFoundResponse({
     description:
-      "The workflow was not found in the group, or model_id names a trained model of another group",
+      "The workflow was not found in the group, or model_id names a model another group trained or is training",
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
@@ -135,15 +135,16 @@ export class UploadController {
         );
       }
 
-      // A trained (custom) model belongs to its template model's group; another
-      // group's trained model reads as not found. Azure prebuilt models and
-      // ids that are not trained models (other engines) are not group-owned.
-      if (!modelId.startsWith("prebuilt-")) {
-        const modelGroupId =
-          await this.trainingService.findTrainedModelGroupId(modelId);
-        if (modelGroupId !== null && modelGroupId !== groupId) {
-          throw new NotFoundException(`Model not found: ${modelId}`);
-        }
+      // A trained (custom) model, or one being trained, belongs to its template
+      // model's group; another group's reads as not found. Azure prebuilt
+      // models and other engines' models are not group-owned.
+      if (
+        await this.trainingService.isModelIdOwnedByAnotherGroup(
+          modelId,
+          groupId,
+        )
+      ) {
+        throw new NotFoundException(`Model not found: ${modelId}`);
       }
 
       this.logger.debug(

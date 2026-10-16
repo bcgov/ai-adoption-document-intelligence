@@ -30,6 +30,9 @@ describe("TrainingDbService", () => {
     labeledDocument: {
       findMany: jest.Mock;
     };
+    templateModel: {
+      findFirst: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -87,6 +90,9 @@ describe("TrainingDbService", () => {
       },
       labeledDocument: {
         findMany: jest.fn(),
+      },
+      templateModel: {
+        findFirst: jest.fn(),
       },
       $transaction: jest.fn(),
     };
@@ -354,30 +360,120 @@ describe("TrainingDbService", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // findTrainedModelGroupId
+  // isModelIdUsedByAnotherTemplate
   // ---------------------------------------------------------------------------
 
-  describe("findTrainedModelGroupId", () => {
-    it("returns the group of the template model that owns the trained model id", async () => {
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce({
-        template_model: { group_id: "clh7z2xk00000356u8e3h1234" },
+  describe("isModelIdUsedByAnotherTemplate", () => {
+    beforeEach(() => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
+      mockPrisma.templateModel.findFirst.mockResolvedValue(null);
+      mockPrisma.trainingJob.findFirst.mockResolvedValue(null);
+    });
+
+    it("is false when no other template holds the id", async () => {
+      await expect(
+        service.isModelIdUsedByAnotherTemplate("invoice-v2", "tm-1"),
+      ).resolves.toBe(false);
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: { model_id: "invoice-v2", template_model_id: { not: "tm-1" } },
+        select: { id: true },
       });
-
-      const result = await service.findTrainedModelGroupId("km-invoice-v2");
-
-      expect(result).toBe("clh7z2xk00000356u8e3h1234");
-      expect(mockPrisma.trainedModel.findUnique).toHaveBeenCalledWith({
-        where: { model_id: "km-invoice-v2" },
-        select: { template_model: { select: { group_id: true } } },
+      expect(mockPrisma.templateModel.findFirst).toHaveBeenCalledWith({
+        where: { model_id: "invoice-v2", id: { not: "tm-1" } },
+        select: { id: true },
+      });
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          target_model_id: "invoice-v2",
+          template_model_id: { not: "tm-1" },
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+        },
+        select: { id: true },
       });
     });
 
-    it("returns null when no trained model has the id", async () => {
-      mockPrisma.trainedModel.findUnique.mockResolvedValueOnce(null);
+    it.each([
+      "trainedModel",
+      "templateModel",
+      "trainingJob",
+    ] as const)("is true when another template's %s holds the id", async (table) => {
+      mockPrisma[table].findFirst.mockResolvedValue({ id: "other" });
 
-      const result = await service.findTrainedModelGroupId("prebuilt-layout");
+      await expect(
+        service.isModelIdUsedByAnotherTemplate("invoice-v2", "tm-1"),
+      ).resolves.toBe(true);
+    });
+  });
 
-      expect(result).toBeNull();
+  // ---------------------------------------------------------------------------
+  // isModelIdOwnedByAnotherGroup
+  // ---------------------------------------------------------------------------
+
+  describe("isModelIdOwnedByAnotherGroup", () => {
+    beforeEach(() => {
+      mockPrisma.trainedModel.findFirst.mockResolvedValue(null);
+      mockPrisma.trainingJob.findFirst.mockResolvedValue(null);
+    });
+
+    it("looks the lowercased id up exactly among other groups' trained models and in-flight training jobs", async () => {
+      await expect(
+        service.isModelIdOwnedByAnotherGroup("KM-Invoice-V2", "group-1"),
+      ).resolves.toBe(false);
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith({
+        where: {
+          model_id: "km-invoice-v2",
+          template_model: { group_id: { not: "group-1" } },
+        },
+        select: { id: true },
+      });
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          target_model_id: "km-invoice-v2",
+          status: {
+            in: [
+              TrainingStatus.PENDING,
+              TrainingStatus.UPLOADING,
+              TrainingStatus.UPLOADED,
+              TrainingStatus.TRAINING,
+            ],
+          },
+          template_model: { group_id: { not: "group-1" } },
+        },
+        select: { id: true },
+      });
+    });
+
+    it("compares an id containing _ or % as written, not as a pattern", async () => {
+      await service.isModelIdOwnedByAnotherGroup("Pay_Stub%", "group-1");
+
+      expect(mockPrisma.trainedModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ model_id: "pay_stub%" }),
+        }),
+      );
+      expect(mockPrisma.trainingJob.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ target_model_id: "pay_stub%" }),
+        }),
+      );
+    });
+
+    it.each([
+      "trainedModel",
+      "trainingJob",
+    ] as const)("is true when another group's %s holds the id", async (table) => {
+      mockPrisma[table].findFirst.mockResolvedValue({ id: "other" });
+
+      await expect(
+        service.isModelIdOwnedByAnotherGroup("km-invoice-v2", "group-1"),
+      ).resolves.toBe(true);
     });
   });
 

@@ -814,9 +814,9 @@ These activities are registered in the activity registry and usable in workflow 
 
 ---
 
-# Benchmarking (Advanced — usually hidden)
+# Benchmarking and internal activities (not palette nodes)
 
-These nodes are used by the benchmarking subsystem and don't usually appear in user-built workflows. They should be in a collapsed "Advanced" section of the palette, behind a feature flag or admin-only toggle.
+The `benchmark.*` activities belong to the benchmarking subsystem: the benchmark workflows call them directly. They are in neither the backend registry nor the worker's `REGISTERED_ACTIVITY_TYPES`, so a graph node cannot use them and they do not appear in the palette. `getWorkflowGraphConfig` stays registered: every run loads its own configuration through it, and `childWorkflow` nodes use it to load the child's configuration.
 
 | Display name | Activity ID | One-line description |
 |---|---|---|
@@ -833,8 +833,6 @@ These nodes are used by the benchmarking subsystem and don't usually appear in u
 | Benchmark — Flatten Prediction From Refs | `benchmark.flattenPredictionFromRefs` | Build the flat prediction map from OCR blob references for evaluation |
 | Benchmark — Persist Evaluation Details | `benchmark.persistEvaluationDetails` | Persist per-sample evaluation details for run drill-down |
 | Load Workflow Graph Config | `getWorkflowGraphConfig` | Load workflow configuration from database |
-
-These follow the same general settings-panel pattern as other Activities (input/output pickers, parameters, standard error handling) and don't have unique visual requirements beyond the "advanced" tag.
 
 ---
 
@@ -909,9 +907,6 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 
 📂 Data Transformation
    🔄 Generic Data Transform
-
-📂 Benchmarking (Advanced)
-   … (10 nodes, see table above)
 ```
 
 The icons are placeholders — final iconography is the designer's call. Categories and grouping are based on what the system actually does, not on internal code organization.

@@ -17,9 +17,9 @@ import {
  * Classifier names, labels and folders become blob storage path segments, and
  * a storage path must not contain a dot segment.
  */
-const NO_DOT_SEGMENT_PATTERN = /^(?![\s\S]*(?:^|\/)\.{1,2}(?:\/|$))/;
+export const NO_DOT_SEGMENT_PATTERN = /^(?![\s\S]*(?:^|\/)\.{1,2}(?:\/|$))/;
 
-const NO_DOT_SEGMENT_RULE =
+export const NO_DOT_SEGMENT_RULE =
   "Must not contain a '.' or '..' path segment, because the value becomes part of a blob storage path.";
 
 /** Rejects a value that contains a `.` or `..` path segment. */

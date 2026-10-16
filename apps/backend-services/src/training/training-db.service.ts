@@ -30,6 +30,14 @@ export type TrainingJobWithTemplateModel = TrainingJob & {
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 
+/** Training job statuses that have not reached SUCCEEDED or FAILED. */
+const IN_FLIGHT_TRAINING_STATUSES = [
+  TrainingStatus.PENDING,
+  TrainingStatus.UPLOADING,
+  TrainingStatus.UPLOADED,
+  TrainingStatus.TRAINING,
+];
+
 export interface TrainingJobCreateData {
   template_model_id: string;
   status: TrainingStatus;
@@ -136,14 +144,7 @@ export class TrainingDbService {
     return client.trainingJob.findFirst({
       where: {
         template_model_id: templateModelId,
-        status: {
-          in: [
-            TrainingStatus.PENDING,
-            TrainingStatus.UPLOADING,
-            TrainingStatus.UPLOADED,
-            TrainingStatus.TRAINING,
-          ],
-        },
+        status: { in: IN_FLIGHT_TRAINING_STATUSES },
       },
       orderBy: { started_at: "desc" },
     });
@@ -213,22 +214,78 @@ export class TrainingDbService {
   }
 
   /**
-   * Returns the group that owns a trained model id (through its template
-   * model), including tombstoned versions.
+   * Whether an Azure model id belongs to a template model other than
+   * `templateModelId`: as one of its trained models, as its model_id, or as
+   * the target of one of its in-flight training jobs.
    * @param modelId The Azure model ID.
+   * @param templateModelId The template model that wants to use the id.
    * @param tx Optional transaction client.
-   * @returns The owning group ID, or null when no trained model has this id.
    */
-  async findTrainedModelGroupId(
+  async isModelIdUsedByAnotherTemplate(
     modelId: string,
+    templateModelId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<string | null> {
+  ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    const trainedModel = await client.trainedModel.findUnique({
-      where: { model_id: modelId },
-      select: { template_model: { select: { group_id: true } } },
-    });
-    return trainedModel?.template_model.group_id ?? null;
+    const [trainedModel, templateModel, trainingJob] = await Promise.all([
+      client.trainedModel.findFirst({
+        where: {
+          model_id: modelId,
+          template_model_id: { not: templateModelId },
+        },
+        select: { id: true },
+      }),
+      client.templateModel.findFirst({
+        where: { model_id: modelId, id: { not: templateModelId } },
+        select: { id: true },
+      }),
+      client.trainingJob.findFirst({
+        where: {
+          target_model_id: modelId,
+          template_model_id: { not: templateModelId },
+          status: { in: IN_FLIGHT_TRAINING_STATUSES },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(trainedModel || templateModel || trainingJob);
+  }
+
+  /**
+   * Whether an Azure model id belongs to a group other than `groupId`: one of
+   * that group's template models trained it (tombstoned versions included), or
+   * has a training job in flight that will produce it. Ids are compared without
+   * case: every stored model id is lowercase, so the lowercased id is looked up
+   * exactly, and `_` or `%` in an id never match other characters the way a
+   * pattern match would. An id that is neither, such as an Azure prebuilt
+   * model, belongs to no group.
+   * @param modelId The Azure model ID.
+   * @param groupId The group that wants to use the model.
+   * @param tx Optional transaction client.
+   */
+  async isModelIdOwnedByAnotherGroup(
+    modelId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const sameId = modelId.toLowerCase();
+    const otherGroup = { group_id: { not: groupId } };
+    const [trainedModel, trainingJob] = await Promise.all([
+      client.trainedModel.findFirst({
+        where: { model_id: sameId, template_model: otherGroup },
+        select: { id: true },
+      }),
+      client.trainingJob.findFirst({
+        where: {
+          target_model_id: sameId,
+          status: { in: IN_FLIGHT_TRAINING_STATUSES },
+          template_model: otherGroup,
+        },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(trainedModel || trainingJob);
   }
 
   /**

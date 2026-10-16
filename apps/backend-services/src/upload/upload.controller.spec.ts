@@ -27,7 +27,7 @@ describe("UploadController", () => {
   let queueService: jest.Mocked<QueueService>;
   let workflowService: jest.Mocked<WorkflowService>;
   let trainingService: jest.Mocked<
-    Pick<TrainingService, "findTrainedModelGroupId">
+    Pick<TrainingService, "isModelIdOwnedByAnotherGroup">
   >;
 
   beforeEach(() => {
@@ -45,7 +45,7 @@ describe("UploadController", () => {
       getModelIdDefault: jest.fn().mockResolvedValue(null),
     } as any;
     trainingService = {
-      findTrainedModelGroupId: jest.fn().mockResolvedValue(null),
+      isModelIdOwnedByAnotherGroup: jest.fn().mockResolvedValue(false),
     };
     const mockAuditService = {
       recordEvent: jest.fn().mockResolvedValue(undefined),
@@ -158,7 +158,6 @@ describe("UploadController", () => {
 
     describe("model_id ownership", () => {
       const groupId = "clh7z2xk00000356u8e3h1234";
-      const otherGroupId = "clh7z2xk00000356u8e3h5678";
       const groupReq = {
         resolvedIdentity: {
           ...mockIdentity,
@@ -175,7 +174,7 @@ describe("UploadController", () => {
       });
 
       it("rejects, as not found, a model_id naming a trained model of another group and stores nothing", async () => {
-        trainingService.findTrainedModelGroupId.mockResolvedValue(otherGroupId);
+        trainingService.isModelIdOwnedByAnotherGroup.mockResolvedValue(true);
 
         const promise = controller.uploadDocument(
           { ...groupDto, model_id: "km-invoice-v2" },
@@ -184,15 +183,15 @@ describe("UploadController", () => {
 
         await expect(promise).rejects.toThrow(NotFoundException);
         await expect(promise).rejects.toThrow("Model not found: km-invoice-v2");
-        expect(trainingService.findTrainedModelGroupId).toHaveBeenCalledWith(
-          "km-invoice-v2",
-        );
+        expect(
+          trainingService.isModelIdOwnedByAnotherGroup,
+        ).toHaveBeenCalledWith("km-invoice-v2", groupId);
         expect(documentService.uploadDocument).not.toHaveBeenCalled();
         expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
       });
 
       it("accepts a model_id naming a trained model of the upload's group", async () => {
-        trainingService.findTrainedModelGroupId.mockResolvedValue(groupId);
+        trainingService.isModelIdOwnedByAnotherGroup.mockResolvedValue(false);
 
         const result = await controller.uploadDocument(
           { ...groupDto, model_id: "km-invoice-v2" },
@@ -216,8 +215,8 @@ describe("UploadController", () => {
         "prebuilt-layout",
         "mistral-document-ai-2505",
         "gpt-4o",
-      ])("accepts a model_id that names no trained model: %s", async (modelId) => {
-        trainingService.findTrainedModelGroupId.mockResolvedValue(null);
+      ])("accepts a model_id no other group owns: %s", async (modelId) => {
+        trainingService.isModelIdOwnedByAnotherGroup.mockResolvedValue(false);
 
         const result = await controller.uploadDocument(
           { ...groupDto, model_id: modelId },
@@ -237,16 +236,19 @@ describe("UploadController", () => {
         );
       });
 
-      it("accepts an Azure prebuilt model_id without an ownership lookup", async () => {
-        trainingService.findTrainedModelGroupId.mockResolvedValue(otherGroupId);
+      it("checks a model_id that starts with prebuilt- like any other", async () => {
+        trainingService.isModelIdOwnedByAnotherGroup.mockResolvedValue(true);
 
-        const result = await controller.uploadDocument(
-          { ...groupDto, model_id: "prebuilt-layout" },
-          groupReq,
-        );
-
-        expect(result.success).toBe(true);
-        expect(trainingService.findTrainedModelGroupId).not.toHaveBeenCalled();
+        await expect(
+          controller.uploadDocument(
+            { ...groupDto, model_id: "prebuilt-v2" },
+            groupReq,
+          ),
+        ).rejects.toThrow("Model not found: prebuilt-v2");
+        expect(
+          trainingService.isModelIdOwnedByAnotherGroup,
+        ).toHaveBeenCalledWith("prebuilt-v2", groupId);
+        expect(documentService.uploadDocument).not.toHaveBeenCalled();
       });
 
       it("applies the same rule to the workflow's default model id", async () => {
@@ -255,7 +257,7 @@ describe("UploadController", () => {
           "clh7z2xk00000356u8e3h9999",
         );
         workflowService.getModelIdDefault.mockResolvedValue("km-invoice-v2");
-        trainingService.findTrainedModelGroupId.mockResolvedValue(otherGroupId);
+        trainingService.isModelIdOwnedByAnotherGroup.mockResolvedValue(true);
 
         await expect(
           controller.uploadDocument(dtoWithoutModel, groupReq),

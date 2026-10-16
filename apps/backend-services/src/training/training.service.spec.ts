@@ -55,9 +55,10 @@ describe("TrainingService", () => {
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
-    findTrainedModelGroupId: jest.Mock;
+    isModelIdOwnedByAnotherGroup: jest.Mock;
     findAllTrainedModelIds: jest.Mock;
     getNextVersionNumber: jest.Mock;
+    isModelIdUsedByAnotherTemplate: jest.Mock;
     setActiveTrainedModel: jest.Mock;
     tombstoneTrainedModel: jest.Mock;
     demoteActiveTrainedModels: jest.Mock;
@@ -182,9 +183,10 @@ describe("TrainingService", () => {
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
-      findTrainedModelGroupId: jest.fn(),
+      isModelIdOwnedByAnotherGroup: jest.fn().mockResolvedValue(false),
       findAllTrainedModelIds: jest.fn(),
       getNextVersionNumber: jest.fn().mockResolvedValue(1),
+      isModelIdUsedByAnotherTemplate: jest.fn().mockResolvedValue(false),
       setActiveTrainedModel: jest.fn(),
       tombstoneTrainedModel: jest.fn(),
       demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
@@ -532,6 +534,23 @@ describe("TrainingService", () => {
       expect(result).toHaveProperty("id", "job-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalled();
+    });
+
+    it("refuses to train a version whose model id another template holds", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
+      mockTrainingDb.isModelIdUsedByAnotherTemplate.mockResolvedValueOnce(true);
+
+      await expect(
+        service.startTraining("tm-1", { description: "x" }, "actor-1"),
+      ).rejects.toThrow(ConflictException);
+      expect(
+        mockTrainingDb.isModelIdUsedByAnotherTemplate,
+      ).toHaveBeenCalledWith("custom-model-1-v2", "tm-1");
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+      expect(mockAdminClient.path).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException for invalid training data", async () => {
@@ -1476,17 +1495,16 @@ describe("TrainingService", () => {
     });
   });
 
-  describe("findTrainedModelGroupId", () => {
-    it("returns the owning group from the db service", async () => {
-      mockTrainingDb.findTrainedModelGroupId.mockResolvedValueOnce(
-        "clh7z2xk00000356u8e3h1234",
-      );
+  describe("isModelIdOwnedByAnotherGroup", () => {
+    it("asks the db service whether another group owns the model id", async () => {
+      mockTrainingDb.isModelIdOwnedByAnotherGroup.mockResolvedValueOnce(true);
 
-      const result = await service.findTrainedModelGroupId("km-invoice-v2");
-
-      expect(result).toBe("clh7z2xk00000356u8e3h1234");
-      expect(mockTrainingDb.findTrainedModelGroupId).toHaveBeenCalledWith(
+      await expect(
+        service.isModelIdOwnedByAnotherGroup("km-invoice-v2", "group-1"),
+      ).resolves.toBe(true);
+      expect(mockTrainingDb.isModelIdOwnedByAnotherGroup).toHaveBeenCalledWith(
         "km-invoice-v2",
+        "group-1",
       );
     });
   });

@@ -6,7 +6,7 @@ When creating a benchmark definition, users can override exposed workflow parame
 
 ## How It Works
 
-1. Workflow templates define `exposedParams` in their `nodeGroups`, each with a `path`, `type`, `default`, and optional `options`
+1. Workflow templates define `exposedParams` in their `nodeGroups`, each with a `path`, `type`, `default`, and optional `options`. A path must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`) (see Node Groups → Validation in [GRAPH_TYPES.md](./GRAPH_TYPES.md))
 2. When creating/editing a benchmark definition, users provide a JSON object mapping exposed param paths to override values
 3. Overrides are validated against the workflow's `exposedParams` — unknown paths are rejected, `select`-type values must be in the allowed options
 4. When a run starts, overrides are deep-applied to a copy of the workflow config before it's passed to Temporal
@@ -16,8 +16,8 @@ When creating a benchmark definition, users can override exposed workflow parame
 ## Example
 
 For the standard-ocr-workflow which exposes:
-- `ctx.modelId.defaultValue` (select: prebuilt-layout, prebuilt-read, prebuilt-document)
-- `nodes.checkConfidence.parameters.threshold` (number, default: 0.95)
+- `ctx.modelId.defaultValue` (string)
+- `ctx.confidenceThreshold.defaultValue` (number)
 - `nodes.humanReview.timeout` (duration, no default: without one the gate waits until a reviewer acts)
 
 A definition can override:
@@ -25,7 +25,7 @@ A definition can override:
 ```json
 {
   "ctx.modelId.defaultValue": "prebuilt-read",
-  "nodes.checkConfidence.parameters.threshold": 0.8
+  "ctx.confidenceThreshold.defaultValue": 0.8
 }
 ```
 
@@ -44,7 +44,7 @@ A definition can override:
 
 ## Security
 
-`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`.
+`applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`, and the graph validator limits those paths to node parameters, node timeouts and ctx defaults, so an override cannot change a node's activity type, port bindings or edges. A parameter named after one of the node's input ports replaces the value that port delivers.
 
 ## Known Limitations
 

@@ -1,13 +1,21 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
-import { getGroupBlobStorage } from "./group-blob-storage";
+import { isCuid } from "@ai-di/blob-storage-paths";
+import { groupScopeViolation } from "../group-scope-violation";
+import {
+  getGroupBlobStorage,
+  validateGroupBlobKey,
+} from "./group-blob-storage";
 
 /**
  * Directory where benchmark runs materialise one group's dataset files on the
- * worker: `{BENCHMARK_CACHE_DIR}/{groupId}`.
+ * worker: `{BENCHMARK_CACHE_DIR}/{groupId}`. The group id must be a cuid, so
+ * the directory is always one level below the cache root.
  */
 export function getGroupBenchmarkCacheDir(groupId: string): string {
+  if (!isCuid(groupId)) {
+    throw new Error(`"${groupId}" is not a valid group id`);
+  }
   const cacheBaseDir =
     process.env.BENCHMARK_CACHE_DIR || "/tmp/benchmark-cache";
   return path.join(cacheBaseDir, groupId);
@@ -32,7 +40,7 @@ export async function readGroupBlob(
     const groupCacheDir = path.resolve(getGroupBenchmarkCacheDir(groupId));
     const resolved = path.resolve(key);
     if (!resolved.startsWith(groupCacheDir + path.sep)) {
-      throw new Error(
+      throw groupScopeViolation(
         `Local file is outside the group's benchmark cache: "${key}"`,
       );
     }
@@ -43,7 +51,7 @@ export async function readGroupBlob(
     }
   }
 
-  const blobPath = validateBlobFilePathInGroup(key, groupId);
+  const blobPath = validateGroupBlobKey(key, groupId);
   try {
     return await getGroupBlobStorage(groupId).read(blobPath);
   } catch (error) {

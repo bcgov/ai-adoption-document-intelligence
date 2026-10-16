@@ -77,6 +77,8 @@ Add your `activityType` string to `REGISTERED_ACTIVITY_TYPES`.
 
 This matters because workflow code cannot import worker-only modules directly; it validates with this constants file.
 
+An activity that only workflow code calls, and that no graph node may run, stays out of this list and is registered in the worker's `activity-registry.ts` only. The benchmark orchestration activities (`benchmark.*`) work this way: the benchmark workflows call them by name, and a graph that names one fails validation.
+
 ### Step A4: Add backend save-time validation support
 
 Modify:
@@ -221,14 +223,16 @@ Relevant implementation:
 
 ## 6. Practical gotchas
 
-1. Activity type strings must stay synchronized across:
+1. Activity type strings that graph nodes may use must stay synchronized across:
    - backend `activity-registry.ts`
    - temporal `activity-types.ts`
    - temporal `activity-registry.ts`
 
+   A worker-only activity (see Step A3) is in the temporal `activity-registry.ts` only.
+
 2. Backend may accept/reject at save time differently than runtime if those lists drift.
 
-3. `getWorkflowGraphConfig` is an internal Temporal activity used by child workflow behavior. Do not rely on it as a user-facing graph node unless explicitly intended.
+3. `getWorkflowGraphConfig` is an internal Temporal activity: every run loads its own configuration through it, and `childWorkflow` nodes use it for the child's. Do not rely on it as a user-facing graph node unless explicitly intended.
 
 4. Node-level timeout/retry values in graph config drive execution behavior. Registry defaults are metadata for discoverability/tests unless explicitly wired into execution.
 

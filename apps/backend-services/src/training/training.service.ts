@@ -322,6 +322,20 @@ export class TrainingService {
       await this.trainingDb.getNextVersionNumber(templateModelId);
     const versionedModelId = mintVersionedModelId(baseModelId, nextVersion);
 
+    // Azure model ids are shared by every group, so the next version's id
+    // may already belong to another template (e.g. one named "<name>-v2").
+    // Training under it would fail in Azure, or remove that template's model.
+    if (
+      await this.trainingDb.isModelIdUsedByAnotherTemplate(
+        versionedModelId,
+        templateModelId,
+      )
+    ) {
+      throw new ConflictException(
+        "This template cannot train a new version: its next model id is already in use.",
+      );
+    }
+
     this.logger.log(
       `Starting training v${nextVersion} for template model ${templateModelId} with Azure model ID: ${versionedModelId}`,
     );
@@ -772,14 +786,18 @@ export class TrainingService {
   }
 
   /**
-   * Returns the group that owns a trained model id, or null when the id is
-   * not a trained model (for example a prebuilt model or another engine's model).
+   * Whether a model id belongs to a group other than `groupId`, as a trained
+   * model or the target of an in-flight training job. Prebuilt models and
+   * other engines' models belong to no group.
    *
    * @param modelId - The model id to look up.
-   * @returns The owning group ID, or null.
+   * @param groupId - The group that wants to use the model.
    */
-  async findTrainedModelGroupId(modelId: string): Promise<string | null> {
-    return this.trainingDb.findTrainedModelGroupId(modelId);
+  async isModelIdOwnedByAnotherGroup(
+    modelId: string,
+    groupId: string,
+  ): Promise<boolean> {
+    return this.trainingDb.isModelIdOwnedByAnotherGroup(modelId, groupId);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateGraphConfig } from "./graph-schema-validator";
 import type {
@@ -1252,67 +1252,31 @@ describe("graph-schema-validator", () => {
   });
 
   describe("template validation", () => {
-    it("validates the standard OCR template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+    const templatesDir = join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "docs-md",
+      "workflows",
+      "templates",
+    );
+    const templateFiles = readdirSync(templatesDir).filter((file) =>
+      file.endsWith(".json"),
+    );
+
+    it("finds the shipped templates", () => {
+      expect(templateFiles.length).toBeGreaterThan(0);
     });
 
-    it("validates the multi-page report template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "multi-page-report-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
+    it.each(templateFiles)("validates the shipped template %s", (file) => {
       const template = JSON.parse(
-        templateJson,
+        readFileSync(join(templatesDir, file), "utf8"),
       ) as unknown as GraphWorkflowConfig;
       const result = validateGraphConfig(template);
+      expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it("validates the SDPR operational workflow template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow-sdpr.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -1436,6 +1400,132 @@ describe("graph-schema-validator", () => {
         e.message.includes("non-existent node"),
       );
       expect(error).toBeDefined();
+    });
+
+    function withExposedPath(path: string): GraphWorkflowConfig {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a"],
+          exposedParams: [{ label: "Param", path, type: "string" }],
+        },
+      };
+      return config;
+    }
+
+    it.each([
+      "nodes.a.activityType",
+      "nodes.a.type",
+      "nodes.a",
+      "nodes.a.parameters",
+      "edges",
+      "entryNodeId",
+      "orientationConfidenceThreshold",
+      "ctx.modelId",
+      "nodes.a.timeout.scheduleToClose",
+    ])("refuses an exposed path that is not a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("must be a node parameter"),
+        }),
+      );
+    });
+
+    it.each([
+      "nodes.a.parameters.__proto__",
+      "nodes.a.parameters.rules.0",
+      "nodes.a.parameters.1st",
+      "nodes.a.parameters.two words",
+      "ctx.constructor.defaultValue",
+    ])("refuses an exposed path with a segment an override cannot set: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("a segment an override cannot set"),
+        }),
+      );
+    });
+
+    it.each([
+      "nodes.a.parameters.testParam",
+      "nodes.a.parameters.nested.key",
+      "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
+      "nodes.a.timeout.startToClose",
+      "ctx.modelId.defaultValue",
+    ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
+    /** The linear graph followed by a pollUntil node and a humanGate node. */
+    function withTimeoutNodesAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.status = { type: "string" };
+      config.nodes.poll = {
+        id: "poll",
+        type: "pollUntil",
+        label: "Poll",
+        activityType: "azureOcr.poll",
+        outputs: [{ port: "response", ctxKey: "status" }],
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.status" },
+          right: { literal: "running" },
+        },
+        interval: "10s",
+        maxAttempts: 3,
+        timeout: "5m",
+      };
+      config.nodes.gate = {
+        id: "gate",
+        type: "humanGate",
+        label: "Review",
+        signal: { name: "humanApproval" },
+        timeout: "24h",
+        onTimeout: "fail",
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "poll", type: "normal" },
+        { id: "e4", source: "poll", target: "gate", type: "normal" },
+      );
+      return config;
+    }
+
+    it.each([
+      "nodes.gate.timeout",
+      "nodes.poll.timeout",
+      "nodes.a.timeout.startToClose",
+    ])("accepts a timeout path that fits its node: %s", (path) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
+    it.each([
+      ["nodes.a.timeout", "nodes.a.timeout.startToClose"],
+      ["nodes.gate.timeout.startToClose", "activity timeout"],
+      ["nodes.poll.timeout.startToClose", "activity timeout"],
+    ])("refuses a timeout path that does not fit its node: %s", (path, hint) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(hint),
+        }),
+      );
     });
 
     it("config without nodeGroups passes validation", () => {

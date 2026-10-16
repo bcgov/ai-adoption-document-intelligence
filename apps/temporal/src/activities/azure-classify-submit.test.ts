@@ -1,6 +1,7 @@
 import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/common";
 import { azureClassifySubmit } from "./azure-classify-submit";
 import { getPrismaClient } from "./database-client";
 
@@ -309,6 +310,20 @@ describe("azureClassifySubmit activity", () => {
 
       expect(mockBlobRead).not.toHaveBeenCalled();
       expect(mockPath).not.toHaveBeenCalled();
+    });
+
+    it("refuses another group's blob key with a failure Temporal does not retry", async () => {
+      const failure = await azureClassifySubmit({
+        blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+        groupId: GROUP,
+        classifierName: "my-classifier",
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApplicationFailure);
+      expect((failure as ApplicationFailure).type).toBe(
+        "GROUP_SCOPE_VIOLATION",
+      );
+      expect((failure as ApplicationFailure).nonRetryable).toBe(true);
     });
   });
 });

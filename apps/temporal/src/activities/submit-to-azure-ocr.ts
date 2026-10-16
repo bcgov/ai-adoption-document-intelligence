@@ -6,6 +6,7 @@ import DocumentIntelligence, {
 import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";
+import { assertModelUsableByGroup } from "./model-ownership";
 
 /**
  * Normalize endpoint URL by removing trailing slash.
@@ -61,6 +62,9 @@ export async function submitToAzureOCR(params: {
     useMock,
   });
 
+  const modelId = fileData.modelId || "prebuilt-layout";
+  await assertModelUsableByGroup(modelId, params.groupId);
+
   // Mock mode for testing
   if (useMock) {
     const mockRequestId = `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -96,7 +100,6 @@ export async function submitToAzureOCR(params: {
   }
 
   const normalizedEndpoint = normalizeEndpoint(endpoint);
-  const modelId = fileData.modelId || "prebuilt-layout";
 
   try {
     // Initialize Azure Document Intelligence client (SDK appends /documentintelligence to endpoint)

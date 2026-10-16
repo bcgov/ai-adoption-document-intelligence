@@ -62,7 +62,10 @@ export class TemplateModelService {
    * 5. Trim leading/trailing `-`
    * 6. Truncate to 64 chars
    * 7. Ensure starts with letter/number
-   * 8. On uniqueness collision, append `-2`, `-3`, etc.
+   * 8. Prefix `model-` when it is `prebuilt` or starts with `prebuilt-`, so
+   *    neither the id nor its versions (`-v<n>`) or suffixes (`-<n>`) fall in
+   *    the namespace of Azure's shared prebuilt models
+   * 9. On uniqueness collision, append `-2`, `-3`, etc.
    */
   generateModelIdBase(name: string): string {
     const slug = name
@@ -72,23 +75,26 @@ export class TemplateModelService {
       .filter(Boolean)
       .join("-");
     const trimmed = slug.replace(/^[^a-z0-9]+/, "").slice(0, 64);
+    if (trimmed === "prebuilt" || trimmed.startsWith("prebuilt-")) {
+      return `model-${trimmed}`.slice(0, 64);
+    }
     return trimmed || "model";
   }
 
+  /**
+   * Picks a model_id no other template model or trained model uses or will
+   * use: see `TemplateModelDbService.isModelIdTaken`.
+   */
   async generateUniqueModelId(name: string): Promise<string> {
     const base = this.generateModelIdBase(name);
-    const existing =
-      await this.templateModelDb.findTemplateModelByModelId(base);
-    if (!existing) {
+    if (!(await this.templateModelDb.isModelIdTaken(base))) {
       return base;
     }
 
     let suffix = 2;
     while (suffix <= 1000) {
       const candidate = `${base}-${suffix}`.slice(0, 64);
-      const exists =
-        await this.templateModelDb.findTemplateModelByModelId(candidate);
-      if (!exists) {
+      if (!(await this.templateModelDb.isModelIdTaken(candidate))) {
         return candidate;
       }
       suffix++;

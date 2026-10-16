@@ -73,10 +73,18 @@ beforeEach(() => {
   mockBlobBodies.clear();
   jest
     .spyOn(ocrRefUtils, "resolveOcrResultInput")
-    .mockImplementation(async (params) => ({
-      ocrResult: params.ocrResult as OCRResult,
-      groupId: "gtestgroupidfortests01",
-    }));
+    .mockImplementation(async (params) => {
+      // Mirrors the real helper: the run's group is required and returned.
+      if (!params.groupId) {
+        throw new Error(
+          `groupId is required for OCR payloads of document ${params.documentId}`,
+        );
+      }
+      return {
+        ocrResult: params.ocrResult as OCRResult,
+        groupId: params.groupId,
+      };
+    });
   jest
     .spyOn(ocrRefUtils, "toOcrResultPort")
     .mockImplementation(async (body, documentId, groupId) => {
@@ -554,7 +562,9 @@ describe("characterConfusionCorrection", () => {
           ]),
           confusionProfileId: "profile-1",
         }),
-      ).rejects.toThrow(/groupId is required/);
+      ).rejects.toThrow(
+        `groupId is required for OCR payloads of document ${DOC_ID}`,
+      );
       expect(prisma.confusionProfile.findUnique).not.toHaveBeenCalled();
       expect(prisma.confusionProfile.findFirst).not.toHaveBeenCalled();
     });
@@ -612,7 +622,9 @@ describe("characterConfusionCorrection", () => {
           ]),
           documentType: "proj-1",
         }),
-      ).rejects.toThrow(/groupId is required/);
+      ).rejects.toThrow(
+        `groupId is required for OCR payloads of document ${DOC_ID}`,
+      );
       expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
       expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
     });

@@ -1,10 +1,12 @@
-import { validateBlobFilePathInGroup } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
+import {
+  getGroupBlobStorage,
+  validateGroupBlobKey,
+} from "../blob-storage/group-blob-storage";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
@@ -50,7 +52,7 @@ export async function azureClassifySubmit(
   const activityName = "azureClassifySubmit";
   const { blobKey, groupId, classifierName, documentId } = input;
   const log = createActivityLogger(activityName, { groupId, classifierName });
-  const blobPath = validateBlobFilePathInGroup(blobKey, groupId);
+  const blobPath = validateGroupBlobKey(blobKey, groupId);
 
   // Guard: ensure classifier exists and is READY
   const prisma = getPrismaClient();

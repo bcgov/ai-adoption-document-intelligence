@@ -49,7 +49,11 @@ jest.mock("../expression-evaluator", () => ({
   evaluateCondition: (...args: unknown[]) => mockEvaluateCondition(...args),
 }));
 
-import type { ChildWorkflowNode, PollUntilNode } from "../graph-workflow-types";
+import type {
+  ChildWorkflowNode,
+  MapNode,
+  PollUntilNode,
+} from "../graph-workflow-types";
 import type { ExecutionState } from "./execution-state";
 import { executeNode } from "./node-executors";
 
@@ -294,6 +298,20 @@ describe("executeChildWorkflowNode — tenant groupId propagation", () => {
     );
   });
 
+  it("loads the child workflow's config within the run's group", async () => {
+    const node = makeChildWorkflowNode();
+    const state = makeState({ groupId: "trusted-group" });
+
+    await executeNode(node, graphConfig as never, state);
+
+    expect(mockActivityFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "child-lib-workflow",
+        groupId: "trusted-group",
+      }),
+    );
+  });
+
   it("propagates undefined groupId as null", async () => {
     const node = makeChildWorkflowNode();
     const state = makeState();
@@ -305,5 +323,49 @@ describe("executeChildWorkflowNode — tenant groupId propagation", () => {
       unknown
     >;
     expect(args.groupId).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// map
+// ---------------------------------------------------------------------------
+
+describe("executeMapNode — tenant groupId propagation", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockExecuteChild.mockResolvedValue({
+      completedNodes: [],
+      status: "completed",
+      refs: {},
+    });
+  });
+
+  it("starts every child branch with the run's group", async () => {
+    const node: MapNode = {
+      id: "map-node",
+      type: "map",
+      label: "Map",
+      collectionCtxKey: "items",
+      itemCtxKey: "item",
+      bodyEntryNodeId: "body",
+      bodyExitNodeId: "body",
+    };
+    // More than 20 items, so each branch runs as a child workflow.
+    const state: ExecutionState = {
+      ...makeState({
+        groupId: "trusted-group",
+        ctx: { items: Array.from({ length: 21 }, (_, i) => i) },
+      }),
+      workflowVersionId: "parent-wv",
+    };
+
+    await executeNode(node, graphConfig as never, state);
+
+    expect(mockExecuteChild).toHaveBeenCalledTimes(21);
+    for (const [, options] of mockExecuteChild.mock.calls) {
+      expect(options.args[0]).toEqual(
+        expect.objectContaining({ groupId: "trusted-group" }),
+      );
+    }
   });
 });

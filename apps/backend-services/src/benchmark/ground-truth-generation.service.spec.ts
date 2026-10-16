@@ -662,8 +662,9 @@ describe("GroundTruthGenerationService", () => {
 
       expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
         expect.any(String),
-        { confidenceThreshold: 0 },
+        undefined,
         jobOverrides,
+        { confidenceThreshold: 0 },
       );
       expect(mockDocumentService.createDocument).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -715,8 +716,9 @@ describe("GroundTruthGenerationService", () => {
 
       expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
         expect.any(String),
-        { confidenceThreshold: 0 },
         undefined,
+        undefined,
+        { confidenceThreshold: 0 },
       );
     });
   });

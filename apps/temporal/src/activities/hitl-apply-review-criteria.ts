@@ -301,21 +301,12 @@ export async function applyReviewCriteria(
   });
   const { documentId, documentType, rules } = params;
   const defaultAction: "review" | "skip" = params.defaultAction ?? "skip";
-  const { ocrResult } = await resolveOcrResultInput(params);
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
-    const schemaGroupId = params.groupId;
-    if (!schemaGroupId) {
-      throw new Error(
-        `groupId is required to load the field schema for "${documentType}"`,
-      );
-    }
     try {
-      fieldMap = await loadFieldMapFromProject(
-        documentType.trim(),
-        schemaGroupId,
-      );
+      fieldMap = await loadFieldMapFromProject(documentType.trim(), groupId);
     } catch (err) {
       log.error("Apply review criteria: failed to load field schema", {
         event: "schema_load_error",

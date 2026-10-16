@@ -5,6 +5,7 @@ import {
   OperationCategory,
 } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { ApplicationFailure } from "@temporalio/common";
 import { joinDatasetPath } from "../benchmark-dataset-paths";
 import type { DatasetManifest } from "../benchmark-types";
 import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
@@ -14,6 +15,21 @@ import { getPrismaClient } from "./database-client";
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;
+}
+
+/**
+ * A sample id names files and folders on the worker, so it must be a single
+ * path segment: a non-empty string with no `/`, `\` or NUL that is not `.`
+ * or `..`.
+ */
+function isSafeSampleId(id: unknown): boolean {
+  return (
+    typeof id === "string" &&
+    id.length > 0 &&
+    id !== "." &&
+    id !== ".." &&
+    !/[/\\\0]/.test(id)
+  );
 }
 
 interface MaterializeDatasetResult {
@@ -173,6 +189,11 @@ export async function materializeDataset(
           /* intentional: best-effort cleanup */
         });
 
+      // A refusal of a key outside the dataset's group fails the same way on
+      // every attempt, so it keeps its non-retryable failure.
+      if (error instanceof ApplicationFailure) {
+        throw error;
+      }
       throw new Error(
         `Dataset download from object storage failed: ${errorMessage}`,
       );
@@ -253,6 +274,13 @@ export async function loadDatasetManifest(
     );
     const manifestContent = await fs.readFile(manifestPath, "utf-8");
     const manifest: DatasetManifest = JSON.parse(manifestContent);
+    for (const sample of manifest.samples) {
+      if (!isSafeSampleId(sample.id)) {
+        throw new Error(
+          `Dataset manifest has an invalid sample id: ${JSON.stringify(sample.id)}`,
+        );
+      }
+    }
 
     log.info("Load dataset manifest complete", {
       event: "complete",

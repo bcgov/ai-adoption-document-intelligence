@@ -3,6 +3,7 @@ export {
   buildBlobFilePath,
   buildBlobPrefixPath,
   buildSharedBlobPrefixPath,
+  isCuid,
   validateBlobFilePath,
   validateBlobFilePathInGroup,
   validateBlobPrefixPath,
