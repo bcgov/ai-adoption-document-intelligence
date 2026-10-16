@@ -290,10 +290,14 @@ diamond-shaped step to open its cases.
 - **Cases are evaluated in order** — the first one that matches wins. Each case
   pairs a condition with the wire to follow when it's true.
 - A condition has an **Expression type** (compare two things, or combine several
-  with and/or), an **Operator**, and a left and right side.
-- Each side is either **Literal** — a fixed number or piece of text you type — or
-  **Ref**, pointing at something an earlier step produced.
-- In **Ref** mode you get a list of earlier steps, not a box to type a variable
+  with and/or). A comparison reads in order: **Value to check**, **How to
+  compare**, **Compare with**.
+- Above the fields, the case writes its whole condition out as a sentence — *This
+  case matches when Check Confidence → Requires review is equal to true.* — and
+  keeps it in step as you edit.
+- Each value is either a **Typed value** — a fixed number or piece of text you
+  type — or **From a step**, pointing at something an earlier step produced.
+- **From a step** gives you a list of earlier steps, not a box to type a variable
   name: *"Check Confidence → Requires review"*, with what kind of value it is and
   how many steps back it came from.
 
