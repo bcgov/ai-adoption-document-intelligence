@@ -20,6 +20,7 @@ import type {
 } from "../../../types/workflow";
 import {
   configHasAnyPosition,
+  defaultSimplifiedPositions,
   layoutGraph,
   layoutGraphIfMissingPositions,
   layoutGraphSimplified,
@@ -859,5 +860,50 @@ describe("layoutGraphWithMapBodies — clusters map bodies, strips synthetic gro
   it("is a no-op wrapper when the config has no map body", () => {
     const linear = buildLinearConfig();
     expect(layoutGraphWithMapBodies(linear)).toEqual(layoutGraph(linear));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The simplified view before anyone has arranged it. Each group's members sit
+// where the expanded view put them — here a long chain, as in Standard OCR —
+// so the blocks must not inherit that spread.
+// ---------------------------------------------------------------------------
+
+/**
+ * Two groups and one ungrouped node, wired g1 → g2 → outside, laid out the
+ * way an expanded canvas leaves them: each group a wide row of cards, the
+ * groups thousands of pixels apart.
+ */
+function buildSpreadConfig(): GraphWorkflowConfig {
+  return {
+    ...buildSimplifiedConfig(),
+    nodes: {
+      n1: placed("n1", 0, 0),
+      n2: placed("n2", 600, 0),
+      n3: placed("n3", 2000, 0),
+      n4: placed("n4", 2600, 0),
+      outside: placed("outside", 4000, 0),
+    },
+  };
+}
+
+describe("defaultSimplifiedPositions — the collapsed view before anyone arranges it", () => {
+  it("places the blocks one block-width and one column gap apart, not at their groups' spread", () => {
+    const positions = defaultSimplifiedPositions(buildSpreadConfig());
+    const g1 = positions.get(chipIdForGroup("g1"));
+    const g2 = positions.get(chipIdForGroup("g2"));
+    const outside = positions.get("outside");
+    if (!g1 || !g2 || !outside) throw new Error("a block was not placed");
+    // LR, ranksep 80: the next column starts a block width plus the gap along.
+    // The members' centroids are 2,000 apart.
+    expect(g2.x - g1.x).toBe(CHIP_WIDTH + 80);
+    expect(outside.x - g2.x).toBe(CHIP_WIDTH + 80);
+  });
+
+  it("writes nothing into the workflow", () => {
+    const config = buildSpreadConfig();
+    const before = JSON.stringify(config);
+    defaultSimplifiedPositions(config);
+    expect(JSON.stringify(config)).toBe(before);
   });
 });

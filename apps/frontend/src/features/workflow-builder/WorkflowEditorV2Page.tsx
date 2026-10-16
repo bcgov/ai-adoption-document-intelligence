@@ -373,12 +373,38 @@ function WorkflowEditorV2PageBody({
    * `activeGroupId` — the right-rail returns to its empty state instead
    * of stranding the user on a group-settings body when no chips are on
    * the canvas anymore (US-043).
+   *
+   * Every flip also re-fits the camera. The two views differ in extent by an
+   * order of magnitude — a few blocks against every card — so a camera left
+   * where it was shows tiny blocks one way and a corner of the workflow the
+   * other. Two frames on, the canvas has re-projected and xyflow has measured
+   * the new nodes. A view move like the fit control, not an edit: nothing is
+   * saved and nothing enters the undo stack.
    */
+  const fitFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (fitFrameRef.current !== null) {
+        cancelAnimationFrame(fitFrameRef.current);
+      }
+    },
+    [],
+  );
   const handleSimplifiedViewChange = useCallback((next: boolean) => {
     setSimplifiedView(next);
     if (!next) {
       setActiveGroupId(null);
     }
+    // A quick second flip supersedes the first one's fit.
+    if (fitFrameRef.current !== null) {
+      cancelAnimationFrame(fitFrameRef.current);
+    }
+    fitFrameRef.current = requestAnimationFrame(() => {
+      fitFrameRef.current = requestAnimationFrame(() => {
+        fitFrameRef.current = null;
+        reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
+      });
+    });
   }, []);
 
   /**

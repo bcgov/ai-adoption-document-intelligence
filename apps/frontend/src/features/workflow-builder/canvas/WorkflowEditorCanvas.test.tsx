@@ -5036,6 +5036,43 @@ describe("WorkflowEditorCanvas — group container box", () => {
     expect(box?.data.width ?? 0).toBeGreaterThanOrEqual(300 + 522);
   });
 
+  it("D-1: re-fits the box when its cards report their sizes after the first paint", async () => {
+    // Cards that mount again — switching back from the simplified view — are
+    // measured after the projection's one re-fit has already run, so the box
+    // keeps its estimated size unless a later measurement re-fits it.
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+    expect(readNode("container-g1")?.data.width).not.toBe(500 + 16 * 2);
+
+    mockGetNodes.mockReturnValue([
+      { id: "a", measured: { width: 200, height: 60 } },
+      { id: "b", measured: { width: 200, height: 60 } },
+    ] as unknown as Array<{ id: string; width?: number }>);
+    try {
+      const onNodesChange = latestReactFlowProps.current?.onNodesChange as (
+        changes: Array<Record<string, unknown>>,
+      ) => void;
+      act(() => {
+        onNodesChange([
+          {
+            type: "dimensions",
+            id: "a",
+            dimensions: { width: 200, height: 60 },
+          },
+        ]);
+      });
+      // The re-fit runs on the next animation frame, which jsdom paints on a
+      // ~16ms clock rather than on the next tick.
+      await act(async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      });
+      // Members span x=0..500 (300 + 200 measured), plus 16px each side.
+      expect(readNode("container-g1")?.data.width).toBe(500 + 16 * 2);
+    } finally {
+      mockGetNodes.mockReturnValue([]);
+    }
+  });
+
   it("projects one box per group, wrapping its members' bounding box", async () => {
     renderCanvas(makeGroupedConfig(), { simplifiedView: false });
     await flushAnimationFrame();
@@ -5067,6 +5104,29 @@ describe("WorkflowEditorCanvas — group container box", () => {
       expect(readNode(id)?.className ?? "").not.toContain("wb-node-grouped");
       expect(readNode(id)?.style?.["--wb-group-label"]).toBeUndefined();
     }
+  });
+
+  it("in the simplified view, puts the step after a block one column along until that view is arranged", async () => {
+    // a → b → c, with {a, b} collapsed into one block and c left loose, far to
+    // the right where the expanded view put it.
+    const config = makeGroupedConfig();
+    config.edges = [
+      { id: "e1", source: "a", target: "b", type: "normal" },
+      { id: "e2", source: "b", target: "c", type: "normal" },
+    ];
+    config.nodes.c = {
+      ...config.nodes.c,
+      metadata: { position: { x: 2000, y: 0 } },
+    } as GraphNode;
+    renderCanvas(config, { simplifiedView: true });
+    await flushAnimationFrame();
+
+    const block = readNode("group-chip-g1");
+    const loose = readNode("c");
+    if (!block || !loose)
+      throw new Error("the block or the loose step is missing");
+    // LR, ranksep 80: c's column starts a block width (248) plus the gap along.
+    expect(loose.position.x - block.position.x).toBe(248 + 80);
   });
 
   it("makes the box draggable by its header only, and never selectable", async () => {

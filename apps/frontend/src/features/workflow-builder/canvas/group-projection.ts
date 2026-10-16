@@ -7,8 +7,10 @@
  *   - `visibleEdges`   — edges with grouped endpoints rewritten to point
  *                        at the corresponding chip id; edges between two
  *                        members of the same group are dropped.
- *   - `chips`          — one `GroupChip` per group entry, positioned at
- *                        the centroid of its members' `metadata.position`.
+ *   - `chips`          — one `GroupChip` per group entry, at the group's own
+ *                        simplified-view position, else at the default
+ *                        placement the caller passes in, else at the
+ *                        centroid of its members' `metadata.position`.
  *   - `nodeToGroup`    — lookup: original node id → owning group id.
  *
  * Pure: never mutates input; never reads from React; only depends on
@@ -92,17 +94,22 @@ export function readNodePosition(node: GraphNode | undefined): {
  * arrangements, so an ungrouped node has two placements: `metadata.position`
  * for the expanded canvas and `metadata.simplifiedPosition` for this one.
  *
- * Falls back to the expanded position when the simplified view has never been
- * arranged, so the first visit to that view shows the graph where the author
- * last left it rather than collapsed onto the fallback point.
+ * When the simplified view has never been arranged, the node sits at
+ * `defaultPosition` — the compact layout the canvas computes for that view
+ * (`defaultSimplifiedPositions`) — or, without one, at its expanded position,
+ * so it is never collapsed onto the fallback point.
  */
-export function readSimplifiedNodePosition(node: GraphNode | undefined): {
+export function readSimplifiedNodePosition(
+  node: GraphNode | undefined,
+  defaultPosition?: { x: number; y: number },
+): {
   x: number;
   y: number;
 } {
   if (!node) return { ...FALLBACK_POSITION };
   return (
-    readPositionField(node, "simplifiedPosition") ?? readNodePosition(node)
+    readPositionField(node, "simplifiedPosition") ??
+    (defaultPosition ? { ...defaultPosition } : readNodePosition(node))
   );
 }
 
@@ -124,8 +131,8 @@ function readPositionField(
 
 /**
  * Centroid of the members' EXPANDED positions — where a chip sits when its
- * group has never been placed in the simplified view. This is what every chip
- * did before groups carried a position of their own.
+ * group has never been placed in the simplified view and the caller passes no
+ * default placement for it.
  */
 function memberCentroid(
   config: GraphWorkflowConfig,
@@ -142,8 +149,14 @@ function memberCentroid(
   return { x: sumX / count, y: sumY / count };
 }
 
+/**
+ * `defaultPositions` — chip id or node id → where it sits in the simplified
+ * view until that view is arranged. The canvas passes the compact layout from
+ * `defaultSimplifiedPositions`; a group's own stored position always wins.
+ */
 export function projectGroupedConfig(
   config: GraphWorkflowConfig,
+  defaultPositions?: ReadonlyMap<string, { x: number; y: number }>,
 ): ProjectedConfig {
   const groups = config.nodeGroups ?? {};
   const groupIds = Object.keys(groups);
@@ -178,11 +191,14 @@ export function projectGroupedConfig(
   }
 
   // Chips — one per group, at the group's own simplified-view position when it
-  // has one (W-1), else at the centroid of its members' expanded positions.
+  // has one (W-1), else at the default placement passed in, else at the
+  // centroid of its members' expanded positions.
   const chips: GroupChip[] = groupIds.map((groupId) => {
     const group = groups[groupId];
+    const id = chipIdForGroup(groupId);
+    const fallback = defaultPositions?.get(id);
     return {
-      id: chipIdForGroup(groupId),
+      id,
       groupId,
       label: group.label,
       icon: group.icon,
@@ -190,7 +206,9 @@ export function projectGroupedConfig(
       nodeCount: group.nodeIds.length,
       position: group.position
         ? { ...group.position }
-        : memberCentroid(config, group.nodeIds),
+        : fallback
+          ? { ...fallback }
+          : memberCentroid(config, group.nodeIds),
       memberNodeIds: [...group.nodeIds],
     };
   });

@@ -47,6 +47,7 @@ import {
   MarkerType,
   MiniMap,
   type Node,
+  type NodeChange,
   type NodeProps,
   type OnConnectEnd,
   type OnConnectStart,
@@ -94,7 +95,11 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
-import { layoutGraphSimplified, layoutGraphWithMapBodies } from "./auto-layout";
+import {
+  defaultSimplifiedPositions,
+  layoutGraphSimplified,
+  layoutGraphWithMapBodies,
+} from "./auto-layout";
 import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import {
@@ -1952,12 +1957,15 @@ function projectChipFlowNodes(
  * downstream projection reads `metadata.position`, so the substitution happens
  * once here rather than teaching each of them about a second field.
  */
-function atSimplifiedPosition(node: GraphNode): GraphNode {
+function atSimplifiedPosition(
+  node: GraphNode,
+  defaultPosition?: { x: number; y: number },
+): GraphNode {
   return {
     ...node,
     metadata: {
       ...(node.metadata ?? {}),
-      position: readSimplifiedNodePosition(node),
+      position: readSimplifiedNodePosition(node, defaultPosition),
     },
   } as GraphNode;
 }
@@ -2532,6 +2540,51 @@ function WorkflowEditorCanvasInner({
     return out;
   }, [reactFlow]);
 
+  /**
+   * D-1 — keep every group box wrapped around its cards' MEASURED sizes. The
+   * projection re-fits once, a frame after it runs, but xyflow reports a
+   * card's size whenever it gets round to measuring it: cards that mount again
+   * after a switch back from the simplified view report after that one
+   * re-fit, and a card that grows later (a port row appears, a preview
+   * resolves) reports the same way. So re-fit whenever a member card's
+   * measured size changes. A box's own size change is not counted, or the
+   * re-fit would set itself off.
+   */
+  const refitFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (refitFrameRef.current !== null) {
+        cancelAnimationFrame(refitFrameRef.current);
+      }
+    },
+    [],
+  );
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<FlowNode>[]) => {
+      onInternalNodesChange(changes);
+      if (simplifiedView || refitFrameRef.current !== null) return;
+      const memberResized = changes.some(
+        (change) =>
+          change.type === "dimensions" &&
+          groupIdFromContainerId(change.id) === null,
+      );
+      if (!memberResized) return;
+      refitFrameRef.current = requestAnimationFrame(() => {
+        refitFrameRef.current = null;
+        setInternalNodes((prev) =>
+          refitGroupContainers(prev, config, readMeasuredSizes()),
+        );
+      });
+    },
+    [
+      onInternalNodesChange,
+      simplifiedView,
+      setInternalNodes,
+      config,
+      readMeasuredSizes,
+    ],
+  );
+
   const lastFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
@@ -2540,12 +2593,18 @@ function WorkflowEditorCanvasInner({
     if (simplifiedView) {
       // Simplified projection: collapse each group into a chip; hide
       // grouped underlying nodes; remap edges. The chip projection adds
-      // an extra pass on top of the standard FlowNode projection.
-      const projected = projectGroupedConfig(config);
+      // an extra pass on top of the standard FlowNode projection. Until the
+      // author arranges this view, chips and ungrouped nodes take a compact
+      // default layout, computed here and never saved.
+      const defaults = defaultSimplifiedPositions(config);
+      const projected = projectGroupedConfig(config, defaults);
       const visibleConfig: GraphWorkflowConfig = {
         ...config,
         nodes: Object.fromEntries(
-          projected.visibleNodes.map((n) => [n.id, atSimplifiedPosition(n)]),
+          projected.visibleNodes.map((n) => [
+            n.id,
+            atSimplifiedPosition(n, defaults.get(n.id)),
+          ]),
         ),
       };
       const normalNodes = projectFlowNodes(
@@ -2633,15 +2692,18 @@ function WorkflowEditorCanvasInner({
           readMeasuredSizes(),
         ).map((c) => [c.id, c] as const),
       );
-      // G-4 — chips are the same kind of derived geometry: a chip sits at the
-      // CENTROID of its members' positions, and it is not in `source.nodes`,
-      // so the position copy below cannot reach it. Re-derive it. Without
-      // this, a simplified-view Auto-arrange moves every member in the config
-      // and the only thing on screen — the chips — stays exactly where it was,
+      // G-4 — chips are the same kind of derived geometry: a chip sits at its
+      // group's stored position or the view's default placement, and it is
+      // not in `source.nodes`, so the position copy below cannot reach it.
+      // Re-derive it. Without this, a simplified-view Auto-arrange writes new
+      // chip positions and the chips on screen stay exactly where they were,
       // which is the "nothing happened" bug from the author's side. Empty in
       // expanded view (no chips), same as the container map above.
+      const defaults = simplifiedView
+        ? defaultSimplifiedPositions(source)
+        : undefined;
       const freshChipPositions = new Map(
-        projectGroupedConfig(source).chips.map(
+        projectGroupedConfig(source, defaults).chips.map(
           (chip) => [chip.id, chip.position] as const,
         ),
       );
@@ -2655,7 +2717,7 @@ function WorkflowEditorCanvasInner({
           if (!node) return n;
           // W-1 — read the arrangement belonging to the view on screen.
           const pos = simplifiedView
-            ? readSimplifiedNodePosition(node)
+            ? readSimplifiedNodePosition(node, defaults?.get(n.id))
             : ((node.metadata as { position?: { x: number; y: number } })
                 ?.position ?? null);
           return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
@@ -4735,7 +4797,7 @@ function WorkflowEditorCanvasInner({
           edges={internalEdges}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
-          onNodesChange={onInternalNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onInternalEdgesChange}
           onNodeDragStart={handleNodeDragStart}
           onNodeDrag={handleNodeDrag}
