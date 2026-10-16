@@ -9,11 +9,6 @@
   "ctx": {
     "documentId": { "type": "string", "description": "Document ID from database" },
     "blobKey": { "type": "string", "description": "Blob key of the normalized PDF" },
-    "orientationConfidenceThreshold": {
-      "type": "number",
-      "defaultValue": 2.0,
-      "description": "Minimum Tesseract OSD confidence before applying a rotation correction. Lower = more aggressive; higher = more conservative."
-    },
     "correctedBlobKey": { "type": "string", "description": "Blob key after orientation correction (same as input when no corrections needed)" },
     "pageCorrections": {
       "type": "array",
