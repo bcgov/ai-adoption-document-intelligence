@@ -2,6 +2,7 @@ import type { DynamicNodeSignature } from "@ai-di/graph-workflow";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -44,7 +45,7 @@ function makeReq(groupId: string | null, userId?: string): Request {
         : {
             userId,
             isSystemAdmin: false,
-            groupRoles: { [groupId]: "MEMBER" },
+            groupRoles: { [groupId]: "EDITOR" },
             actorId: "actor-1",
           },
   } as unknown as Request;
@@ -390,7 +391,7 @@ describe("DynamicNodesController", () => {
         body: {},
         resolvedIdentity: {
           isSystemAdmin: false,
-          groupRoles: { "g-1": "MEMBER", "g-2": "MEMBER" },
+          groupRoles: { "g-1": "EDITOR", "g-2": "EDITOR" },
           actorId: "actor-1",
         },
       } as unknown as Request;
@@ -439,6 +440,54 @@ describe("DynamicNodesController", () => {
       await expect(
         controller.create({ script: "/* */" }, req),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe("group role permissions", () => {
+    // A reviewer is a group member whose role holds no workflow
+    // permissions, so every custom-step endpoint refuses them.
+    const reviewerReq = (): Request =>
+      ({
+        headers: {},
+        query: {},
+        body: {},
+        resolvedIdentity: {
+          isSystemAdmin: false,
+          groupRoles: { "g-1": "REVIEWER" },
+          actorId: "actor-reviewer",
+        },
+      }) as unknown as Request;
+
+    it("refuses a reviewer publishing a new custom step (403)", async () => {
+      await expect(
+        controller.create({ script: "/* */" }, reviewerReq()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.publish).not.toHaveBeenCalled();
+    });
+
+    it("refuses a reviewer publishing a new version (403)", async () => {
+      await expect(
+        controller.update("my-node", { script: "/* */" }, reviewerReq()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.publish).not.toHaveBeenCalled();
+    });
+
+    it("refuses a reviewer listing or opening custom steps (403)", async () => {
+      await expect(controller.list(reviewerReq())).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(
+        controller.detail("my-node", undefined, reviewerReq()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repository.listForGroup).not.toHaveBeenCalled();
+      expect(repository.findBySlugForGroup).not.toHaveBeenCalled();
+    });
+
+    it("refuses a reviewer deleting a custom step (403)", async () => {
+      await expect(
+        controller.delete("my-node", reviewerReq()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repository.softDelete).not.toHaveBeenCalled();
     });
   });
 

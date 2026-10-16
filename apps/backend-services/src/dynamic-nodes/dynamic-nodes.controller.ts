@@ -21,6 +21,7 @@ import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -32,7 +33,11 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import { getIdentityGroupIds } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DenoRunnerUnavailableError } from "./deno-runner.client";
 import { CreateDynamicNodeRequestDto } from "./dto/create-dynamic-node-request.dto";
 import { DenoRunnerUnavailableResponseDto } from "./dto/deno-runner-unavailable-response.dto";
@@ -109,6 +114,9 @@ export class DynamicNodesController {
       "A non-deleted lineage with this slug already exists in the caller's group. Use PUT to publish a new version instead.",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot create workflows.",
+  })
   @ApiServiceUnavailableResponse({
     description:
       "The `deno-runner` sidecar is unreachable, so the script could not be type-checked. Surface code is `DENO_RUNNER_UNAVAILABLE`; `message` is the human instruction and `details` the diagnostic.",
@@ -118,7 +126,10 @@ export class DynamicNodesController {
     @Body() dto: CreateDynamicNodeRequestDto,
     @Req() req: Request,
   ): Promise<DynamicNodePublishResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_CREATE,
+    ]);
     try {
       const result = await this.dynamicNodesService.publish({
         groupId,
@@ -173,6 +184,9 @@ export class DynamicNodesController {
       "The script's `@name` does not match the path slug. Body: `{ code: 'NAME_MISMATCH', pathSlug, scriptName }`.",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot update workflows.",
+  })
   @ApiServiceUnavailableResponse({
     description:
       "The `deno-runner` sidecar is unreachable, so the script could not be type-checked. Surface code is `DENO_RUNNER_UNAVAILABLE`; `message` is the human instruction and `details` the diagnostic.",
@@ -183,7 +197,10 @@ export class DynamicNodesController {
     @Body() dto: UpdateDynamicNodeRequestDto,
     @Req() req: Request,
   ): Promise<DynamicNodePublishResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_UPDATE,
+    ]);
     try {
       const result = await this.dynamicNodesService.publish({
         groupId,
@@ -222,8 +239,14 @@ export class DynamicNodesController {
     type: DynamicNodeListResponseDto,
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot read workflows.",
+  })
   async list(@Req() req: Request): Promise<DynamicNodeListResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     const rows = await this.repository.listForGroup(groupId);
 
     const items = await Promise.all(
@@ -285,12 +308,18 @@ export class DynamicNodesController {
       "No lineage with this slug exists in the caller's group, OR the lineage is soft-deleted.",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot read workflows.",
+  })
   async detail(
     @Param("slug") slug: string,
     @Query("version") _version: string | undefined,
     @Req() req: Request,
   ): Promise<DynamicNodeDetailResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     const lineage = await this.repository.findBySlugForGroup(groupId, slug);
     if (lineage === null) {
       throw new NotFoundException(`Dynamic node '${slug}' not found`);
@@ -342,11 +371,17 @@ export class DynamicNodesController {
     description: "No lineage with this slug exists in the caller's group.",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot delete workflows.",
+  })
   async delete(
     @Param("slug") slug: string,
     @Req() req: Request,
   ): Promise<DynamicNodeDeletedResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_DELETE,
+    ]);
     try {
       const usedInWorkflowCount =
         await this.repository.countWorkflowsReferencingSlug(groupId, slug);
@@ -392,7 +427,7 @@ export class DynamicNodesController {
  *  - `BadRequestException` when the JWT identity has 0 OR >1 groups (the
  *    publish API needs a single group to scope persistence to).
  */
-function resolveCallingGroupId(req: Request): string {
+function resolveRequestedGroupId(req: Request): string {
   const identity = req.resolvedIdentity;
   if (!identity) {
     throw new UnauthorizedException("Authentication required");

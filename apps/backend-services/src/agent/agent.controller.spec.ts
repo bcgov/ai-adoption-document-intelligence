@@ -1,4 +1,4 @@
-import { UnauthorizedException } from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { plainToInstance } from "class-transformer";
 import type { Request, Response } from "express";
@@ -65,7 +65,7 @@ describe("AgentController", () => {
   const member = {
     actorId: "u1",
     isSystemAdmin: false,
-    groupRoles: { g1: "member" },
+    groupRoles: { g1: "EDITOR" },
   };
 
   it("chat: starts a chat, sets x-conversation-id, and pipes the stream", async () => {
@@ -103,6 +103,44 @@ describe("AgentController", () => {
     await expect(
       controller.listConversations(reqWith(admin)),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  // A reviewer is a group member whose role holds no workflow permissions.
+  // The agent edits workflows, so it refuses them before any agent work.
+  const reviewer = {
+    actorId: "u2",
+    isSystemAdmin: false,
+    groupRoles: { g1: "REVIEWER" },
+  };
+
+  it("chat: refuses a reviewer before starting a chat (403)", async () => {
+    const { controller, agentService } = makeController();
+    const res = { setHeader: jest.fn() } as unknown as Response;
+    const body = plainToInstance(AgentChatRequestDto, { messages: [] });
+    await expect(
+      controller.chat(reqWith(reviewer, { body: { messages: [] } }), res, body),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(agentService.startChat).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reviewer reading, deleting or aborting conversations (403)", async () => {
+    const { controller, agentService, abortFlags } = makeController();
+    await expect(
+      controller.listConversations(reqWith(reviewer)),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      controller.getConversation(reqWith(reviewer), "c1"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      controller.deleteConversation(reqWith(reviewer), "c1"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      controller.abortConversation(reqWith(reviewer), "c1"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(agentService.listConversationsForCaller).not.toHaveBeenCalled();
+    expect(agentService.getConversationForCaller).not.toHaveBeenCalled();
+    expect(agentService.deleteConversationForCaller).not.toHaveBeenCalled();
+    expect(abortFlags.abort).not.toHaveBeenCalled();
   });
 
   it("abort: verifies visibility then signals the abort flag", async () => {

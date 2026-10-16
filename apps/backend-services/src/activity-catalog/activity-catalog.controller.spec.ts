@@ -2,7 +2,11 @@ import {
   ACTIVITY_CATALOG,
   type ActivityCatalogEntry,
 } from "@ai-di/graph-workflow";
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import type { Request } from "express";
 import { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
@@ -19,7 +23,7 @@ function makeReq(groupId: string | null, userId?: string): Request {
         : {
             userId,
             isSystemAdmin: false,
-            groupRoles: { [groupId]: "MEMBER" },
+            groupRoles: { [groupId]: "EDITOR" },
             actorId: "actor-1",
           },
   } as unknown as Request;
@@ -39,7 +43,7 @@ function makeSystemAdminReq(): Request {
 }
 
 function makeMultiGroupReq(groupIds: string[]): Request {
-  const groupRoles = Object.fromEntries(groupIds.map((g) => [g, "MEMBER"]));
+  const groupRoles = Object.fromEntries(groupIds.map((g) => [g, "EDITOR"]));
   return {
     headers: {},
     query: {},
@@ -160,5 +164,22 @@ describe("ActivityCatalogController", () => {
     await expect(
       controller.getCatalog(makeMultiGroupReq(["g-1", "g-2"])),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("throws 403 for a group member whose role cannot read workflows", async () => {
+    const req = {
+      headers: {},
+      query: {},
+      body: {},
+      resolvedIdentity: {
+        isSystemAdmin: false,
+        groupRoles: { "g-1": "REVIEWER" },
+        actorId: "actor-reviewer",
+      },
+    } as unknown as Request;
+    await expect(controller.getCatalog(req)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(service.getMergedCatalogForGroup).not.toHaveBeenCalled();
   });
 });

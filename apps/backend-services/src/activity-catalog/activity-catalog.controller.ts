@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -15,7 +16,11 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import { getIdentityGroupIds } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
 import { ActivityCatalogEntryDto } from "./dto/activity-catalog-entry.dto";
 import { ActivityCatalogResponseDto } from "./dto/activity-catalog-response.dto";
@@ -55,8 +60,14 @@ export class ActivityCatalogController {
     description:
       "Caller has no group context (system-admin without explicit group, or membership in zero / multiple groups).",
   })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot read workflows.",
+  })
   async getCatalog(@Req() req: Request): Promise<ActivityCatalogResponseDto> {
-    const groupId = resolveCallingGroupId(req);
+    const groupId = resolveRequestedGroupId(req);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     const entries =
       await this.dynamicNodesService.getMergedCatalogForGroup(groupId);
     return { entries: entries.map(toCatalogEntryDto) };
@@ -74,7 +85,7 @@ export class ActivityCatalogController {
  * local rather than centralised to avoid coupling the two modules
  * through a fourth shared helper module for one inline function.
  */
-function resolveCallingGroupId(req: Request): string {
+function resolveRequestedGroupId(req: Request): string {
   const identity = req.resolvedIdentity;
   if (!identity) {
     throw new UnauthorizedException("Authentication required");
