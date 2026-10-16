@@ -18,6 +18,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ReactFlow } from "@xyflow/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
@@ -518,5 +519,38 @@ describe("CodePane — D8: the parent's echo must not overwrite the buffer", () 
     });
 
     await waitFor(() => expect(editor.value).toBe("// reverted"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The editor also opens over the builder canvas: the step list's "New custom
+// node" window, and "Edit script" on a custom step.
+//
+// React Flow pans the canvas while Space is held. It listens for Space on the
+// whole document and claims it with `preventDefault` unless the key comes from
+// a text field or from inside an element carrying its `nokey` class. In
+// Chromium, Monaco takes typing on a plain `div` (the EditContext API), which
+// is not a text field, so every space typed into the editor over the canvas
+// was swallowed. The keydown below starts on the editor's container, a plain
+// `div` like Monaco's typing surface: the stub's `textarea` is a text field
+// React Flow already ignores, so starting there would prove nothing. The
+// browser-level proof is tier1-code-pane-canvas-keys.spec.ts.
+// ---------------------------------------------------------------------------
+describe("CodePane — open over the canvas", () => {
+  it("leaves a space typed in the editor to the editor", async () => {
+    render(
+      <MantineProvider>
+        <ReactFlow nodes={[]} edges={[]} />
+        <CodePane script="" onChange={vi.fn()} />
+      </MantineProvider>,
+    );
+    await screen.findByTestId("monaco-stub");
+
+    const notClaimed = fireEvent.keyDown(
+      screen.getByTestId("code-pane-editor"),
+      { key: " ", code: "Space" },
+    );
+
+    expect(notClaimed).toBe(true);
   });
 });
