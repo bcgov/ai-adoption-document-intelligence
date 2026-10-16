@@ -15,11 +15,13 @@ import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { ResolvedIdentity } from "@/auth/types";
 import { AzureService } from "@/azure/azure.service";
+import { BenchmarkDefinitionDbService } from "@/benchmark/benchmark-definition-db.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
 import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
+import { TrainingDbService } from "@/training/training-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -51,6 +53,8 @@ export class TemplateModelService {
     private readonly prismaService: PrismaService,
     private readonly auditService: AuditService,
     private readonly azureService: AzureService,
+    private readonly trainingDb: TrainingDbService,
+    private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
   ) {}
 
   // ========== MODEL ID GENERATION ==========
@@ -172,10 +176,34 @@ export class TemplateModelService {
     if (!existing) {
       throw new NotFoundException(`Template model with id ${id} not found`);
     }
+    // A build still running in Azure would finish after its job row is gone,
+    // leaving a model nothing deletes.
+    const inFlight = await this.trainingDb.findInFlightJobForTemplate(id);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before deleting the template.`,
+      );
+    }
     // Read before the delete: the trained model and training job rows that
     // name these ids are deleted with the template.
     const azureModelIds =
       await this.templateModelDb.findAzureModelIdsForTemplate(id);
+    // Deleting one version refuses the same way: a benchmark definition that
+    // names a deleted model fails every run.
+    const referencingCounts = await Promise.all(
+      azureModelIds.map((modelId) =>
+        this.benchmarkDefinitionDb.countDefinitionsReferencingModelId(modelId),
+      ),
+    );
+    const referencingDefinitions = referencingCounts.reduce(
+      (total, count) => total + count,
+      0,
+    );
+    if (referencingDefinitions > 0) {
+      throw new ConflictException(
+        `Cannot delete: ${referencingDefinitions} benchmark definition(s) reference a version of this template. Detach them first.`,
+      );
+    }
     const deleted = await this.templateModelDb.deleteTemplateModel(id);
     if (!deleted) {
       throw new NotFoundException(`Template model with id ${id} not found`);

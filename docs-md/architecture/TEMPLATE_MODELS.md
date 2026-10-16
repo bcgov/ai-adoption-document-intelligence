@@ -65,7 +65,7 @@ Key constraints:
 - Retraining creates a new TrainedModel version and marks it active; previous versions are kept
 - Deleting a version is a tombstone (`deleted_at` set, Azure artifact removed) so audit trails still resolve; the row is never physically deleted
 - `ModelOwner` (`model_owners`) records the group of every model id a training targets. It is written in the transaction that creates the training job and is never deleted, so a deleted template's models, which can remain in Azure, stay its group's: other groups cannot run them and new templates cannot take their ids
-- Deleting a template deletes its rows (versions and training jobs cascade), then deletes its models from Azure, best effort; a failed Azure delete is logged
+- Deleting a template answers `409` while one of its trainings is in progress or a benchmark definition names one of its versions, as deleting a version does. Otherwise it deletes its rows (versions and training jobs cascade), then deletes its models from Azure, the active one included, best effort; a failed Azure delete is logged
 
 ## Backend Architecture
 

@@ -5552,6 +5552,7 @@
         ]
       },
       "delete": {
+        "description": "Deletes the template model with its trained versions and training jobs, then deletes its trained models from Azure (best effort; a failure is logged). The active version is deleted too, so a workflow or integration that names one of these models stops working.",
         "operationId": "TemplateModelController_deleteTemplateModel",
         "parameters": [
           {
@@ -5575,11 +5576,17 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
           "403": {
             "description": "Access denied: not a group member"
           },
           "404": {
             "description": "Template model not found"
+          },
+          "409": {
+            "description": "A training job is in progress for the template, or a benchmark definition names one of its trained versions"
           }
         },
         "security": [
