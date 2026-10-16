@@ -86,7 +86,7 @@ describe("buildControlFlowSkeleton", () => {
     });
   });
 
-  it('humanGate → returns a HumanGateNode with signal.name "humanApproval", timeout "1h", onTimeout "fail"', () => {
+  it('humanGate → returns a HumanGateNode with signal.name "humanApproval", no timeout, onTimeout "fail"', () => {
     const node = buildControlFlowSkeleton(
       "humanGate",
       "humanGate_1",
@@ -97,7 +97,8 @@ describe("buildControlFlowSkeleton", () => {
     // G-017: the skeleton ships the name the HITL review flow actually sends,
     // so a freshly dropped gate is resumable instead of permanently stuck.
     expect(node.signal).toEqual({ name: "humanApproval" });
-    expect(node.timeout).toBe("1h");
+    // A review waits until someone acts on it: no time limit by default.
+    expect(node).not.toHaveProperty("timeout");
     expect(node.onTimeout).toBe("fail");
     expect(node.fallbackEdgeId).toBeUndefined();
   });
