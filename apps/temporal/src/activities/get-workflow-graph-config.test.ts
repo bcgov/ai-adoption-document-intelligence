@@ -224,7 +224,9 @@ describe("getWorkflowGraphConfig activity", () => {
     it("resolves a lineage-id ref within the group then loads by (lineage_id, version_number) compound key", async () => {
       const cfg = sampleConfig();
       // The ref "lin-1" resolves as a lineage id.
-      prismaMock.workflowLineage.findFirst.mockResolvedValueOnce({ id: "lin-1" });
+      prismaMock.workflowLineage.findFirst.mockResolvedValueOnce({
+        id: "lin-1",
+      });
       prismaMock.workflowVersion.findUnique.mockResolvedValue({
         id: "wv-pinned",
         config: cfg,
