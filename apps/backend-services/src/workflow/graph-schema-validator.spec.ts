@@ -1599,12 +1599,14 @@ describe("graph-schema-validator", () => {
         type: "activity",
         label: "Review",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
       };
       config.nodes.done = {
         id: "done",
         type: "activity",
         label: "Done",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
       };
       config.edges.push(
         { id: "e3", source: "c", target: "route", type: "normal" },
