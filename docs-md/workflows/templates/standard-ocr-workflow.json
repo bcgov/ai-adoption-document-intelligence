@@ -179,7 +179,10 @@
       "type": "activity",
       "label": "Mark Complete",
       "activityType": "document.updateStatus",
-      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" }
+      ],
       "parameters": { "status": "complete" },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 5 }
