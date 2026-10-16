@@ -84,7 +84,16 @@ A data wire renders whether or not an execution path exists between the nodes �
 
 ### 5.3 Sequence wires
 
-A `normal` edge between a node pair with **no** derived data wire renders as a thin dashed gray wire ("runs after"). This is the rare order-only case; it stays visible and individually deletable so execution order is never invisible state.
+A `normal` edge between a node pair with **no** derived data wire renders as a thin dashed gray wire ("runs after"). This is the rare order-only case; it stays visible and individually removable — select it and press Delete, or right-click it → **Remove run order** (§7) — so execution order is never invisible state.
+
+Drawing one (from a node-level dot to another node's node-level dot) is refused, with a yellow notice saying why, when it would change nothing or close a loop. The rule lives in `canvas/run-order-drop.ts`, which `isValidConnection`, `handleConnect` and the release notice all read:
+
+- **An edge of the same type already joins the pair.** That includes the `normal` edge a data wire carries, so a run-order wire drawn over a data wire is refused: *"Submit to Azure OCR" already runs after "Prepare File Data": the data wire between them sets the order.* Edges of different types between one pair (an error path alongside a run-order wire) stay allowed.
+- **The target already runs before the source,** directly or through other steps: *That would make a loop: "Update APIM Request ID" already runs after "Prepare File Data".* The validator rejects any cycle, over every edge type, and the canvas refuses the same set as the wire is drawn.
+
+A wire to a step that already runs later by another route (A → B → C, then A → C) is allowed: it is harmless, and it is a real wire the author can see and remove.
+
+Wires inside a group stay clickable and right-clickable: the group box lets pointer events through everywhere except its header.
 
 ### 5.4 Auto vs pinned
 
@@ -106,7 +115,7 @@ While dragging from an output of kind `K`: ports where `isAssignable(K, expected
 
 - **Data wire:** removes the consumer's input binding and adds the port to `lockedInputPorts` *without* a binding — "pinned unbound" — so the resolver doesn't instantly re-create the same wire (which would make deletion feel broken). The port shows its amber ring; "Revert to automatic" (§7) hands it back to the resolver. `resolveInputPort` needs one small extension: a locked port with no `inputs[]` row reports `locked-unbound` instead of assuming a ctx key exists.
 - If it was the **last data wire between the pair**, the control edge remains as a dashed sequence wire, with a transient hint: "Execution order kept — delete the dashed wire to fully detach."
-- **Sequence / conditional / error wires:** delete the underlying edge, as today.
+- **Sequence / conditional / error wires:** delete the underlying edge, as today. A sequence wire can also be removed from its right-click menu (**Remove run order**, §7).
 
 ### 6.3a Reconnect clears reconnectable locks ("connect again = wire again")
 
@@ -156,7 +165,7 @@ A dotted constant key would be seeded at `ctx["__const.n.p"]` and read at `ctx._
 Resolver semantics are untouched (nearest kind-assignable; exact-unique name match for base-`Artifact` identifier ports; ambiguity never guessed). Additions:
 
 - **Wire tooltip states the provenance:** "connected automatically — nearest Document producer" / "connected automatically — name match `apimRequestId`" / "pinned by you".
-- **Wire context menu:** *Revert to automatic* (removes the lock; resolver re-derives), *Disconnect* (§6.3), *View data* (§10, after a run).
+- **Wire context menu:** *Revert to automatic* (removes the lock; resolver re-derives), *Disconnect* (§6.3), *View data* (§10, after a run). A sequence (run-order) wire's menu has one entry, *Remove run order* (§5.3). Branch and error-path wires keep the browser's own menu.
 - The settings-panel `InputsSection` survives unchanged as the details/override view; "Revert to automatic" now exists in both places.
 - **Interactive producer rows (item 6X):** an `InputsSection` row that resolves to a REAL producer node is click/hover-interactive — **click** the row to select that producer on the canvas and pan/center it into view (`WorkflowEditorV2Page.handleJumpToProducer` → `selectNodeSticky` + the live instance's `setCenter`); **hover** the row to highlight the producer node (page holds `highlightedNodeId`, passed to `WorkflowEditorCanvas`, which stamps the `wb-node-highlight` outline class on that node — any node type, node-only, no wire highlight). A row is interactive only when a real producer source exists: `auto-bound` (→ `producerNodeId`) or `locked` bound to an `__auto.*` key (→ `decodeAutoProducerNodeId`, guarded to a live node). `unsatisfied` / `ambiguous` / `locked-unbound` / `ctx-bound` / `locked`-to-a-hand-authored-ctx-var rows are inert (no pointer, no jump, no highlight). Producer id is derived by `producerNodeIdForRow` in `settings/InputsSection.tsx`; callbacks thread `InputsSection → NodeSettingsPanel → WorkflowEditorV2Page`.
 
