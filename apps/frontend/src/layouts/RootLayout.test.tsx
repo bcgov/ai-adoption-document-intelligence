@@ -55,6 +55,12 @@ vi.mock("../features/agent-chat/AgentChatDrawer", () => ({
   AgentChatDrawer: () => <div data-testid="agent-chat-drawer" />,
 }));
 
+// The sidebar is built from the route list, which imports every page — and
+// the PDF labeling page loads pdfjs-dist, which cannot run in jsdom. These
+// cases are about the layout's route predicates and the agent chat entry
+// point, not the sidebar, so the layout gets an empty route list.
+vi.mock("../routes.config", () => ({ appRoutes: [] }));
+
 function renderLayoutAt(pathname: string) {
   return render(
     <MantineProvider>
