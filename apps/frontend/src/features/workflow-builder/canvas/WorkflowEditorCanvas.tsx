@@ -2097,6 +2097,13 @@ function projectGroupContainerNodes(
       // the same stacking level). The box body is pointer-events:none, so
       // member-node clicks and canvas pans still pass through it.
       zIndex: 0,
+      // The body's pointer-events:none has to be on xyflow's node wrapper as
+      // well: xyflow styles every wrapper `pointer-events: all`, and the
+      // wrapper spans the whole box, so it would otherwise take every click
+      // meant for the wires and the pane inside the group. The header sets
+      // pointer events back on for itself, and its clicks, drags and
+      // right-clicks still bubble to the wrapper's handlers.
+      style: { pointerEvents: "none" },
       // Never selectable: the box is chrome for the group, and letting it into
       // xyflow's selection would put it in front of Delete and of the
       // "N selected" actions, neither of which means anything for a projection.
