@@ -27,7 +27,11 @@ import {
 import type { UIMessage } from "ai";
 import type { Request, Response } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import { getIdentityGroupIds } from "@/auth/identity.helpers";
+import {
+  getIdentityGroupIds,
+  identityCanAccessGroup,
+} from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { AbortFlagMap } from "./abort-flag-map";
 import { AgentEnv } from "./agent.env";
 import { AgentService } from "./agent.service";
@@ -88,7 +92,7 @@ export class AgentController {
   @ApiForbiddenResponse({
     type: AgentErrorResponseDto,
     description:
-      "The turn was refused: the conversation's token budget is spent, or it is a seeded demo replay that cannot be appended to.",
+      "The turn was refused: the caller's group role cannot update workflows, the conversation's token budget is spent, or it is a seeded demo replay that cannot be appended to.",
   })
   @ApiBadRequestResponse({
     type: AgentErrorResponseDto,
@@ -105,7 +109,9 @@ export class AgentController {
     @Res() res: Response,
     @Body() body: AgentChatRequestDto,
   ): Promise<void> {
-    const { actorId, groupId } = resolveCallerOrThrow(req);
+    const { actorId, groupId } = resolveCallerOrThrow(req, [
+      Permission.WORKFLOW_UPDATE,
+    ]);
     const backendBaseUrl =
       this.config.get<string>("BACKEND_INTERNAL_URL") ??
       `http://localhost:${process.env.PORT ?? "3002"}`;
@@ -148,11 +154,16 @@ export class AgentController {
   @ApiUnauthorizedResponse({
     description: "Caller is unauthenticated or could not be scoped to a group.",
   })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot read workflows.",
+  })
   async listConversations(
     @Req() req: Request,
     @Query("workflowId") workflowId?: string,
   ): Promise<ConversationListResponseDto> {
-    const { actorId, groupId } = resolveCallerOrThrow(req);
+    const { actorId, groupId } = resolveCallerOrThrow(req, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     const items = await this.agentService.listConversationsForCaller({
       actorId,
       groupId,
@@ -168,6 +179,9 @@ export class AgentController {
   @ApiUnauthorizedResponse({
     description: "Caller is unauthenticated or could not be scoped to a group.",
   })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot read workflows.",
+  })
   @ApiNotFoundResponse({
     description:
       "No conversation with that id is visible to the caller (their own conversations, plus their group's seeded demo replays).",
@@ -176,7 +190,9 @@ export class AgentController {
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<ConversationDetailResponseDto> {
-    const { actorId, groupId } = resolveCallerOrThrow(req);
+    const { actorId, groupId } = resolveCallerOrThrow(req, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     return this.agentService.getConversationForCaller(id, actorId, groupId);
   }
 
@@ -188,6 +204,9 @@ export class AgentController {
   @ApiUnauthorizedResponse({
     description: "Caller is unauthenticated or could not be scoped to a group.",
   })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot update workflows.",
+  })
   @ApiNotFoundResponse({
     description: "No conversation with that id is owned by the caller.",
   })
@@ -195,7 +214,7 @@ export class AgentController {
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<void> {
-    const { actorId } = resolveCallerOrThrow(req);
+    const { actorId } = resolveCallerOrThrow(req, [Permission.WORKFLOW_UPDATE]);
     await this.agentService.deleteConversationForCaller(id, actorId);
   }
 
@@ -208,6 +227,9 @@ export class AgentController {
   @ApiUnauthorizedResponse({
     description: "Caller is unauthenticated or could not be scoped to a group.",
   })
+  @ApiForbiddenResponse({
+    description: "The caller's group role cannot update workflows.",
+  })
   @ApiNotFoundResponse({
     description: "No conversation with that id is owned by the caller.",
   })
@@ -215,7 +237,9 @@ export class AgentController {
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<AbortConversationResponseDto> {
-    const { actorId, groupId } = resolveCallerOrThrow(req);
+    const { actorId, groupId } = resolveCallerOrThrow(req, [
+      Permission.WORKFLOW_UPDATE,
+    ]);
     // Verify the caller can see this conversation (throws 404 otherwise).
     await this.agentService.getConversationForCaller(id, actorId, groupId);
     const aborted = this.abortFlags.abort(id);
@@ -228,7 +252,25 @@ interface ResolvedCaller {
   groupId: string;
 }
 
-function resolveCallerOrThrow(req: Request): ResolvedCaller {
+/**
+ * Resolve the caller's group (see `resolveCallerGroup`) and require
+ * `requiredPermissions` there. The agent edits workflows, so a group member
+ * whose role cannot (a reviewer) is refused before any agent work starts.
+ */
+function resolveCallerOrThrow(
+  req: Request,
+  requiredPermissions: Permission[],
+): ResolvedCaller {
+  const caller = resolveCallerGroup(req);
+  identityCanAccessGroup(
+    req.resolvedIdentity,
+    caller.groupId,
+    requiredPermissions,
+  );
+  return caller;
+}
+
+function resolveCallerGroup(req: Request): ResolvedCaller {
   const identity = req.resolvedIdentity;
   if (!identity) {
     throw new UnauthorizedException("Authentication required");

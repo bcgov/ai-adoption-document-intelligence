@@ -1182,10 +1182,10 @@ describe("IdentityGuard", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Internal-token path (Change W): request.internalToken → group-scoped MEMBER
+  // Internal-token path (Change W): request.internalToken → group-scoped EDITOR
   // ---------------------------------------------------------------------------
 
-  it("resolves an internal token to the same group-scoped MEMBER shape the API-key path produces", async () => {
+  it("resolves an internal token to the same group-scoped EDITOR shape the API-key path produces", async () => {
     guard = new IdentityGuard(
       createReflectorWithIdentity({ allowApiKey: true }),
       userService as unknown as UserService,
@@ -1203,7 +1203,8 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "g-1": GroupRole.MEMBER },
+      groupRoles: { "g-1": GroupRole.EDITOR },
+      resolvedGroups: [],
       actorId: "actor-7",
     });
     // No DB round-trip — the token row already carries the whole binding.

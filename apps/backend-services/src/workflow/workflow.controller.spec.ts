@@ -120,7 +120,6 @@ describe("WorkflowController", () => {
   beforeEach(async () => {
     workflowService = {
       getGroupWorkflows: jest.fn(),
-      getAllWorkflowLineages: jest.fn(),
       getWorkflow: jest.fn(),
       getWorkflowBySlug: jest.fn(),
       getWorkflowVersionById: jest.fn(),
@@ -251,7 +250,11 @@ describe("WorkflowController", () => {
 
     it("includes benchmark candidates when flag is true", async () => {
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows("group-1", "true", undefined);
+      const result = await controller.getWorkflows(
+        "group-1",
+        "true",
+        undefined,
+      );
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
@@ -317,32 +320,37 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflowBySlug", () => {
-    it("resolves by slug scoped to the caller's groups when no groupId is given", async () => {
+    it("refuses a lookup without a groupId (400)", async () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
-      workflowService.getWorkflowBySlug.mockResolvedValue(mockWorkflowInfo);
-      const result = await controller.getWorkflowBySlug(
-        "test-workflow",
-        undefined,
-        req,
-      );
-      expect(result).toEqual({ workflow: mockWorkflowInfo });
-      expect(workflowService.getWorkflowBySlug).toHaveBeenCalledWith(
-        "test-workflow",
-        ["group-1"],
-        "user-1",
-      );
+      await expect(
+        controller.getWorkflowBySlug("test-workflow", undefined, req),
+      ).rejects.toThrow(BadRequestException);
+      expect(workflowService.getWorkflowBySlug).not.toHaveBeenCalled();
+    });
+
+    it("refuses a reviewer, whose role cannot read workflows (403)", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.REVIEWER,
+        }),
+      } as Request;
+      await expect(
+        controller.getWorkflowBySlug("test-workflow", "group-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(workflowService.getWorkflowBySlug).not.toHaveBeenCalled();
     });
 
     it("scopes to the requested group when groupId is given and accessible", async () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflowBySlug.mockResolvedValue(mockWorkflowInfo);
@@ -358,7 +366,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       await expect(
@@ -373,7 +381,7 @@ describe("WorkflowController", () => {
       ({
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as Request;
 
@@ -437,7 +445,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflowVersionById.mockResolvedValue(
@@ -456,7 +464,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -543,7 +551,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -872,7 +880,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -885,6 +893,28 @@ describe("WorkflowController", () => {
         },
       },
     };
+
+    it("refuses a reviewer, whose role cannot submit work for processing (403)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      const reviewerReq = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.REVIEWER,
+        }),
+      } as unknown as Request;
+
+      await expect(
+        controller.startRun(
+          "wf-1",
+          { initialCtx: { customerId: "cust-001" } },
+          reviewerReq,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
 
     it("starts a Temporal run and returns the execution id", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -937,7 +967,7 @@ describe("WorkflowController", () => {
           "x-api-key": "super-secret-caller-key",
         },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as unknown as Request;
 
@@ -1076,7 +1106,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -1535,7 +1565,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -1548,6 +1578,31 @@ describe("WorkflowController", () => {
         },
       },
     };
+
+    it("refuses a reviewer, whose role cannot edit workflows (403)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      const reviewerReq = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.REVIEWER,
+        }),
+      } as unknown as Request;
+
+      await expect(
+        controller.startTry(
+          "wf-1",
+          { initialCtx: { customerId: "cust-001" } },
+          reviewerReq,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(
+        temporalClient.cancelInFlightTriesForLineage,
+      ).not.toHaveBeenCalled();
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
 
     it("stamps RunTrigger 'try' — NOT 'api' — on the started execution", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -1645,7 +1700,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -1750,7 +1805,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -2304,7 +2359,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -2350,7 +2405,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       const dto: CreateWorkflowDto = {
@@ -2442,7 +2497,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
@@ -2469,7 +2524,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
@@ -2532,7 +2587,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -2705,7 +2760,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -2757,7 +2812,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -2968,7 +3023,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -3106,7 +3161,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -3245,7 +3300,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -3281,7 +3336,7 @@ describe("WorkflowController", () => {
       ({
         protocol: "http",
         headers: { host: "localhost:3002" },
-        resolvedIdentity: identityWithGroups({ "group-1": GroupRole.MEMBER }),
+        resolvedIdentity: identityWithGroups({ "group-1": GroupRole.EDITOR }),
       }) as unknown as Request;
 
     it("shares ONE dereference budget across every row in the batch", async () => {
@@ -3326,7 +3381,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -3414,7 +3469,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.getWorkflowVersionById.mockResolvedValue(
@@ -3522,7 +3577,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -3779,7 +3834,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -3886,7 +3941,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -4003,7 +4058,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       }) as unknown as Request;
 
@@ -4024,6 +4079,24 @@ describe("WorkflowController", () => {
         overrides.endedAt === undefined
           ? new Date("2026-05-24T12:00:42Z")
           : overrides.endedAt,
+    });
+
+    it("refuses a reviewer, whose role cannot read workflows (403)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      const reviewerReq = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.REVIEWER,
+        }),
+      } as unknown as Request;
+
+      await expect(
+        controller.listRuns("wf-1", {}, reviewerReq),
+      ).rejects.toThrow(ForbiddenException);
+      expect(temporalClient.listRunsForWorkflow).not.toHaveBeenCalled();
     });
 
     // ---------------------------------------------------------------------
@@ -4289,7 +4362,7 @@ describe("WorkflowController", () => {
         protocol: "http",
         headers: { host: "localhost:3002" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as unknown as Request;
       workflowService.resolveLineageAndVersion.mockResolvedValue(

@@ -45,15 +45,12 @@ import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { LruTtlCache } from "@/cache/lru-ttl-cache";
 import { DocumentDbService } from "@/document/document-db.service";
-import { DocumentStatus, GroupRole } from "@/generated";
+import { DocumentStatus } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   type ListRunsExecution,
@@ -364,11 +361,9 @@ export class WorkflowController {
         `Workflow version not found: ${versionId} in lineage ${lineageId}`,
       );
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      workflow.groupId,
-      GroupRole.MEMBER,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, workflow.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     return { workflow };
   }
 
@@ -411,11 +406,9 @@ export class WorkflowController {
         `Workflow version not found: ${versionId} in lineage ${lineageId}`,
       );
     }
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      workflow.groupId,
-      GroupRole.MEMBER,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, workflow.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     const cacheKey = buildVersionRunCountCacheKey(lineageId, versionId);
     const cached = this.versionRunCountCache.get(cacheKey);
@@ -467,7 +460,9 @@ export class WorkflowController {
       id,
       workflowVersionId,
     );
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
     const triggerUrl = buildTriggerUrl(req, id);
     const runSpec = buildRunSpec(wf.config, triggerUrl);
     const uploadSpec = buildUploadSpec(wf.config);
@@ -582,7 +577,15 @@ export class WorkflowController {
       id,
       body.workflowVersionId,
     );
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    // A Try is part of editing the workflow; a real run submits work for
+    // processing, which is what uploading a document needs too.
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      wf.groupId,
+      trigger === "try"
+        ? [Permission.WORKFLOW_UPDATE]
+        : [Permission.DOCUMENT_CREATE],
+    );
 
     // Draft-save (2026-08-02): saving no longer refuses an invalid config,
     // so run start is where the D-11 invariant ("a state the runtime cannot
@@ -755,7 +758,9 @@ export class WorkflowController {
     }
 
     const wf = await this.workflowService.resolveLineageAndVersion(workflowId);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_UPDATE,
+    ]);
 
     // Draft-save gate move: same run-start refusal as startLineageRun —
     // upload-and-Try kicks off a run, so an invalid graph is refused BEFORE
@@ -827,7 +832,6 @@ export class WorkflowController {
       source: "workflow-upload",
       status: DocumentStatus.pre_ocr,
       apim_request_id: null,
-      workflow_id: null,
       workflow_config_id: wf.workflowVersionId,
       workflow_execution_id: null,
       model_id: "prebuilt-layout",
@@ -979,7 +983,9 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<NodeStatusesResponseDto> {
     const wf = await this.workflowService.resolveLineageAndVersion(id);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     try {
       // Ownership scoping: authorizing the *workflow* is not enough — the
@@ -1109,7 +1115,9 @@ export class WorkflowController {
     }
 
     const wf = await this.workflowService.resolveLineageAndVersion(id);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     let row: Awaited<
       ReturnType<ActivityOutputCacheRepository["findMostRecentFresh"]>
@@ -1203,7 +1211,9 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<ActivityOutputPreviewBatchDto> {
     const wf = await this.workflowService.resolveLineageAndVersion(id);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     let rows: Awaited<
       ReturnType<ActivityOutputCacheRepository["findManyMostRecentFresh"]>
@@ -1317,7 +1327,9 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<InputCtxResponseDto> {
     const wf = await this.workflowService.resolveLineageAndVersion(id);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     // -------------------------------------------------------------------
     // Editor scope (G-021 follow-up): Try runs only. A production run's
@@ -1472,7 +1484,9 @@ export class WorkflowController {
     @Req() req: Request,
   ): Promise<ListRunsResponseDto> {
     const wf = await this.workflowService.resolveLineageAndVersion(id);
-    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     // Business-rule check: `ValidationPipe` accepts the dates individually
     // but doesn't enforce ordering between them. Reject inverted ranges
@@ -1584,42 +1598,45 @@ export class WorkflowController {
   @ApiOperation({
     summary: "Resolve a workflow by its stable slug",
     description:
-      "Resolves a workflow lineage by its URL-friendly `slug` (unique within a group) rather than its churn-prone `id`. Backs stable/shareable editor links: a slug is derived deterministically from the name, so a `/workflows/by-slug/<slug>/edit` link survives reseeds even though the lineage `id` changes. Scoped to the caller's accessible groups (or the `groupId` query param when provided).",
+      "Resolves a workflow lineage in the requested group by its URL-friendly `slug` (unique within a group) rather than its churn-prone `id`. Backs stable/shareable editor links: a slug is derived deterministically from the name, so a `/workflows/by-slug/<slug>/edit` link survives reseeds even though the lineage `id` changes.",
   })
   @ApiParam({ name: "slug", description: "Stable workflow slug" })
   @ApiQuery({
     name: "groupId",
-    required: false,
+    required: true,
     description:
-      "Optional group to disambiguate the slug (slugs are unique only within a group). Defaults to the caller's accessible groups.",
+      "Group to resolve the slug in (slugs are unique only within a group)",
   })
   @ApiOkResponse({
     description: "Returns the workflow the slug resolves to",
     type: WorkflowResponseDto,
   })
-  @ApiNotFoundResponse({
-    description: "No workflow with that slug in the accessible group(s)",
+  @ApiBadRequestResponse({
+    description: "The groupId query parameter is missing",
   })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiNotFoundResponse({
+    description: "No workflow with that slug in the requested group",
+  })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a member of the group, or the group role cannot read workflows",
+  })
   async getWorkflowBySlug(
     @Param("slug") slug: string,
     @Query("groupId") groupId: string | undefined,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
-    const actorId = req.resolvedIdentity.actorId;
-
-    let groupIds: string[] | undefined;
-    if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
-      groupIds = [groupId];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
+    if (!groupId) {
+      throw new BadRequestException("groupId query parameter is required");
     }
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     const workflow = await this.workflowService.getWorkflowBySlug(
       slug,
-      groupIds,
-      actorId,
+      [groupId],
+      req.resolvedIdentity.actorId,
     );
     return { workflow };
   }
@@ -1772,11 +1789,9 @@ export class WorkflowController {
 
     const existing = await this.workflowService.getWorkflow(id, actorId);
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      existing.groupId,
-      GroupRole.MEMBER,
-    );
+    identityCanAccessGroup(req.resolvedIdentity, existing.groupId, [
+      Permission.WORKFLOW_RETRIEVE,
+    ]);
 
     return this.workflowService.describeDeleteImpact(id);
   }
