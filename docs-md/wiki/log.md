@@ -166,3 +166,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `auth/AUTHENTICATION.md`: the per-IP limits count the caller's own address behind the cluster's proxies.
 - `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`: an exposed ctx path whose key is not declared is a warning, and an override on it is refused.
 - `auth-and-groups.md`: a training records its model id's group.
+
+## [2026-10-16] ingest | Template deletion refusals, owner records for older trainings
+
+- `architecture/TEMPLATE_MODELS.md`: deleting a template answers `409` while one of its trainings is in progress or a benchmark definition names one of its versions; the owner records' migration also reads the training audit events.
+- `architecture/AUDIT.md`: the `template_model_deleted` payload lists the Azure model ids it deletes.
+- `auth/AUTHENTICATION.md`: the per-IP limits' `X-Forwarded-For` rule, stated for callers that come through the router.

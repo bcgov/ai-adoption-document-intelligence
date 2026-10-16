@@ -808,9 +808,10 @@ export class TrainingService {
   }
 
   /**
-   * Whether a model id belongs to a group other than `groupId`, as a trained
-   * model or the target of an in-flight training job. Prebuilt models and
-   * other engines' models belong to no group.
+   * Whether a model id belongs to a group other than `groupId`: its owner
+   * record names that group, which keeps it after the template is deleted, or
+   * that group's template models trained it or are training it. Prebuilt
+   * models and other engines' models belong to no group.
    *
    * @param modelId - The model id to look up.
    * @param groupId - The group that wants to use the model.
