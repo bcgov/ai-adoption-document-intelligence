@@ -89,11 +89,33 @@ export class WorkflowEditorPage {
    * the click has to land on its painted track. The switch is idempotent by
    * intent, not by construction — reading `isChecked()` first keeps a caller
    * that asks for `true` twice from toggling it back off.
+   *
+   * Each flip re-fits the view with a short animation, so this returns once
+   * the camera has stopped moving: a click aimed at a chip or card right
+   * after the switch would otherwise land where it used to be.
    */
   async setSimplifiedView(on: boolean): Promise<void> {
     if ((await this.simplifiedViewToggle.isChecked()) === on) return;
     await this.simplifiedViewWrapper.locator(".mantine-Switch-track").click();
     await expect(this.simplifiedViewToggle).toBeChecked({ checked: on });
+    await this.waitForViewToSettle();
+  }
+
+  /** Wait until the canvas viewport's transform reads the same twice running. */
+  async waitForViewToSettle(): Promise<void> {
+    const viewport = this.page.locator(".react-flow__viewport");
+    let last = "";
+    await expect
+      .poll(
+        async () => {
+          const now = (await viewport.getAttribute("style")) ?? "";
+          const settled = now === last;
+          last = now;
+          return settled;
+        },
+        { intervals: [150, 150, 150, 300, 500] },
+      )
+      .toBe(true);
   }
 
   async openHistory(): Promise<void> {
