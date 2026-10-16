@@ -240,6 +240,30 @@ describe("validateWorkflowConfigOverrides", () => {
     ]);
   });
 
+  it("refuses an override on an undeclared ctx key that every object inherits", () => {
+    const config = makeWorkflowConfig({
+      nodeGroups: {
+        groupA: {
+          label: "Group A",
+          nodeIds: ["node1"],
+          exposedParams: [
+            {
+              label: "Format",
+              path: "ctx.toString.defaultValue",
+              type: "string",
+            },
+          ],
+        },
+      },
+    });
+    const errors = validateWorkflowConfigOverrides(config, {
+      "ctx.toString.defaultValue": "markdown",
+    });
+    expect(errors).toEqual([
+      'Override path "ctx.toString.defaultValue" names ctx key "toString", which the workflow does not declare',
+    ]);
+  });
+
   it("returns multiple errors for multiple invalid overrides", () => {
     const config = makeWorkflowConfig();
     const errors = validateWorkflowConfigOverrides(config, {

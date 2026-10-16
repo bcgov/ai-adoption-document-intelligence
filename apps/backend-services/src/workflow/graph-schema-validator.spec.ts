@@ -1545,6 +1545,67 @@ describe("graph-schema-validator", () => {
       );
     });
 
+    /** The linear graph followed by a switch node, which has no timeout. */
+    function withSwitchNodeAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.requiresReview = { type: "boolean" };
+      config.nodes.route = {
+        id: "route",
+        type: "switch",
+        label: "Route",
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.requiresReview" },
+              right: { literal: true },
+            },
+            edgeId: "e-review",
+          },
+        ],
+        defaultEdge: "e-done",
+      };
+      config.nodes.review = {
+        id: "review",
+        type: "activity",
+        label: "Review",
+        activityType: "document.updateStatus",
+      };
+      config.nodes.done = {
+        id: "done",
+        type: "activity",
+        label: "Done",
+        activityType: "document.updateStatus",
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "route", type: "normal" },
+        {
+          id: "e-review",
+          source: "route",
+          target: "review",
+          type: "conditional",
+        },
+        { id: "e-done", source: "route", target: "done", type: "conditional" },
+      );
+      return config;
+    }
+
+    it("refuses a timeout path on a node type that has no timeout", () => {
+      const result = validateGraphConfig(
+        withSwitchNodeAndExposedPath("nodes.route.timeout"),
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(
+            "sets a timeout, which a switch node does not have",
+          ),
+        }),
+      ]);
+    });
+
     it("config without nodeGroups passes validation", () => {
       const config = makeLinearGraph();
       // No nodeGroups field
