@@ -250,6 +250,7 @@ function CaseRow({
             config={config}
             onCreateCtxKey={onCreateCtxKey}
             currentNodeId={fromNodeId}
+            sentencePrefix="This case matches when"
             data-testid={`${testIdBase}-condition`}
           />
         </Box>
