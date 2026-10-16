@@ -365,6 +365,8 @@ In the visual editor:
 
 Grouping does **not** flip the canvas into simplified view. It used to, because a toast was the only sign a group existed — the box is the feedback now, so the mode change became cost without benefit.
 
+**Simplified view** (the **Simplified** switch in the top bar) collapses each group into one chip. Switching either way re-fits the view to what is on screen. Until you arrange that view — **Auto-arrange** while it is on, or dragging a chip — the chips and any ungrouped steps are laid out side by side for display; that layout is not saved, and flipping the switch never changes the workflow. Arranging or dragging in simplified view saves positions for that view only; the expanded layout is never touched.
+
 Each node can belong to at most one group at a time — if any of the selected nodes were already a member of another group, they are moved into the new group. Old groups that are left with no members are removed automatically. Members of a synthetic map-body group are not eligible: they are grouped by their Map node already, so they are filtered out of the selection. If that leaves fewer than two nodes, the gesture refuses with a toast rather than making a group nobody asked for.
 
 ### Editing a group in the right rail
