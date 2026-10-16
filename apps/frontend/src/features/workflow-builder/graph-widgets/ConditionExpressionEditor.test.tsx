@@ -22,6 +22,7 @@ import type {
   LogicalExpression,
   NotExpression,
   NullCheckExpression,
+  PollUntilNode,
 } from "../../../types/workflow";
 import { ConditionExpressionEditor } from "./ConditionExpressionEditor";
 import { OPERATOR_LABELS } from "./operator-labels";
@@ -1188,5 +1189,104 @@ describe("ConditionExpressionEditor — logical group verbs + collapse", () => {
     expect(
       screen.getByTestId("condition-expression-editor-group-summary"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ConditionExpressionEditor — reads as a sentence", () => {
+  /** Standard OCR's poll step, whose condition reads its own status output. */
+  const poll: PollUntilNode = {
+    id: "pollOcrResults",
+    type: "pollUntil",
+    label: "Poll OCR Results",
+    activityType: "azureOcr.poll",
+    outputs: [{ port: "status", ctxKey: "ocrStatus" }],
+    condition: { operator: "equals", left: { ref: "" }, right: { ref: "" } },
+    interval: "10s",
+  };
+  const stopsWhenDone: ComparisonExpression = {
+    operator: "not-equals",
+    left: { ref: "ctx.ocrStatus" },
+    right: { literal: "running" },
+  };
+  const sentence = () =>
+    screen.getByTestId("condition-expression-editor-sentence").textContent;
+
+  it("lays a comparison out in reading order, with no Left or Right", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={stopsWhenDone}
+        onChange={() => undefined}
+        config={makeConfig([poll])}
+        currentNodeId="pollOcrResults"
+      />,
+    );
+    const body = screen.getByTestId(
+      "condition-expression-editor-body-comparison",
+    );
+    const [check, compare, compareWith] = [
+      "Value to check",
+      "How to compare",
+      "Compare with",
+    ].map((text) => within(body).getByText(text));
+    const follows = (a: Node, b: Node) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(check, compare)).toBe(true);
+    expect(follows(compare, compareWith)).toBe(true);
+    expect(within(body).queryByText("Left")).toBeNull();
+    expect(within(body).queryByText("Right")).toBeNull();
+  });
+
+  it("states the whole condition after the lead-in its panel gives it", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={stopsWhenDone}
+        onChange={() => undefined}
+        config={makeConfig([poll])}
+        currentNodeId="pollOcrResults"
+        sentencePrefix="Polling stops when"
+      />,
+    );
+    expect(sentence()).toBe(
+      'Polling stops when Poll OCR Results → Poll status is not equal to "running".',
+    );
+  });
+
+  it("keeps the sentence in step as the condition is edited", () => {
+    function Harness() {
+      const [expr, setExpr] = useState<ConditionExpression | undefined>(
+        stopsWhenDone,
+      );
+      return (
+        <ConditionExpressionEditor
+          value={expr}
+          onChange={setExpr}
+          config={makeConfig([poll])}
+          currentNodeId="pollOcrResults"
+          sentencePrefix="Polling stops when"
+        />
+      );
+    }
+    renderEditor(<Harness />);
+    fireEvent.change(
+      screen.getByTestId("condition-expression-editor-right-literal-input"),
+      { target: { value: '"failed"' } },
+    );
+    expect(sentence()).toBe(
+      'Polling stops when Poll OCR Results → Poll status is not equal to "failed".',
+    );
+  });
+
+  it("leaves the sentence out when no lead-in is given", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={stopsWhenDone}
+        onChange={() => undefined}
+        config={makeConfig([poll])}
+        currentNodeId="pollOcrResults"
+      />,
+    );
+    expect(
+      screen.queryByTestId("condition-expression-editor-sentence"),
+    ).toBeNull();
   });
 });
