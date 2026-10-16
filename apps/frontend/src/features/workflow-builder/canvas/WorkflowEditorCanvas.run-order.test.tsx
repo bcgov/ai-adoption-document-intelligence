@@ -19,13 +19,14 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { render, screen } from "@testing-library/react";
-import type { Connection } from "@xyflow/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { Connection, Edge } from "@xyflow/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   ActivityNode,
+  GraphEdge,
   GraphNode,
   GraphWorkflowConfig,
   MapNode,
@@ -330,8 +331,8 @@ describe("D10 — the run-order gesture works, and now says so", () => {
 // ---------------------------------------------------------------------------
 
 interface ConnectEndState {
-  fromHandle: { id: string | null } | null;
-  toHandle: { id: string | null } | null;
+  fromHandle: { id: string | null; type?: "source" | "target" } | null;
+  toHandle: { id: string | null; type?: "source" | "target" } | null;
   fromNode: { id: string } | null;
   toNode: { id: string } | null;
   isValid: boolean;
@@ -423,5 +424,168 @@ describe("D9 — Segments dragged onto the loop's run-order dot", () => {
     });
     expect(notifications.show).not.toHaveBeenCalled();
     expect(onConfigChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Run-order wires that would change nothing, or close a loop, are refused
+// with the reason; a run-order wire is removed from its right-click menu.
+// ---------------------------------------------------------------------------
+
+/** Split Document → Run for each item, already joined by a run-order wire. */
+const RUN_ORDER_EDGE: GraphEdge = {
+  id: "e-run",
+  source: "splitDoc",
+  target: "loopNode",
+  type: "normal",
+};
+
+function withEdges(edges: GraphEdge[]): GraphWorkflowConfig {
+  return { ...makeConfig(), edges };
+}
+
+/** The React Flow edge the canvas projected for a config edge. */
+function canvasEdge(edgeId: string): Edge {
+  const edges = (latestReactFlowProps.current?.edges ?? []) as Edge[];
+  const found = edges.find(
+    (e) =>
+      (e.data as { wire?: { id: string } } | undefined)?.wire?.id === edgeId,
+  );
+  if (!found) throw new Error(`the canvas drew no wire for ${edgeId}`);
+  return found;
+}
+
+type EdgeContextMenu = (
+  event: Pick<React.MouseEvent, "preventDefault" | "clientX" | "clientY">,
+  edge: Edge,
+) => void;
+
+describe("a run-order wire that would change nothing", () => {
+  it("is refused, so the wire never snaps", () => {
+    renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    const isValid =
+      reactFlowProp<(c: Connection) => boolean>("isValidConnection");
+    expect(
+      isValid({
+        source: "splitDoc",
+        target: "loopNode",
+        sourceHandle: "out",
+        targetHandle: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("says why on release", () => {
+    renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    act(() => {
+      reactFlowProp<ConnectEnd>("onConnectEnd")(new MouseEvent("mouseup"), {
+        fromHandle: { id: "out" },
+        toHandle: { id: null },
+        fromNode: { id: "splitDoc" },
+        toNode: { id: "loopNode" },
+        isValid: false,
+      });
+    });
+    expect(notifications.show).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifications.show).mock.calls[0][0]?.message).toBe(
+      '"Run for each item" already runs after "Split Document": a run-order wire already joins them.',
+    );
+  });
+
+  it("names the steps the right way round when the drag starts on the incoming dot", () => {
+    // Dragged from the loop's incoming dot to Split Document's outgoing one:
+    // the wire would still run Split Document first, so it is the same
+    // duplicate, not a loop.
+    renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    act(() => {
+      reactFlowProp<ConnectEnd>("onConnectEnd")(new MouseEvent("mouseup"), {
+        fromHandle: { id: null, type: "target" },
+        toHandle: { id: "out", type: "source" },
+        fromNode: { id: "loopNode" },
+        toNode: { id: "splitDoc" },
+        isValid: false,
+      });
+    });
+    expect(vi.mocked(notifications.show).mock.calls[0][0]?.message).toBe(
+      '"Run for each item" already runs after "Split Document": a run-order wire already joins them.',
+    );
+  });
+});
+
+describe("a run-order wire that would close a loop", () => {
+  it("is refused, so the wire never snaps", () => {
+    renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    const isValid =
+      reactFlowProp<(c: Connection) => boolean>("isValidConnection");
+    expect(
+      isValid({
+        source: "loopNode",
+        target: "splitDoc",
+        sourceHandle: "out",
+        targetHandle: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("is never written, even when the connect handler is reached directly", () => {
+    const { onConfigChange } = renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    reactFlowProp<(c: Connection) => void>("onConnect")({
+      source: "loopNode",
+      target: "splitDoc",
+      sourceHandle: "out",
+      targetHandle: null,
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("says why on release", () => {
+    renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    act(() => {
+      reactFlowProp<ConnectEnd>("onConnectEnd")(new MouseEvent("mouseup"), {
+        fromHandle: { id: "out" },
+        toHandle: { id: null },
+        fromNode: { id: "loopNode" },
+        toNode: { id: "splitDoc" },
+        isValid: false,
+      });
+    });
+    expect(notifications.show).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifications.show).mock.calls[0][0]?.message).toBe(
+      'That would make a loop: "Run for each item" already runs after "Split Document".',
+    );
+  });
+});
+
+describe("a run-order wire's right-click menu", () => {
+  it("replaces the browser's menu and removes the wire", async () => {
+    const { onConfigChange } = renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    const preventDefault = vi.fn();
+    act(() => {
+      reactFlowProp<EdgeContextMenu>("onEdgeContextMenu")(
+        { preventDefault, clientX: 40, clientY: 50 },
+        canvasEdge("e-run"),
+      );
+    });
+    expect(preventDefault).toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByTestId("wire-menu-remove-run-order"));
+
+    const next = onConfigChange.mock.calls[0]?.[0] as GraphWorkflowConfig;
+    expect(next.edges).toEqual([]);
+  });
+
+  it("leaves an error path's right-click to the browser", () => {
+    renderCanvas(
+      withEdges([{ ...RUN_ORDER_EDGE, id: "e-err", type: "error" }]),
+    );
+    const preventDefault = vi.fn();
+    act(() => {
+      reactFlowProp<EdgeContextMenu>("onEdgeContextMenu")(
+        { preventDefault, clientX: 40, clientY: 50 },
+        canvasEdge("e-err"),
+      );
+    });
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("wire-context-menu")).toBeNull();
   });
 });

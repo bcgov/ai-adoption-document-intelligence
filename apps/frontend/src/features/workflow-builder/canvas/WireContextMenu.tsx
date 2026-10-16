@@ -1,5 +1,5 @@
 /**
- * Right-click context menu for canvas data wires (PORT_WIRING_DESIGN.md §7).
+ * Right-click context menu for canvas wires (PORT_WIRING_DESIGN.md §7).
  *
  * Mirrors `NodeContextMenu`'s shape: a controlled Mantine `Menu` anchored to
  * a 1×1 invisible `<div>` rendered at fixed viewport coordinates, so the
@@ -7,11 +7,11 @@
  * dropdown renders through Mantine's portal so it floats above the canvas
  * regardless of stacking contexts.
  *
- * Only DATA wires get this menu — structural (sequence/conditional/error)
- * wires keep the browser's native right-click behaviour; the canvas is
- * responsible for not opening this component for those.
+ * Data wires and run-order (sequence) wires get this menu. Branch and
+ * error-path wires keep the browser's native right-click behaviour; the
+ * canvas is responsible for not opening this component for those.
  *
- * Entries:
+ * Data-wire entries:
  *   - "View data" — only shown when `canViewData` (a run has happened);
  *     selects the edge to open the data peek popover.
  *   - "Disconnect" — always shown; same effect as deleting the wire via the
@@ -21,12 +21,16 @@
  *     the port back to the resolver (`revertPortToAutomatic`), which drops
  *     the lock so the next `resolveBindings` pass re-derives the binding.
  *
+ * Run-order wire entry:
+ *   - "Remove run order" — same effect as selecting the dashed wire and
+ *     pressing Delete: the edge between the two steps is removed.
+ *
  * Click-away closes the menu through Mantine's default `closeOnClickOutside`
  * behaviour, which fires `onChange(false)` — wired to `onClose`.
  */
 
 import { Menu } from "@mantine/core";
-import type { DataWire } from "./derive-wires";
+import type { DataWire, StructuralWire } from "./derive-wires";
 
 export interface WireContextMenuProps {
   /** Whether the menu is currently open. */
@@ -35,8 +39,8 @@ export interface WireContextMenuProps {
   x: number;
   /** Viewport-relative position the menu pins to (event.clientX/Y). */
   y: number;
-  /** The data wire the menu was opened for; null when closed. */
-  wire: DataWire | null;
+  /** The data or run-order wire the menu was opened for; null when closed. */
+  wire: DataWire | StructuralWire | null;
   /** Whether the "View data" item should show (a run has happened). */
   canViewData: boolean;
   /** Open the data peek for this wire (selects the edge). */
@@ -47,6 +51,8 @@ export interface WireContextMenuProps {
   onDisconnect: (wire: DataWire) => void;
   /** Hand the wire's target port back to the resolver. */
   onRevert: (wire: DataWire) => void;
+  /** Remove a run-order wire — same effect as deleting it. */
+  onRemoveRunOrder: (wire: StructuralWire) => void;
 }
 
 export function WireContextMenu({
@@ -59,23 +65,53 @@ export function WireContextMenu({
   onClose,
   onDisconnect,
   onRevert,
+  onRemoveRunOrder,
 }: WireContextMenuProps) {
   if (!opened || !wire) return null;
 
-  const handleViewData = () => {
-    onViewData(wire);
+  /** Run a menu action, then close the menu. */
+  const thenClose = (action: () => void) => () => {
+    action();
     onClose();
   };
 
-  const handleDisconnect = () => {
-    onDisconnect(wire);
-    onClose();
-  };
+  const dataWireItems = (dataWire: DataWire) => (
+    <>
+      {canViewData && (
+        <Menu.Item
+          data-testid="wire-menu-view-data"
+          onClick={thenClose(() => onViewData(dataWire))}
+        >
+          View data
+        </Menu.Item>
+      )}
+      {dataWire.pinned && (
+        <Menu.Item
+          data-testid="wire-menu-revert"
+          onClick={thenClose(() => onRevert(dataWire))}
+        >
+          Revert to automatic
+        </Menu.Item>
+      )}
+      <Menu.Item
+        data-testid="wire-menu-disconnect"
+        color="red"
+        onClick={thenClose(() => onDisconnect(dataWire))}
+      >
+        Disconnect
+      </Menu.Item>
+    </>
+  );
 
-  const handleRevert = () => {
-    onRevert(wire);
-    onClose();
-  };
+  const runOrderWireItems = (runOrderWire: StructuralWire) => (
+    <Menu.Item
+      data-testid="wire-menu-remove-run-order"
+      color="red"
+      onClick={thenClose(() => onRemoveRunOrder(runOrderWire))}
+    >
+      Remove run order
+    </Menu.Item>
+  );
 
   return (
     <Menu
@@ -111,23 +147,9 @@ export function WireContextMenu({
         />
       </Menu.Target>
       <Menu.Dropdown data-testid="wire-context-menu">
-        {canViewData && (
-          <Menu.Item data-testid="wire-menu-view-data" onClick={handleViewData}>
-            View data
-          </Menu.Item>
-        )}
-        {wire.pinned && (
-          <Menu.Item data-testid="wire-menu-revert" onClick={handleRevert}>
-            Revert to automatic
-          </Menu.Item>
-        )}
-        <Menu.Item
-          data-testid="wire-menu-disconnect"
-          color="red"
-          onClick={handleDisconnect}
-        >
-          Disconnect
-        </Menu.Item>
+        {wire.variant === "data"
+          ? dataWireItems(wire)
+          : runOrderWireItems(wire)}
       </Menu.Dropdown>
     </Menu>
   );

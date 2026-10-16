@@ -12,7 +12,7 @@ import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { DataWire } from "./derive-wires";
+import type { DataWire, StructuralWire } from "./derive-wires";
 import { WireContextMenu } from "./WireContextMenu";
 
 function makeWire(overrides: Partial<DataWire> = {}): DataWire {
@@ -31,12 +31,13 @@ function makeWire(overrides: Partial<DataWire> = {}): DataWire {
 }
 
 function renderMenu(
-  wire: DataWire,
+  wire: DataWire | StructuralWire,
   callbacks: {
     onClose?: () => void;
     onDisconnect?: (wire: DataWire) => void;
     onRevert?: (wire: DataWire) => void;
     onViewData?: (wire: DataWire) => void;
+    onRemoveRunOrder?: (wire: StructuralWire) => void;
     canViewData?: boolean;
   } = {},
 ) {
@@ -44,6 +45,7 @@ function renderMenu(
   const onDisconnect = callbacks.onDisconnect ?? vi.fn();
   const onRevert = callbacks.onRevert ?? vi.fn();
   const onViewData = callbacks.onViewData ?? vi.fn();
+  const onRemoveRunOrder = callbacks.onRemoveRunOrder ?? vi.fn();
   const canViewData = callbacks.canViewData ?? false;
   const utils = render(
     <MantineProvider>
@@ -57,6 +59,7 @@ function renderMenu(
         onClose={onClose}
         onDisconnect={onDisconnect}
         onRevert={onRevert}
+        onRemoveRunOrder={onRemoveRunOrder}
       />
     </MantineProvider>,
   );
@@ -150,6 +153,34 @@ describe("WireContextMenu — View data", () => {
     expect(onViewData).toHaveBeenCalledWith(
       expect.objectContaining({ variant: "data" }),
     );
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("WireContextMenu — run-order wire", () => {
+  it("offers only Remove run order, and fires it with the wire", async () => {
+    const wire: StructuralWire = {
+      variant: "sequence",
+      id: "e-run",
+      edge: { id: "e-run", source: "prep", target: "submit", type: "normal" },
+    };
+    const onRemoveRunOrder = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    // A run has happened: View data would show on a data wire, but a
+    // run-order wire carries no data to view.
+    renderMenu(wire, { onRemoveRunOrder, onClose, canViewData: true });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("wire-menu-remove-run-order"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("wire-menu-disconnect")).toBeNull();
+    expect(screen.queryByTestId("wire-menu-revert")).toBeNull();
+    expect(screen.queryByTestId("wire-menu-view-data")).toBeNull();
+
+    await user.click(screen.getByTestId("wire-menu-remove-run-order"));
+    expect(onRemoveRunOrder).toHaveBeenCalledWith(wire);
     expect(onClose).toHaveBeenCalled();
   });
 });
