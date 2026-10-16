@@ -101,7 +101,12 @@ import {
   dataDropRefusalMessage,
   resolveDataDropTarget,
 } from "./data-drop-target";
-import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
+import {
+  type DataWire,
+  type DerivedWire,
+  deriveWires,
+  type StructuralWire,
+} from "./derive-wires";
 import { pickInputPortForKind, pickOutputPortForKind } from "./extend-filter";
 import {
   FLOW_HANDLE_TOOLTIP_IN,
@@ -163,6 +168,11 @@ import {
 import { computePreviewOutputs } from "./preview-outputs";
 import { recordErrorEdge } from "./record-error-edge";
 import { removeNodesFromConfig } from "./remove-nodes";
+import {
+  nodeLevelEdgeType,
+  resolveRunOrderDrop,
+  runOrderRefusalMessage,
+} from "./run-order-drop";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
 import { ValidationBadge } from "./ValidationBadge";
@@ -3485,12 +3495,12 @@ function WorkflowEditorCanvasInner({
 
   // ---------------------------------------------------------------------------
   // Wire right-click context menu (Task 5, §7): "Disconnect" / "Revert to
-  // automatic". Only opened for data wires — structural (sequence /
-  // conditional / error) wires keep the browser's native context menu.
+  // automatic" on a data wire, "Remove run order" on a run-order (sequence)
+  // wire. Branch and error-path wires keep the browser's native menu.
   // ---------------------------------------------------------------------------
 
   const [wireMenu, setWireMenu] = useState<{
-    wire: DataWire;
+    wire: DataWire | StructuralWire;
     x: number;
     y: number;
   } | null>(null);
@@ -3498,7 +3508,7 @@ function WorkflowEditorCanvasInner({
   const handleEdgeContextMenu = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
       const wire = (edge.data as WorkflowEdgeData | undefined)?.wire;
-      if (wire?.variant !== "data") return; // structural edges keep native behavior
+      if (wire?.variant !== "data" && wire?.variant !== "sequence") return;
       event.preventDefault();
       setWireMenu({ wire, x: event.clientX, y: event.clientY });
     },
@@ -3506,6 +3516,23 @@ function WorkflowEditorCanvasInner({
   );
 
   const closeWireMenu = useCallback(() => setWireMenu(null), []);
+
+  /**
+   * "Remove run order" — the same edit as selecting the dashed wire and
+   * pressing Delete (`handleDelete`): drop the edge by id, then sweep any
+   * control-flow references to it.
+   */
+  const handleRemoveRunOrder = useCallback(
+    (wire: StructuralWire) => {
+      onConfigChange(
+        pruneEdgeReferences({
+          ...config,
+          edges: config.edges.filter((e) => e.id !== wire.id),
+        }),
+      );
+    },
+    [config, onConfigChange],
+  );
 
   const handleWireDisconnect = useCallback(
     (wire: DataWire) => {
@@ -4099,32 +4126,27 @@ function WorkflowEditorCanvasInner({
         if (next !== config) onConfigChange(next);
         return;
       }
-      // Edge type resolution (US-025):
-      //   1. Default to `conditional` if the source node is a switch,
-      //      otherwise `normal`.
-      //   2. Override to `error` when the explicit source handle id is
-      //      `"error"` — handle-id wins over the source-type heuristic
-      //      so a stray switch+error connection is still tagged
-      //      `error` (defence in depth; switch nodes don't render an
-      //      error handle today).
-      const sourceNode = config.nodes[connection.source];
-      let edgeType: GraphEdge["type"] =
-        sourceNode?.type === "switch" ? "conditional" : "normal";
-      if (connection.sourceHandle === "error") {
-        edgeType = "error";
-      }
-      // §4.10: dedup on the edge TYPE too. Comparing only source+target
-      // dropped an error-fallback edge (or a conditional edge) to a node that
-      // already had a normal edge, since they share endpoints but come from
-      // different source handles. An edge of the SAME type between the same
-      // endpoints is still a genuine duplicate.
-      const duplicate = config.edges.some(
-        (e) =>
-          e.source === connection.source &&
-          e.target === connection.target &&
-          e.type === edgeType,
+      // Edge type (US-025) and whether the wire may be drawn at all — it is
+      // refused when it would change nothing or close a loop — both come
+      // from run-order-drop.ts, the same verdict `isValidConnection` and the
+      // release notice in `handleConnectEnd` use. A refused drop never
+      // reaches here through xyflow; this return keeps a direct caller from
+      // writing one either.
+      const edgeType = nodeLevelEdgeType(
+        config,
+        connection.source,
+        connection.sourceHandle,
       );
-      if (duplicate) return;
+      if (
+        resolveRunOrderDrop(
+          config,
+          connection.source,
+          connection.target,
+          edgeType,
+        ).kind !== "ok"
+      ) {
+        return;
+      }
       const newEdge: GraphEdge = {
         id: makeEdgeId(),
         source: connection.source,
@@ -4210,14 +4232,29 @@ function WorkflowEditorCanvasInner({
    *     exactly one compatible input, which `handleConnect` then binds. It
    *     used to be permitted unconditionally and silently produced a
    *     run-order edge instead of the data wire the user drew.
-   *   - node-level → anything: authoring run order, permissive as before.
+   *   - node-level → anything: authoring run order. Allowed unless the wire
+   *     would change nothing or close a loop (`resolveRunOrderDrop`).
    */
   const isValidConnection = useCallback<IsValidConnection>(
     (connection) => {
       if (connection.source === connection.target) return false;
       const sourcePort = portFromHandleId(connection.sourceHandle, "output");
       const targetPort = portFromHandleId(connection.targetHandle, "input");
-      if (sourcePort === null) return true;
+      if (sourcePort === null) {
+        const edgeType = nodeLevelEdgeType(
+          config,
+          connection.source,
+          connection.sourceHandle,
+        );
+        return (
+          resolveRunOrderDrop(
+            config,
+            connection.source,
+            connection.target,
+            edgeType,
+          ).kind === "ok"
+        );
+      }
       if (targetPort === null) {
         return (
           resolveDataDropTarget(
@@ -4278,6 +4315,44 @@ function WorkflowEditorCanvasInner({
         "output",
       );
       const toPort = portFromHandleId(connectionState.toHandle?.id, "input");
+
+      // A drag begun on a node-level dot and refused by `isValidConnection`:
+      // the wire would change nothing or close a loop. Worded from the same
+      // verdict, so the two can't tell different stories. A drag may start
+      // on a step's incoming dot, so the edge's source is whichever end is
+      // the outgoing one.
+      if (
+        fromPort === null &&
+        !connectionState.isValid &&
+        connectionState.fromNode &&
+        connectionState.toNode &&
+        connectionState.fromNode.id !== connectionState.toNode.id
+      ) {
+        const reversed = connectionState.fromHandle?.type === "target";
+        const sourceId = reversed
+          ? connectionState.toNode.id
+          : connectionState.fromNode.id;
+        const targetId = reversed
+          ? connectionState.fromNode.id
+          : connectionState.toNode.id;
+        const edgeType = nodeLevelEdgeType(
+          config,
+          sourceId,
+          reversed
+            ? connectionState.toHandle?.id
+            : connectionState.fromHandle?.id,
+        );
+        const message = runOrderRefusalMessage(
+          resolveRunOrderDrop(config, sourceId, targetId, edgeType),
+          config,
+          sourceId,
+          targetId,
+          edgeType,
+        );
+        if (message !== null) {
+          notifications.show({ color: "yellow", message, autoClose: 7000 });
+        }
+      }
 
       // §6.2 — plain-language rejection notice on a genuine port-to-port
       // drop that failed validation. Independent of the §9 drag-release
@@ -4790,6 +4865,7 @@ function WorkflowEditorCanvasInner({
         onClose={closeWireMenu}
         onDisconnect={handleWireDisconnect}
         onRevert={handleWireRevert}
+        onRemoveRunOrder={handleRemoveRunOrder}
       />
       {editScriptSlug && (
         <Modal

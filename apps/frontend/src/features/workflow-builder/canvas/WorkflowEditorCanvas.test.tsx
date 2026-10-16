@@ -2703,8 +2703,9 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
 
 // ---------------------------------------------------------------------------
 // Task 5 (§7): right-click context menu on data wires — "Disconnect" (always)
-// and "Revert to automatic" (pinned wires only). Structural wires keep the
-// browser's native context menu (no preventDefault, nothing opens).
+// and "Revert to automatic" (pinned wires only) — and on run-order (sequence)
+// wires — "Remove run order". Branch and error-path wires keep the browser's
+// native context menu (no preventDefault, nothing opens).
 //   PORT_WIRING_DESIGN.md §7
 // ---------------------------------------------------------------------------
 
@@ -2754,7 +2755,7 @@ describe("WorkflowEditorCanvas — wire context menu (§7)", () => {
     });
   });
 
-  it("does not open for structural wires", async () => {
+  it("opens the run-order menu for a sequence wire, with nothing a data wire offers", async () => {
     renderCanvas(makeSequenceOnlyConfig());
     await flushAnimationFrame();
 
@@ -2766,8 +2767,15 @@ describe("WorkflowEditorCanvas — wire context menu (§7)", () => {
       getOnEdgeContextMenu()(event, sequenceEdge);
     });
 
-    expect(event.preventDefault).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("wire-context-menu")).not.toBeInTheDocument();
+    expect(event.preventDefault).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("wire-menu-remove-run-order"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("wire-menu-disconnect"),
+    ).not.toBeInTheDocument();
   });
 
   it("Disconnect applies §6.3 semantics", async () => {
