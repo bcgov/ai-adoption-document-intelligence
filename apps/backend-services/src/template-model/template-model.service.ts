@@ -99,7 +99,10 @@ export class TemplateModelService {
 
     let suffix = 2;
     while (suffix <= 1000) {
-      const candidate = `${base}-${suffix}`.slice(0, 64);
+      // Shorten the base so the suffix fits within Azure's 64 characters;
+      // truncating after appending would cut the suffix off a 64-character base.
+      const tail = `-${suffix}`;
+      const candidate = `${base.slice(0, 64 - tail.length).replace(/-+$/, "")}${tail}`;
       if (!(await this.templateModelDb.isModelIdTaken(candidate))) {
         return candidate;
       }

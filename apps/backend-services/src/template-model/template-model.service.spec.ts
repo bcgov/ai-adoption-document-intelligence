@@ -320,6 +320,25 @@ describe("TemplateModelService", () => {
         ["invoice-v2-2"],
       ]);
     });
+
+    it("shortens a 64-character base so its suffix fits", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      const result = await service.generateUniqueModelId("a".repeat(70));
+      expect(result).toBe(`${"a".repeat(62)}-2`);
+      expect(result).toHaveLength(64);
+    });
+
+    it("drops a hyphen the shortening leaves before the suffix", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      const result = await service.generateUniqueModelId(
+        `${"x".repeat(61)} yz`,
+      );
+      expect(result).toBe(`${"x".repeat(61)}-2`);
+    });
   });
 
   // ========== TEMPLATE MODEL OPERATIONS ==========
