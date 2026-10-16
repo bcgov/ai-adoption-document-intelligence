@@ -5082,6 +5082,17 @@ describe("WorkflowEditorCanvas — group container box", () => {
     expect(box?.selectable).toBe(false);
   });
 
+  it("lets the box body pass clicks through to the wires and the pane behind it", async () => {
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+
+    // xyflow styles every node wrapper `pointer-events: all`, and the wrapper
+    // spans the whole box. The header turns pointer events back on for
+    // itself; the rest of the box has to let them through, or a wire inside
+    // a group can't be clicked, selected or right-clicked.
+    expect(readNode("container-g1")?.style?.pointerEvents).toBe("none");
+  });
+
   it("opens the group's settings when the header is clicked", async () => {
     const onGroupChipClick = vi.fn();
     renderCanvas(makeGroupedConfig(), {
