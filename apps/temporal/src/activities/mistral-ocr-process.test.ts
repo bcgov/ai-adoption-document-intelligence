@@ -8,6 +8,7 @@ jest.mock("../logger", () => ({
   }),
 }));
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import axios from "axios";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import * as ocrPayloadRef from "../ocr-payload-ref";
@@ -196,6 +197,22 @@ describe("mistralOcrProcess", () => {
   afterEach(() => {
     process.env = originalEnv;
     jest.restoreAllMocks();
+  });
+
+  it("returns every output port the catalog declares for it", async () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    const result = await mistralOcrProcess({
+      fileData: baseFile,
+      documentId: DOC_ID,
+    });
+    const declared = getActivityCatalogEntry("mistralOcr.process")?.outputs.map(
+      (port) => port.name,
+    );
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 
   it("returns mock OCRResult when MOCK_MISTRAL_OCR is true", async () => {

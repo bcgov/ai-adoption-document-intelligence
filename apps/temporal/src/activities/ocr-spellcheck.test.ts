@@ -51,6 +51,7 @@ jest.mock("../ocr-payload-ref", () => {
   };
 });
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 import { spellcheckOcrResult } from "./ocr-spellcheck";
@@ -183,5 +184,26 @@ describe("spellcheckOcrResult", () => {
       expect(result.changes[0]).toHaveProperty("reason");
       expect(result.changes[0].source).toBe("rule");
     }
+  });
+});
+
+describe("spellcheckOcrResult — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await spellcheckOcrResult({
+      ocrResult: makeOcrResult([
+        { key: "Name", value: "Jonh Doe", confidence: 0.9 },
+      ]),
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
+    });
+    const declared = getActivityCatalogEntry("ocr.spellcheck")?.outputs.map(
+      (port) => port.name,
+    );
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 });

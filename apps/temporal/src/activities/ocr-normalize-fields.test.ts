@@ -31,6 +31,7 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import { buildFlatPredictionMapFromCtx } from "../azure-ocr-field-display-value";
 import { getPrismaClient } from "./database-client";
 import { normalizeOcrFields } from "./ocr-normalize-fields";
@@ -1436,5 +1437,24 @@ describe("normalizeOcrFields", () => {
         ocrFromRef(result.ocrResult).documents![0].fields.birth.content,
       ).toBe("2016-Mar-30");
     });
+  });
+});
+
+describe("normalizeOcrFields — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await normalize({
+      ocrResult: makeOcrResult([
+        { key: "Name", value: "  John   Doe  ", confidence: 0.9 },
+      ]),
+    });
+    const declared = getActivityCatalogEntry(
+      "ocr.normalizeFields",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 });
