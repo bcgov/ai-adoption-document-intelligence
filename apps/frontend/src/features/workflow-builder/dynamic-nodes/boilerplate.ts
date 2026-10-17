@@ -17,6 +17,8 @@ export const DYNAMIC_NODE_BOILERPLATE = `import type { Document } from "@ai-di/g
  * @inputs { document: { kind: "Document", required: true } }
  * @outputs { result: { kind: "Artifact" } }
  */
+// The document input above is an example. A node declares the inputs it
+// needs, required or not, or none with \`@inputs {}\`.
 export default async function dynamicNode(
   ctx: { document: Document },
   params: {},
