@@ -8,6 +8,7 @@
  */
 import {
   AUTO_CTX_KEY_PREFIX,
+  findCtxKeyReferences,
   getActivityCatalogEntry,
   getLockedInputPorts,
   isAutoCtxKey,
@@ -16,8 +17,10 @@ import {
   resolveCtxKeySource,
   resolveInputPort,
   shouldAutoWirePort,
+  upstreamNodesWithDistance,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
+import { formatCtxDefaultValue } from "./ctx-default-value";
 import { isConstCtxKey } from "./port-constants";
 
 /**
@@ -78,6 +81,94 @@ export function resolvePinnedSource(
     };
   }
   return { via: "ctx", ctxKey };
+}
+
+/**
+ * Where an input bound to a hand-named workflow variable gets its value at
+ * run time. The row reads `from modelId` either way, which does not say
+ * whether a step wrote the variable or the run started with it.
+ *  - `step`: the steps whose write this input reads, nearest first. There is
+ *    more than one where branches meet, since each path brings its own write.
+ *  - `run-start`: no step writes it before this one, so it holds what the run
+ *    started with (the upload request's fields, or a caller's body), else its
+ *    declared default: the engine's `initializeContext` applies defaults, then
+ *    overlays the starting values. `defaultValue` is display text, or null
+ *    when the declaration has none.
+ */
+export type CtxValueOrigin =
+  | { from: "step"; labels: string[] }
+  | { from: "run-start"; defaultValue: string | null };
+
+/**
+ * The {@link CtxValueOrigin} of `ctxKey` as `consumerNodeId` reads it, or null
+ * when no step before this one writes it and it is not declared.
+ *
+ * Writers come from the workflow's own output bindings
+ * (`findCtxKeyReferences`), which is what the engine writes, whatever name the
+ * catalog gives the port. Several steps can write one variable: in the SDPR
+ * template, Extract OCR Results writes `ocrResultRef` and two cleanup steps
+ * rewrite it. Walking back from this step, each path stops at its first
+ * writer, because any earlier write is overwritten before this step runs.
+ *
+ * A key declared only through its namespace root (`doc.fileName` reads
+ * `documentMetadata`) has no declaration of its own, and gets null when no
+ * step writes it.
+ */
+export function resolveCtxValueOrigin(
+  config: GraphWorkflowConfig,
+  ctxKey: string,
+  consumerNodeId: string,
+): CtxValueOrigin | null {
+  const references = findCtxKeyReferences(config, ctxKey);
+  const writers = new Set(
+    references.writers
+      .map((writer) => writer.nodeId)
+      .filter((nodeId) => nodeId !== consumerNodeId),
+  );
+  // With every link INTO a writer cut, the upstream walk stops at writers.
+  const cut: GraphWorkflowConfig = {
+    ...config,
+    edges: config.edges.filter((edge) => !writers.has(edge.target)),
+    nodes: Object.fromEntries(
+      Object.entries(config.nodes).map(([nodeId, node]) => [
+        nodeId,
+        node.type === "map" && writers.has(node.bodyEntryNodeId)
+          ? { ...node, bodyEntryNodeId: "" }
+          : node,
+      ]),
+    ),
+  };
+  const labels = [...upstreamNodesWithDistance(cut, consumerNodeId)]
+    .filter(([nodeId]) => writers.has(nodeId))
+    .sort(([, a], [, b]) => a - b)
+    .map(([nodeId]) => config.nodes[nodeId]?.label || nodeId);
+  if (labels.length > 0) return { from: "step", labels };
+
+  const declaration = config.ctx?.[references.key];
+  if (!declaration) return null;
+  return {
+    from: "run-start",
+    defaultValue:
+      declaration.defaultValue === undefined
+        ? null
+        : formatCtxDefaultValue(declaration.defaultValue, declaration.type),
+  };
+}
+
+/** The note an input row shows under a binding to a workflow variable. */
+export function describeCtxValueOrigin(origin: CtxValueOrigin): string {
+  if (origin.from === "step") {
+    const { labels } = origin;
+    const steps =
+      labels.length > 1
+        ? `${labels.slice(0, -1).join(", ")} or ${labels[labels.length - 1]}`
+        : labels[0];
+    return `Written by ${steps}.`;
+  }
+  const start = "Set when the run starts, e.g. by the upload request.";
+  return origin.defaultValue === null
+    ? `${start} No default, so the run must supply it.`
+    : `${start} Default: ${origin.defaultValue || "(empty)"}.`;
 }
 
 /**
