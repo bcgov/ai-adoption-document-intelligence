@@ -11,6 +11,10 @@ This folder holds example [graph workflow](../DAG_WORKFLOW_ENGINE.md) configurat
 
 These templates are validated by the graph schema validator tests in `apps/backend-services`.
 
+## Run inputs
+
+The standard OCR templates (`standard-ocr-workflow*.json`) and `mistral-standard-ocr-workflow.json` flag their `modelId` variable as a workflow input (`isInput`) with a default. No step writes `modelId`: the upload request sends the model the person picked, and a run that sends none uses the default. The flag lists `modelId` in the Run drawer and in `GET /api/workflows/:id/run-spec` as an optional property, so callers that never send it still pass validation. `apps/backend-services/src/workflow/shipped-template-run-inputs.spec.ts` checks this for each of those templates.
+
 ---
 
 ## Azure Classifier Extraction — Multi-Segment Pattern

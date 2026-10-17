@@ -24,7 +24,7 @@ The frontend provides a comprehensive UI for managing the entire document intell
 - **React PDF** - PDF rendering and viewing
 - **TanStack Query** - Powerful data fetching and caching
 - **Axios** - HTTP client with interceptors
-- **CodeMirror** - JSON editor for workflow configuration
+- **Monaco Editor** - code editor for dynamic-node scripts
 
 ## Features
 
