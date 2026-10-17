@@ -1,7 +1,7 @@
 /**
  * Unit tests for `computePreviewOutputs` (G-011).
  *
- * The projection used to emit `node.outputs?.[0]?.ctxKey` only. 13 of the
+ * The projection used to emit `node.outputs?.[0]?.ctxKey` only. 14 of the
  * shipped catalog activities declare more than one output port
  * (`ocr.spellcheck` alone declares three), so every output after the first was
  * invisible during a run unless a data wire happened to be drawn from it.
@@ -32,8 +32,8 @@ describe("computePreviewOutputs", () => {
         label: "Spellcheck",
         activityType: "ocr.spellcheck",
         outputs: [
-          { port: "correctedResult", ctxKey: "corrected" },
-          { port: "corrections", ctxKey: "fixes" },
+          { port: "ocrResult", ctxKey: "corrected" },
+          { port: "changes", ctxKey: "fixes" },
           { port: "metadata", ctxKey: "meta" },
         ],
       }),
@@ -41,8 +41,8 @@ describe("computePreviewOutputs", () => {
     );
 
     expect(outputs.map((o) => o.port)).toEqual([
-      "correctedResult",
-      "corrections",
+      "ocrResult",
+      "changes",
       "metadata",
     ]);
     expect(outputs.map((o) => o.ctxKey)).toEqual([
@@ -60,8 +60,8 @@ describe("computePreviewOutputs", () => {
         label: "Spellcheck",
         activityType: "ocr.spellcheck",
         outputs: [
-          { port: "correctedResult", ctxKey: "corrected" },
-          { port: "corrections", ctxKey: "fixes" },
+          { port: "ocrResult", ctxKey: "corrected" },
+          { port: "changes", ctxKey: "fixes" },
         ],
       }),
       "n1",
@@ -82,14 +82,14 @@ describe("computePreviewOutputs", () => {
         label: "Spellcheck",
         activityType: "ocr.spellcheck",
         outputs: [
-          { port: "correctedResult", ctxKey: "" },
-          { port: "corrections", ctxKey: "fixes" },
+          { port: "ocrResult", ctxKey: "" },
+          { port: "changes", ctxKey: "fixes" },
         ],
       }),
       "n1",
     );
 
-    expect(outputs.map((o) => o.port)).toEqual(["corrections"]);
+    expect(outputs.map((o) => o.port)).toEqual(["changes"]);
   });
 
   it("still yields bindings for an activity with no catalog entry", () => {
