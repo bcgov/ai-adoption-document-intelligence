@@ -72,14 +72,14 @@ export const ocrCharacterConfusionCatalogEntry: ActivityCatalogEntry = {
   ],
   outputs: [
     {
-      name: "correctedResult",
+      name: "ocrResult",
       label: "Corrected result",
       description: "OCR result with character-confusion fixes applied.",
       required: true,
       kind: "OcrResult",
     },
     {
-      name: "corrections",
+      name: "changes",
       label: "Corrections",
       description: "List of corrections applied.",
       required: false,

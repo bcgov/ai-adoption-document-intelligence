@@ -48,14 +48,14 @@ export const ocrEnrichCatalogEntry: ActivityCatalogEntry = {
   ],
   outputs: [
     {
-      name: "enrichedResult",
+      name: "ocrResult",
       label: "Enriched result",
       description: "OCR result with enriched fields.",
       required: true,
       kind: "OcrResult",
     },
     {
-      name: "enrichmentSummary",
+      name: "summary",
       label: "Enrichment summary",
       description: "Summary of applied enrichments.",
       required: false,
