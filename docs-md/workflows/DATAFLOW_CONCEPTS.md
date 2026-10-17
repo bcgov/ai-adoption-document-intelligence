@@ -43,7 +43,7 @@ Every ctx key is one of two kinds, and they behave differently.
 | Looks like | `__auto.<nodeId>.<port>` (e.g. `__auto.prep.preparedData`) | a plain name you choose (e.g. `preparedFileData`, `documentUrl`) |
 | Created by | drawing a wire, or the auto-resolver | you, in **Advanced** bindings or **Workflow Settings** |
 | Must be declared in Context declarations? | **No** — it's resolver-internal | **Yes** — undeclared = a save-blocking error |
-| Shown to you | decoded to the producer's name (`← Prepare File Data`); the raw key only appears in the **Advanced** view | shown as its literal name (`from preparedFileData`) |
+| Shown to you | decoded to the producer's name (`← Prepare File Data`); the raw key only appears in the **Advanced** view | shown as its literal name (`from preparedFileData`), with a line under the row naming the step that writes it or saying the run sets it ([Where a Value Comes From](WORKFLOW_BUILDER_GUIDE.md#where-a-value-comes-from)) |
 
 ### Auto keys — the default, invisible path
 

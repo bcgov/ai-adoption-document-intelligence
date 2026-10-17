@@ -312,6 +312,15 @@ The **Default value** field in the Workflow settings context editor sets the sam
 3. After a node completes, it writes its results to the context via its declared outputs
 4. The next node in the chain can then read those results
 
+### Where a Value Comes From
+
+A step's **Inputs** panel names the source of each input. A wired input shows the step it reads from (`← Submit to Azure OCR`). An input bound to a named variable shows `from <variable>`, and a dimmed line under the row says where that variable's value comes from:
+
+- **Written by Submit to Azure OCR.** An earlier step writes the variable. When several steps rewrite it, the line names the last one before this step; where branches meet, it names the writer on each path, joined with *or*.
+- **Set when the run starts, e.g. by the upload request. Default: sdpr_synth_test.** No earlier step writes the variable, so it holds what the run started with, or its default when the run sent nothing. Without a default, the line says the run must supply it.
+
+The standard OCR templates' `modelId` is the second kind. It is flagged as a workflow input with a default, so the Run drawer lists it and a caller can send another model.
+
 ### Nested Access
 
 Context variable references support dot notation for accessing nested data. For example, if `currentSegment` is an object containing a `blobKey` field, you can reference it as `currentSegment.blobKey` in an input binding.
