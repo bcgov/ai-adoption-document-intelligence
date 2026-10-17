@@ -31,6 +31,7 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import { getPrismaClient } from "./database-client";
 import { characterConfusionCorrection } from "./ocr-character-confusion";
 
@@ -735,5 +736,24 @@ describe("characterConfusionCorrection", () => {
       );
       expect(result.changes).toHaveLength(0);
     });
+  });
+});
+
+describe("characterConfusionCorrection — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await correct({
+      ocrResult: makeOcrResult([
+        { key: "amount", value: "1O0", confidence: 0.9 },
+      ]),
+    });
+    const declared = getActivityCatalogEntry(
+      "ocr.characterConfusion",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 });

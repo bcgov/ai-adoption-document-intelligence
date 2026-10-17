@@ -40,14 +40,14 @@ export const ocrSpellcheckCatalogEntry: ActivityCatalogEntry = {
   ],
   outputs: [
     {
-      name: "correctedResult",
+      name: "ocrResult",
       label: "Corrected result",
       description: "OCR result with spellcheck corrections applied.",
       required: true,
       kind: "OcrResult",
     },
     {
-      name: "corrections",
+      name: "changes",
       label: "Corrections",
       description: "List of {field, original, corrected, reason}.",
       required: false,

@@ -42,6 +42,13 @@ export const mistralOcrProcessCatalogEntry: ActivityCatalogEntry = {
       required: true,
       kind: "OcrResult",
     },
+    {
+      name: "ocrResponse",
+      label: "OCR response",
+      description: "Raw Mistral OCR API response.",
+      required: true,
+      kind: "Artifact",
+    },
   ],
   parametersSchema: mistralOcrProcessParametersSchema,
 };
