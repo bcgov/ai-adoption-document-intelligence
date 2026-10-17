@@ -163,4 +163,65 @@ export default async function dynamicNode(
       expect(statuses.dyn.errorMessage).toBeTruthy();
     },
   );
+
+  test(
+    "a node's script reaches the platform API with the run's token",
+    { tag: "@infra" },
+    async ({ request }, testInfo) => {
+      // The worker hands each invocation a short-lived token as AI_DI_API_KEY,
+      // which the script sends as x-internal-token. The script throws unless
+      // the API answers 200, so the node succeeding is the proof.
+      const name = `e2e-dynrun-api-${Date.now()}`;
+      const script = `/**
+ * @workflow-node
+ * @name ${name}
+ * @description Lists its group's workflows through the platform API (run e2e).
+ * @inputs {}
+ * @outputs { result: { kind: "Artifact" } }
+ */
+export default async function dynamicNode(
+  _ctx: Record<string, never>,
+  _params: Record<string, unknown>,
+): Promise<{ result: { status: number } }> {
+  const base = Deno.env.get("AI_DI_API_BASE_URL") ?? "";
+  const group = Deno.env.get("AI_DI_GROUP_ID") ?? "";
+  const res = await fetch(base + "/api/workflows?groupId=" + group, {
+    headers: { "x-internal-token": Deno.env.get("AI_DI_API_KEY") ?? "" },
+  });
+  if (res.status !== 200) {
+    throw new Error("platform API answered " + res.status);
+  }
+  return { result: { status: res.status } };
+}`;
+      const { status, body } = await attemptPublishScript(request, script);
+      expect(status, JSON.stringify(body)).toBe(201);
+      slug = body.slug as string;
+
+      const created = await createWorkflow(request, {
+        name: `e2e dyn-run api ${testInfo.testId}`,
+        config: buildDynNodeConfig(
+          `e2e dyn-run api ${testInfo.testId}`,
+          slug,
+          null,
+        ),
+      });
+      workflowId = created.id;
+
+      const runId = await startRun(request, created.id, {});
+      const statuses = await pollNodeStatusesUntilDone(
+        request,
+        created.id,
+        runId,
+        ["dyn"],
+      );
+      expect(
+        statuses.dyn.status,
+        `dyn node did not succeed: ${JSON.stringify(statuses.dyn)}\n` +
+          "The script could not read the platform API. Locally the sandbox " +
+          "runs in Docker, so the worker's AI_DI_API_BASE_URL must reach the " +
+          "host's backend from inside the container: " +
+          "http://host.docker.internal:3002.",
+      ).toBe("succeeded");
+    },
+  );
 });
