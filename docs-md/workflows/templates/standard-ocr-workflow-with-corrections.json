@@ -119,7 +119,7 @@
       "label": "Normalize Fields",
       "activityType": "ocr.normalizeFields",
       "inputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
-      "outputs": [{ "port": "normalizedResult", "ctxKey": "cleanedResultRef" }],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
       "timeout": { "startToClose": "1m" },
       "retry": { "maximumAttempts": 3 }
     },
@@ -129,7 +129,7 @@
       "label": "Character Confusion Correction",
       "activityType": "ocr.characterConfusion",
       "inputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
-      "outputs": [{ "port": "correctedResult", "ctxKey": "cleanedResultRef" }],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
       "parameters": {
         "confusionProfileId": "cmnnsvn6100008fdu9zgeo9vc",
         "documentType": "cmnb6l9pj0003061c0yuz7vj4",
@@ -155,7 +155,7 @@
       "label": "Spellcheck",
       "activityType": "ocr.spellcheck",
       "inputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
-      "outputs": [{ "port": "correctedResult", "ctxKey": "cleanedResultRef" }],
+      "outputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
       "parameters": {
         "language": "en",
         "fieldScope": ["explain_changes", "name", "signature", "spouse_signature"]
