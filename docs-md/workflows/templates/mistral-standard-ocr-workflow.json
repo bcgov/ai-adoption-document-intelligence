@@ -12,7 +12,7 @@
     "fileName": { "type": "string" },
     "fileType": { "type": "string" },
     "contentType": { "type": "string" },
-    "modelId": { "type": "string", "defaultValue": "mistral-ocr-latest" },
+    "modelId": { "type": "string", "defaultValue": "mistral-ocr-latest", "isInput": true },
     "templateModelId": {
       "type": "string",
       "defaultValue": "cmo8w9bsx0009loe5e1rxwhau",
