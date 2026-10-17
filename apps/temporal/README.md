@@ -72,7 +72,7 @@ Deno locally.
 | Env var | Default | Purpose |
 |---|---|---|
 | `DENO_RUNNER_URL` | `http://localhost:9099` (local dev), `http://deno-runner:9090` (compose / OpenShift) | Base URL for the `dyn.run` activity's HTTP calls. |
-| `AI_DI_API_BASE_URL` | `http://localhost:3002` | Sourced from worker config; injected into the Deno subprocess as ambient env so dynamic-node scripts can call back into the platform. Its host is auto-granted in the subprocess's `--allow-net` allow-list. |
+| `AI_DI_API_BASE_URL` | `http://host.docker.internal:3002` (local dev: the backend on the deno-runner container's host), `http://backend-services:3002` (OpenShift) | Sourced from worker config; injected into the Deno subprocess as ambient env so dynamic-node scripts can call back into the platform. Its host is auto-granted in the subprocess's `--allow-net` allow-list. |
 | `DYNAMIC_NODE_ALLOW_NET` | (empty) | Comma-separated host allow-list intersected with each dynamic node's `@allowNet` signature tag at activity time. |
 
 The `AI_DI_API_KEY` ambient env var is NOT a worker env and carries no

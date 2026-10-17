@@ -134,6 +134,35 @@ describe("dynRun — Scenario 2: permission flags computed", () => {
 describe("dynRun — Scenario 3: ambient env composition", () => {
   beforeEach(() => versionCache.clear());
 
+  it("without AI_DI_API_BASE_URL, points the script at the backend on the sandbox container's host", async () => {
+    setupCachedVersion("v1", makeSignature());
+    const { client, execute } = makeClientStub({
+      stdout: '{"url":"FOO"}',
+      stderr: "",
+      exitCode: 0,
+      durationMs: 10,
+      timedOut: false,
+    });
+
+    await dynRun(
+      {
+        slug: "my-node",
+        versionId: "v1",
+        parameters: {},
+        inputCtx: {},
+        groupId: "g1",
+        workflowRunId: "run-1",
+      },
+      { client, prisma: stubPrisma, readEnv: () => undefined },
+    );
+
+    const req = execute.mock.calls[0][0];
+    expect(req.ambientEnv.AI_DI_API_BASE_URL).toBe(
+      "http://host.docker.internal:3002",
+    );
+    expect(req.allowNet).toContain("host.docker.internal:3002");
+  });
+
   it("sends exactly the four AI_DI_ env vars; AI_DI_API_KEY is a freshly minted internal token (Change W)", async () => {
     setupCachedVersion("v1", makeSignature());
     const { client, execute } = makeClientStub({

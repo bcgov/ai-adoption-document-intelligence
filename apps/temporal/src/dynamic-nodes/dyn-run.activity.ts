@@ -115,7 +115,12 @@ export async function dynRun(
 
   // (2) Compute the intersected allowNet.
   const globalAllowlist = parseAllowlist(readEnv("DYNAMIC_NODE_ALLOW_NET"));
-  const apiBaseUrl = readEnv("AI_DI_API_BASE_URL") ?? "http://localhost:3002";
+  // The script runs inside the deno-runner container, where `localhost` is the
+  // container itself. Locally the backend is on the container's host, which
+  // deployments/local/docker-compose.deno.yml maps to host.docker.internal;
+  // deployed workers set AI_DI_API_BASE_URL to the backend's service URL.
+  const apiBaseUrl =
+    readEnv("AI_DI_API_BASE_URL") ?? "http://host.docker.internal:3002";
   const apiHost = extractHost(apiBaseUrl);
   const allowNet = computeAllowNet(globalAllowlist, entry.allowNet, apiHost);
 
