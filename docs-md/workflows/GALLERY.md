@@ -47,10 +47,9 @@ npm run dev                                                        # backend :30
 ```
 
 The **deno-runner** is the one that's easy to miss: nothing outside stops 14 and
-15 touches it, and the root README's Quick Start doesn't mention it at all.
-Without it, publishing a custom step fails with *"Failed to reach deno-runner
-/check at http://localhost:9099"*. Confirm it with
-`curl http://localhost:9099/health`.
+15 touches it. Without it, publishing a custom step fails with *"The custom-node
+checker is not running, so this script could not be type-checked."* Confirm it
+with `curl http://localhost:9099/health`.
 
 **Regenerate the Prisma client** after you pull, switch branches, or move the
 schema:
