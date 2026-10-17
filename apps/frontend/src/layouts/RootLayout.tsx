@@ -10,6 +10,8 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
+import { AgentChatDrawer } from "../features/agent-chat/AgentChatDrawer";
+import { AgentChatIcon } from "../features/agent-chat/AgentChatIcon";
 import { AppRouteConfig, appRoutes } from "../routes.config";
 import {
   ActionIcon,
@@ -67,7 +69,7 @@ function getUserInitials(name?: string, email?: string): string {
 }
 
 /** Routes that use a fixed viewport workspace (document + field panel). */
-function isWorkspaceRoute(pathname: string): boolean {
+export function isWorkspaceRoute(pathname: string): boolean {
   return (
     /^\/template-models\/[^/]+\/document\/[^/]+$/.test(pathname) ||
     /^\/review\/[^/]+$/.test(pathname) ||
@@ -75,6 +77,36 @@ function isWorkspaceRoute(pathname: string): boolean {
       pathname,
     )
   );
+}
+
+/**
+ * Routes that render the full-bleed visual workflow editor. These own the
+ * whole viewport-minus-header area with zero Main padding (edge-to-edge
+ * canvas). Distinct from workspace routes: the editor lives entirely under
+ * `/workflows/*`, which the workspace predicate never matches, so the two are
+ * mutually exclusive by prefix. `/workflows/by-slug/:slug/edit` is not matched
+ * here (extra path segment) — it only redirects to the canonical
+ * `/workflows/:id/edit` route, which is.
+ */
+export function isEditorRoute(pathname: string): boolean {
+  return (
+    /^\/workflows\/create$/.test(pathname) ||
+    /^\/workflows\/[^/]+\/edit$/.test(pathname)
+  );
+}
+
+/**
+ * Routes where the workflow agent chat is offered. The agent's tools only act
+ * on workflows, so the entry point is scoped to the workflow section rather
+ * than the global header: `/workflows` (list), `/workflows/create`,
+ * `/workflows/:id/edit`, `/workflows/by-slug/:slug/edit` and the dev-only
+ * form preview — i.e. `/workflows` itself plus anything under it, and nothing
+ * else. Before this, the icon rendered on every route and silently did nothing
+ * off the editor (Inderdeep, 2026-08-06 — "nothing is telling me that I need to
+ * be on that screen").
+ */
+export function isAgentChatRoute(pathname: string): boolean {
+  return /^\/workflows(\/|$)/.test(pathname);
 }
 
 export function RootLayout() {
@@ -92,6 +124,8 @@ export function RootLayout() {
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
   const workspaceRoute = isWorkspaceRoute(location.pathname);
+  const editorRoute = isEditorRoute(location.pathname);
+  const agentChatRoute = isAgentChatRoute(location.pathname);
 
   const isNavItemVisible = (route: AppRouteConfig): boolean => {
     if (!route.permissions || route.permissions.length === 0) return true;
@@ -150,6 +184,7 @@ export function RootLayout() {
         >
           <div className="app-shell-header-actions">
             <Group gap="sm">
+              {agentChatRoute && <AgentChatIcon />}
               <GroupSelector />
               <Menu shadow="md" width={260} position="bottom-end" withinPortal>
                 <Menu.Target>
@@ -334,10 +369,25 @@ export function RootLayout() {
 
       <AppShell.Main
         id={MAIN_CONTENT_ID}
-        className={workspaceRoute ? "app-shell-main--workspace" : undefined}
+        className={
+          editorRoute
+            ? "app-shell-main--editor"
+            : workspaceRoute
+              ? "app-shell-main--workspace"
+              : undefined
+        }
         style={{ display: "flex", flexDirection: "column" }}
       >
-        {workspaceRoute ? (
+        {editorRoute ? (
+          <>
+            <div className="app-shell-editor-outlet">
+              <Outlet />
+            </div>
+            <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        ) : workspaceRoute ? (
           <div className="app-shell-workspace-outlet">
             <Outlet />
           </div>
@@ -352,6 +402,7 @@ export function RootLayout() {
           </>
         )}
       </AppShell.Main>
+      {agentChatRoute && <AgentChatDrawer />}
     </AppShell>
   );
 }

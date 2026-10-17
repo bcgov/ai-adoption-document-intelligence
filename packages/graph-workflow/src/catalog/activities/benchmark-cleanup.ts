@@ -1,0 +1,42 @@
+import { z } from "zod/v4";
+import type { ActivityCatalogEntry } from "../types";
+
+export const benchmarkCleanupParametersSchema = z.object({});
+
+export const benchmarkCleanupCatalogEntry: ActivityCatalogEntry = {
+  activityType: "benchmark.cleanup",
+  displayName: "Benchmark — Cleanup",
+  category: "Benchmarking",
+  description: "Clean up temporary files and materialized datasets.",
+  iconHint: "trash",
+  colorHint: "gray",
+  // IO-stateful (file deletions); must always run. See US-134 +
+  // TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
+  inputs: [
+    {
+      name: "materializedDatasetPaths",
+      label: "Materialized dataset paths",
+      description: "Local paths of materialized datasets to remove.",
+      required: false,
+      kind: "Artifact",
+    },
+    {
+      name: "temporaryOutputPaths",
+      label: "Temporary output paths",
+      description: "Local paths of temporary run output files to remove.",
+      required: false,
+      kind: "Artifact",
+    },
+    {
+      name: "preserveCachedDatasets",
+      label: "Preserve cached datasets",
+      description:
+        "When true, materialized datasets are kept for reuse by later runs instead of being deleted.",
+      required: false,
+      kind: "Artifact",
+    },
+  ],
+  outputs: [],
+  parametersSchema: benchmarkCleanupParametersSchema,
+};

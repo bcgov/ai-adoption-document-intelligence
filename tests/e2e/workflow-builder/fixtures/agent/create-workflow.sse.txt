@@ -1,0 +1,80 @@
+data: {"type":"start"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"0"}
+
+data: {"type":"text-delta","id":"0","delta":"I'll create the workflow"}
+
+data: {"type":"text-delta","id":"0","delta":" and add the file.prepare node."}
+
+data: {"type":"text-end","id":"0"}
+
+data: {"type":"tool-input-start","toolCallId":"toolu_011trPaHQnKU2JnbKNffD3a9","toolName":"createWorkflow"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_011trPaHQnKU2JnbKNffD3a9","inputTextDelta":"{\"name\": \"e2e-stub-capture"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_011trPaHQnKU2JnbKNffD3a9","inputTextDelta":"\"}"}
+
+data: {"type":"tool-input-available","toolCallId":"toolu_011trPaHQnKU2JnbKNffD3a9","toolName":"createWorkflow","input":{"name":"e2e-stub-capture"},"providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"tool-input-start","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","toolName":"addNode"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","inputTextDelta":"{\"node\": {\n  \"id\": \"fp\",\n  \"type\": \"file"}
+
+data: {"type":"tool-output-available","toolCallId":"toolu_011trPaHQnKU2JnbKNffD3a9","output":{"ok":true,"workflow":{"id":"cmq4z3rxn0002u2gcj1y3yhwt","name":"e2e-stub-capture","slug":"e2e-stub-capture","entryNodeId":"upload1","seedNodeType":"source.upload"}},"providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","inputTextDelta":".prepare\",\n  \"position\": {\"x\": 300, \"y\": 100}\n}"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","inputTextDelta":"}"}
+
+data: {"type":"tool-input-available","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","toolName":"addNode","input":{"node":{"id":"fp","type":"file.prepare","position":{"x":300,"y":100}}},"providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"tool-output-error","toolCallId":"toolu_01MUWfyUtz2yCHFuAHWe9LqU","errorText":"No workflowId provided and no workflow bound to this conversation.","providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"finish-step"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"0"}
+
+data: {"type":"text-delta","id":"0","delta":"Let"}
+
+data: {"type":"text-delta","id":"0","delta":" me add the node again now that the workflow is created:"}
+
+data: {"type":"text-end","id":"0"}
+
+data: {"type":"tool-input-start","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","toolName":"addNode"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","inputTextDelta":"{\"node\": {\"id\": \"fp\", \"type\": \"file.prepare\", \"position\": {\"x\": 300, \"y\": 100}}"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","inputTextDelta":", \"workflowId\": \"cmq4z"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","inputTextDelta":"3rxn0002u2gcj1y3yhwt"}
+
+data: {"type":"tool-input-delta","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","inputTextDelta":"\"}"}
+
+data: {"type":"tool-input-available","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","toolName":"addNode","input":{"workflowId":"cmq4z3rxn0002u2gcj1y3yhwt","node":{"id":"fp","type":"file.prepare","position":{"x":300,"y":100}}},"providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"tool-output-available","toolCallId":"toolu_01FA2xHEuC9fXZWpjZEkpWXC","output":{"ok":true,"node":{"id":"fp","type":"activity","activityType":"file.prepare","name":"fp","parameters":{},"position":{"x":300,"y":100},"inputs":[]}},"providerMetadata":{"anthropic":{"caller":{"type":"direct"}}}}
+
+data: {"type":"finish-step"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"0"}
+
+data: {"type":"text-delta","id":"0","delta":"Created"}
+
+data: {"type":"text-delta","id":"0","delta":" workflow \"e2e-stub-capture\" with a source.upload entry node, then added"}
+
+data: {"type":"text-delta","id":"0","delta":" a file.prepare activity node with id \"fp\"."}
+
+data: {"type":"text-end","id":"0"}
+
+data: {"type":"finish-step"}
+
+data: {"type":"finish","finishReason":"stop"}
+
+data: [DONE]
+

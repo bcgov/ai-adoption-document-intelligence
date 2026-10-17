@@ -31,6 +31,12 @@ jobs:
         run: npm install --ignore-scripts --no-package-lock
       - name: Build graph-workflow package
         run: npm run build -w packages/graph-workflow
+      # The shared graph-workflow package (validator, cache-hash, ctx-binding)
+      # is consumed by the backend save-path, the temporal worker, and the
+      # canvas. This QA job triggers on packages/** so its jest suite runs here
+      # rather than shipping with zero CI-enforced coverage.
+      - name: Test graph-workflow package
+        run: npm run test -w packages/graph-workflow
       - name: Run Linter
         working-directory: apps/frontend
         run: npm run lint

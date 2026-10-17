@@ -2,6 +2,7 @@ import {
   IconAdjustments,
   IconChartBar,
   IconClipboardCheck,
+  IconCode,
   IconCurrencyDollar,
   IconDatabase,
   IconFileText,
@@ -37,15 +38,20 @@ import {
 } from "./features/benchmarking/pages";
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
+import { WorkflowBySlugRedirect } from "./features/workflow-builder/WorkflowBySlugRedirect";
+import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { BillingPage } from "./pages/BillingPage";
 import ClassifierPage from "./pages/ClassifierPage";
 import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
+import DynamicNodeEditPage from "./pages/dynamic-nodes/DynamicNodeEditPage";
+import DynamicNodeNewPage from "./pages/dynamic-nodes/DynamicNodeNewPage";
+import DynamicNodesListPage from "./pages/dynamic-nodes/DynamicNodesListPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
-import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
+import { WorkflowFormPreviewPage } from "./pages/WorkflowFormPreviewPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 
 /**
@@ -198,12 +204,53 @@ export const appRoutes: AppRouteConfig[] = [
   {
     path: "workflows/create",
     permissions: [Permission.WORKFLOW_CREATE],
-    element: <WorkflowEditorPage mode="create" />,
+    element: <WorkflowEditorV2Page mode="create" />,
   },
   {
     path: "workflows/:workflowId/edit",
     permissions: [Permission.WORKFLOW_RETRIEVE, Permission.WORKFLOW_UPDATE],
-    element: <WorkflowEditorPage mode="edit" />,
+    element: <WorkflowEditorV2Page mode="edit" />,
+  },
+  // Stable/shareable entry link — resolves a workflow slug to its
+  // current lineage id and redirects to the canonical edit route.
+  // Survives reseeds (slug is stable; id churns).
+  {
+    path: "workflows/by-slug/:slug/edit",
+    permissions: [Permission.WORKFLOW_RETRIEVE, Permission.WORKFLOW_UPDATE],
+    element: <WorkflowBySlugRedirect />,
+  },
+  // Dev-only tracer for the schema-driven form renderer. §5.2: gated
+  // behind import.meta.env.DEV so it never ships to production (it
+  // exposes raw JSON-Schema/Zod internals to any authenticated user).
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: "workflows/dev-form-preview",
+          permissions: [Permission.WORKFLOW_RETRIEVE],
+          element: <WorkflowFormPreviewPage />,
+        },
+      ]
+    : []),
+  // Dynamic nodes (Phase 6 Milestone F — US-180 + US-181)
+  {
+    path: "dynamic-nodes",
+    element: <DynamicNodesListPage />,
+    permissions: [Permission.WORKFLOW_RETRIEVE],
+    nav: {
+      label: "Dynamic nodes",
+      description: "Custom activities (TypeScript)",
+      icon: IconCode,
+    },
+  },
+  {
+    path: "dynamic-nodes/new",
+    permissions: [Permission.WORKFLOW_CREATE],
+    element: <DynamicNodeNewPage />,
+  },
+  {
+    path: "dynamic-nodes/:slug",
+    permissions: [Permission.WORKFLOW_RETRIEVE, Permission.WORKFLOW_UPDATE],
+    element: <DynamicNodeEditPage />,
   },
   {
     path: "classify",
