@@ -46,6 +46,15 @@ Prereqs: frontend `:3000`, backend `:3002` (and, for the tagged tiers, the
 Temporal worker + deno-runner `:9099`) all up — e.g. via the VSCode `Dev: all`
 task.
 
+Once per machine, download the browser the suites drive:
+
+```bash
+npx playwright install chromium
+```
+
+Without it every test fails to launch, and only after the global setup has
+already reset the database.
+
 ```bash
 # Default hermetic suite (Tier 1 + 2 + stubbed agent):
 npm run test:e2e -- tests/e2e/workflow-builder
