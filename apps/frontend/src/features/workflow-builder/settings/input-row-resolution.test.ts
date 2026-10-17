@@ -10,9 +10,14 @@
  * port resolves "auto-bound".
  */
 import { describe, expect, it } from "vitest";
-import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type {
+  CtxDeclaration,
+  GraphWorkflowConfig,
+} from "../../../types/workflow";
 import {
   decodeAutoProducerNodeId,
+  describeCtxValueOrigin,
+  resolveCtxValueOrigin,
   resolvePinnedSource,
   resolveWireableInputRows,
 } from "./input-row-resolution";
@@ -374,5 +379,308 @@ describe("map collection row (G-013)", () => {
       "MAP",
     );
     expect(rows[0].resolution).toEqual({ status: "locked-unbound" });
+  });
+});
+
+describe("resolveCtxValueOrigin", () => {
+  /**
+   * Standard OCR around its poll step: `modelId` is a workflow variable no
+   * step writes, so the run starts with it, and `apimRequestId` is written by
+   * the submit step.
+   */
+  function ocrConfig(modelId: CtxDeclaration): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "ocr" },
+      ctx: {
+        modelId,
+        preparedFileData: { type: "object" },
+        apimRequestId: { type: "string" },
+      },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          label: "Prepare File Data",
+          activityType: "file.prepare",
+          inputs: [{ port: "modelId", ctxKey: "modelId" }],
+          outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        },
+        submit: {
+          id: "submit",
+          type: "activity",
+          label: "Submit to Azure OCR",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+          outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        },
+        poll: {
+          id: "poll",
+          type: "pollUntil",
+          label: "Poll OCR Results",
+          activityType: "azureOcr.poll",
+          interval: "10s",
+          condition: { operator: "is-not-null", value: { ref: "ocrStatus" } },
+          inputs: [
+            { port: "apimRequestId", ctxKey: "apimRequestId" },
+            { port: "modelId", ctxKey: "modelId" },
+          ],
+          metadata: { lockedInputPorts: ["apimRequestId", "modelId"] },
+        },
+      },
+      edges: [
+        { id: "e1", source: "prep", target: "submit", type: "normal" },
+        { id: "e2", source: "submit", target: "poll", type: "normal" },
+      ],
+      entryNodeId: "prep",
+    };
+  }
+
+  /**
+   * Standard OCR (SDPR)'s cleanup chain: each step reads `ocrResultRef` and
+   * the middle two write it back. The zero-recovery step has no catalog
+   * entry; the engine writes by binding, so its write counts all the same.
+   */
+  function rewriteChainConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "chain" },
+      ctx: { ocrResultRef: { type: "object" } },
+      nodes: {
+        extract: {
+          id: "extract",
+          type: "activity",
+          label: "Extract OCR Results",
+          activityType: "azureOcr.extract",
+          outputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+        },
+        recover: {
+          id: "recover",
+          type: "activity",
+          label: "Recover Numeric Zeros from Checkboxes",
+          activityType: "ocr.recoverNumericZerosFromCheckboxes",
+          inputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+          outputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+        },
+        normalize: {
+          id: "normalize",
+          type: "activity",
+          label: "Normalize Fields",
+          activityType: "ocr.normalizeFields",
+          inputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+          outputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+        },
+        cleanup: {
+          id: "cleanup",
+          type: "activity",
+          label: "Post-OCR Cleanup",
+          activityType: "ocr.cleanup",
+          inputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+        },
+      },
+      edges: [
+        { id: "e1", source: "extract", target: "recover", type: "normal" },
+        { id: "e2", source: "recover", target: "normalize", type: "normal" },
+        { id: "e3", source: "normalize", target: "cleanup", type: "normal" },
+      ],
+      entryNodeId: "extract",
+    };
+  }
+
+  it("names the step that writes the variable", () => {
+    const config = ocrConfig({ type: "string" });
+    expect(resolveCtxValueOrigin(config, "apimRequestId", "poll")).toEqual({
+      from: "step",
+      labels: ["Submit to Azure OCR"],
+    });
+  });
+
+  it("reports a variable no step writes as set when the run starts, with its default", () => {
+    const config = ocrConfig({
+      type: "string",
+      defaultValue: "sdpr_synth_test",
+    });
+    expect(resolveCtxValueOrigin(config, "modelId", "poll")).toEqual({
+      from: "run-start",
+      defaultValue: "sdpr_synth_test",
+    });
+  });
+
+  it("reports no default when the declaration has none", () => {
+    const config = ocrConfig({ type: "string" });
+    expect(resolveCtxValueOrigin(config, "modelId", "poll")).toEqual({
+      from: "run-start",
+      defaultValue: null,
+    });
+  });
+
+  it("formats a non-string default the way the variables list does", () => {
+    const config = ocrConfig({ type: "number", defaultValue: 0.95 });
+    expect(resolveCtxValueOrigin(config, "modelId", "poll")).toEqual({
+      from: "run-start",
+      defaultValue: "0.95",
+    });
+  });
+
+  it("reads a rewritten variable from its last write before the step", () => {
+    const config = rewriteChainConfig();
+    expect(resolveCtxValueOrigin(config, "ocrResultRef", "cleanup")).toEqual({
+      from: "step",
+      labels: ["Normalize Fields"],
+    });
+    // A step that reads and rewrites the variable reads the write before it.
+    expect(resolveCtxValueOrigin(config, "ocrResultRef", "normalize")).toEqual({
+      from: "step",
+      labels: ["Recover Numeric Zeros from Checkboxes"],
+    });
+    expect(resolveCtxValueOrigin(config, "ocrResultRef", "recover")).toEqual({
+      from: "step",
+      labels: ["Extract OCR Results"],
+    });
+  });
+
+  it("names each path's last writer where branches meet", () => {
+    // Persist Review Plan writes `reviewNote`. The run then either goes
+    // through Human Review, which rewrites it, or straight to the hand-off.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "branches" },
+      ctx: { reviewNote: { type: "string" } },
+      nodes: {
+        plan: {
+          id: "plan",
+          type: "activity",
+          label: "Persist Review Plan",
+          activityType: "document.updateStatus",
+          outputs: [{ port: "note", ctxKey: "reviewNote" }],
+        },
+        decide: {
+          id: "decide",
+          type: "activity",
+          label: "Decide",
+          activityType: "document.updateStatus",
+        },
+        review: {
+          id: "review",
+          type: "activity",
+          label: "Human Review",
+          activityType: "document.updateStatus",
+          outputs: [{ port: "note", ctxKey: "reviewNote" }],
+        },
+        handoff: {
+          id: "handoff",
+          type: "activity",
+          label: "Hand-off",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "note", ctxKey: "reviewNote" }],
+        },
+      },
+      edges: [
+        { id: "e1", source: "plan", target: "decide", type: "normal" },
+        { id: "e2", source: "decide", target: "review", type: "normal" },
+        { id: "e3", source: "review", target: "handoff", type: "normal" },
+        { id: "e4", source: "decide", target: "handoff", type: "normal" },
+      ],
+      entryNodeId: "plan",
+    };
+    expect(resolveCtxValueOrigin(config, "reviewNote", "handoff")).toEqual({
+      from: "step",
+      labels: ["Human Review", "Persist Review Plan"],
+    });
+  });
+
+  it("ignores a writer that only runs after the step: the variable still holds what the run started with", () => {
+    const config = ocrConfig({ type: "string" });
+    expect(resolveCtxValueOrigin(config, "apimRequestId", "prep")).toEqual({
+      from: "run-start",
+      defaultValue: null,
+    });
+  });
+
+  it("returns null when the only writer runs after the step and nothing declares the variable", () => {
+    const config = ocrConfig({ type: "string" });
+    delete config.ctx.apimRequestId;
+    expect(resolveCtxValueOrigin(config, "apimRequestId", "prep")).toBeNull();
+  });
+
+  it("names a control-flow writer, such as the map that sets each item", () => {
+    const config = {
+      schemaVersion: "1.0",
+      metadata: { name: "map" },
+      ctx: { segments: { type: "array", isInput: true } },
+      nodes: {
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "For each segment",
+          collectionCtxKey: "segments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        },
+        BODY: {
+          id: "BODY",
+          type: "activity",
+          label: "Classify",
+          activityType: "document.classify",
+          inputs: [{ port: "segment", ctxKey: "currentSegment" }],
+        },
+      },
+      edges: [],
+      entryNodeId: "MAP",
+    } as GraphWorkflowConfig;
+    expect(resolveCtxValueOrigin(config, "currentSegment", "BODY")).toEqual({
+      from: "step",
+      labels: ["For each segment"],
+    });
+  });
+
+  it("returns null for a variable nothing writes or declares", () => {
+    const config = ocrConfig({ type: "string" });
+    expect(resolveCtxValueOrigin(config, "nowhere", "poll")).toBeNull();
+  });
+});
+
+describe("describeCtxValueOrigin", () => {
+  it("names the writing step", () => {
+    expect(
+      describeCtxValueOrigin({ from: "step", labels: ["Submit to Azure OCR"] }),
+    ).toBe("Written by Submit to Azure OCR.");
+  });
+
+  it("lists each path's writer", () => {
+    expect(describeCtxValueOrigin({ from: "step", labels: ["A", "B"] })).toBe(
+      "Written by A or B.",
+    );
+    expect(
+      describeCtxValueOrigin({ from: "step", labels: ["A", "B", "C"] }),
+    ).toBe("Written by A, B or C.");
+  });
+
+  it("gives the default a run falls back to", () => {
+    expect(
+      describeCtxValueOrigin({
+        from: "run-start",
+        defaultValue: "sdpr_synth_test",
+      }),
+    ).toBe(
+      "Set when the run starts, e.g. by the upload request. Default: sdpr_synth_test.",
+    );
+  });
+
+  it("says the run must supply a variable with no default", () => {
+    expect(
+      describeCtxValueOrigin({ from: "run-start", defaultValue: null }),
+    ).toBe(
+      "Set when the run starts, e.g. by the upload request. No default, so the run must supply it.",
+    );
+  });
+
+  it("shows an empty-string default as (empty)", () => {
+    expect(
+      describeCtxValueOrigin({ from: "run-start", defaultValue: "" }),
+    ).toBe(
+      "Set when the run starts, e.g. by the upload request. Default: (empty).",
+    );
   });
 });

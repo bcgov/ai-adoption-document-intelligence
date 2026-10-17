@@ -30,9 +30,12 @@ import {
   type ProducerSelection,
 } from "../graph-widgets/ProducerPicker";
 import {
+  type CtxValueOrigin,
   decodeAutoProducerNodeId,
+  describeCtxValueOrigin,
   type PinnedSource,
   type RowResolution,
+  resolveCtxValueOrigin,
   resolvePinnedSource,
   resolveWireableInputRows,
   type WireableInputRow,
@@ -40,6 +43,7 @@ import {
 import {
   clearPortConstant,
   getPortConstant,
+  isConstCtxKey,
   isPromotableCtxKeyName,
   promotePortConstant,
   setPortConstant,
@@ -218,6 +222,19 @@ export function InputsSection({
 
   const renderRow = (row: WireableInputRow) => {
     const { port, resolution } = row;
+    const pinnedSource =
+      resolution.status === "locked"
+        ? resolvePinnedSource(config, resolution.ctxKey)
+        : null;
+    // The rows that read `from <variable>`: pinned to one, or bound to one
+    // without a pin. A typed-in value is bound to a hidden variable too, and
+    // shows its value field instead.
+    const variableKey =
+      resolution.status === "ctx-bound" && !isConstCtxKey(resolution.ctxKey)
+        ? resolution.ctxKey
+        : pinnedSource?.via === "ctx"
+          ? pinnedSource.ctxKey
+          : null;
     return (
       <PortRow
         key={port.name}
@@ -233,10 +250,11 @@ export function InputsSection({
               resolution.producerNodeId)
             : null
         }
-        pinnedSource={
-          resolution.status === "locked"
-            ? resolvePinnedSource(config, resolution.ctxKey)
-            : null
+        pinnedSource={pinnedSource}
+        valueOrigin={
+          variableKey === null
+            ? null
+            : resolveCtxValueOrigin(config, variableKey, nodeId)
         }
         producerNodeId={producerNodeIdForRow(resolution, config)}
         onJumpToProducer={onJumpToProducer}
@@ -385,6 +403,11 @@ interface PortRowProps {
   /** Friendly source for a `locked` (pinned) row; null for other statuses. */
   pinnedSource: PinnedSource | null;
   /**
+   * Where the workflow variable a `from <variable>` row reads gets its value,
+   * shown as a note under the row; null on every other row.
+   */
+  valueOrigin: CtxValueOrigin | null;
+  /**
    * The producer node id this row jumps/highlights to, or `null` when the
    * row has no real producer source. Non-null makes the row interactive
    * (item 6X).
@@ -415,6 +438,7 @@ function PortRow({
   constantValue,
   producerLabel,
   pinnedSource,
+  valueOrigin,
   producerNodeId,
   onJumpToProducer,
   onHoverProducer,
@@ -841,6 +865,25 @@ function PortRow({
       </Box>
     </Box>
   );
+
+  // A row reading `from modelId` looks the same whether a step wrote the
+  // variable or the run started with it, so the note says which. A row that
+  // can show this note never shows the value field below.
+  if (valueOrigin !== null) {
+    return (
+      <Stack gap={2}>
+        {row}
+        <Text
+          size="10px"
+          c="dimmed"
+          style={{ lineHeight: 1.35 }}
+          data-testid={`input-source-note-${portName}`}
+        >
+          {describeCtxValueOrigin(valueOrigin)}
+        </Text>
+      </Stack>
+    );
+  }
 
   if (!showConstantField) return row;
 

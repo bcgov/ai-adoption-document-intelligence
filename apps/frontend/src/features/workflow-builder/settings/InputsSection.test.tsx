@@ -2,7 +2,10 @@ import { MantineProvider } from "@mantine/core";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type {
+  CtxDeclaration,
+  GraphWorkflowConfig,
+} from "../../../types/workflow";
 import { InputsSection } from "./InputsSection";
 
 function mount(ui: React.ReactNode) {
@@ -1339,6 +1342,20 @@ describe("InputsSection — port constants (P-5)", () => {
     expect(screen.queryByText(/__const_A_fileType/)).toBeNull();
   });
 
+  it("a constant whose lock is gone still shows its value field, not a note about a variable", () => {
+    const config = filePrepareNode({
+      ctx: { __const_A_fileType: { type: "string", defaultValue: "image" } },
+    });
+    config.nodes.A.inputs = [
+      { port: "fileType", ctxKey: "__const_A_fileType" },
+    ];
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByTestId("input-constant-fileType")).toHaveValue("image");
+    expect(screen.queryByTestId("input-source-note-fileType")).toBeNull();
+  });
+
   it("emptying the field removes the constant, the binding and the lock", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();
@@ -1426,5 +1443,129 @@ describe("InputsSection — port constants (P-5)", () => {
     expect(screen.getByText(/already declared/)).toBeInTheDocument();
     expect(screen.getByTestId("promote-constant-confirm")).toBeDisabled();
     expect(onConfigChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("InputsSection — where a workflow variable's value comes from", () => {
+  /**
+   * Standard OCR's poll step. `modelId` is a workflow variable no step
+   * writes; `apimRequestId` is written by the submit step. Both inputs are
+   * bound by hand to those variables, as the seeded workflows load.
+   */
+  function pollConfig(
+    modelId: CtxDeclaration,
+    { pinned = true }: { pinned?: boolean } = {},
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare File Data",
+          inputs: [{ port: "modelId", ctxKey: "modelId" }],
+          outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        },
+        submit: {
+          id: "submit",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Submit to Azure OCR",
+          inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+          outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        },
+        poll: {
+          id: "poll",
+          type: "pollUntil",
+          activityType: "azureOcr.poll",
+          label: "Poll OCR Results",
+          interval: "10s",
+          condition: { operator: "is-not-null", value: { ref: "ocrStatus" } },
+          inputs: [
+            { port: "apimRequestId", ctxKey: "apimRequestId" },
+            { port: "modelId", ctxKey: "modelId" },
+          ],
+          ...(pinned
+            ? { metadata: { lockedInputPorts: ["apimRequestId", "modelId"] } }
+            : {}),
+        },
+      },
+      edges: [
+        { id: "e1", source: "prep", target: "submit", type: "normal" },
+        { id: "e2", source: "submit", target: "poll", type: "normal" },
+      ],
+      entryNodeId: "prep",
+      ctx: {
+        modelId,
+        preparedFileData: { type: "object" },
+        apimRequestId: { type: "string" },
+      },
+    };
+  }
+
+  it("says a variable no step writes is set when the run starts, and gives its default", () => {
+    mount(
+      <InputsSection
+        config={pollConfig({ type: "string", defaultValue: "sdpr_synth_test" })}
+        nodeId="poll"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("from modelId")).toBeInTheDocument();
+    expect(screen.getByTestId("input-source-note-modelId")).toHaveTextContent(
+      "Set when the run starts, e.g. by the upload request. Default: sdpr_synth_test.",
+    );
+  });
+
+  it("says the run must supply a variable that has no default", () => {
+    mount(
+      <InputsSection
+        config={pollConfig({ type: "string" })}
+        nodeId="poll"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("input-source-note-modelId")).toHaveTextContent(
+      "Set when the run starts, e.g. by the upload request. No default, so the run must supply it.",
+    );
+  });
+
+  it("names the step that writes a variable", () => {
+    mount(
+      <InputsSection
+        config={pollConfig({ type: "string" })}
+        nodeId="poll"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("from apimRequestId")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("input-source-note-apimRequestId"),
+    ).toHaveTextContent("Written by Submit to Azure OCR.");
+  });
+
+  it("explains an unpinned row bound to a variable, and adds nothing to a row that already names its step", () => {
+    mount(
+      <InputsSection
+        config={pollConfig(
+          { type: "string", defaultValue: "sdpr_synth_test" },
+          { pinned: false },
+        )}
+        nodeId="poll"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    // modelId: no step produces a model id, so the row stays on the variable.
+    expect(screen.getByTestId("input-source-note-modelId")).toHaveTextContent(
+      "Set when the run starts, e.g. by the upload request. Default: sdpr_synth_test.",
+    );
+    // apimRequestId: wired automatically to the submit step, which the row
+    // already names after its arrow.
+    expect(screen.getByText("Submit to Azure OCR")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("input-source-note-apimRequestId"),
+    ).not.toBeInTheDocument();
   });
 });
