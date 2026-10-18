@@ -16,22 +16,6 @@ import { REGISTERED_ACTIVITY_TYPES as BACKEND_ALLOWED } from "../../backend-serv
 import { getRegisteredActivityTypes } from "./activity-registry";
 import { REGISTERED_ACTIVITY_TYPES as WORKER_ALLOWED } from "./activity-types";
 
-/**
- * Activities a saved workflow may use that have no catalog description yet.
- * Without one, the editor cannot show their inputs, their settings go
- * unchecked and the agent cannot find them. Describing one means removing
- * it from this list.
- */
-const UNDESCRIBED = [
-  "azureContentUnderstanding.analyze",
-  "azureContentUnderstanding.deployAnalyzer",
-  "document.persistReviewPlan",
-  "hitl.applyReviewCriteria",
-  "ocr.recoverNumericZerosFromCheckboxes",
-  "vlmDirect.extract",
-  "vlmOcrHybrid.extract",
-];
-
 /** The palette hides this category: only the benchmark workflows call it. */
 const BENCHMARK_CATEGORY = "Benchmarking";
 
@@ -53,10 +37,12 @@ describe("activity lists", () => {
     ).toEqual([]);
   });
 
-  it("describes every activity a saved workflow may use, apart from the known gaps", () => {
+  // Without a description, the editor cannot show an activity's inputs, its
+  // settings go unchecked and the agent cannot find it.
+  it("describes every activity a saved workflow may use", () => {
     expect(
-      backendAllowed.filter((t) => ACTIVITY_CATALOG[t] === undefined).sort(),
-    ).toEqual([...UNDESCRIBED].sort());
+      backendAllowed.filter((t) => ACTIVITY_CATALOG[t] === undefined),
+    ).toEqual([]);
   });
 
   it("accepts every activity the palette offers", () => {

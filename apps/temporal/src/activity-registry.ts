@@ -11,7 +11,6 @@
 import {
   applyReviewCriteria,
   azureCuAnalyze,
-  azureCuDeployAnalyzer,
   benchmarkAggregate,
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
@@ -150,17 +149,6 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Mistral Document AI OCR (sync) with optional document annotation",
-});
-
-register({
-  activityType: "azureContentUnderstanding.deployAnalyzer",
-  activityFn: azureCuDeployAnalyzer as (...args: unknown[]) => Promise<unknown>,
-  // Idempotent PUT against the CU control plane; the in-memory cache + GET
-  // probe make repeats cheap. Short timeout, three attempts is enough.
-  defaultTimeout: "2m",
-  defaultRetry: { maximumAttempts: 3 },
-  description:
-    "Deploy (idempotent PUT) an Azure Content Understanding analyzer; in-memory cache short-circuits no-ops",
 });
 
 register({

@@ -17,7 +17,6 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.cleanup",
   "ocr.checkConfidence",
   "mistralOcr.process",
-  "azureContentUnderstanding.deployAnalyzer",
   "azureContentUnderstanding.analyze",
   "vlmDirect.extract",
   "vlmOcrHybrid.extract",
