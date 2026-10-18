@@ -355,10 +355,15 @@ export class AgentService {
     return { conversation, messages };
   }
 
-  async deleteConversationForCaller(id: string, actorId: string) {
+  async deleteConversationForCaller(
+    id: string,
+    actorId: string,
+    groupId: string,
+  ) {
     const conversation = await this.chatRepository.findConversationByIdForUser(
       id,
       actorId,
+      groupId,
     );
     if (conversation === null) {
       throw new NotFoundException("Conversation not found");

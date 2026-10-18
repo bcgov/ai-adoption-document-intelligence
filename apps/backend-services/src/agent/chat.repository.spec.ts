@@ -61,11 +61,13 @@ describe("ChatRepository", () => {
     expect(result).toBe(row);
   });
 
-  it("findConversationByIdForUser filters by createdBy (per-user-private)", async () => {
+  it("findConversationByIdForUser filters by its author and group (per-user-private)", async () => {
     mockPrisma.chatConversation.findFirst.mockResolvedValue(null);
-    const result = await repo.findConversationByIdForUser("c1", "userA");
+    const result = await repo.findConversationByIdForUser("c1", "userA", "g");
+    // The group half matters for actors shared across groups, such as
+    // `internal:dyn-run`: one group's custom step cannot reach another's.
     expect(mockPrisma.chatConversation.findFirst).toHaveBeenCalledWith({
-      where: { id: "c1", createdBy: "userA" },
+      where: { id: "c1", createdBy: "userA", groupId: "g" },
     });
     expect(result).toBeNull();
   });

@@ -214,8 +214,10 @@ export class AgentController {
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<void> {
-    const { actorId } = resolveCallerOrThrow(req, [Permission.WORKFLOW_UPDATE]);
-    await this.agentService.deleteConversationForCaller(id, actorId);
+    const { actorId, groupId } = resolveCallerOrThrow(req, [
+      Permission.WORKFLOW_UPDATE,
+    ]);
+    await this.agentService.deleteConversationForCaller(id, actorId, groupId);
   }
 
   @Post("conversations/:id/abort")

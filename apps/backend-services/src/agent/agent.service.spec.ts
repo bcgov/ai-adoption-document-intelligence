@@ -80,7 +80,7 @@ describe("AgentService — conversation queries", () => {
       findConversationByIdForUser: jest.fn().mockResolvedValue(null),
     });
     await expect(
-      service.deleteConversationForCaller("c1", "user-1"),
+      service.deleteConversationForCaller("c1", "user-1", "g1"),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -92,7 +92,7 @@ describe("AgentService — conversation queries", () => {
         .mockResolvedValue({ id: "c1", groupId: "g1" }),
       deleteConversation,
     });
-    await service.deleteConversationForCaller("c1", "user-1");
+    await service.deleteConversationForCaller("c1", "user-1", "g1");
     expect(deleteConversation).toHaveBeenCalledWith("c1");
     // Change H: the delete is audited after the commit, naming the actor
     // and the conversation's group.
@@ -110,7 +110,7 @@ describe("AgentService — conversation queries", () => {
       findConversationByIdForUser: jest.fn().mockResolvedValue(null),
     });
     await expect(
-      service.deleteConversationForCaller("c1", "someone-else"),
+      service.deleteConversationForCaller("c1", "someone-else", "g1"),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(auditRecordEvent).not.toHaveBeenCalled();
   });
@@ -119,11 +119,12 @@ describe("AgentService — conversation queries", () => {
     const findConversationByIdForUser = jest.fn().mockResolvedValue(null);
     const service = makeService({ findConversationByIdForUser });
     await expect(
-      service.deleteConversationForCaller("demo-agent-1", "someone-else"),
+      service.deleteConversationForCaller("demo-agent-1", "someone-else", "g1"),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(findConversationByIdForUser).toHaveBeenCalledWith(
       "demo-agent-1",
       "someone-else",
+      "g1",
     );
   });
 });

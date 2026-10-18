@@ -44,12 +44,18 @@ export class ChatRepository {
     return this.prisma.prisma.chatConversation.create({ data: input });
   }
 
+  /**
+   * The caller's own conversation in their group. The group is part of the
+   * match because an actor can act in more than one group: every group's
+   * custom steps share the actor `internal:dyn-run`.
+   */
   async findConversationByIdForUser(
     id: string,
     createdBy: string,
+    groupId: string,
   ): Promise<ChatConversationRow | null> {
     return this.prisma.prisma.chatConversation.findFirst({
-      where: { id, createdBy },
+      where: { id, createdBy, groupId },
     });
   }
 

@@ -155,6 +155,16 @@ describe("AgentController", () => {
     expect(result).toEqual({ ok: true, aborted: true });
   });
 
+  it("deleteConversation: scopes the delete to the caller AND their group", async () => {
+    const { controller, agentService } = makeController();
+    await controller.deleteConversation(reqWith(member), "c1");
+    expect(agentService.deleteConversationForCaller).toHaveBeenCalledWith(
+      "c1",
+      "u1",
+      "g1",
+    );
+  });
+
   it("getConversation: scopes the lookup to the caller AND their group", async () => {
     const { controller, agentService } = makeController();
     await controller.getConversation(reqWith(member), "c1");
