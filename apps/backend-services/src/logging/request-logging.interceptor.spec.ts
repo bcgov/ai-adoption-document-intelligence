@@ -217,6 +217,46 @@ describe("RequestLoggingInterceptor", () => {
     interceptor.intercept(ctx, next).subscribe();
     expect(store).not.toHaveProperty("userId");
   });
+  describe("custom-step run enrichment", () => {
+    it("records the run and the step of a custom step's token", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        internalToken: {
+          groupId: "g-1",
+          userId: null,
+          purpose: "dyn-run",
+          dynamicNodeRun: {
+            workflowExecutionId: "run-1",
+            slug: "lookup-vendor",
+          },
+        },
+      } as Partial<Request>);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(makeContext(req), next).subscribe();
+      expect(store).toHaveProperty("dynamicNodeRun", {
+        workflowExecutionId: "run-1",
+        slug: "lookup-vendor",
+      });
+    });
+
+    it("records no run for a token minted for anything else", () => {
+      const store = { requestId: "req-1" };
+      mockGetStore.mockReturnValue(store);
+      const req = makeRequest({
+        internalToken: {
+          groupId: "g-1",
+          userId: "actor-1",
+          purpose: "agent-self-call",
+          dynamicNodeRun: null,
+        },
+      } as Partial<Request>);
+      const next: CallHandler = { handle: () => of(undefined) };
+      interceptor.intercept(makeContext(req), next).subscribe();
+      expect(store).not.toHaveProperty("dynamicNodeRun");
+    });
+  });
+
   describe("apiKeyId enrichment", () => {
     it("sets apiKeyId from apiKey.keyPrefix when present", () => {
       const store = { requestId: "req-1" };

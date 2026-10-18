@@ -23,6 +23,8 @@ class FakeInternalTokenDb {
       groupId: data.groupId,
       userId: data.userId ?? null,
       purpose: data.purpose,
+      workflowExecutionId: null,
+      dynamicNodeSlug: null,
       expiresAt: data.expiresAt,
       createdAt: new Date(),
     };
@@ -72,6 +74,7 @@ describe("InternalTokenService", () => {
         groupId: "g-1",
         userId: "actor-1",
         purpose: "agent-self-call",
+        dynamicNodeRun: null,
       });
     });
 
@@ -122,6 +125,7 @@ describe("InternalTokenService", () => {
         groupId: "g-1",
         userId: null,
         purpose: "dyn-run",
+        dynamicNodeRun: null,
       });
     });
   });
@@ -154,6 +158,30 @@ describe("InternalTokenService", () => {
         groupId: "g-9",
         userId: null,
         purpose: "some-future-purpose",
+        dynamicNodeRun: null,
+      });
+    });
+
+    it("returns the run and the custom step a dyn-run token was minted for", async () => {
+      // The worker writes this row when it mints a custom step's token.
+      const { service, db } = makeService();
+      const raw = "custom-step-raw-token";
+      db.rows.push({
+        id: "it-worker",
+        tokenHash: createHash("sha256").update(raw, "utf8").digest("hex"),
+        groupId: "g-1",
+        userId: null,
+        purpose: "dyn-run",
+        workflowExecutionId: "run-1",
+        dynamicNodeSlug: "lookup-vendor",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      });
+      await expect(service.validate(raw)).resolves.toEqual({
+        groupId: "g-1",
+        userId: null,
+        purpose: "dyn-run",
+        dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
       });
     });
   });

@@ -31,11 +31,17 @@ class MachineAuthController {
 }
 
 const TOKENS: Record<string, ValidatedInternalToken> = {
-  "custom-step-token": { groupId: "g-1", userId: null, purpose: "dyn-run" },
+  "custom-step-token": {
+    groupId: "g-1",
+    userId: null,
+    purpose: "dyn-run",
+    dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
+  },
   "agent-token": {
     groupId: "g-1",
     userId: "actor-1",
     purpose: "agent-self-call",
+    dynamicNodeRun: null,
   },
 };
 

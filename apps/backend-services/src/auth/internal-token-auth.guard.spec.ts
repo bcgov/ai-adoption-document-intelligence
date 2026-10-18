@@ -43,6 +43,7 @@ describe("InternalTokenAuthGuard", () => {
     groupId: "g-1",
     userId: "actor-1",
     purpose: "agent-self-call",
+    dynamicNodeRun: null,
   };
 
   it("attaches request.internalToken for a valid token on an allowApiKey endpoint", async () => {

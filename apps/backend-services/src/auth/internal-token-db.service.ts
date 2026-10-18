@@ -21,6 +21,13 @@ export interface InternalTokenRow {
   userId: string | null;
   /** What the token was minted for — e.g. "agent-self-call", "dyn-run". */
   purpose: string;
+  /**
+   * Set on "dyn-run" tokens, which the worker mints: the Temporal run id of
+   * the workflow execution whose custom step the token was minted for, and
+   * that step's slug. `null` on other tokens.
+   */
+  workflowExecutionId: string | null;
+  dynamicNodeSlug: string | null;
   expiresAt: Date;
   createdAt: Date;
 }

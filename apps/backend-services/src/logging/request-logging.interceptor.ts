@@ -62,6 +62,13 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       }
     }
 
+    // A custom step's call: the audit events it records name the step and
+    // the run it belongs to.
+    const dynamicNodeRun = request.internalToken?.dynamicNodeRun;
+    if (store && dynamicNodeRun) {
+      store.dynamicNodeRun = dynamicNodeRun;
+    }
+
     return next.handle().pipe(
       tap({
         next: () => this.logRequest(request, context.getType()),

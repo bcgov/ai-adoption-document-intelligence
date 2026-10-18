@@ -11,12 +11,22 @@ import { InternalTokenDbService } from "./internal-token-db.service";
  */
 export const INTERNAL_TOKEN_HEADER = "x-internal-token";
 
+/** The custom-step run a "dyn-run" token was minted for. */
+export interface DynamicNodeRunBinding {
+  /** Temporal run id of the workflow execution running the step. */
+  workflowExecutionId: string;
+  /** The custom step's slug. */
+  slug: string;
+}
+
 /** What `InternalTokenService.validate` returns for a live token. */
 export interface ValidatedInternalToken {
   groupId: string;
   /** The minting identity's actor id, or `null` for process-minted tokens. */
   userId: string | null;
   purpose: string;
+  /** The custom-step run a "dyn-run" token was minted for; `null` otherwise. */
+  dynamicNodeRun: DynamicNodeRunBinding | null;
 }
 
 /**
@@ -93,7 +103,18 @@ export class InternalTokenService {
     if (row.expiresAt.getTime() <= Date.now()) {
       return null;
     }
-    return { groupId: row.groupId, userId: row.userId, purpose: row.purpose };
+    return {
+      groupId: row.groupId,
+      userId: row.userId,
+      purpose: row.purpose,
+      dynamicNodeRun:
+        row.workflowExecutionId !== null && row.dynamicNodeSlug !== null
+          ? {
+              workflowExecutionId: row.workflowExecutionId,
+              slug: row.dynamicNodeSlug,
+            }
+          : null,
+    };
   }
 
   /**
