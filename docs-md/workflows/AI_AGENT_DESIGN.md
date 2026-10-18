@@ -128,7 +128,7 @@ apps/backend-services/src/agent/
 | GET  | `/api/agent/conversations?workflowId=<id>` | — | `ChatConversation[]` |
 | GET  | `/api/agent/conversations/:id` | — | `{ conversation, messages: ChatMessage[] }` |
 | POST | `/api/agent/conversations/:id/abort` | — | `{ ok: true }` (sets a backend-side cancellation flag for in-flight stream) |
-| DELETE | `/api/agent/conversations/:id` | — | 204 |
+| DELETE | `/api/agent/conversations/:id` | — | 204 for the caller's own conversation in the caller's group; 404 for anything else |
 
 All endpoints carry full Swagger decorators per CLAUDE.md.
 

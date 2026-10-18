@@ -290,9 +290,24 @@ conditions and payload semantics are in
   - **ConfusionProfileService:** after create/update/delete (including derive-and-save create path).
   - **UploadController:** after successful document upload (`document_uploaded`).
   - **DocumentController:** after successfully sending the human approval signal to a workflow; after document update (`document_updated`) and delete (`document_deleted`); and after authorized delivery of document metadata, file bytes, or OCR to a user (see "Document access" above for the full list of controllers and endpoints).
+- **Custom steps:** a custom step's (dynamic node's) script calls the API with an internal token that names its step and run, and its actor is `internal:dyn-run`, shared by every group's custom steps. Every event recorded while such a call is handled gets `payload.dynamic_node_run = { workflow_execution_id, slug }`: the Temporal run id of the workflow execution running the step, and the step's slug. The run's `workflow_run_started` event has the same `workflow_execution_id` and names the person or API key that started the run. A step inside a sub-workflow names the sub-workflow's run, which Temporal's history links to its parent run.
 - **Migration:** the `audit_events` table is created in the squashed init migration `apps/shared/prisma/migrations/20260328205045_init/`.
 - **Failure behavior:** If an audit insert fails, the service logs a warning and continues; the main operation is not failed.
 
 ## Querying
 
 There is no dedicated REST API or UI for the audit table in the initial scope. The table can be queried directly (e.g. for reporting or via a DB connector to Kibana or other tools) using the indexed columns.
+
+What custom steps did, and who started each step's run:
+
+```sql
+SELECT e.occurred_at, e.event_type, e.resource_id,
+       e.payload -> 'dynamic_node_run' ->> 'slug' AS custom_step,
+       s.actor_id AS run_started_by
+FROM audit_events e
+LEFT JOIN audit_events s
+  ON s.event_type = 'workflow_run_started'
+ AND s.workflow_execution_id = e.payload -> 'dynamic_node_run' ->> 'workflow_execution_id'
+WHERE e.actor_id = 'internal:dyn-run'
+ORDER BY e.occurred_at;
+```

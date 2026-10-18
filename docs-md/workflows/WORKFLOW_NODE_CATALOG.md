@@ -320,6 +320,85 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 
 ---
 
+## 🔍 Analyze with Content Understanding
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, upload-arrow icon
+- **Activity ID (internal):** `azureContentUnderstanding.analyze`
+- **One-line description:** Runs an Azure Content Understanding analyzer on the document and returns a canonical OCR result. Given a template model, it first deploys an analyzer built from the template's fields.
+- **When to use it:** In place of **Submit OCR** → **Wait for OCR Result** → **Extract OCR Result**, when a generative analyzer should extract a labeling template's fields in one step. See [03-content-understanding-OCR.md](03-content-understanding-OCR.md).
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**.
+  - **Template model ID** *(optional)* — Labeling template whose fields the analyzer extracts.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result.
+  - **OCR response** *(required)* — Raw Content Understanding response.
+- **Static parameters:**
+  - **Annotation prompt** *(multi-line text, optional)* — Instruction for the whole document, set as the analyzer's description.
+  - **Field descriptions** *(JSON object, optional)* — A description per field key, attached to that field of the analyzer.
+  - **Blank numbers are null** *(toggle, optional, default off)* — Tells the model to return null, not 0, for a numeric field left blank.
+  - **Analyzer ID** *(text, optional)* — Runs this analyzer instead of one built from the template: an Azure `prebuilt-*` analyzer or one of the group's own.
+  - **Base analyzer** *(text, optional, default `prebuilt-document`)* — The analyzer that one built from the template extends.
+  - **Authentication** *(dropdown, optional, default `subscription-key`)* — `subscription-key` or `bearer`.
+  - **Poll interval (ms)** *(number, optional, default 1500)* and **Maximum checks** *(number, optional, default 240)* — How often, and how many times, the step checks a running analysis.
+
+---
+
+## 🪄 Extract with Vision Model
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, sparkle-document icon
+- **Activity ID (internal):** `vlmDirect.extract`
+- **One-line description:** Sends the document image to an Azure OpenAI vision model, which returns the template's fields as strict JSON.
+- **When to use it:** For image documents, when a vision model should read the template's fields straight from the image with no OCR step. A PDF fails the step.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**. Must be an image.
+  - **Template model ID** *(optional)* — Labeling template whose fields the model fills in.
+  - **Azure OpenAI deployment** *(optional)* — Vision-capable deployment to call; defaults to the worker's configured deployment.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result built from the model's answer.
+  - **Model response** *(required)* — Raw model response, with the parsed fields.
+- **Static parameters:**
+  - **Annotation prompt** *(multi-line text, optional)* — Instruction for the whole document, sent ahead of the field list.
+  - **Field descriptions** *(JSON object, optional)* — A description per field key.
+  - **Blank numbers are null** *(toggle, optional, default on)* — Asks for null, not 0, for a numeric field left blank.
+  - **Max completion tokens** *(number, optional, default 8192)* — Upper limit on the length of the model's answer.
+
+---
+
+## 🪄 Extract with Vision Model and OCR Text
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, sparkle-document icon
+- **Activity ID (internal):** `vlmOcrHybrid.extract`
+- **One-line description:** Sends the document image and its OCR text from Azure Document Intelligence to an Azure OpenAI vision model, which returns the template's fields as strict JSON.
+- **When to use it:** After **Submit OCR** and **Wait for OCR Result** with markdown output, when the model should read the image with the OCR text beside it.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**.
+  - **Layout response** *(required)* — OCR response from **Wait for OCR Result** (convention: `ocrResponseRef`), for a document submitted with markdown output.
+  - **Template model ID** *(optional)* — Labeling template whose fields the model fills in.
+  - **Azure OpenAI deployment** *(optional)* — Vision-capable deployment to call; defaults to the worker's configured deployment.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result built from the model's answer.
+  - **Model response** *(required)* — Raw model response, with the parsed fields.
+- **Static parameters:**
+  - The four of **Extract with Vision Model**: **Annotation prompt**, **Field descriptions**, **Blank numbers are null** and **Max completion tokens**.
+  - **Include line positions** *(toggle, optional, default off)* — Prefixes each line of the OCR text with its position on the page.
+
+---
+
 # OCR Cleanup & Correction
 
 These nodes all read an OCR result, transform it, and write a corrected OCR result back. They can be chained.
@@ -433,6 +512,32 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ---
 
+## 🔢 Recover Numeric Zeros from Checkboxes
+
+- **Category:** OCR Cleanup & Correction
+- **Visual:** Teal, broom icon
+- **Activity ID (internal):** `ocr.recoverNumericZerosFromCheckboxes`
+- **One-line description:** Fills in numeric fields Azure left empty because it read a written 0 as a checkbox: in the configured tables, an empty cell with a checkbox mark gets the recovery value (0 by default).
+- **When to use it:** After **Extract OCR Result**, for forms whose amounts sit in table cells, where Azure Document Intelligence reads a handwritten or printed "0" as an empty checkbox.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **OCR result** *(required)* — With its tables and page layout.
+- **Outputs ("This step produces"):**
+  - **Corrected OCR result** *(required)*.
+  - **List of changes** *(optional)* — Each filled-in field, with the strategy that found its table.
+- **Static parameters:**
+  - **Tables** *(JSON list, optional)* — One entry per table. With no tables the step changes nothing. Each entry has:
+    - **find** — The text of the table's first cell (`firstCellTextEquals` or `firstCellTextContains`).
+    - **columns** and **rows** — The field key of a cell is a column's `prefix` plus a row's `suffix`; each column matches a header cell, each row a label in the first column (`…Equals` or `…Contains`).
+    - **recoveryValue** *(default 0)* — The value written into an eligible cell's field.
+    - **cellEligibility** — Tokens stripped before the empty-cell test, whether a checkbox mark must overlap the cell (default yes), and which mark states count.
+    - **fallbackTableFinder** — When the first-cell text misses: find the table by its shape and row labels (`labelAnchor`), or by matching row labels in the page text to table rows (`positionalAnchor`).
+
+---
+
 # OCR Quality
 
 ## ✅ Check Confidence
@@ -510,6 +615,9 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Reason** *(text, required)* — Shown to the reviewer / recorded in the plan.
   - **Default action** *(dropdown, optional, default `skip`)* — Applied to fields no rule matched.
   - **Inferred field keys** *(list of field keys, optional)* — Field keys previously marked as inferred by an upstream correction/enrichment step; backs the **Value was inferred** condition.
+  - **Confidence overrides** *(rule name → threshold, optional)* — Replaces the threshold of a rule's **Confidence below** conditions, so a threshold can be exposed as an overridable workflow parameter without editing the rules.
+
+> The settings panel edits **Rules** and **Confidence overrides** as JSON.
 
 > Does not special-case benchmark document ids — it always evaluates the configured rules. Any benchmark bypass (skipping human review entirely) belongs on the downstream Switch/gate node, the same way `ocr.checkConfidence` handles it.
 
@@ -849,6 +957,8 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 | **Keyword pattern editor** (regex with capture group + segment type) | Split & Classify |
 | **Page range list editor** (list of `{ start, end }` items) | Split Document (custom-ranges strategy) |
 | **Confusion map editor** (key→value table; preset toggles plus overrides) | Character Confusion Fix |
+| **JSON editor** (formatted JSON text; saved on blur, and only when it parses to the expected list or object) | Field descriptions (Analyze with Content Understanding, the two vision-model steps); Rules and Confidence overrides (Apply Review Criteria); Tables (Recover Numeric Zeros from Checkboxes) |
+| **Multi-line text** | Annotation prompt (Analyze with Content Understanding, the two vision-model steps) |
 | **Sub-workflow picker** (browse the library of saved workflows with name, description, version) | Sub-workflow node |
 | **Mapping list** (paired-list: left=internal slot name, right=available variable) | Sub-workflow inputs/outputs; activity inputs/outputs |
 | **Field-mapping editor** (visual or JSON, with placeholder expressions like `{{slot.path}}`) | Generic Data Transform |
@@ -876,12 +986,16 @@ Reusable settings-panel widgets that several nodes share. Building these once an
    📤 Submit OCR
    ⌛ Wait for OCR Result   (preset of Wait & Retry)
    📥 Extract OCR Result
+   🔍 Analyze with Content Understanding
+   🪄 Extract with Vision Model
+   🪄 Extract with Vision Model and OCR Text
 
 📂 OCR Cleanup & Correction
    ✨ Cleanup
    🔡 Spellcheck
    🔠 Character Confusion Fix
    🧹 Normalize Fields
+   🔢 Recover Numeric Zeros from Checkboxes
 
 📂 OCR Quality
    ✅ Check Confidence
