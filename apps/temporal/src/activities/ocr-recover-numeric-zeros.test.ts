@@ -1,3 +1,8 @@
+import {
+  getActivityCatalogEntry,
+  type OcrRecoverNumericZerosFromCheckboxesParameters,
+} from "@ai-di/graph-workflow";
+import type { SameShape } from "../__testlib__/same-shape";
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult, Page, SelectionMark, TableCell } from "../types";
@@ -1183,5 +1188,36 @@ describe("recoverNumericZerosFromCheckboxes", () => {
         "cell_has_digits_or_letters"
       ],
     ).toBe(1);
+  });
+});
+
+describe("recoverNumericZerosFromCheckboxes — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const out = await runRecover({
+      ocrResult: makeOcrResult({
+        cells: [],
+        fields: { applicant_x: { type: "number" } },
+      }),
+    });
+    const declared = getActivityCatalogEntry(
+      "ocr.recoverNumericZerosFromCheckboxes",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(out)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+
+  it("describes exactly the parameters the activity takes", () => {
+    const agree: SameShape<
+      OcrRecoverNumericZerosFromCheckboxesParameters,
+      Omit<
+        RecoverNumericZerosFromCheckboxesParams,
+        "documentId" | "groupId" | "ocrResult" | "fieldScope"
+      >
+    > = true;
+    expect(agree).toBe(true);
   });
 });

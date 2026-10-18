@@ -8,9 +8,17 @@ jest.mock("../../logger", () => ({
   }),
 }));
 
+import {
+  getActivityCatalogEntry,
+  type VlmDirectExtractParameters,
+} from "@ai-di/graph-workflow";
 import axios from "axios";
+import type { SameShape } from "../../__testlib__/same-shape";
 import type { PreparedFileData } from "../../types";
-import { vlmDirectExtract } from "./vlm-direct-extract";
+import {
+  type VlmDirectExtractParams,
+  vlmDirectExtract,
+} from "./vlm-direct-extract";
 
 jest.mock("axios");
 const axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
@@ -187,5 +195,43 @@ describe("vlmDirectExtract group scope", () => {
     expect(mockFindFirst).not.toHaveBeenCalled();
     expect(mockBlobRead).not.toHaveBeenCalled();
     expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  describe("catalog contract", () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    it("returns every output port the catalog declares for it", async () => {
+      templateRows = [amountTemplate(GROUP)];
+
+      const result = await vlmDirectExtract({
+        fileData: imageFile,
+        groupId: GROUP,
+        templateModelId: "tm-1",
+      });
+      const declared = getActivityCatalogEntry(
+        "vlmDirect.extract",
+      )?.outputs.map((port) => port.name);
+
+      expect(declared).toContain("ocrResult");
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(declared ?? []),
+      );
+    });
+
+    it("describes exactly the parameters the activity takes", () => {
+      const agree: SameShape<
+        VlmDirectExtractParameters,
+        Omit<
+          VlmDirectExtractParams,
+          | "fileData"
+          | "groupId"
+          | "templateModelId"
+          | "azureOpenAiDeployment"
+          | "requestId"
+        >
+      > = true;
+      expect(agree).toBe(true);
+    });
   });
 });

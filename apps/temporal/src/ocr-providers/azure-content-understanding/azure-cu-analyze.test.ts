@@ -1,4 +1,8 @@
 import {
+  type AzureContentUnderstandingAnalyzeParameters,
+  getActivityCatalogEntry,
+} from "@ai-di/graph-workflow";
+import {
   afterEach,
   beforeEach,
   describe,
@@ -6,8 +10,13 @@ import {
   it,
   jest,
 } from "@jest/globals";
+import type { SameShape } from "../../__testlib__/same-shape";
 import type { PreparedFileData } from "../../types";
-import { __testInternals, azureCuAnalyze } from "./azure-cu-analyze";
+import {
+  __testInternals,
+  type AzureCuAnalyzeParams,
+  azureCuAnalyze,
+} from "./azure-cu-analyze";
 import { azureCuDeployAnalyzer } from "./azure-cu-deploy-analyzer";
 import type { CuAnalyzeOperation, CuAnalyzeResult } from "./cu-types";
 
@@ -288,5 +297,39 @@ describe("azureCuAnalyze group scope", () => {
     expect(deployAnalyzerMock).not.toHaveBeenCalled();
     expect(mockBlobRead).not.toHaveBeenCalled();
     expect(mockCuPost).not.toHaveBeenCalled();
+  });
+
+  describe("catalog contract", () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    it("returns every output port the catalog declares for it", async () => {
+      templateRows = [amountTemplate(GROUP)];
+
+      const result = await azureCuAnalyze({
+        fileData: pdfFile,
+        groupId: GROUP,
+        templateModelId: "tm-1",
+      });
+      const declared = getActivityCatalogEntry(
+        "azureContentUnderstanding.analyze",
+      )?.outputs.map((port) => port.name);
+
+      expect(declared).toContain("ocrResult");
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(declared ?? []),
+      );
+    });
+
+    it("describes exactly the parameters the activity takes", () => {
+      const agree: SameShape<
+        AzureContentUnderstandingAnalyzeParameters,
+        Omit<
+          AzureCuAnalyzeParams,
+          "fileData" | "groupId" | "templateModelId" | "requestId"
+        >
+      > = true;
+      expect(agree).toBe(true);
+    });
   });
 });

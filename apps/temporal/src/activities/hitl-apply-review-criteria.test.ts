@@ -1,3 +1,8 @@
+import {
+  getActivityCatalogEntry,
+  type HitlApplyReviewCriteriaParameters,
+} from "@ai-di/graph-workflow";
+import type { SameShape } from "../__testlib__/same-shape";
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
@@ -652,5 +657,33 @@ describe("applyReviewCriteria activity", () => {
 
     expect(result.requiresReview).toBe(true);
     expect(result.reviewFieldCount).toBe(1);
+  });
+});
+
+describe("applyReviewCriteria — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await run({
+      ocrResult: makeOcrResult({
+        total_amount: { content: "100.00", confidence: 0.4 },
+      }),
+      rules: [],
+    });
+    const declared = getActivityCatalogEntry(
+      "hitl.applyReviewCriteria",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("reviewPlan");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+
+  it("describes exactly the parameters the activity takes", () => {
+    const agree: SameShape<
+      HitlApplyReviewCriteriaParameters,
+      Omit<ApplyReviewCriteriaParams, "documentId" | "ocrResult" | "groupId">
+    > = true;
+    expect(agree).toBe(true);
   });
 });
