@@ -14,6 +14,7 @@
 import { z } from "zod/v4";
 import { azureClassifyPollCatalogEntry } from "./activities/azure-classify-poll";
 import { azureClassifySubmitCatalogEntry } from "./activities/azure-classify-submit";
+import { azureContentUnderstandingAnalyzeCatalogEntry } from "./activities/azure-content-understanding-analyze";
 import { azureOcrExtractCatalogEntry } from "./activities/azure-ocr-extract";
 import { azureOcrPollCatalogEntry } from "./activities/azure-ocr-poll";
 import { azureOcrSubmitCatalogEntry } from "./activities/azure-ocr-submit";
@@ -35,6 +36,7 @@ import { documentExtractPageRangeCatalogEntry } from "./activities/document-extr
 import { documentExtractToBase64CatalogEntry } from "./activities/document-extract-to-base64";
 import { documentFlattenClassifiedDocumentsCatalogEntry } from "./activities/document-flatten-classified-documents";
 import { documentNormalizeOrientationCatalogEntry } from "./activities/document-normalize-orientation";
+import { documentPersistReviewPlanCatalogEntry } from "./activities/document-persist-review-plan";
 import { documentSelectClassifiedPagesCatalogEntry } from "./activities/document-select-classified-pages";
 import { documentSplitCatalogEntry } from "./activities/document-split";
 import { documentSplitAndClassifyCatalogEntry } from "./activities/document-split-and-classify";
@@ -43,18 +45,23 @@ import { documentUpdateStatusCatalogEntry } from "./activities/document-update-s
 import { documentValidateFieldsCatalogEntry } from "./activities/document-validate-fields";
 import { filePrepareCatalogEntry } from "./activities/file-prepare";
 import { getWorkflowGraphConfigCatalogEntry } from "./activities/get-workflow-graph-config";
+import { hitlApplyReviewCriteriaCatalogEntry } from "./activities/hitl-apply-review-criteria";
 import { mistralOcrProcessCatalogEntry } from "./activities/mistral-ocr-process";
 import { ocrCharacterConfusionCatalogEntry } from "./activities/ocr-character-confusion";
 import { ocrCheckConfidenceCatalogEntry } from "./activities/ocr-check-confidence";
 import { ocrCleanupCatalogEntry } from "./activities/ocr-cleanup";
 import { ocrEnrichCatalogEntry } from "./activities/ocr-enrich";
 import { ocrNormalizeFieldsCatalogEntry } from "./activities/ocr-normalize-fields";
+import { ocrRecoverNumericZerosFromCheckboxesCatalogEntry } from "./activities/ocr-recover-numeric-zeros-from-checkboxes";
 import { ocrSpellcheckCatalogEntry } from "./activities/ocr-spellcheck";
 import { ocrStoreResultsCatalogEntry } from "./activities/ocr-store-results";
 import { segmentCombineResultCatalogEntry } from "./activities/segment-combine-result";
 import { tablesLookupCatalogEntry } from "./activities/tables-lookup";
+import { vlmDirectExtractCatalogEntry } from "./activities/vlm-direct-extract";
+import { vlmOcrHybridExtractCatalogEntry } from "./activities/vlm-ocr-hybrid-extract";
 import type { ActivityCatalogEntry } from "./types";
 
+export type { AzureContentUnderstandingAnalyzeParameters } from "./activities/azure-content-understanding-analyze";
 export {
   CLASSIFICATION_PATTERN_OPERATORS,
   CLASSIFICATION_PATTERN_SCOPES,
@@ -69,6 +76,10 @@ export {
   type ValidationRule,
   validationRuleSchema,
 } from "./activities/document-validate-fields";
+export type { HitlApplyReviewCriteriaParameters } from "./activities/hitl-apply-review-criteria";
+export type { OcrRecoverNumericZerosFromCheckboxesParameters } from "./activities/ocr-recover-numeric-zeros-from-checkboxes";
+export type { VlmDirectExtractParameters } from "./activities/vlm-direct-extract";
+export type { VlmOcrHybridExtractParameters } from "./activities/vlm-ocr-hybrid-extract";
 
 export {
   createCatalogParameterValidator,
@@ -114,13 +125,19 @@ const ENTRIES: ActivityCatalogEntry[] = [
   azureClassifySubmitCatalogEntry,
   azureClassifyPollCatalogEntry,
   mistralOcrProcessCatalogEntry,
+  azureContentUnderstandingAnalyzeCatalogEntry,
+  vlmDirectExtractCatalogEntry,
+  vlmOcrHybridExtractCatalogEntry,
   ocrCleanupCatalogEntry,
   ocrSpellcheckCatalogEntry,
   ocrCharacterConfusionCatalogEntry,
   ocrNormalizeFieldsCatalogEntry,
+  ocrRecoverNumericZerosFromCheckboxesCatalogEntry,
   ocrCheckConfidenceCatalogEntry,
   ocrEnrichCatalogEntry,
+  hitlApplyReviewCriteriaCatalogEntry,
   ocrStoreResultsCatalogEntry,
+  documentPersistReviewPlanCatalogEntry,
   documentSplitCatalogEntry,
   documentSplitAndClassifyCatalogEntry,
   documentClassifyCatalogEntry,

@@ -57,11 +57,14 @@ export { sha256Hex } from "./cache/sha256-hex";
 export { stableJson } from "./cache/stable-json";
 export type {
   ActivityCatalogEntry,
+  AzureContentUnderstandingAnalyzeParameters,
   CatalogCategory,
   ClassificationPattern,
   ClassificationRule,
   FieldDescriptor,
+  HitlApplyReviewCriteriaParameters,
   JsonSchema7,
+  OcrRecoverNumericZerosFromCheckboxesParameters,
   PortDescriptor,
   ProviderDescriptor,
   SourceCatalogEntry,
@@ -69,6 +72,8 @@ export type {
   ValidateActivityParameters,
   ValidateSourceParameters,
   ValidationRule,
+  VlmDirectExtractParameters,
+  VlmOcrHybridExtractParameters,
 } from "./catalog";
 // Activity & node catalog (parameter schemas + UI metadata)
 export {

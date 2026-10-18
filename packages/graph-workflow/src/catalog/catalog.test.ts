@@ -132,11 +132,12 @@ describe("catalog invariants", () => {
     ).toBe(true);
   });
 
-  // Pins the EXACT nonCacheable set: the US-134 list plus three post-review
-  // additions — ocr.storeResults (DB upsert), benchmark.materializeDataset
-  // (storage write), and azureOcr.poll (returns { status: "running" } as a
-  // SUCCESS, so a cached value poisons plain-activity-node use; pollUntil
-  // bypasses the decorator, so polling loops are unaffected).
+  // Pins the EXACT nonCacheable set: the US-134 list plus four additions —
+  // ocr.storeResults and document.persistReviewPlan (DB writes),
+  // benchmark.materializeDataset (storage write), and azureOcr.poll (returns
+  // { status: "running" } as a SUCCESS, so a cached value poisons
+  // plain-activity-node use; pollUntil bypasses the decorator, so polling
+  // loops are unaffected).
   // An activity appearing here unexpectedly, or falling out, changes which
   // nodes the cache decorator may skip — that is a deliberate decision, so
   // update this list only alongside the catalog entry's comment.
@@ -155,6 +156,7 @@ describe("catalog invariants", () => {
         "benchmark.persistOcrCache",
         "benchmark.updateRunStatus",
         "benchmark.writePrediction",
+        "document.persistReviewPlan",
         "document.storeRejection",
         "document.updateStatus",
         "ocr.storeResults",
