@@ -1186,6 +1186,13 @@ model InternalToken {
   /// What the token was minted for. Free string; current values are
   /// "dyn-run" (dynamic-node callback) and "agent-self-call".
   purpose   String
+  /// Set on "dyn-run" tokens: the Temporal run id of the workflow execution
+  /// whose custom step (dynamic node) the token was minted for, and that
+  /// step's slug. Audit events recorded during a call made with the token
+  /// carry both, and the run's `workflow_run_started` event names who
+  /// started it. Null on other tokens.
+  workflowExecutionId String? @map("workflow_execution_id")
+  dynamicNodeSlug     String? @map("dynamic_node_slug")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
