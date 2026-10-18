@@ -438,8 +438,8 @@ describe("resolveCtxValueOrigin", () => {
 
   /**
    * Standard OCR (SDPR)'s cleanup chain: each step reads `ocrResultRef` and
-   * the middle two write it back. The zero-recovery step has no catalog
-   * entry; the engine writes by binding, so its write counts all the same.
+   * the middle two write it back. A write is read from the step's output
+   * binding, which is what the engine writes.
    */
   function rewriteChainConfig(): GraphWorkflowConfig {
     return {

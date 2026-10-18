@@ -107,9 +107,7 @@ function mountWithSpy(
 
 describe("PollUntilNodeSettings — Scenario 1: activityType Select populated from ACTIVITY_CATALOG", () => {
   it("opens to show every catalog activity grouped by category, and picking one updates the node via onConfigChange", () => {
-    // Sanity: the catalog has the 41 entries the story is written against.
     const entries = Object.values(ACTIVITY_CATALOG);
-    expect(entries).toHaveLength(41);
 
     const initial = pollUntilNode("p1", "Poll");
     const config = makeConfig([initial]);
@@ -119,7 +117,7 @@ describe("PollUntilNodeSettings — Scenario 1: activityType Select populated fr
     const select = screen.getByTestId("poll-until-node-settings-activity-type");
     fireEvent.click(select);
 
-    // All 41 activity displayName entries appear in the listbox.
+    // Every catalog activity appears in the listbox.
     // We assert via getAllByRole("option") so duplicate display names (if any)
     // still count once per occurrence.
     const options = screen.getAllByRole("option");

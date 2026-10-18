@@ -14,6 +14,7 @@ import "@testing-library/jest-dom";
 
 import {
   getActivityParametersJsonSchema,
+  listActivityTypes,
   type ValidationRule,
 } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
@@ -727,5 +728,129 @@ describe("JsonSchemaForm — US-039 Scenario 3: no regression for plain array sc
     expect(
       screen.getByRole("button", { name: /Add Tag/i }),
     ).toBeInTheDocument();
+  });
+});
+
+// ===========================================================================
+// x-widget: "json" — a nested setting with no form widget of its own
+// ===========================================================================
+
+describe("JsonSchemaForm — x-widget: json edits a nested setting as JSON", () => {
+  const schema: JsonSchemaProperty = {
+    type: "object",
+    properties: {
+      rules: {
+        type: "array",
+        title: "Rules",
+        "x-widget": "json",
+        items: {
+          type: "object",
+          properties: { select: { type: "object" } },
+        },
+      },
+    },
+  };
+
+  const rulesBox = () => screen.getByRole("textbox", { name: "Rules" });
+
+  it("shows the saved value as formatted JSON, not an unsupported field", () => {
+    renderForm(
+      <JsonSchemaForm
+        schema={schema}
+        value={{ rules: [{ name: "a", select: { fields: ["x"] } }] }}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(rulesBox()).toHaveValue(
+      JSON.stringify([{ name: "a", select: { fields: ["x"] } }], null, 2),
+    );
+    expect(screen.queryByText(/Unsupported field schema/)).toBeNull();
+  });
+
+  it("saves an edit when the field loses focus", () => {
+    const { spy } = mountWithSpy(schema, { rules: [] });
+
+    fireEvent.change(rulesBox(), { target: { value: '[{"name":"b"}]' } });
+    expect(spy).not.toHaveBeenCalled();
+    fireEvent.blur(rulesBox());
+
+    expect(spy).toHaveBeenLastCalledWith({ rules: [{ name: "b" }] });
+    expect(rulesBox()).toHaveValue(JSON.stringify([{ name: "b" }], null, 2));
+  });
+
+  it("keeps the saved value when the text is not valid JSON", () => {
+    const { spy } = mountWithSpy(schema, { rules: [{ name: "a" }] });
+
+    fireEvent.change(rulesBox(), { target: { value: '[{"name":' } });
+    fireEvent.blur(rulesBox());
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByText(/Not valid JSON/)).toBeInTheDocument();
+  });
+
+  it("keeps the saved value when the JSON is not a list", () => {
+    const { spy } = mountWithSpy(schema, { rules: [{ name: "a" }] });
+
+    fireEvent.change(rulesBox(), { target: { value: '{"name":"b"}' } });
+    fireEvent.blur(rulesBox());
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByText(/Expected a JSON list/)).toBeInTheDocument();
+  });
+
+  it("removes the setting when the text is cleared", () => {
+    const { spy } = mountWithSpy(schema, { rules: [{ name: "a" }] });
+
+    fireEvent.change(rulesBox(), { target: { value: "" } });
+    fireEvent.blur(rulesBox());
+
+    expect(spy).toHaveBeenLastCalledWith({});
+  });
+
+  it("saves a pending edit when the form is removed before the field loses focus", () => {
+    const { spy, unmount } = mountWithSpy(schema, { rules: [] });
+
+    fireEvent.change(rulesBox(), { target: { value: '[{"name":"c"}]' } });
+    unmount();
+
+    expect(spy).toHaveBeenLastCalledWith({ rules: [{ name: "c" }] });
+  });
+});
+
+describe("JsonSchemaForm — x-widget: textarea", () => {
+  it("edits a long string in a multi-line field", () => {
+    const { spy } = mountWithSpy(
+      {
+        type: "object",
+        properties: {
+          prompt: { type: "string", title: "Prompt", "x-widget": "textarea" },
+        },
+      },
+      {},
+    );
+
+    const box = screen.getByRole("textbox", { name: "Prompt" });
+    expect(box.tagName).toBe("TEXTAREA");
+    fireEvent.change(box, { target: { value: "line one\nline two" } });
+    fireEvent.blur(box);
+
+    expect(spy).toHaveBeenLastCalledWith({ prompt: "line one\nline two" });
+  });
+});
+
+describe("JsonSchemaForm — every catalog step's settings", () => {
+  it.each(
+    listActivityTypes(),
+  )("%s renders without an unsupported field", (activityType) => {
+    renderForm(
+      <JsonSchemaForm
+        schema={getActivityParametersJsonSchema(activityType)}
+        value={{}}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByText(/Unsupported field schema/)).toBeNull();
   });
 });

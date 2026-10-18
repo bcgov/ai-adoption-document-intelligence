@@ -25,15 +25,18 @@ import {
   Box,
   Button,
   Group,
+  JsonInput,
   NumberInput,
   Paper,
   Select,
   Stack,
   Switch,
   Text,
+  Textarea,
   TextInput,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClassificationRuleEditor,
   type ConfusionMap,
@@ -304,6 +307,25 @@ function FieldRenderer({
     );
   }
 
+  // ── string + x-widget: textarea ───────────────────────────────────────
+  if (fieldSchema.type === "string" && widget === "textarea") {
+    return (
+      <Textarea
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        value={text.draft}
+        onChange={(e) => text.setDraft(e.currentTarget.value)}
+        onBlur={text.flush}
+        autosize
+        minRows={2}
+        maxRows={12}
+        withAsterisk={required}
+        disabled={readOnly}
+      />
+    );
+  }
+
   // ── plain string ──────────────────────────────────────────────────────
   if (fieldSchema.type === "string") {
     return (
@@ -348,6 +370,24 @@ function FieldRenderer({
         checked={Boolean(value)}
         onChange={(e) => onChange(e.currentTarget.checked)}
         disabled={readOnly}
+      />
+    );
+  }
+
+  // ── object / array + x-widget: json ───────────────────────────────────
+  if (
+    widget === "json" &&
+    (fieldSchema.type === "object" || fieldSchema.type === "array")
+  ) {
+    return (
+      <JsonFieldEditor
+        label={label}
+        description={description}
+        required={required}
+        container={fieldSchema.type}
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
       />
     );
   }
@@ -676,6 +716,138 @@ function ArrayFieldRenderer({
         </Group>
       )}
     </Stack>
+  );
+}
+
+interface JsonFieldEditorProps {
+  label: string;
+  description?: string;
+  required: boolean;
+  /** What the setting holds: a JSON list or a JSON object. */
+  container: "array" | "object";
+  value: unknown;
+  onChange: (next: unknown) => void;
+  readOnly?: boolean;
+}
+
+type JsonDraft =
+  | { kind: "empty" }
+  | { kind: "value"; value: unknown; text: string }
+  | { kind: "invalid" }
+  | { kind: "wrong-shape" };
+
+function readJsonDraft(text: string, container: "array" | "object"): JsonDraft {
+  if (text.trim() === "") return { kind: "empty" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { kind: "invalid" };
+  }
+  const isList = Array.isArray(parsed);
+  const isObject = typeof parsed === "object" && parsed !== null && !isList;
+  if (container === "array" ? !isList : !isObject) {
+    return { kind: "wrong-shape" };
+  }
+  return { kind: "value", value: parsed, text: formatJson(parsed) };
+}
+
+function formatJson(value: unknown): string {
+  return value === undefined ? "" : JSON.stringify(value, null, 2);
+}
+
+/**
+ * A nested setting with no form widget of its own, such as a list of
+ * structured rules or a free-form map, edited as JSON text. The text is saved
+ * on blur, or when the form is removed first, and only when it parses to the
+ * expected list or object, so a half-typed edit never replaces the saved
+ * value. The step's parameter schema still validates whatever is saved.
+ */
+function JsonFieldEditor({
+  label,
+  description,
+  required,
+  container,
+  value,
+  onChange,
+  readOnly,
+}: JsonFieldEditorProps) {
+  const savedText = formatJson(value);
+  const [draft, setDraft] = useState(savedText);
+  const [shapeError, setShapeError] = useState<string | null>(null);
+  const draftRef = useRef(savedText);
+  /**
+   * The text of the value this editor last saved or was given. A saved value
+   * arriving with this text is the editor's own save coming back; any other
+   * (an undo, an agent write) replaces the draft.
+   */
+  const syncedRef = useRef(savedText);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (savedText === syncedRef.current) return;
+    syncedRef.current = savedText;
+    draftRef.current = savedText;
+    setDraft(savedText);
+    setShapeError(null);
+  }, [savedText]);
+
+  const save = useCallback((): JsonDraft["kind"] => {
+    const read = readJsonDraft(draftRef.current, container);
+    if (read.kind === "invalid" || read.kind === "wrong-shape") {
+      return read.kind;
+    }
+    const nextText = read.kind === "value" ? read.text : "";
+    if (nextText !== syncedRef.current) {
+      syncedRef.current = nextText;
+      onChangeRef.current(read.kind === "value" ? read.value : undefined);
+    }
+    return read.kind;
+  }, [container]);
+
+  // Backstop for the case blur cannot cover: selecting another node removes
+  // the form while an edit is still unsaved.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(
+    () => () => {
+      saveRef.current();
+    },
+    [],
+  );
+
+  const handleBlur = () => {
+    const outcome = save();
+    setShapeError(
+      outcome === "wrong-shape"
+        ? `Expected a JSON ${container === "array" ? "list, [ … ]" : "object, { … }"}. The saved value is unchanged.`
+        : null,
+    );
+    if (outcome === "value" || outcome === "empty") {
+      draftRef.current = syncedRef.current;
+      setDraft(syncedRef.current);
+    }
+  };
+
+  return (
+    <JsonInput
+      label={label}
+      description={description}
+      value={draft}
+      onChange={(next) => {
+        draftRef.current = next;
+        setDraft(next);
+      }}
+      onBlur={handleBlur}
+      validationError="Not valid JSON. The saved value is unchanged."
+      error={shapeError}
+      autosize
+      minRows={3}
+      maxRows={16}
+      withAsterisk={required}
+      disabled={readOnly}
+    />
   );
 }
 

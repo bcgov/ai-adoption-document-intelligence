@@ -8,7 +8,7 @@
  *
  * UI hints ride through as `x-*` extension fields (set via Zod's
  * `.meta({ ... })`):
- *   - x-widget: "combobox" | "textarea" | "documentPicker" | ...
+ *   - x-widget: "combobox" | "textarea" | "json" | "documentPicker" | ...
  *   - x-options: string[] | number[]
  *   - x-options-labels: Record<string, string>  (label per literal/enum value)
  *   - x-default: unknown
