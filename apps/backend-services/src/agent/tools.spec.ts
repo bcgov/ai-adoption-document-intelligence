@@ -887,3 +887,86 @@ describe("internalFetch self-call authentication (Change W)", () => {
     expect(JSON.stringify(result)).toContain("self-call-timeout");
   });
 });
+
+// ── Self-call URLs keep each id inside one path segment ───────────────
+
+describe("self-call URLs", () => {
+  // The workflow and run ids come from the model's tool input, and the
+  // upload step's id from a saved workflow, which anyone who can edit it
+  // controls. Each must stay one path segment, so none can point the call,
+  // made with the chatting person's token, at a different endpoint.
+  const crafted = "../../dynamic-nodes/x?y=1";
+  const encoded = "..%2F..%2Fdynamic-nodes%2Fx%3Fy%3D1";
+
+  it("startTestRun encodes the upload step's id in the upload URL", async () => {
+    const config = emptyConfig({
+      nodes: {
+        [crafted]: {
+          id: crafted,
+          type: "source",
+          sourceType: "source.upload",
+          label: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+      entryNodeId: crafted,
+    });
+    const { ctx, internalFetchMock } = makeCtx({
+      conversationId: "conv-1",
+      runBudget: new RunBudgetMap(),
+      maxRunsPerConversation: 2,
+      workflowService: {
+        getWorkflow: jest.fn(async () => ({
+          id: "wf-1",
+          groupId: "group-1",
+          config,
+        })),
+      } as unknown as WorkflowService,
+    });
+    internalFetchMock
+      .mockResolvedValueOnce(fetchResponse(200, { documentId: "doc-1" }))
+      .mockResolvedValueOnce(fetchResponse(201, { workflowId: "graph-1" }));
+
+    await exec(createAgentTools(ctx), "startTestRun", {
+      sampleDocumentId: "sample-invoice",
+    });
+
+    expect(internalFetchMock.mock.calls[0][0]).toBe(
+      `http://backend/api/workflows/wf-1/sources/${encoded}/upload`,
+    );
+  });
+
+  it("getNodeStatuses encodes the workflow and run ids", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(fetchResponse(200, {}));
+
+    await exec(createAgentTools(ctx), "getNodeStatuses", {
+      workflowId: crafted,
+      runId: crafted,
+    });
+
+    expect(internalFetchMock.mock.calls[0][0]).toBe(
+      `http://backend/api/workflows/${encoded}/runs/${encoded}/node-statuses`,
+    );
+  });
+
+  it.each([
+    ["startRun", "runs"],
+    ["getRunSpec", "run-spec"],
+    ["getPreviewCache", "preview-cache-batch"],
+  ])("%s encodes the workflow id", async (toolName, endpoint) => {
+    const { ctx, internalFetchMock } = makeCtx({
+      conversationId: "conv-1",
+      runBudget: new RunBudgetMap(),
+      maxRunsPerConversation: 2,
+    });
+    internalFetchMock.mockResolvedValueOnce(fetchResponse(200, {}));
+
+    await exec(createAgentTools(ctx), toolName, { workflowId: crafted });
+
+    expect(internalFetchMock.mock.calls[0][0]).toBe(
+      `http://backend/api/workflows/${encoded}/${endpoint}`,
+    );
+  });
+});

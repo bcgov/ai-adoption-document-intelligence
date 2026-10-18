@@ -985,10 +985,14 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const budgetError = checkRunBudget(ctx);
         if (budgetError) return budgetError;
         const id = ensureNonNullWorkflowId(ctx, workflowId);
-        const result = await internalFetch(ctx, `/api/workflows/${id}/runs`, {
-          method: "POST",
-          body: JSON.stringify({ initialCtx: initialCtx ?? {} }),
-        });
+        const result = await internalFetch(
+          ctx,
+          `/api/workflows/${encodeURIComponent(id)}/runs`,
+          {
+            method: "POST",
+            body: JSON.stringify({ initialCtx: initialCtx ?? {} }),
+          },
+        );
         return result.ok
           ? { ok: true, ...(result.body as object) }
           : { ok: false, error: result.body };
@@ -1053,7 +1057,9 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
           "x-group-id": ctx.groupId,
           "x-internal-token": ctx.internalToken,
         };
-        const uploadUrl = `${ctx.backendBaseUrl.replace(/\/+$/, "")}/api/workflows/${id}/sources/${uploadEntry.id}/upload`;
+        // Each id stays one path segment: the node id comes from the saved
+        // workflow, which anyone who can edit it controls.
+        const uploadUrl = `${ctx.backendBaseUrl.replace(/\/+$/, "")}/api/workflows/${encodeURIComponent(id)}/sources/${encodeURIComponent(uploadEntry.id)}/upload`;
         let uploadRes: Response;
         try {
           uploadRes = await fetch(uploadUrl, {
@@ -1087,7 +1093,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
 
         const runResult = await internalFetch(
           ctx,
-          `/api/workflows/${id}/runs`,
+          `/api/workflows/${encodeURIComponent(id)}/runs`,
           {
             method: "POST",
             body: JSON.stringify({ initialCtx }),
@@ -1114,7 +1120,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
         const result = await internalFetch(
           ctx,
-          `/api/workflows/${id}/runs/${runId}/node-statuses`,
+          `/api/workflows/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/node-statuses`,
         );
         return result.ok
           ? { ok: true, statuses: wrapToolData(result.body, dataLimit) }
@@ -1137,7 +1143,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const query = runId ? `?runId=${encodeURIComponent(runId)}` : "";
         const result = await internalFetch(
           ctx,
-          `/api/workflows/${id}/preview-cache-batch${query}`,
+          `/api/workflows/${encodeURIComponent(id)}/preview-cache-batch${query}`,
         );
         // Preview cache carries full document/OCR text — the highest-risk
         // injection surface. Wrap as DATA + size-cap.
@@ -1157,7 +1163,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
         const result = await internalFetch(
           ctx,
-          `/api/workflows/${id}/run-spec`,
+          `/api/workflows/${encodeURIComponent(id)}/run-spec`,
         );
         return result.ok
           ? { ok: true, runSpec: result.body }
