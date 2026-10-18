@@ -23,6 +23,17 @@ import { DYN_RUN_ACTIVITY_OPTIONS } from "./dyn-run.types";
 import { DynamicNodeTimeoutError } from "./errors";
 import { versionCache } from "./version-cache";
 
+// `dyn.run` reads the run it executes in from Temporal's activity context;
+// these tests call it directly, so the context is stubbed.
+jest.mock("@temporalio/activity", () => ({
+  ...jest.requireActual<typeof import("@temporalio/activity")>(
+    "@temporalio/activity",
+  ),
+  activityInfo: () => ({
+    workflowExecution: { workflowId: "graph-adhoc-1", runId: "run-exec-1" },
+  }),
+}));
+
 // All tests pre-populate `versionCache`, so the activity's script lookup
 // never calls Prisma. The stub still has to carry the `internalToken`
 // delegate: every invocation mints a per-run internal token (Change W) and
@@ -216,6 +227,8 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
         groupId: string;
         userId: string | null;
         purpose: string;
+        workflowExecutionId: string;
+        dynamicNodeSlug: string;
         expiresAt: Date;
       };
     };
@@ -225,6 +238,11 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
     expect(createArg.data.groupId).toBe("g42");
     expect(createArg.data.userId).toBeNull();
     expect(createArg.data.purpose).toBe("dyn-run");
+    // The run and the step the token acts for, so the audit trail can follow
+    // the step's calls to its run: the Temporal run id the run's start event
+    // records, not the workflow id the script sees.
+    expect(createArg.data.workflowExecutionId).toBe("run-exec-1");
+    expect(createArg.data.dynamicNodeSlug).toBe("my-node");
     const ttlMs = createArg.data.expiresAt.getTime() - Date.now();
     expect(ttlMs).toBeGreaterThan(110_000);
     expect(ttlMs).toBeLessThanOrEqual(120_000);

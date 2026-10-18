@@ -27,7 +27,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { DynamicNodeSignature } from "@ai-di/graph-workflow";
 import type { PrismaClient } from "@generated/client";
-import { ApplicationFailure } from "@temporalio/activity";
+import { ApplicationFailure, activityInfo } from "@temporalio/activity";
 import { getPrismaClient } from "../activities/database-client";
 import {
   type DenoExecuteRequest,
@@ -140,6 +140,13 @@ export async function dynRun(
   // unreachable), not a script error — left retryable so the activity's
   // transport-retry policy (see `DYN_RUN_ACTIVITY_OPTIONS`) can absorb a
   // blip.
+  //
+  // The row also names the run and the step the token acts for: every audit
+  // event a call made with it records names both, and the run's
+  // `workflow_run_started` event, keyed by the same Temporal run id, names
+  // who started it. That is the run id of the execution running this
+  // activity, not the workflow id the script receives.
+  const { runId } = activityInfo().workflowExecution;
   const rawToken = randomBytes(32).toString("base64url");
   let tokenId: string;
   try {
@@ -149,6 +156,8 @@ export async function dynRun(
         groupId: args.groupId,
         userId: null,
         purpose: DYN_RUN_TOKEN_PURPOSE,
+        workflowExecutionId: runId,
+        dynamicNodeSlug: args.slug,
         expiresAt: new Date(Date.now() + DYN_RUN_TOKEN_TTL_MS),
       },
       select: { id: true },

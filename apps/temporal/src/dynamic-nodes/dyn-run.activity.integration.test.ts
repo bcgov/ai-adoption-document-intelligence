@@ -42,6 +42,17 @@ import {
 } from "./errors";
 import { type ScriptCacheEntry, versionCache } from "./version-cache";
 
+// `dyn.run` reads the run it executes in from Temporal's activity context;
+// these tests call it directly, so the context is stubbed.
+jest.mock("@temporalio/activity", () => ({
+  ...jest.requireActual<typeof import("@temporalio/activity")>(
+    "@temporalio/activity",
+  ),
+  activityInfo: () => ({
+    workflowExecution: { workflowId: "graph-adhoc-1", runId: "run-exec-1" },
+  }),
+}));
+
 const RUNNER_URL = process.env.DENO_RUNNER_URL ?? "http://localhost:9099";
 
 async function runnerIsReachable(): Promise<boolean> {
