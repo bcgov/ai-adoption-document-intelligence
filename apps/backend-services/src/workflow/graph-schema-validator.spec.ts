@@ -65,7 +65,6 @@ function makeLinearGraph(): GraphWorkflowConfig {
         type: "activity",
         label: "Step C",
         activityType: "ocr.storeResults",
-        outputs: [{ port: "result", ctxKey: "result" }],
       } as ActivityNode,
     },
     edges: [
@@ -1110,7 +1109,7 @@ describe("graph-schema-validator", () => {
             label: "Poll OCR Results",
             activityType: "azureOcr.poll",
             inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1493,7 +1492,7 @@ describe("graph-schema-validator", () => {
         type: "pollUntil",
         label: "Poll",
         activityType: "azureOcr.poll",
-        outputs: [{ port: "response", ctxKey: "status" }],
+        outputs: [{ port: "status", ctxKey: "status" }],
         condition: {
           operator: "not-equals",
           left: { ref: "ctx.status" },

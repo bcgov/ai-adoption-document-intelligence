@@ -231,6 +231,7 @@ function validateConfig(
   validateReachability(config, errors);
   validateNodeGroups(config, errors);
   validateDynamicNodeReferences(config, errors, options);
+  validateOutputPorts(config, errors, options);
   walkCtxKeyBindings(config, errors, options);
   walkLibraryPaths(config, errors);
   validateReservedCtxNamespaces(config, errors);
@@ -1623,6 +1624,41 @@ function validateDynamicNodeReferences(
       message: `Workflow references deleted dynamic node '${activityType}'`,
       severity: "error",
     });
+  }
+}
+
+/**
+ * An output binding names a port its step returns. The engine copies
+ * `result[binding.port]` into the binding's ctx key
+ * (`apps/temporal/src/graph-engine/node-executors.ts`), so a port the step
+ * does not return writes an empty value and the next step reads nothing. A
+ * warning rather than an error: it rests on the catalog's description of the
+ * step, which never blocks a run. Steps the lookup cannot describe are
+ * skipped.
+ */
+function validateOutputPorts(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+  options: ValidateGraphConfigOptions,
+): void {
+  const lookup =
+    options.getActivityCatalogEntry ??
+    ((activityType: string) => defaultGetActivityCatalogEntry(activityType));
+
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "activity" && node.type !== "pollUntil") continue;
+    const step = node as ActivityNode | PollUntilNode;
+    const entry = lookup(step.activityType, step);
+    if (!entry) continue;
+    const returned = new Set(entry.outputs.map((port) => port.name));
+    for (const binding of step.outputs ?? []) {
+      if (returned.has(binding.port)) continue;
+      errors.push({
+        path: `nodes.${nodeId}.outputs.${binding.port}`,
+        message: `Output \`${binding.port}\` on node \`${nodeId}\` is not something \`${step.activityType}\` returns, so \`${binding.ctxKey}\` will be empty`,
+        severity: "warning",
+      });
+    }
   }
 }
 
