@@ -71,7 +71,7 @@ A pure selector `deriveWires(config): Wire[]` in the frontend (unit-testable, no
 
 For each node `C`, each input binding `{port P, ctxKey K}`:
 
-1. If some node `N` has an output binding `{port Q, ctxKey K}` → **data wire** `N.Q → C.P`, colored by the producer port's kind.
+1. If some node `N` has an output binding `{port Q, ctxKey K}` → **data wire** `N.Q → C.P`, colored by the producer port's kind. When several nodes write `K`, the wire starts at the write `C` reads: walking back from `C`, each path stops at its first writer, because an earlier write is overwritten before `C` runs. That is the last step to write `K` before `C`, with one wire per branch where branches meet, and the step the inputs panel's "Written by" line names (`findWritersReaching`). With no path from any writer to `C`, the wire starts at the first writer in node order.
 2. Else if `K` matches a source node's emitted field (source.upload `ctxKey`, source.api field name) → data wire from that source port.
 3. Else if `K` is a `config.ctx` declaration → **no wire**; the port row shows a `from workflow variable: <key>` chip (it has a value; not a problem state).
 4. Else → no wire; the port is unbound (amber ring if required).

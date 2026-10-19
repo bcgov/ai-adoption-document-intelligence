@@ -461,17 +461,17 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
   - **List of corrections (changes)** *(optional)*.
 - **Static parameters:**
   - **Document type** *(dropdown, optional)* — Picks a labeling project; if set, only field-type-appropriate rules apply.
-  - **Confusion profile** *(dropdown, optional)* — Pick a saved profile of rules. Overrides the built-in rules.
-  - **Built-in rules** *(checkbox list)* — Toggle individual rules on/off:
-    - O / o → 0
-    - I / l → 1
-    - S / s → 5
-    - B → 8
-    - G → 6
-    - Z → 2
-    - q → 9
-    - / → 1 *(numbers only; date contexts excluded)*
-  - **Custom confusion map** *(advanced; key→value table, optional)* — Override or extend the built-in map.
+  - **Confusion profile** *(dropdown, optional)* — Pick a saved profile of rules. Replaces the custom map and the built-in rules.
+  - **Enabled rules** and **Disabled rules** *(lists, optional)* — Which built-in rules run; all of them unless some are enabled, minus any disabled:
+    - `oToZero`: O / o → 0
+    - `ilToOne`: I / l → 1
+    - `ssToFive`: S / s → 5
+    - `bToEight`: B → 8
+    - `gToSix`: G → 6
+    - `zToTwo`: Z → 2
+    - `qToNine`: q → 9
+    - `slashToOne`: / → 1 *(numbers only; date contexts excluded)*
+  - **Custom confusion map** *(advanced; key→value table, optional)* — Replaces the built-in rules with this map, so the enabled and disabled rules no longer apply.
   - **Field scope** *(list, optional)* — Restrict to specific fields.
   - **Apply to all fields** *(toggle, default off)* — By default rules apply only to fields likely to be numeric/date; toggle on to apply broadly.
 
@@ -503,6 +503,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Comma-thousands removal** *(default on)*
     - **Currency spacing** *(default on)*
   - **Field scope** *(list, optional)*.
+  - **Normalize the full text** *(toggle, default off)* — Also applies the rules to the document's full text, not only its fields.
   - **Empty value handling** *(dropdown, default "Leave as-is")*:
     - **Leave as-is**
     - **Coerce empty fields to blank**
