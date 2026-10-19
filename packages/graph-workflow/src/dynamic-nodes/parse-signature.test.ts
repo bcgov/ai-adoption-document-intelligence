@@ -1588,3 +1588,31 @@ export default async function dynamicNode() {}
     expect(entry!.dynamicNodeSlug).toBe("happy-path");
   });
 });
+
+describe("parseJsDocBlock — long tag lines", () => {
+  // A tag's value starts after the spaces that follow the tag. Matching those
+  // spaces with `\s*` before `(.*)` reads them two ways, so a long padded
+  // line that fails to match takes quadratic time: seconds for a line of
+  // 200,000 spaces, minutes for a script a few megabytes long.
+  const padding = " ".repeat(200_000);
+  const scriptWithDescription = (value: string) => `/**
+ * @workflow-node
+ * @name long-line
+ * @description ${value}
+ */
+export default async function dynamicNode() {}
+`;
+
+  it("rejects a long padded tag line quickly", () => {
+    const started = performance.now();
+    parseJsDocBlock(scriptWithDescription(`${padding}x `));
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("reads a padded tag value without its leading spaces", () => {
+    const { block } = parseJsDocBlock(
+      scriptWithDescription(`${padding}Lists the group's workflows.`),
+    );
+    expect(block?.description?.value).toBe("Lists the group's workflows.");
+  });
+});

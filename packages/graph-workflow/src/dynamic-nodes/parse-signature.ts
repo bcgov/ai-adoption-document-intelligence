@@ -103,14 +103,6 @@ const RECOGNIZED_TAGS = [
   "@maxMemoryMB",
 ] as const;
 
-/** Tags whose VALUE is a JSON-ish object or array. */
-const JSON_VALUE_TAGS = new Set<string>([
-  "@inputs",
-  "@outputs",
-  "@parameters",
-  "@allowNet",
-]);
-
 /** Tags REQUIRED in every dynamic-node signature. */
 const REQUIRED_TAGS: ReadonlyArray<
   "@name" | "@description" | "@inputs" | "@outputs"
@@ -241,14 +233,17 @@ function tokenizeTags(
   let i = 0;
   while (i < blockLines.length) {
     const line = blockLines[i];
-    const tagMatch = line.match(/^\s*(@[a-zA-Z][a-zA-Z0-9_-]*)\b\s*(.*)$/);
+    // The value's leading spaces are trimmed here, not matched: `\s*` before
+    // `(.*)` reads the same spaces two ways, and a long padded line that
+    // fails to match then takes quadratic time.
+    const tagMatch = line.match(/^\s*(@[a-zA-Z][a-zA-Z0-9_-]*)\b(.*)$/);
     if (!tagMatch) {
       i += 1;
       continue;
     }
 
     const tag = tagMatch[1];
-    const rest = tagMatch[2];
+    const rest = tagMatch[2].trimStart();
     const tagFileLine = blockStartLine + i;
 
     if (!isRecognizedTag(tag)) {
@@ -465,7 +460,7 @@ function extractJson5ErrorPosition(
   // JSON5's line numbers are within `rawValue`. The rawValue's first line is
   // the same source line as the tag itself, so file_line = tagFileLine +
   // (parseLine - 1).
-  let line = tagFileLine;
+  let line: number;
   if (typeof parseLine === "number" && parseLine >= 1) {
     line = tagFileLine + (parseLine - 1);
   } else {
