@@ -11,3 +11,10 @@ export type SameShape<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
+
+/**
+ * `true` only when A and B have the same property names. Used where a
+ * catalog entry deliberately narrows a parameter's type (an enum of rule ids
+ * for a `string[]`) but must still declare every parameter the activity takes.
+ */
+export type SameKeys<A, B> = SameShape<keyof A, keyof B>;

@@ -8,13 +8,18 @@ jest.mock("../logger", () => ({
   }),
 }));
 
-import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
+import {
+  getActivityCatalogEntry,
+  type MistralOcrProcessParameters,
+} from "@ai-di/graph-workflow";
 import axios from "axios";
+import type { SameKeys } from "../__testlib__/same-shape";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResult, PreparedFileData } from "../types";
 import {
   __testInternals,
+  type MistralOcrProcessParams,
   mistralOcrProcess,
   resolveMistralAzureDeploymentId,
   resolveMistralOcrModelId,
@@ -544,5 +549,20 @@ describe("mistralOcrProcess", () => {
         }),
       ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_KEY");
     });
+  });
+});
+
+describe("mistralOcrProcess — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      MistralOcrProcessParameters,
+      Omit<
+        MistralOcrProcessParams,
+        "fileData" | "documentId" | "groupId" | "templateModelId" | "requestId"
+      >
+    > = true;
+    expect(agree).toBe(true);
   });
 });

@@ -50,7 +50,7 @@ interface NormalizerRule {
 
 export type EmptyValueCoercionMode = "none" | "blank" | "null";
 
-interface NormalizeFieldsParams extends CorrectionToolParams {
+export interface NormalizeFieldsParams extends CorrectionToolParams {
   /** LabelingProject id — loads field_schema for type-aware rule selection (same as enrichResults `documentType`). */
   documentType?: string;
   enabledRules?: string[];
@@ -235,6 +235,9 @@ const BUILT_IN_RULES: NormalizerRule[] = [
     fn: normalizeCurrencySpacing,
   },
 ];
+
+/** Ids of the rules `enabledRules` / `disabledRules` choose from. */
+export const NORMALIZATION_RULE_IDS = BUILT_IN_RULES.map((rule) => rule.id);
 
 const NUMERIC_RULE_IDS = new Set([
   "digitGrouping",

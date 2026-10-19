@@ -1,8 +1,13 @@
+import type { AzureClassifySubmitParameters } from "@ai-di/graph-workflow";
 import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import { ApplicationFailure } from "@temporalio/common";
-import { azureClassifySubmit } from "./azure-classify-submit";
+import type { SameKeys } from "../__testlib__/same-shape";
+import {
+  type AzureClassifySubmitInput,
+  azureClassifySubmit,
+} from "./azure-classify-submit";
 import { getPrismaClient } from "./database-client";
 
 jest.mock("@azure-rest/ai-document-intelligence", () => ({
@@ -325,5 +330,17 @@ describe("azureClassifySubmit activity", () => {
       );
       expect((failure as ApplicationFailure).nonRetryable).toBe(true);
     });
+  });
+});
+
+describe("azureClassifySubmit — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      AzureClassifySubmitParameters,
+      Omit<AzureClassifySubmitInput, "blobKey" | "documentId" | "groupId">
+    > = true;
+    expect(agree).toBe(true);
   });
 });

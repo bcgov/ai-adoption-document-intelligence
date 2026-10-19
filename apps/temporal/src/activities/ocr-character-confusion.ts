@@ -86,7 +86,7 @@ export const BUILT_IN_CONFUSION_RULE_IDS = BUILT_IN_CONFUSION_RULES.map(
   (r) => r.id,
 );
 
-interface CharacterConfusionParams extends CorrectionToolParams {
+export interface CharacterConfusionParams extends CorrectionToolParams {
   /** LabelingProject id — loads field_schema for type-aware gating and rule subsets (same as ocr.normalizeFields `documentType`). */
   documentType?: string;
   /** When set, only these built-in rule IDs run. Empty/omitted means all built-in rules (before disabledRules). */

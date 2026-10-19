@@ -31,9 +31,18 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
-import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
+import {
+  getActivityCatalogEntry,
+  getActivityParametersJsonSchema,
+  type OcrCharacterConfusionParameters,
+} from "@ai-di/graph-workflow";
+import type { SameKeys } from "../__testlib__/same-shape";
 import { getPrismaClient } from "./database-client";
-import { characterConfusionCorrection } from "./ocr-character-confusion";
+import {
+  BUILT_IN_CONFUSION_RULE_IDS,
+  type CharacterConfusionParams,
+  characterConfusionCorrection,
+} from "./ocr-character-confusion";
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 const DOC_ID = "doc-character-confusion-test";
@@ -755,5 +764,31 @@ describe("characterConfusionCorrection — catalog contract", () => {
 
     expect(declared).toContain("ocrResult");
     expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+});
+
+describe("characterConfusionCorrection — catalog parameters", () => {
+  // The settings panel saves what the catalog entry declares, under the names
+  // it declares; a name the activity does not read is a setting with no
+  // effect.
+  it("declares every parameter the activity takes, under its own names", () => {
+    const agree: SameKeys<
+      OcrCharacterConfusionParameters,
+      Omit<CharacterConfusionParams, "documentId" | "groupId" | "ocrResult">
+    > = true;
+    expect(agree).toBe(true);
+  });
+
+  it("offers exactly the built-in rules the activity knows", () => {
+    const schema = getActivityParametersJsonSchema(
+      "ocr.characterConfusion",
+    ) as {
+      properties: Record<string, { items?: { enum?: string[] } }>;
+    };
+    for (const name of ["enabledRules", "disabledRules"]) {
+      expect([...(schema.properties[name].items?.enum ?? [])].sort()).toEqual(
+        [...BUILT_IN_CONFUSION_RULE_IDS].sort(),
+      );
+    }
   });
 });
