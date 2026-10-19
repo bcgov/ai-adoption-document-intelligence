@@ -367,7 +367,8 @@ function FieldRenderer({
       <Switch
         label={label}
         description={description}
-        checked={Boolean(value)}
+        // Unset shows the default the step applies, not "off".
+        checked={typeof value === "boolean" ? value : defaultHint === true}
         onChange={(e) => onChange(e.currentTarget.checked)}
         disabled={readOnly}
       />

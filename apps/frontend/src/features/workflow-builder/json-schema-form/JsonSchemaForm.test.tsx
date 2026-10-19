@@ -854,3 +854,42 @@ describe("JsonSchemaForm — every catalog step's settings", () => {
     expect(screen.queryByText(/Unsupported field schema/)).toBeNull();
   });
 });
+
+describe("JsonSchemaForm — a switch with no saved value", () => {
+  const schema: JsonSchemaProperty = {
+    type: "object",
+    properties: {
+      onByDefault: {
+        type: "boolean",
+        title: "On by default",
+        "x-default": true,
+      },
+      noDefault: { type: "boolean", title: "No default" },
+    },
+  };
+
+  it("shows the default the step applies", () => {
+    renderForm(
+      <JsonSchemaForm schema={schema} value={{}} onChange={() => undefined} />,
+    );
+
+    expect(screen.getByRole("switch", { name: "On by default" })).toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "No default" }),
+    ).not.toBeChecked();
+  });
+
+  it("shows a saved value over the default", () => {
+    renderForm(
+      <JsonSchemaForm
+        schema={schema}
+        value={{ onByDefault: false }}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByRole("switch", { name: "On by default" }),
+    ).not.toBeChecked();
+  });
+});
