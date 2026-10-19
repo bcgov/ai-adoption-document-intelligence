@@ -270,7 +270,7 @@ describe("RunHistoryDrawer (US-153)", () => {
     const observeMock = vi.fn();
     const disconnectMock = vi.fn();
     class FakeIntersectionObserver {
-      constructor(cb: IOCallback) {
+      constructor(cb: IOCallback, _options?: IntersectionObserverInit) {
         callbackHolder.current = cb;
       }
       observe = observeMock;

@@ -120,7 +120,7 @@ export function AgentChatDrawer() {
   const handleAbort = useCallback(async () => {
     const cid = conversationIdRef.current;
     if (cid === null) return;
-    await fetch(`/api/agent/conversations/${cid}/abort`, {
+    await fetch(`/api/agent/conversations/${encodeURIComponent(cid)}/abort`, {
       method: "POST",
       headers: getAgentAuthHeaders(activeGroupIdRef.current),
     }).catch(() => undefined);
@@ -842,7 +842,7 @@ function AgentToolCallCard(props: unknown) {
       : true;
 
   const summary = useMemo(() => {
-    if (args && typeof args === "object" && args !== null) {
+    if (args && typeof args === "object") {
       const a = args as Record<string, unknown>;
       if (toolName === "createWorkflow" && typeof a.name === "string")
         return `name: ${a.name}`;
@@ -985,7 +985,7 @@ function Composer({
     form.append("file", file);
     try {
       const res = await fetch(
-        `/api/workflows/${currentWorkflowId}/sources/${sourceNodeId}/upload`,
+        `/api/workflows/${encodeURIComponent(currentWorkflowId)}/sources/${encodeURIComponent(sourceNodeId)}/upload`,
         {
           method: "POST",
           headers: Object.fromEntries(
@@ -1076,9 +1076,14 @@ function Composer({
     // Source nodes are `{ type: "source", sourceType: "source.upload" }`.
     let sourceNodeId: string | null = null;
     try {
-      const wfRes = await fetch(`/api/workflows/${workflowId}`, {
-        headers: getAgentAuthHeaders(activeGroupId),
-      });
+      // The id can come from the page address, so it is encoded, as is
+      // every id these requests carry, to stay one path segment.
+      const wfRes = await fetch(
+        `/api/workflows/${encodeURIComponent(workflowId)}`,
+        {
+          headers: getAgentAuthHeaders(activeGroupId),
+        },
+      );
       if (wfRes.ok) {
         const wf = (await wfRes.json()) as {
           workflow?: {

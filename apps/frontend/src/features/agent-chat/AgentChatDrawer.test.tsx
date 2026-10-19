@@ -135,14 +135,14 @@ function serving(items: AgentModelOption[]): AgentModelsResult {
   return { items, missingConfig: [] };
 }
 
-function drawerTree() {
+function drawerTree(route = "/workflows/wf-1/edit") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return (
     <MantineProvider>
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/workflows/wf-1/edit"]}>
+        <MemoryRouter initialEntries={[route]}>
           <AgentChatDrawer />
         </MemoryRouter>
       </QueryClientProvider>
@@ -150,8 +150,8 @@ function drawerTree() {
   );
 }
 
-function renderDrawer() {
-  return render(drawerTree());
+function renderDrawer(route?: string) {
+  return render(drawerTree(route));
 }
 
 const AZURE_ONLY: AgentModelOption[] = [
@@ -566,5 +566,80 @@ describe("item 22 — a failed turn says what went wrong", () => {
     fireEvent.click(screen.getByTestId("agent-chat-history-toggle"));
 
     expect(screen.queryByTestId("agent-chat-error")).toBeNull();
+  });
+});
+
+describe("the panel's request URLs keep each id inside one path segment", () => {
+  // The workflow id can come from the page address's ?id=, which a link
+  // sets, and the upload step's id from the saved workflow, which anyone who
+  // can edit it controls. Encoded, neither can point a request elsewhere.
+  const crafted = "../../agent/x?y=1";
+  const encoded = "..%2F..%2Fagent%2Fx%3Fy%3D1";
+
+  function attachFile() {
+    fireEvent.change(screen.getByTestId("agent-chat-file-input"), {
+      target: {
+        files: [new File(["%PDF"], "a.pdf", { type: "application/pdf" })],
+      },
+    });
+  }
+
+  it("encodes the upload step's id from the saved workflow", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url === "/api/workflows/wf-1"
+        ? new Response(
+            JSON.stringify({
+              workflow: {
+                config: {
+                  nodes: {
+                    [crafted]: { type: "source", sourceType: "source.upload" },
+                  },
+                },
+              },
+            }),
+          )
+        : new Response("{}"),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderDrawer();
+
+    attachFile();
+
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/workflows/wf-1/sources/${encoded}/upload`,
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("encodes a workflow id taken from the page address", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderDrawer(`/workflows/create?id=${encodeURIComponent(crafted)}`);
+
+    attachFile();
+
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/workflows/${encoded}`,
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("encodes the conversation id when asking the backend to abort", () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", fetchMock);
+    useAgentChatStore.setState({ conversationId: crafted });
+    threadState.isRunning = true;
+    renderDrawer();
+
+    fireEvent.click(screen.getByTestId("agent-chat-stop"));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/agent/conversations/${encoded}/abort`,
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });
