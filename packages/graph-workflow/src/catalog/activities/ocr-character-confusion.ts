@@ -1,16 +1,17 @@
 import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
+// The rule ids of `BUILT_IN_CONFUSION_RULES` in
+// apps/temporal/src/activities/ocr-character-confusion.ts.
 const BUILT_IN_RULES = [
-  "O_to_0",
-  "I_to_1",
-  "l_to_1",
-  "S_to_5",
-  "B_to_8",
-  "G_to_6",
-  "Z_to_2",
-  "q_to_9",
-  "slash_to_1",
+  "oToZero",
+  "ilToOne",
+  "ssToFive",
+  "bToEight",
+  "gToSix",
+  "zToTwo",
+  "qToNine",
+  "slashToOne",
 ] as const;
 
 export const ocrCharacterConfusionParametersSchema = z.object({
@@ -19,25 +20,35 @@ export const ocrCharacterConfusionParametersSchema = z.object({
     description: "Template model ID for field-type-aware rules.",
     "x-widget": "documentTypePicker",
   }),
-  confusionProfile: z.string().optional().meta({
+  confusionProfileId: z.string().optional().meta({
     title: "Confusion profile",
     description:
-      "Saved profile of rules — overrides the built-in default set when chosen.",
+      "A saved confusion profile. When set, its map replaces the custom map and the built-in rules.",
     "x-widget": "confusionProfilePicker",
   }),
-  builtInRules: z
+  enabledRules: z
     .array(z.enum(BUILT_IN_RULES))
     .optional()
     .meta({
-      title: "Built-in rules",
+      title: "Enabled rules",
       description:
-        "Individual character-confusion rules. Numbers-only by default.",
+        "Only these built-in rules run. Empty means all of them. Numeric and date fields only, unless applied to all fields.",
       "x-widget": "multi-select-combobox",
       "x-options": [...BUILT_IN_RULES],
     }),
-  customConfusionMap: z.record(z.string(), z.string()).optional().meta({
+  disabledRules: z
+    .array(z.enum(BUILT_IN_RULES))
+    .optional()
+    .meta({
+      title: "Disabled rules",
+      description: "Built-in rules to skip.",
+      "x-widget": "multi-select-combobox",
+      "x-options": [...BUILT_IN_RULES],
+    }),
+  confusionMapOverride: z.record(z.string(), z.string()).optional().meta({
     title: "Custom confusion map",
-    description: 'Override or extend the built-in map (e.g., { "€": "E" }).',
+    description:
+      'Replaces the built-in rules with this map of misread character to replacement (e.g., { "€": "E" }).',
     "x-widget": "confusion-map-editor",
   }),
   fieldScope: z.array(z.string().min(1)).optional().meta({
@@ -52,6 +63,10 @@ export const ocrCharacterConfusionParametersSchema = z.object({
     "x-default": false,
   }),
 });
+
+export type OcrCharacterConfusionParameters = z.infer<
+  typeof ocrCharacterConfusionParametersSchema
+>;
 
 export const ocrCharacterConfusionCatalogEntry: ActivityCatalogEntry = {
   activityType: "ocr.characterConfusion",

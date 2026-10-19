@@ -1,7 +1,17 @@
 import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
-export const azureClassifySubmitParametersSchema = z.object({});
+export const azureClassifySubmitParametersSchema = z.object({
+  classifierName: z.string().min(1).meta({
+    title: "Classifier",
+    description:
+      "Name of a ready classifier in the group; the step adds the group's prefix.",
+  }),
+});
+
+export type AzureClassifySubmitParameters = z.infer<
+  typeof azureClassifySubmitParametersSchema
+>;
 
 export const azureClassifySubmitCatalogEntry: ActivityCatalogEntry = {
   activityType: "azureClassify.submit",
@@ -28,13 +38,6 @@ export const azureClassifySubmitCatalogEntry: ActivityCatalogEntry = {
       description: "Group that owns the classifier.",
       required: true,
       kind: "GroupId",
-    },
-    {
-      name: "classifierName",
-      label: "Classifier name",
-      description: "Name of the classifier to invoke.",
-      required: true,
-      kind: "Artifact",
     },
     {
       name: "documentId",

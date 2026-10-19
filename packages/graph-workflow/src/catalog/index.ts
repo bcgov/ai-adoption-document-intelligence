@@ -61,6 +61,7 @@ import { vlmDirectExtractCatalogEntry } from "./activities/vlm-direct-extract";
 import { vlmOcrHybridExtractCatalogEntry } from "./activities/vlm-ocr-hybrid-extract";
 import type { ActivityCatalogEntry } from "./types";
 
+export type { AzureClassifySubmitParameters } from "./activities/azure-classify-submit";
 export type { AzureContentUnderstandingAnalyzeParameters } from "./activities/azure-content-understanding-analyze";
 export {
   CLASSIFICATION_PATTERN_OPERATORS,
@@ -77,6 +78,9 @@ export {
   validationRuleSchema,
 } from "./activities/document-validate-fields";
 export type { HitlApplyReviewCriteriaParameters } from "./activities/hitl-apply-review-criteria";
+export type { MistralOcrProcessParameters } from "./activities/mistral-ocr-process";
+export type { OcrCharacterConfusionParameters } from "./activities/ocr-character-confusion";
+export type { OcrNormalizeFieldsParameters } from "./activities/ocr-normalize-fields";
 export type { OcrRecoverNumericZerosFromCheckboxesParameters } from "./activities/ocr-recover-numeric-zeros-from-checkboxes";
 export type { VlmDirectExtractParameters } from "./activities/vlm-direct-extract";
 export type { VlmOcrHybridExtractParameters } from "./activities/vlm-ocr-hybrid-extract";

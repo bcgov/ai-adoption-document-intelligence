@@ -57,6 +57,7 @@ export { sha256Hex } from "./cache/sha256-hex";
 export { stableJson } from "./cache/stable-json";
 export type {
   ActivityCatalogEntry,
+  AzureClassifySubmitParameters,
   AzureContentUnderstandingAnalyzeParameters,
   CatalogCategory,
   ClassificationPattern,
@@ -64,6 +65,9 @@ export type {
   FieldDescriptor,
   HitlApplyReviewCriteriaParameters,
   JsonSchema7,
+  MistralOcrProcessParameters,
+  OcrCharacterConfusionParameters,
+  OcrNormalizeFieldsParameters,
   OcrRecoverNumericZerosFromCheckboxesParameters,
   PortDescriptor,
   ProviderDescriptor,

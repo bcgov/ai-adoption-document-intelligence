@@ -47,7 +47,46 @@ export const ocrNormalizeFieldsParametersSchema = z.object({
     description: "How to handle empty field values: none / blank ('') / null.",
     "x-default": "none",
   }),
+  normalizeFullResult: z.boolean().optional().meta({
+    title: "Normalize the full text",
+    description:
+      "Also apply the rules to the document's full text, not only its fields.",
+    "x-default": false,
+  }),
+  normalizeWhitespace: z.boolean().optional().meta({
+    title: "Whitespace normalization",
+    description:
+      "Turn off to skip the whitespace rule, the same as listing it under Disabled rules.",
+    "x-default": true,
+  }),
+  normalizeDigitGrouping: z.boolean().optional().meta({
+    title: "Digit grouping cleanup",
+    description:
+      "Turn off to skip the digit grouping rule, the same as listing it under Disabled rules.",
+    "x-default": true,
+  }),
+  normalizeDateSeparators: z.boolean().optional().meta({
+    title: "Date separator standardization",
+    description:
+      "Turn off to skip the date separator rule, the same as listing it under Disabled rules.",
+    "x-default": true,
+  }),
+  singleCharacterToZero: z.boolean().optional().meta({
+    title: "Single character to zero",
+    description:
+      'Turn a field value left as one character by the other rules into "0", for a stray mark misread into a number. With a document type, only number fields; without one, applicant_ and spouse_ fields.',
+    "x-default": false,
+  }),
+  singleCharacterToZeroFields: z.array(z.string().min(1)).optional().meta({
+    title: "Single-character-to-zero fields",
+    description:
+      "Only these field keys, instead of the fields chosen by type or name.",
+  }),
 });
+
+export type OcrNormalizeFieldsParameters = z.infer<
+  typeof ocrNormalizeFieldsParametersSchema
+>;
 
 export const ocrNormalizeFieldsCatalogEntry: ActivityCatalogEntry = {
   activityType: "ocr.normalizeFields",
