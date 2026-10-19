@@ -14,6 +14,7 @@ import type {
   ConditionExpression,
   GraphNode,
   GraphWorkflowConfig,
+  MapNode,
   ValueRef,
 } from "../types";
 import {
@@ -22,6 +23,7 @@ import {
   normaliseCtxKey,
   writerSourcesKey,
 } from "./ctx-source";
+import { upstreamNodesWithDistance } from "./upstream-walk";
 
 /** Where in a node a ctx reference lives. */
 export type CtxReadVia =
@@ -215,4 +217,43 @@ export function findCtxKeyReferences(
     declared,
     total: readers.length + writers.length,
   };
+}
+
+/**
+ * The steps whose write of `ctxKey` the step `consumerNodeId` reads, nearest
+ * first. Several steps can write one variable: in the SDPR template, Extract
+ * OCR Results writes `ocrResultRef` and two cleanup steps rewrite it. Walking
+ * back from the consumer, each path stops at its first writer, because any
+ * earlier write is overwritten before the consumer runs, so more than one
+ * writer comes back only where branches meet. Writers come from the graph's
+ * own bindings, which is what the engine writes, whatever name the catalog
+ * gives the port. Empty when no step before the consumer writes the key.
+ */
+export function findWritersReaching(
+  config: GraphWorkflowConfig,
+  ctxKey: string,
+  consumerNodeId: string,
+): string[] {
+  const writers = new Set(
+    findCtxKeyReferences(config, ctxKey)
+      .writers.map((writer) => writer.nodeId)
+      .filter((nodeId) => nodeId !== consumerNodeId),
+  );
+  // With every link INTO a writer cut, the upstream walk stops at writers.
+  const cut: GraphWorkflowConfig = {
+    ...config,
+    edges: config.edges.filter((edge) => !writers.has(edge.target)),
+    nodes: Object.fromEntries(
+      Object.entries(config.nodes).map(([nodeId, node]) => [
+        nodeId,
+        node.type === "map" && writers.has((node as MapNode).bodyEntryNodeId)
+          ? { ...node, bodyEntryNodeId: "" }
+          : node,
+      ]),
+    ),
+  };
+  return [...upstreamNodesWithDistance(cut, consumerNodeId)]
+    .filter(([nodeId]) => writers.has(nodeId))
+    .sort(([, a], [, b]) => a - b)
+    .map(([nodeId]) => nodeId);
 }

@@ -27,6 +27,7 @@ export {
   findCtxKeyReferences,
   findDanglingEdgeReferences,
   findOrphanedCtxKeys,
+  findWritersReaching,
   getLockedInputPorts,
   getLockedOutputPorts,
   isAutoCtxKey,

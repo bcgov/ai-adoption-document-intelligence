@@ -5,7 +5,11 @@
 // and the combined blast-radius lookup an author needs BEFORE renaming or
 // deleting a ctx key.
 import type { GraphNode, GraphWorkflowConfig } from "../types";
-import { collectCtxReaders, findCtxKeyReferences } from "./ctx-references";
+import {
+  collectCtxReaders,
+  findCtxKeyReferences,
+  findWritersReaching,
+} from "./ctx-references";
 
 function makeConfig(
   nodes: Record<string, GraphNode>,
@@ -220,5 +224,99 @@ describe("findCtxKeyReferences", () => {
       },
     });
     expect(findCtxKeyReferences(cousin, "preparedFile").readers).toEqual([]);
+  });
+});
+
+describe("findWritersReaching", () => {
+  /** A step that reads `ocrResultRef`, and rewrites it when `rewrites`. */
+  function step(id: string, rewrites: boolean): GraphNode {
+    return {
+      id,
+      type: "activity",
+      label: id,
+      activityType: "ocr.normalizeFields",
+      inputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+      outputs: rewrites ? [{ port: "ocrResult", ctxKey: "ocrResultRef" }] : [],
+    } as GraphNode;
+  }
+
+  function chain(
+    nodes: GraphNode[],
+    edges: Array<[string, string]>,
+  ): GraphWorkflowConfig {
+    return {
+      ...makeConfig(Object.fromEntries(nodes.map((n) => [n.id, n]))),
+      edges: edges.map(([source, target], i) => ({
+        id: `e${i}`,
+        source,
+        target,
+        type: "normal" as const,
+      })),
+    };
+  }
+
+  it("names the last step that rewrote the variable, not the first writer", () => {
+    // extract writes it, recover and normalize rewrite it, cleanup reads it.
+    const config = chain(
+      [
+        step("extract", true),
+        step("recover", true),
+        step("normalize", true),
+        step("cleanup", false),
+      ],
+      [
+        ["extract", "recover"],
+        ["recover", "normalize"],
+        ["normalize", "cleanup"],
+      ],
+    );
+
+    expect(findWritersReaching(config, "ocrResultRef", "cleanup")).toEqual([
+      "normalize",
+    ]);
+  });
+
+  it("names one writer per branch where branches meet, nearest first", () => {
+    const config = chain(
+      [
+        step("extract", true),
+        step("fixA", true),
+        step("relay", false),
+        step("fixB", true),
+        step("cleanup", false),
+      ],
+      [
+        ["extract", "fixA"],
+        ["extract", "relay"],
+        ["relay", "fixB"],
+        ["fixA", "cleanup"],
+        ["fixB", "cleanup"],
+      ],
+    );
+
+    expect(findWritersReaching(config, "ocrResultRef", "cleanup")).toEqual([
+      "fixA",
+      "fixB",
+    ]);
+  });
+
+  it("does not count the reading step's own write", () => {
+    const config = chain(
+      [step("extract", true), step("normalize", true)],
+      [["extract", "normalize"]],
+    );
+
+    expect(findWritersReaching(config, "ocrResultRef", "normalize")).toEqual([
+      "extract",
+    ]);
+  });
+
+  it("is empty when no step before the reader writes the variable", () => {
+    const config = chain(
+      [step("cleanup", false), step("extract", true)],
+      [["cleanup", "extract"]],
+    );
+
+    expect(findWritersReaching(config, "ocrResultRef", "cleanup")).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ export {
   type CtxReadVia,
   collectCtxReaders,
   findCtxKeyReferences,
+  findWritersReaching,
 } from "./ctx-references";
 export {
   type CtxKeySource,
