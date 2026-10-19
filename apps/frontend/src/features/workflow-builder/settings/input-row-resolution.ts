@@ -9,6 +9,7 @@
 import {
   AUTO_CTX_KEY_PREFIX,
   findCtxKeyReferences,
+  findWritersReaching,
   getActivityCatalogEntry,
   getLockedInputPorts,
   isAutoCtxKey,
@@ -17,7 +18,6 @@ import {
   resolveCtxKeySource,
   resolveInputPort,
   shouldAutoWirePort,
-  upstreamNodesWithDistance,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { formatCtxDefaultValue } from "./ctx-default-value";
@@ -119,32 +119,12 @@ export function resolveCtxValueOrigin(
   ctxKey: string,
   consumerNodeId: string,
 ): CtxValueOrigin | null {
-  const references = findCtxKeyReferences(config, ctxKey);
-  const writers = new Set(
-    references.writers
-      .map((writer) => writer.nodeId)
-      .filter((nodeId) => nodeId !== consumerNodeId),
+  const labels = findWritersReaching(config, ctxKey, consumerNodeId).map(
+    (nodeId) => config.nodes[nodeId]?.label || nodeId,
   );
-  // With every link INTO a writer cut, the upstream walk stops at writers.
-  const cut: GraphWorkflowConfig = {
-    ...config,
-    edges: config.edges.filter((edge) => !writers.has(edge.target)),
-    nodes: Object.fromEntries(
-      Object.entries(config.nodes).map(([nodeId, node]) => [
-        nodeId,
-        node.type === "map" && writers.has(node.bodyEntryNodeId)
-          ? { ...node, bodyEntryNodeId: "" }
-          : node,
-      ]),
-    ),
-  };
-  const labels = [...upstreamNodesWithDistance(cut, consumerNodeId)]
-    .filter(([nodeId]) => writers.has(nodeId))
-    .sort(([, a], [, b]) => a - b)
-    .map(([nodeId]) => config.nodes[nodeId]?.label || nodeId);
   if (labels.length > 0) return { from: "step", labels };
 
-  const declaration = config.ctx?.[references.key];
+  const declaration = config.ctx?.[findCtxKeyReferences(config, ctxKey).key];
   if (!declaration) return null;
   return {
     from: "run-start",
