@@ -19,10 +19,6 @@
       "type": "string",
       "description": "Group ID — must own the classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
     },
-    "classifierName": {
-      "type": "string",
-      "description": "Name of the READY Azure Document Intelligence classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
-    },
     "resultId": {
       "type": "string",
       "description": "Azure DI operation ID returned by azureClassify.submit — consumed by the poll node"
@@ -61,7 +57,6 @@
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "groupId", "ctxKey": "groupId" },
-        { "port": "classifierName", "ctxKey": "classifierName" },
         { "port": "documentId", "ctxKey": "documentId" }
       ],
       "outputs": [
