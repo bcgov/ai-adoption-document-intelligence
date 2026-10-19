@@ -1,6 +1,6 @@
 /**
  * ConfusionMapEditor — row-based editor for the `ocr.characterConfusion`
- * `customConfusionMap` parameter (US-033).
+ * `confusionMapOverride` parameter (US-033).
  *
  * Wire shape is `Record<string, string>`, but editing an object keyed by
  * the value the user is currently typing is unstable (renaming a key
