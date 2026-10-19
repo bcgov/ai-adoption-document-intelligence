@@ -36,10 +36,12 @@ async function handler(req: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
     });
   } catch (err) {
+    // The detail stays in this log. The response names only the kind of
+    // error: callers act on the status alone.
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[runner] handler error on ${req.method} ${url.pathname}:`, message);
     return new Response(
-      JSON.stringify({ error: "InternalServerError", message }),
+      JSON.stringify({ error: "InternalServerError" }),
       { status: 500, headers: { "content-type": "application/json" } },
     );
   } finally {
