@@ -375,7 +375,7 @@ describe("deriveWires — duplicate normal edges between one pair", () => {
 });
 
 describe("deriveWires — two producers writing the same ctx key", () => {
-  it("picks the first writer in node-iteration order", () => {
+  it("with no path from either writer to the reader, picks the first writer in node-iteration order", () => {
     const cfg = config({
       nodes: {
         A: node<ActivityNode>({
@@ -402,6 +402,82 @@ describe("deriveWires — two producers writing the same ctx key", () => {
     const dataWires = deriveWires(cfg).filter(isDataWire);
     expect(dataWires).toHaveLength(1);
     expect(dataWires[0].source).toBe("A");
+  });
+});
+
+describe("deriveWires — a variable several steps write", () => {
+  // The wire into a step starts at the write that step reads: the last one
+  // on each path back from it, as the inputs panel's "Written by" line says.
+  /** A step that reads `ocrResultRef`, and rewrites it when `rewrites`. */
+  function step(id: string, rewrites: boolean): ActivityNode {
+    return node<ActivityNode>({
+      id,
+      type: "activity",
+      activityType: "ocr.normalizeFields",
+      inputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+      outputs: rewrites ? [{ port: "ocrResult", ctxKey: "ocrResultRef" }] : [],
+    });
+  }
+
+  function graph(
+    nodes: ActivityNode[],
+    edges: Array<[string, string]>,
+  ): GraphWorkflowConfig {
+    return config({
+      nodes: Object.fromEntries(nodes.map((n) => [n.id, n])),
+      edges: edges.map(([source, target], i) => ({
+        id: `e${i}`,
+        source,
+        target,
+        type: "normal" as const,
+      })),
+    });
+  }
+
+  it("draws the wire from the last step that rewrote it", () => {
+    const cfg = graph(
+      [step("extract", true), step("normalize", true), step("check", false)],
+      [
+        ["extract", "normalize"],
+        ["normalize", "check"],
+      ],
+    );
+
+    const intoCheck = deriveWires(cfg)
+      .filter(isDataWire)
+      .filter((wire) => wire.target === "check");
+    expect(intoCheck).toHaveLength(1);
+    expect(intoCheck[0]).toMatchObject({
+      id: "wire:check:ocrResult",
+      source: "normalize",
+    });
+  });
+
+  it("draws a wire from each branch's writer where branches meet", () => {
+    const cfg = graph(
+      [
+        step("extract", true),
+        step("fixA", true),
+        step("fixB", true),
+        step("check", false),
+      ],
+      [
+        ["extract", "fixA"],
+        ["extract", "fixB"],
+        ["fixA", "check"],
+        ["fixB", "check"],
+      ],
+    );
+
+    const intoCheck = deriveWires(cfg)
+      .filter(isDataWire)
+      .filter((wire) => wire.target === "check");
+    expect(intoCheck.map((wire) => wire.source).sort()).toEqual([
+      "fixA",
+      "fixB",
+    ]);
+    expect(new Set(intoCheck.map((wire) => wire.id)).size).toBe(2);
+    expect(intoCheck.map((wire) => wire.id)).toContain("wire:check:ocrResult");
   });
 });
 

@@ -21,6 +21,7 @@
 import {
   type AutoBoundVia,
   type FieldDescriptor,
+  findWritersReaching,
   getActivityCatalogEntry,
   getLockedInputPorts,
   getSourceCatalogEntry,
@@ -35,9 +36,10 @@ import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
 export interface DataWire {
   variant: "data";
   /**
-   * `wire:${target}:${targetPort}` — stable, distinct from edge ids.
-   * Uniqueness assumes one `inputs[]` row per (node, port) — duplicate
-   * rows for the same port would collide.
+   * `wire:${target}:${targetPort}` — stable, distinct from edge ids. Where
+   * branches meet, a binding draws one wire per writer, and each after the
+   * first appends `@${source}`. Uniqueness assumes one `inputs[]` row per
+   * (node, port) — duplicate rows for the same port would collide.
    */
   id: string;
   source: string;
@@ -77,7 +79,7 @@ interface Producer {
 }
 
 /**
- * Index of every ctx key some node writes, keyed by ctx key. Built from
+ * Every writer of each ctx key, keyed by ctx key. Built from
  * declared `outputs[]` bindings (kind resolved via the activity catalog
  * when the producing node has an `activityType`), then source-node
  * synthetic emissions (`source.upload`'s single ctx key, `source.api`'s
@@ -90,14 +92,21 @@ interface Producer {
  * bindings index as producers here, not just activity/pollUntil — design
  * §5.1 says "some node N has an output binding", and a wire to a
  * non-catalog producer is still a real binding worth drawing (its kind is
- * simply unknown); (2) duplicate writers of the same ctx key resolve
- * first-writer-wins in node-iteration order — no validator currently
- * flags duplicate writers, so the index just needs a deterministic pick.
+ * simply unknown); (2) every writer of a key is kept, in node-iteration
+ * order, one per node, and `deriveDataWires` picks the ones a reader reads.
  */
 function buildProducerIndex(
   config: GraphWorkflowConfig,
-): Map<string, Producer> {
-  const index = new Map<string, Producer>();
+): Map<string, Producer[]> {
+  const index = new Map<string, Producer[]>();
+  const add = (ctxKey: string, producer: Producer): void => {
+    const writers = index.get(ctxKey);
+    if (!writers) {
+      index.set(ctxKey, [producer]);
+    } else if (!writers.some((w) => w.nodeId === producer.nodeId)) {
+      writers.push(producer);
+    }
+  };
 
   for (const producerNode of Object.values(config.nodes)) {
     if (!producerNode.outputs) continue;
@@ -106,11 +115,10 @@ function buildProducerIndex(
         ? getActivityCatalogEntry(producerNode.activityType)
         : undefined;
     for (const binding of producerNode.outputs) {
-      if (index.has(binding.ctxKey)) continue;
       const portDescriptor = catalogEntry?.outputs.find(
         (p) => p.name === binding.port,
       );
-      index.set(binding.ctxKey, {
+      add(binding.ctxKey, {
         nodeId: producerNode.id,
         port: binding.port,
         kind: portDescriptor?.kind,
@@ -134,13 +142,11 @@ function buildProducerIndex(
         typeof params?.ctxKey === "string" && params.ctxKey.length > 0
           ? params.ctxKey
           : "documentUrl";
-      if (!index.has(producedKey)) {
-        index.set(producedKey, {
-          nodeId: sourceNode.id,
-          port: producedKey,
-          kind: entry.outputKind,
-        });
-      }
+      add(producedKey, {
+        nodeId: sourceNode.id,
+        port: producedKey,
+        kind: entry.outputKind,
+      });
       continue;
     }
 
@@ -152,8 +158,7 @@ function buildProducerIndex(
       for (const raw of rawFields) {
         const field = raw as FieldDescriptor;
         if (!field || typeof field.name !== "string") continue;
-        if (index.has(field.name)) continue;
-        index.set(field.name, {
+        add(field.name, {
           nodeId: sourceNode.id,
           port: field.name,
           kind: field.kind ?? "Artifact",
@@ -187,8 +192,7 @@ function buildProducerIndex(
       // has `itemCtxKey: ""`) must not become the producer every equally
       // blank binding matches.
       if (write.ctxKey === "") continue;
-      if (index.has(write.ctxKey)) continue;
-      index.set(write.ctxKey, {
+      add(write.ctxKey, {
         nodeId: producerNode.id,
         port: write.port,
         kind: write.kind,
@@ -207,7 +211,7 @@ function buildProducerIndex(
  */
 function deriveDataWires(
   config: GraphWorkflowConfig,
-  producers: Map<string, Producer>,
+  producers: Map<string, Producer[]>,
 ): DataWire[] {
   const wires: DataWire[] = [];
 
@@ -220,68 +224,84 @@ function deriveDataWires(
         : undefined;
 
     for (const binding of consumerNode.inputs) {
-      const producer = producers.get(binding.ctxKey);
-      if (!producer || producer.nodeId === consumerNode.id) continue;
-
-      const pinned = lockedPorts.includes(binding.port);
-      const auto = isAutoCtxKey(binding.ctxKey);
-      const inputDescriptor = catalogEntry?.inputs.find(
-        (p) => p.name === binding.port,
+      const writers = (producers.get(binding.ctxKey) ?? []).filter(
+        (producer) => producer.nodeId !== consumerNode.id,
       );
+      if (writers.length === 0) continue;
+      // The write this step reads is the last one on each path back from it,
+      // which is what the inputs panel's "Written by" line names. With no
+      // path from any writer, the first writer in node order is drawn.
+      const reaching = findWritersReaching(
+        config,
+        binding.ctxKey,
+        consumerNode.id,
+      )
+        .map((nodeId) => writers.find((writer) => writer.nodeId === nodeId))
+        .filter((writer): writer is Producer => writer !== undefined);
+      const drawn = reaching.length > 0 ? reaching : writers.slice(0, 1);
 
-      // Provenance (`via`) comes from re-running the resolver, so it only
-      // describes THIS wire when the resolver still lands on the persisted
-      // binding's producer. On a stale config (topology changed after the
-      // binding was written) the resolver may pick a different producer —
-      // the wire still renders where the binding points, but claiming the
-      // resolver's mechanism for it would be a lie, so `via` stays unset.
-      //
-      // "The resolver owns this binding" is `auto` for an activity producer,
-      // whose key really is `__auto.<node>.<port>` unless an `outputs[]` row
-      // says otherwise. A control-flow producer never has an auto key: it
-      // writes through a dedicated field the AUTHOR names (`itemCtxKey`,
-      // `resultsCtxKey`), so `auto` is false and this gate used to close on
-      // every one of them (G-104 — a map-item wire could never claim the
-      // `map-item` provenance `WorkflowEdge` already renders). The
-      // equivalent test there is that the binding's key IS the key the
-      // producer's type-level write emits for this port. That stays
-      // conservative for `outputs[]`-based producers: `producerCtxKeyForPort`
-      // returns undefined for activity/pollUntil, so a hand-authored ctx
-      // binding to one still gets no `via`.
-      let via: AutoBoundVia | undefined;
-      const producerNode = config.nodes[producer.nodeId];
-      const resolverOwnsBinding =
-        auto ||
-        (producerNode !== undefined &&
-          producerCtxKeyForPort(producerNode, producer.port) ===
-            binding.ctxKey);
-      if (resolverOwnsBinding && !pinned && inputDescriptor) {
-        const resolution = resolveInputPort(config, consumerNode.id, {
-          name: inputDescriptor.name,
-          kind: inputDescriptor.kind,
-        });
-        if (
-          resolution.status === "auto-bound" &&
-          resolution.producerNodeId === producer.nodeId &&
-          resolution.producerPort === producer.port
-        ) {
-          via = resolution.via;
+      for (const [index, producer] of drawn.entries()) {
+        const pinned = lockedPorts.includes(binding.port);
+        const auto = isAutoCtxKey(binding.ctxKey);
+        const inputDescriptor = catalogEntry?.inputs.find(
+          (p) => p.name === binding.port,
+        );
+
+        // Provenance (`via`) comes from re-running the resolver, so it only
+        // describes THIS wire when the resolver still lands on the persisted
+        // binding's producer. On a stale config (topology changed after the
+        // binding was written) the resolver may pick a different producer —
+        // the wire still renders where the binding points, but claiming the
+        // resolver's mechanism for it would be a lie, so `via` stays unset.
+        //
+        // "The resolver owns this binding" is `auto` for an activity producer,
+        // whose key really is `__auto.<node>.<port>` unless an `outputs[]` row
+        // says otherwise. A control-flow producer never has an auto key: it
+        // writes through a dedicated field the AUTHOR names (`itemCtxKey`,
+        // `resultsCtxKey`), so `auto` is false and this gate used to close on
+        // every one of them (G-104 — a map-item wire could never claim the
+        // `map-item` provenance `WorkflowEdge` already renders). The
+        // equivalent test there is that the binding's key IS the key the
+        // producer's type-level write emits for this port. That stays
+        // conservative for `outputs[]`-based producers: `producerCtxKeyForPort`
+        // returns undefined for activity/pollUntil, so a hand-authored ctx
+        // binding to one still gets no `via`.
+        let via: AutoBoundVia | undefined;
+        const producerNode = config.nodes[producer.nodeId];
+        const resolverOwnsBinding =
+          auto ||
+          (producerNode !== undefined &&
+            producerCtxKeyForPort(producerNode, producer.port) ===
+              binding.ctxKey);
+        if (resolverOwnsBinding && !pinned && inputDescriptor) {
+          const resolution = resolveInputPort(config, consumerNode.id, {
+            name: inputDescriptor.name,
+            kind: inputDescriptor.kind,
+          });
+          if (
+            resolution.status === "auto-bound" &&
+            resolution.producerNodeId === producer.nodeId &&
+            resolution.producerPort === producer.port
+          ) {
+            via = resolution.via;
+          }
         }
-      }
 
-      wires.push({
-        variant: "data",
-        id: `wire:${consumerNode.id}:${binding.port}`,
-        source: producer.nodeId,
-        sourcePort: producer.port,
-        target: consumerNode.id,
-        targetPort: binding.port,
-        kind: producer.kind ?? inputDescriptor?.kind,
-        pinned,
-        auto,
-        via,
-        ctxKey: binding.ctxKey,
-      });
+        const id = `wire:${consumerNode.id}:${binding.port}`;
+        wires.push({
+          variant: "data",
+          id: index === 0 ? id : `${id}@${producer.nodeId}`,
+          source: producer.nodeId,
+          sourcePort: producer.port,
+          target: consumerNode.id,
+          targetPort: binding.port,
+          kind: producer.kind ?? inputDescriptor?.kind,
+          pinned,
+          auto,
+          via,
+          ctxKey: binding.ctxKey,
+        });
+      }
     }
   }
 
