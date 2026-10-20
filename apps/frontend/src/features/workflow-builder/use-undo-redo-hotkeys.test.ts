@@ -167,10 +167,10 @@ describe("useUndoRedoHotkeys", () => {
 
   // -- the positive case: a non-text control must NOT swallow the hotkey -----
   //
-  // Item 1 of Inderdeep's 2026-08-06 walkthrough. He set Error handling →
-  // Follow the error path, which is a Mantine `SegmentedControl`, i.e. a set of
-  // hidden `<input type="radio">`. The clicked radio keeps focus, so the
-  // keydown target is an INPUT and a tag-name guard dropped the undo.
+  // Setting Error handling → Follow the error path clicks an
+  // `<input type="radio">` (a Mantine `SegmentedControl` is a set of hidden
+  // ones). The clicked radio keeps focus, so the keydown target is an INPUT,
+  // and a tag-name guard would drop the undo.
 
   it("DOES undo from a radio — a SegmentedControl option keeps focus after a click", () => {
     const { undo } = setup();

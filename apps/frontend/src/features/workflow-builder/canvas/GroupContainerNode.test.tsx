@@ -157,8 +157,8 @@ describe("GroupContainerNode — synthetic map body", () => {
 });
 
 /**
- * Item 19 (Inderdeep 2026-08-06) — the header's own hint has to mention the
- * right-click, because a menu nobody knows to open was the defect.
+ * The header's own hint has to mention the right-click, because a menu nobody
+ * knows to open is a menu nobody uses.
  */
 describe("GroupContainerNode — the header advertises Ungroup", () => {
   it("names the right-click on an authored group's header", () => {

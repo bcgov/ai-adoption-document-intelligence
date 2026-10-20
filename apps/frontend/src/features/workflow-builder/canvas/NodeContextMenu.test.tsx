@@ -294,9 +294,9 @@ describe("NodeContextMenu — selection mode", () => {
 });
 
 /**
- * Item 19 (Inderdeep 2026-08-06) — the menu opened on a group's container box.
- * The box is a projection of `nodeGroups[<id>].nodeIds`, so the entries that
- * act on a `config.nodes` entry have nothing to act on.
+ * The menu opened on a group's container box. The box is a projection of
+ * `nodeGroups[<id>].nodeIds`, so the entries that act on a `config.nodes`
+ * entry have nothing to act on.
  */
 describe("NodeContextMenu — group-container target", () => {
   function renderContainerMenu(onUngroup = vi.fn(), onClose = vi.fn()) {

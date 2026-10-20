@@ -1,18 +1,18 @@
 /**
- * Human labels for the condition operators (D23).
+ * Human labels for the condition operators.
  *
- * The reviewer's complaint was that the Operator dropdown offered `gte` — a
- * developer shorthand for "greater than or equal to" that the rest of the app
- * never explains. The stored value is unchanged: these are presentation only,
- * and every `value` below is exactly the string that goes into the saved
- * `ConditionExpression`.
+ * The stored operators are developer shorthand — `gte` for "greater than or
+ * equal to" — that the rest of the app never explains, so the Operator
+ * dropdown shows these instead. The stored value is unchanged: these are
+ * presentation only, and every `value` below is exactly the string that goes
+ * into the saved `ConditionExpression`.
  *
  * Two vocabularies, deliberately:
  *
  *  - {@link OPERATOR_LABELS} — the long form for a `<Select>`, where there is
  *    room to say the words AND show the symbol. The wording is the one
  *    `docs-md/workflows/WORKFLOW_NODE_CATALOG.md` §"Branch by condition"
- *    already specified and the dropdown never implemented.
+ *    specifies.
  *  - {@link COMPARISON_SYMBOLS} — the symbol alone, for compact read-only
  *    chips where a sentence would not fit.
  *

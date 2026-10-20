@@ -38,10 +38,10 @@ describe("CanvasLegend", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/error route/i)).toBeInTheDocument();
 
-    // One row per port FAMILY — five of them since item 20 (2026-08-09), not
-    // the thirteen Inderdeep counted. The rows are read from `PORT_FAMILIES`
-    // rather than restated here on purpose: a legend that hardcodes its own
-    // wording is a legend that can disagree with the canvas it explains.
+    // One row per port FAMILY — five of them. The rows are read from
+    // `PORT_FAMILIES` rather than restated here on purpose: a legend that
+    // hardcodes its own wording is a legend that can disagree with the canvas
+    // it explains.
     const families = screen.getByTestId("canvas-legend-families");
     expect(PORT_FAMILIES).toHaveLength(5);
     const swatches = families.querySelectorAll("[data-legend-swatch]");

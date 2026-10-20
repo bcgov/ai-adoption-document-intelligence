@@ -15,7 +15,7 @@
  *   - "Delete node" — always enabled; delegates to the existing canvas
  *     `handleNodesDelete` path via the supplied callback.
  *
- * Closing (B-3): Mantine's `closeOnClickOutside` is enabled and fires
+ * Closing: Mantine's `closeOnClickOutside` is enabled and fires
  * `onChange(false)` → `onClose`, but it cannot be the whole story. It listens
  * on document `mousedown`, and xyflow's pane runs d3-zoom/d3-drag, which calls
  * `stopImmediatePropagation` on pane mousedown — so the listener sees clicks on
@@ -25,8 +25,8 @@
  * listener stays for everything outside the pane, and `closeOnEscape` for the
  * keyboard.
  *
- * TARGET KIND (item 19, Inderdeep 2026-08-06). The menu opens on two different
- * kinds of thing, and they are not interchangeable:
+ * TARGET KIND. The menu opens on two different kinds of thing, and they are
+ * not interchangeable:
  *
  *   - `target: "node"` (the default) — a real `config.nodes` entry. Every
  *     entry below applies.
@@ -123,11 +123,10 @@ export interface NodeContextMenuNodeProps extends NodeContextMenuCommonProps {
 }
 
 /**
- * Item 19 (Inderdeep 2026-08-06) — the menu opened by right-clicking a group's
- * container box. *"I was trying to ungroup it … I'm just right clicking.
- * Nothing is happening. And then I realized, oh, I need to be on a particular
- * node."* One entry, because one entry is all that means anything on a
- * projection of a group.
+ * The menu opened by right-clicking a group's container box, so a group can be
+ * ungrouped from the box itself without first finding one of its member nodes.
+ * One entry, because one entry is all that means anything on a projection of a
+ * group.
  */
 export interface NodeContextMenuGroupContainerProps
   extends NodeContextMenuCommonProps {

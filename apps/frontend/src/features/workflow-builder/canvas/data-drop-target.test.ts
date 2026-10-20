@@ -1,14 +1,13 @@
 /**
  * Tests for `resolveDataDropTarget` / `dataDropRefusalMessage` — what a drag
  * that STARTED on a data port is allowed to become when it is released on a
- * node-level run-order dot (review item D9).
+ * node-level run-order dot.
  *
- * The reproduction that produced this module: Split Document → Run for each
- * item, drag begun on the violet **Segments** output and released on the
- * loop card's run-order dot. Before the fix that created a `normal` edge,
- * which renders as the grey dashed "Runs after" wire — a different kind of
- * connection from the one drawn, with nothing said. `loopTarget` below is
- * that exact pair.
+ * The case this module exists for: Split Document → Run for each item, drag
+ * begun on the violet **Segments** output and released on the loop card's
+ * run-order dot. Left unresolved, that creates a `normal` edge, which renders
+ * as the grey dashed "Runs after" wire — a different kind of connection from
+ * the one drawn, with nothing said. `loopTarget` below is that exact pair.
  */
 
 import { describe, expect, it } from "vitest";

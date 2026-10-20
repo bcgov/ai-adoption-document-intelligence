@@ -1,8 +1,8 @@
 /**
- * D23 — the operator dropdown said `gte`.
+ * Human labels for the condition operators, so the dropdown never says `gte`.
  *
  * The load-bearing property is not that the labels read nicely; it is that
- * NOTHING about the stored value changed. So the tests assert the mapping is
+ * NOTHING about the stored value changes. So the tests assert the mapping is
  * total over the type union (a new operator cannot be added without a label)
  * and that every `value` emitted for a `<Select>` is byte-identical to the
  * operator it came from.

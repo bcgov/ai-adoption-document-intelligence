@@ -1,12 +1,11 @@
 /**
- * Tests for the node accent vocabulary (Inderdeep UX walkthrough 2026-08-06,
- * item 20 — ruled 2026-08-09).
+ * Tests for the node accent vocabulary.
  *
  * The property under test is not "these are the hexes" — a test that restates
  * the constant it reads proves nothing. It is that the accents remain a code a
  * person can actually decode: one value per role, no role sharing a value with
- * a role that means something else, and no accent quietly leaking back into
- * the per-category scheme the measurement retired.
+ * a role that means something else, and no accent per activity category,
+ * which the colour-vision measurement rules out.
  */
 
 import {
@@ -45,10 +44,10 @@ describe("node accents — the roles", () => {
     }
   });
 
-  // D29 — two labels described the mechanism, not the card. "Does work" was
-  // true of all five, so it separated nothing; "Fans out or back in" is
-  // fan-out/fan-in jargon.
-  it("labels the two roles the reviewer could not read", () => {
+  // These two labels name what the card does, not the mechanism: "Does work"
+  // would be true of all five roles, so it would separate nothing, and "Fans
+  // out or back in" is fan-out/fan-in jargon.
+  it("labels the activity and fan roles by what the card does", () => {
     const byRole = Object.fromEntries(
       NODE_ACCENTS.map((a) => [a.role, a.label]),
     );

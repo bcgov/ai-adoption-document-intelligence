@@ -58,8 +58,8 @@ describe("ConditionProducerPicker", () => {
     ).toBeInTheDocument();
   });
 
-  // D22 — the reviewer could not tell the options were previous steps'
-  // outputs. The heading is the fix, so it is the thing under test.
+  // Without a heading, nothing says the options are previous steps' outputs.
+  // The heading is what says it, so it is the thing under test.
   it("names what the list is, above the rows", () => {
     mount(
       <ConditionProducerPicker

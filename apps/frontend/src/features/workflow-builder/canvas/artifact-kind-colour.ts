@@ -47,32 +47,30 @@ export function colorForKind(kind: KindRef | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
-// The port vocabulary — five families, each with a colour AND a shape
-// (Inderdeep UX walkthrough 2026-08-06, item 20; ruled 2026-08-09).
+// The port vocabulary — five families, each with a colour AND a shape.
 //
-// "I have been wondering what do these colours mean … there are like 12 to 13
-// of them." He counted the legend, which really did render 13 rows. The canvas
-// underneath was worse: 32 distinct hex values carrying ~24 meanings.
+// A reader has to be able to tell what each port colour means, which a dozen
+// or more colours do not allow.
 //
-// Two things are fixed here, and they had to ship together.
+// Two rules, and they only work together.
 //
-//   1. SEVEN port families became FOUR typed + grey. The seven collided under
-//      colour-vision deficiency — References teal vs Untyped grey came out at
-//      ΔE 5.2 with a 1.06:1 luminance ratio, i.e. the same dot. The five
-//      families below hold a worst pair of ΔE 14.2 under both deuteranopia and
-//      protanopia (Viénot 1999 simulation, CIEDE2000 distance). Anything under
-//      ΔE ≈ 11 reads as one colour.
+//   1. FOUR typed families + grey. A seven-family palette collides under
+//      colour-vision deficiency — a References teal against the Untyped grey
+//      comes out at ΔE 5.2 with a 1.06:1 luminance ratio, i.e. the same dot.
+//      The five families below hold a worst pair of ΔE 14.2 under both
+//      deuteranopia and protanopia (Viénot 1999 simulation, CIEDE2000
+//      distance). Anything under ΔE ≈ 11 reads as one colour.
 //
-//   2. Each family carries a SHAPE, so colour is never the only signal. That
-//      is the half that makes the merge honest: shipping the merge alone would
-//      remove distinctions without replacing them. The shape says the same
-//      thing the colour says — the vocabulary is five, not five-times-five.
+//   2. Each family carries a SHAPE, so colour is never the only signal.
+//      Folding kinds into fewer colours with no shape would remove
+//      distinctions without replacing them. The shape says the same thing the
+//      colour says — the vocabulary is five, not five-times-five.
 //
 // The hexes are LITERALS on purpose, not `var(--mantine-color-<token>-6)`.
-// Three of the drifts item 20 found came from exactly that indirection: the
-// app theme overrides Mantine's `blue`, `gray` and `red` scales, so code
-// written against stock Mantine painted a different colour than it read. These
-// five values were chosen by measurement and must not move when the theme does.
+// That indirection drifts: the app theme overrides Mantine's `blue`, `gray`
+// and `red` scales, so code written against stock Mantine paints a different
+// colour than it reads. These five values were chosen by measurement and must
+// not move when the theme does.
 // ---------------------------------------------------------------------------
 
 /** The five family tokens. `ArtifactKindMeta.color` is always one of these. */

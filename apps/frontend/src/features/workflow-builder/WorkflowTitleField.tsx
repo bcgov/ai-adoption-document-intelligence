@@ -1,22 +1,21 @@
 /**
- * The workflow's name, as a click-to-edit title (P-3 / ruling R-2, 2026-08-03).
+ * The workflow's name, as a click-to-edit title.
  *
- * It used to be a labelled `TextInput` in the top bar. A name is read a
- * hundred times for every time it is written, so a permanent form field spent
+ * A name is read a hundred times for every time it is written, so it is not a
+ * labelled `TextInput` in the top bar: a permanent form field would spend
  * ~280px and — because its label sits *above* it — set the height of the whole
- * bar, which is what stopped the top bar from having a single baseline. As a
- * title it costs one line of text until somebody clicks it.
+ * bar, so the top bar could not have a single baseline. As a title it costs
+ * one line of text until somebody clicks it.
  *
  * Commit rules: Enter or blur commits the trimmed value, Escape reverts. An
  * empty value is NOT a rename — the previous name is restored, because this
- * title is now the only place the name is shown and a blank one leaves nothing
+ * title is the only place the name is shown and a blank one leaves nothing
  * to click back into. (`handleSave` still coerces a blank name to "Untitled
  * workflow"; that is the persistence rule, this is the editing surface.)
  *
- * **Undo granularity (Inderdeep's 2026-08-06 walkthrough, item 2).** He saw
- * Ctrl+Z undo a whole word here but a single character in the settings
- * drawer's Description field, and asked for the two to match. Nothing in this
- * file causes that. The draft lives in local state and is never re-derived
+ * **Undo granularity.** Ctrl+Z undoes a whole word here but a single
+ * character in the settings drawer's Description field. Nothing in this file
+ * causes that. The draft lives in local state and is never re-derived
  * from a parent mid-keystroke, so React's `updateInput` finds the DOM value
  * already equal and writes nothing — the browser's own undo stack is intact,
  * which is why this field behaves the way a plain text box should. The
@@ -25,7 +24,7 @@
  * textarea `defaultValue` IS the element's child text, so each keystroke
  * mutates the textarea's children and ends the browser's current typing
  * transaction. That is React's behaviour for any controlled textarea, not
- * ours. Closed as no-change here.
+ * ours, so nothing here changes it.
  */
 
 import { Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";

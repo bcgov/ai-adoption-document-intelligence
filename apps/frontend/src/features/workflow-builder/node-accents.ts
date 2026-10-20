@@ -51,12 +51,10 @@ export interface NodeAccent {
 }
 
 /**
- * D29 — two of these five were named for the mechanism rather than for what a
- * reader would see the card do. "Does work" is true of every card on the
- * canvas, so it did not separate this role from the other four; and "Fans out
- * or back in" is fan-out/fan-in jargon, which is exactly the kind of term the
- * reviewer flagged. The other three already said what they were and are
- * unchanged — renaming them would have cost the vocabulary more than it bought.
+ * Each label names what a reader sees the card do, not the mechanism behind
+ * it. "Does work" is true of every card on the canvas, so it would not
+ * separate the activity role from the other four; and "Fans out or back in" is
+ * fan-out/fan-in jargon, the kind of term a reader should not have to decode.
  */
 const ACCENTS: Record<NodeAccentRole, NodeAccent> = {
   /** Does work. The default, and the overwhelming majority of cards. */

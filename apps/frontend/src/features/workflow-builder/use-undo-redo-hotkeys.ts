@@ -1,8 +1,8 @@
 /**
- * G-003 — Ctrl/Cmd+Z (undo) and Ctrl/Cmd+Shift+Z / Ctrl+Y (redo) for the
- * workflow editor. This is the first keyboard shortcut in the feature; there
- * was no hotkey infrastructure to reuse and none is installed (see the
- * standing no-install rule), so it is a plain `keydown` listener.
+ * Ctrl/Cmd+Z (undo) and Ctrl/Cmd+Shift+Z / Ctrl+Y (redo) for the workflow
+ * editor. The feature has no hotkey infrastructure to reuse and none is
+ * installed (see the standing no-install rule), so it is a plain `keydown`
+ * listener.
  *
  * **Scope.** The listener lives on `window` but is mounted only while the
  * editor page is mounted, which is what "scoped to the editor" means here —
@@ -15,7 +15,7 @@
  * `<input>` of a text-entry type, or a contenteditable host — nothing wider.
  * A tag-name check is too wide: a radio, a checkbox or a switch is an `<input>`
  * with no text and therefore no undo stack of its own, so bailing there just
- * loses the keystroke (Inderdeep Singh's UX walkthrough, 2026-08-06, item 1).
+ * loses the keystroke.
  */
 import { useEffect } from "react";
 
