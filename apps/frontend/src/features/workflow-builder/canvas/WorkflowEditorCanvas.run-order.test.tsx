@@ -1,15 +1,15 @@
 /**
- * The run-order connectors, end to end on the canvas — review items D9, D10
- * and D28, all three of which are the same dot seen from different sides.
+ * The run-order connectors, end to end on the canvas: one dot, seen from
+ * three sides.
  *
- * - **D28** — the pair is drawn identically on every rectangular card
- *   (position, fill) and says the same sentence on both, and the sentence is
- *   about execution order rather than about data ports.
- * - **D10** — that sentence states the gesture exists, which is the whole
- *   answer: run-order edges were always drawable by hand and nothing said so.
- * - **D9** — a drag begun on a data port and released on the run-order dot no
- *   longer becomes an execution edge. It binds the input it was aimed at, or
- *   it is refused out loud.
+ * - The pair is drawn identically on every rectangular card (position,
+ *   fill) and says the same sentence on both, and the sentence is about
+ *   execution order rather than about data ports.
+ * - That sentence says the dot can be dragged: run-order edges are drawn by
+ *   hand, between two of these dots.
+ * - A drag begun on a data port and released on the run-order dot, or over
+ *   the card away from any dot, does not become an execution edge. It binds
+ *   the input it was aimed at, or it is refused out loud.
  *
  * Lives in its own file because it needs a `Handle` mock that forwards
  * `style` (the main suite's does not) and a captured `onConnectEnd`.
@@ -22,7 +22,7 @@ import { notifications } from "@mantine/notifications";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { Connection, Edge } from "@xyflow/react";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   ActivityNode,
@@ -424,6 +424,117 @@ describe("D9 — Segments dragged onto the loop's run-order dot", () => {
     });
     expect(notifications.show).not.toHaveBeenCalled();
     expect(onConfigChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A data-port drag released over a card, away from its dots
+// ---------------------------------------------------------------------------
+
+/**
+ * Stands in for the browser's hit-test, which jsdom does not have: the
+ * release point lands on a title inside the card element xyflow renders for
+ * `nodeId`, or on bare canvas when `nodeId` is null. Returns the undo.
+ */
+function hitTestFinds(nodeId: string | null): () => void {
+  const stack: Element[] = [];
+  if (nodeId !== null) {
+    const card = document.createElement("div");
+    card.className = "react-flow__node";
+    card.dataset.id = nodeId;
+    const title = document.createElement("span");
+    card.appendChild(title);
+    stack.push(title, card);
+  }
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => stack,
+  });
+  return () => {
+    delete (document as { elementsFromPoint?: unknown }).elementsFromPoint;
+  };
+}
+
+describe("a data-port drag released over a card's body", () => {
+  let undoHitTest: () => void = () => undefined;
+  afterEach(() => undoHitTest());
+
+  function releaseSegmentsDrag(): void {
+    act(() => {
+      reactFlowProp<ConnectEnd>("onConnectEnd")(
+        new MouseEvent("mouseup", { clientX: 420, clientY: 30 }),
+        {
+          fromHandle: { id: "out-segments" },
+          toHandle: null,
+          fromNode: { id: "splitDoc" },
+          toNode: null,
+          isValid: false,
+        },
+      );
+    });
+  }
+
+  it("is refused with the reason a drop on the card's run-order dot gets", () => {
+    const { onConfigChange } = renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds("loopNode");
+    releaseSegmentsDrag();
+    expect(notifications.show).toHaveBeenCalledTimes(1);
+    const message = vi.mocked(notifications.show).mock.calls[0][0]
+      ?.message as string;
+    expect(message).toContain('"Run for each item" has no data inputs');
+    expect(onConfigChange).not.toHaveBeenCalled();
+    // Not the "pick a step" list: the drop was aimed at an existing step.
+    expect(screen.queryByTestId("hover-extend-popover")).toBeNull();
+  });
+
+  it("completes as the DATA edge when exactly one input can take it", () => {
+    const store: ActivityNode = {
+      id: "storeResults",
+      type: "activity",
+      label: "Store Results",
+      activityType: "ocr.storeResults",
+      parameters: {},
+      metadata: { position: { x: 400, y: 200 } },
+    };
+    const { onConfigChange } = renderCanvas(makeConfig([store]));
+    undoHitTest = hitTestFinds("storeResults");
+    releaseSegmentsDrag();
+    const next = onConfigChange.mock.calls[0]?.[0] as GraphWorkflowConfig;
+    const target = next.nodes.storeResults;
+    if (target.type !== "activity") throw new Error("unreachable");
+    expect(target.inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ port: "enrichmentSummary" }),
+      ]),
+    );
+    expect(next.edges).toHaveLength(1);
+    expect(notifications.show).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("hover-extend-popover")).toBeNull();
+  });
+
+  it("opens the pick-a-step list on empty canvas", () => {
+    renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds(null);
+    releaseSegmentsDrag();
+    expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("treats the card the drag started from as empty canvas", () => {
+    renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds("splitDoc");
+    releaseSegmentsDrag();
+    expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("treats a group's box as empty canvas", () => {
+    renderCanvas(makeConfig());
+    // A group's container is a node on the canvas but not a step.
+    undoHitTest = hitTestFinds("container-ocr-group");
+    releaseSegmentsDrag();
+    expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    expect(notifications.show).not.toHaveBeenCalled();
   });
 });
 

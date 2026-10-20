@@ -753,6 +753,32 @@ export function releaseAnchorFromEvent(event: MouseEvent | TouchEvent): {
 }
 
 /**
+ * The step card a drag was released over, or null when the release was not
+ * on one. xyflow names a drop target only when one of its dots is within
+ * `connectionRadius` of the release point, so a wire let go over a card's
+ * body arrives with no target at all; this finds the card the pointer was
+ * on. The topmost node at the point decides: a group's box, or the card the
+ * drag started from, is not a target.
+ */
+export function stepCardAtPoint(
+  point: { x: number; y: number },
+  isStep: (nodeId: string) => boolean,
+  sourceNodeId: string,
+  root: Pick<Document, "elementsFromPoint"> = document,
+): string | null {
+  // jsdom has no hit-testing.
+  if (typeof root.elementsFromPoint !== "function") return null;
+  for (const element of root.elementsFromPoint(point.x, point.y)) {
+    const card = element.closest<HTMLElement>(".react-flow__node");
+    if (!card) continue;
+    const nodeId = card.dataset.id;
+    if (!nodeId || nodeId === sourceNodeId || !isStep(nodeId)) return null;
+    return nodeId;
+  }
+  return null;
+}
+
+/**
  * True while an extend picker — the "pick a step" list — is open anywhere on
  * the canvas. A card's own dots hide their hover sentence while it is, so the
  * two are never on screen together: the picker opens 200 ms after an outgoing
@@ -4646,18 +4672,15 @@ function WorkflowEditorCanvasInner({
         }
       }
 
-      // D9 — a data-port drag released on a node's RUN-ORDER dot rather
-      // than on one of its input dots. That drop used to fall through to
-      // the node-level branch and quietly create an execution edge; now it
-      // is refused, so it has to say why. Worded from the same verdict
-      // `isValidConnection` refused it by, so the two can't tell different
-      // stories.
+      // A data-port drag released on a node's RUN-ORDER dot rather than on
+      // one of its input dots. A data gesture never becomes an execution
+      // edge, so the drop is refused, and this says why, worded from the
+      // same verdict `isValidConnection` refused it by so the two can't tell
+      // different stories.
       //
-      // A release over the card's BODY does not reach here: xyflow only
-      // names a `toNode` when a handle is within `connectionRadius` of the
-      // release point, so a body drop arrives as `toNode == null` and is
-      // handled by the §9 branch below, which opens the extend picker.
-      // Verified in a browser, 2026-08-15.
+      // A release over the card's body arrives with no `toNode` (xyflow
+      // names one only when a dot is within `connectionRadius`), and the
+      // branch below gives it the same verdict.
       if (
         fromPort !== null &&
         toPort === null &&
@@ -4686,25 +4709,65 @@ function WorkflowEditorCanvasInner({
         }
       }
 
-      // §9 — a typed OUTPUT port drag released on the empty pane (not on any
-      // node) opens the kind-aware extend popover at the release point, so
-      // "drag out → pick → auto-pick-wire" works without a target handle.
+      // A typed OUTPUT port drag released away from every dot.
       if (
         fromPort !== null &&
         connectionState.toNode == null &&
         connectionState.fromNode
       ) {
-        // Item 5 — a port-drag release is ordinary wiring, whatever the last
-        // hover was, so the error-path intent does not carry into it.
+        const sourceNodeId = connectionState.fromNode.id;
+        const anchor = releaseAnchorFromEvent(event);
+        // Over another step's card: the drop is aimed at that step, so it
+        // gets the verdict a drop on the card's run-order dot gets. One
+        // input that can take the kind completes as that data edge;
+        // anything else is refused with the reason. The "pick a step" list
+        // would offer to add a new step instead, which is not what the
+        // user was doing.
+        const cardId = stepCardAtPoint(
+          anchor,
+          (nodeId) => nodeId in config.nodes,
+          sourceNodeId,
+        );
+        if (cardId !== null) {
+          const verdict = resolveDataDropTarget(
+            config,
+            sourceNodeId,
+            fromPort,
+            cardId,
+            dynamicCatalogEntries,
+          );
+          if (verdict.kind === "port") {
+            handleConnect({
+              source: sourceNodeId,
+              sourceHandle: connectionState.fromHandle?.id ?? null,
+              target: cardId,
+              targetHandle: null,
+            });
+            return;
+          }
+          const message = dataDropRefusalMessage(
+            verdict,
+            config.nodes[cardId]?.label ?? cardId,
+          );
+          if (message !== null) {
+            notifications.show({ color: "yellow", message, autoClose: 7000 });
+          }
+          return;
+        }
+        // §9 — on the empty pane, the kind-aware extend popover opens at
+        // the release point, so "drag out → pick → auto-pick-wire" works
+        // without a target handle. A port-drag release is ordinary wiring,
+        // whatever the last hover was, so the error-path intent does not
+        // carry into it.
         setErrorExtendNodeId(null);
         openHoverExtendNow({
-          nodeId: connectionState.fromNode.id,
+          nodeId: sourceNodeId,
           sourcePort: fromPort,
-          anchor: releaseAnchorFromEvent(event),
+          anchor,
         });
       }
     },
-    [config, openHoverExtendNow, dynamicCatalogEntries],
+    [config, openHoverExtendNow, dynamicCatalogEntries, handleConnect],
   );
 
   /**

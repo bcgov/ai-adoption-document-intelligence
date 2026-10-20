@@ -1,16 +1,14 @@
 /**
  * What a drag that STARTED on a data port is allowed to become when it is
- * released on a node-level (run-order) handle — review item D9.
+ * released on a step's node-level (run-order) handle, or over the step's
+ * card away from any dot.
  *
- * The defect: `handleConnect` classified a connection by its TARGET handle
- * alone. A drag begun on `out-segments` and released on the target card's
- * run-order dot fell into the node-level branch and quietly created a
- * `normal` edge, which `deriveWires` renders as the grey dashed "Runs after"
- * wire. The user aimed a data wire and got an execution edge, with nothing
- * said. Reproduced in a browser on Split Document → Run for each item.
- *
- * The rule now: the gesture's ORIGIN decides what it can become. A drag from
- * a data port either lands on data, or is refused with the reason.
+ * The gesture's ORIGIN decides what it can become, not the handle it lands
+ * on. A drag from a data port either lands on data or is refused with the
+ * reason. It never becomes a `normal` edge, which `deriveWires` would draw
+ * as the grey dashed "Runs after" wire: a different kind of connection from
+ * the one the user drew (Split Document's Segments onto Run for each item is
+ * the case that shows it).
  *
  *   - exactly one declared input on the target can accept the dragged kind →
  *     complete it as a DATA edge to that port. Unambiguous, and it is what
@@ -110,9 +108,8 @@ export function resolveDataDropTarget(
 /**
  * The sentence shown when a data-port drag is refused. Written to answer the
  * question the user actually has ("why did nothing happen?") and to name the
- * gesture that WOULD have worked, since D9 and D10 are the same confusion
- * from opposite ends: one gesture silently did the other one's job, and the
- * other one looked impossible.
+ * gesture that WOULD have worked: a data drag and a run-order drag are easy
+ * to mistake for each other, so the refusal of one names the other.
  *
  * `targetLabel` is the target node's own label, quoted, so the message names
  * the card on screen rather than a node id.
