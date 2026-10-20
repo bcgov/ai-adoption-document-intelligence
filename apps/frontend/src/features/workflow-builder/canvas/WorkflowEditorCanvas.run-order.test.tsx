@@ -221,10 +221,10 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// D28 — one connector, drawn one way
+// One connector, drawn one way
 // ---------------------------------------------------------------------------
 
-describe("D28 — the run-order pair is identical on every rectangular card", () => {
+describe("the run-order pair is identical on every rectangular card", () => {
   it("sits at the same height on an activity card and a control-flow card", () => {
     renderCanvas(makeConfig());
     for (const nodeId of ["splitDoc", "loopNode"]) {
@@ -274,18 +274,18 @@ describe("D28 — the run-order pair is identical on every rectangular card", ()
 
     expect(tip("splitDoc", "in")).toBe(tip("loopNode", "in"));
     expect(tip("splitDoc", "out")).toBe(tip("loopNode", "out"));
-    // The control-flow card used to describe this dot as "No typed inputs" —
-    // a sentence about data ports, on the connector that carries no data.
+    // Not "No typed inputs": that is a sentence about data ports, and this
+    // connector carries no data.
     expect(tip("loopNode", "in")).toContain("Runs after");
     expect(tip("loopNode", "in")).not.toContain("typed");
   });
 });
 
 // ---------------------------------------------------------------------------
-// D10 — "Cannot seem to manually connect order-of-operations edges."
+// Drawing a run-order wire by hand
 // ---------------------------------------------------------------------------
 
-describe("D10 — the run-order gesture works, and now says so", () => {
+describe("the run-order gesture works, and the dot says so", () => {
   it("accepts a run-order drag between two node-level dots", () => {
     const { onConfigChange } = renderCanvas(makeConfig());
     reactFlowProp<(c: Connection) => void>("onConnect")({
@@ -327,7 +327,7 @@ describe("D10 — the run-order gesture works, and now says so", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D9 — a data-port drag stays a data gesture
+// A data-port drag stays a data gesture
 // ---------------------------------------------------------------------------
 
 interface ConnectEndState {
@@ -339,8 +339,8 @@ interface ConnectEndState {
 }
 type ConnectEnd = (event: MouseEvent, state: ConnectEndState) => void;
 
-describe("D9 — Segments dragged onto the loop's run-order dot", () => {
-  it("no longer becomes a run-order edge", () => {
+describe("Segments dragged onto the loop's run-order dot", () => {
+  it("does not become a run-order edge", () => {
     const { onConfigChange } = renderCanvas(makeConfig());
     reactFlowProp<(c: Connection) => void>("onConnect")({
       source: "splitDoc",
@@ -412,8 +412,8 @@ describe("D9 — Segments dragged onto the loop's run-order dot", () => {
   });
 
   it("leaves a run-order drag onto the same dot alone", () => {
-    // The gesture D10 asked about must not be caught by D9's guard: it
-    // starts on the node-level dot, so it is authoring order, not data.
+    // A drag that starts on the node-level dot is authoring order, not
+    // data, so the data-drag guard leaves it alone.
     const { onConfigChange } = renderCanvas(makeConfig());
     reactFlowProp<ConnectEnd>("onConnectEnd")(new MouseEvent("mouseup"), {
       fromHandle: { id: "out" },

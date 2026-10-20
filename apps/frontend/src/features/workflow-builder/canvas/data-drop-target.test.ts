@@ -56,7 +56,7 @@ function loopTarget(): GraphWorkflowConfig {
 }
 
 describe("resolveDataDropTarget — a step with no data inputs at all", () => {
-  it("refuses the Segments → Run for each item drop D9 reported", () => {
+  it("refuses the Segments → Run for each item drop", () => {
     const verdict = resolveDataDropTarget(
       loopTarget(),
       "splitDoc",
@@ -151,8 +151,8 @@ describe("resolveDataDropTarget — exactly one input can take it", () => {
 describe("resolveDataDropTarget — more than one input can take it", () => {
   it("refuses rather than picking one, and names the candidates", () => {
     // `azureOcr.extract` has three `Artifact` wildcards among its inputs.
-    // Choosing one for the user would be the same silent substitution D9
-    // reported, in a nicer coat.
+    // Choosing one for the user would be a silent substitution: the wire
+    // would land on an input the user never named.
     const cfg = withTarget(
       node<ActivityNode>({
         id: "extract",

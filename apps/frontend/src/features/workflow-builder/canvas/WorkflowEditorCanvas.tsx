@@ -535,7 +535,7 @@ interface NodeHandlesProps {
     anchor: { x: number; y: number },
   ) => void;
   /**
-   * Where the run-order pair sits vertically (D28). `"card-top"` for every
+   * Where the run-order pair sits vertically. `"card-top"` for every
    * rectangular card, `"middle"` for the switch diamond, whose left/right
    * vertices ARE its midpoint. See `flow-handle.ts`.
    */
@@ -1716,12 +1716,10 @@ interface ProjectionCallbacks {
  * the US-096 pill entries. Activity nodes render per-port rows instead
  * (`computePortRows`), so this shape only feeds `controlFlowNodeSides`.
  *
- * It used to carry a `handleStyle` as well, for the node-level dot. That
- * dot is the RUN-ORDER connector, not a data port, and painting it in the
- * data palette's wildcard grey was one of the three ways the same connector
- * came out looking different per card (D28) — it now takes its geometry and
- * fill from `flow-handle.ts` like every other card's, so there is no
- * per-node style left to project.
+ * It carries no style for the node-level dot: that dot is the RUN-ORDER
+ * connector, not a data port, and it takes its geometry and fill from
+ * `flow-handle.ts`, the same on every card, so there is no per-node style
+ * to project.
  */
 interface SideProjection {
   pillEntries: NodeTypePillEntry[];
@@ -4370,14 +4368,13 @@ function WorkflowEditorCanvasInner({
       // below.
       const sourcePort = portFromHandleId(connection.sourceHandle, "output");
       const targetPort = portFromHandleId(connection.targetHandle, "input");
-      // D9: a drag that STARTED on a data port is a data gesture wherever it
-      // is released. Dropped on the target's run-order dot it used to fall
-      // through to the node-level branch and quietly become an execution
-      // edge — the user aimed a data wire and got a dashed grey one. Resolve
-      // it against the target's real inputs instead: an unambiguous match
-      // completes as the data edge that was aimed at, anything else is
-      // refused by `isValidConnection` (which asks the SAME function) and
-      // worded by `handleConnectEnd`, so this branch never has to say no.
+      // A drag that STARTED on a data port is a data gesture wherever it is
+      // released, and never becomes an execution edge. Dropped on the
+      // target's run-order dot, it is resolved against the target's real
+      // inputs: an unambiguous match completes as the data edge that was
+      // aimed at; anything else is refused by `isValidConnection` (which
+      // asks the SAME function) and worded by `handleConnectEnd`, so this
+      // branch never has to say no.
       const boundTargetPort =
         sourcePort !== null && targetPort === null
           ? (() => {
@@ -4393,7 +4390,7 @@ function WorkflowEditorCanvasInner({
           : targetPort;
       if (sourcePort !== null) {
         if (boundTargetPort === null) {
-          // Refused (D9). `isValidConnection` already stopped xyflow from
+          // Refused. `isValidConnection` already stopped xyflow from
           // calling us for this drop; returning here means the invariant —
           // a data-port drag NEVER becomes an execution edge — holds even
           // if some other caller reaches `handleConnect` directly. The
@@ -4510,10 +4507,9 @@ function WorkflowEditorCanvasInner({
    * Three cases, by where the drag STARTED and where it is being released:
    *
    *   - port → port: the kinds have to be assignable (unchanged).
-   *   - **port → node-level dot (D9)**: allowed only when it resolves to
-   *     exactly one compatible input, which `handleConnect` then binds. It
-   *     used to be permitted unconditionally and silently produced a
-   *     run-order edge instead of the data wire the user drew.
+   *   - **port → node-level dot**: allowed only when it resolves to
+   *     exactly one compatible input, which `handleConnect` then binds as
+   *     the data wire the user drew, never as a run-order edge.
    *   - node-level → anything: authoring run order. Allowed unless the wire
    *     would change nothing or close a loop (`resolveRunOrderDrop`).
    */
