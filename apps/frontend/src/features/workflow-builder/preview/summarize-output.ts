@@ -89,9 +89,9 @@ function inner(value: unknown): string {
  *
  * - `undefined` — the ctx key holds nothing (the engine never writes
  *   `undefined` into a run context, so this is a sound "absent" signal).
- * - a string — its first non-blank line, whitespace collapsed. Alex's ruling
- *   on item 9's follow-up: show the value's first line, not just kind +
- *   status, accepting that it reads ragged across kinds.
+ * - a string — its first non-blank line, whitespace collapsed. The strip
+ *   shows the value's first line, not just kind + status, accepting that it
+ *   reads ragged across kinds.
  * - a list — its length, then a summary of its first element, so `12 items ·
  *   {4 fields}` tells you both how much came back and what one looks like.
  * - an object — its top-level fields as `key: value` pairs until the bound is

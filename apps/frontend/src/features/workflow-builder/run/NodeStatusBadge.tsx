@@ -3,15 +3,14 @@
  * top-right corner of every node renderer on the V2 canvas. Driven by
  * the live status map exposed through `RunStateContext` (US-138).
  *
- * **The glyph is bare, and the disc is the only circle** (Inderdeep, 2026-08-06
- * — *"to notice the cross within the circle is very hard … the more I zoom out,
- * all I see is the circle, which is not the intent"*). The badge used to draw
- * two concentric circles: the filled `ThemeIcon` disc, and inside it
- * `IconCircleCheck` / `IconCircleX`, which carry their own ring. At 16px the
- * rings ate the pixel budget and the check or cross that actually carries the
- * meaning was reduced to a smudge. The icons are now `IconCheck` / `IconX`
- * with no ring of their own, drawn heavier and larger inside a larger disc, so
- * the shape survives at the zoom levels people work at.
+ * **The glyph is bare, and the disc is the only circle**, so the check or cross
+ * stays readable when the canvas is zoomed out. `IconCircleCheck` /
+ * `IconCircleX` inside the filled `ThemeIcon` disc would draw two concentric
+ * circles: at 16px the rings eat the pixel budget and the check or cross that
+ * actually carries the meaning is reduced to a smudge. The icons are
+ * `IconCheck` / `IconX`, with no ring of their own, drawn heavier and larger
+ * inside a larger disc, so the shape survives at the zoom levels people work
+ * at.
  *
  * Status → (icon, colour) mapping per REQUIREMENTS.md L32 +
  * TRY_IN_PLACE_DESIGN.md §3.5:

@@ -8,11 +8,11 @@
  *
  * Wired into `ChildWorkflowNodeSettings` (US-063) — replaces the
  * free-text `workflowId` TextInput on the library branch of
- * `workflowRef`. As of US-086 the modal also exposes a "Version"
- * `<Select>` so the author can pin a specific `WorkflowVersion.versionNumber`
+ * `workflowRef`. The modal also exposes a "Version" `<Select>` (US-086)
+ * so the author can pin a specific `WorkflowVersion.versionNumber`
  * at pick time (default = "head", which omits `version` from the
  * returned selection so the parent workflow resolves the library's
- * head at execution time — per REQUIREMENTS D3).
+ * head at execution time).
  */
 
 import {

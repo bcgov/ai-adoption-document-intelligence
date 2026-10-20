@@ -1,8 +1,7 @@
 /**
- * ErrorPolicySection — the authoring surface for `GraphNodeBase.errorPolicy`
- * (G-001).
+ * ErrorPolicySection — the authoring surface for `GraphNodeBase.errorPolicy`.
  *
- * Everything downstream of this form already existed:
+ * Everything downstream of this form is in place:
  *   - the engine reads `onError` / `fallbackEdgeId` / `retryable`
  *     (`apps/temporal/src/graph-engine/error-handling.ts`);
  *   - the validator errors when `onError: "fallback"` has no
@@ -11,10 +10,10 @@
  *     policy asks for it (`WorkflowEditorCanvas.tsx` → `NodeHandles` /
  *     `ActivityNodeRenderer`).
  *
- * There was simply no way for an author to set the policy, so one of the
- * three edge flavours the model defines was undrawable and a `fallback`
- * policy arriving from a template or the agent reported a validation error
- * the UI gave no way to clear.
+ * This form is the only way for an author to set the policy. Without it, one
+ * of the three edge flavours the model defines is undrawable, and a `fallback`
+ * policy arriving from a template or the agent reports a validation error the
+ * UI gives no way to clear.
  *
  * Deliberate scope decisions:
  *
@@ -35,14 +34,12 @@
  *     nothing is the same failure mode as the missing form it would sit in.
  *   - **The author never sees `fail` / `fallback` / `skip`.** Those are
  *     engine values; the form speaks in outcomes.
- *   - **The three outcomes are a radio group, not a `SegmentedControl`**
- *     (Inderdeep UX walkthrough 2026-08-06, item 4). Two separate failures
- *     came out of the segmented row: it read as a toolbar rather than as a
- *     decision — *"it's not obvious to me that those are like the three
- *     options"* — and three full sentences do not fit one row at drawer
- *     width, so *"the third option also doesn't fit on the screen"*. One
- *     option per line fixes both: the set is visibly a choice, and each
- *     label has the whole column width to render in.
+ *   - **The three outcomes are a radio group, not a `SegmentedControl`.** A
+ *     segmented row fails twice: it reads as a toolbar rather than as a
+ *     decision, so the three options do not look like alternatives, and three
+ *     full sentences do not fit one row at drawer width, so the third option
+ *     is cut off. One option per line fixes both: the set is visibly a
+ *     choice, and each label has the whole column width to render in.
  */
 
 import {

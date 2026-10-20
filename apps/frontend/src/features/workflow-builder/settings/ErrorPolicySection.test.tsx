@@ -133,12 +133,11 @@ describe("ErrorPolicySection", () => {
   });
 
   it("presents the three outcomes as a radio group, one per line, each fully labelled", () => {
-    // Inderdeep UX walkthrough 2026-08-06, item 4. The three outcomes used to
-    // be a `SegmentedControl`, which failed twice over: it read as a toolbar
-    // rather than a decision ("it's not obvious to me that those are like the
-    // three options"), and three full sentences do not fit one row at drawer
-    // width ("the third option also doesn't fit on the screen"). Radios stack,
-    // so each label gets the whole column and the set reads as a choice.
+    // Not a `SegmentedControl`, which fails twice over: it reads as a toolbar
+    // rather than a decision, so the three options do not look like
+    // alternatives, and three full sentences do not fit one row at drawer
+    // width, so the third option is cut off. Radios stack, so each label gets
+    // the whole column and the set reads as a choice.
     const config = makeConfig([
       activity("a1", { errorPolicy: { onError: "fallback", retryable: true } }),
     ]);

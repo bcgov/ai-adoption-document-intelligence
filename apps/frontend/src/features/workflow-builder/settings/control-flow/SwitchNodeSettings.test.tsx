@@ -339,8 +339,8 @@ describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChan
     ) as HTMLInputElement;
 
     fireEvent.click(opSelect);
-    // D23 — the option is labelled for a person now; the stored value is
-    // still the raw `not-equals`, which the assertion below checks.
+    // The option is labelled for a person; the stored value is the raw
+    // `not-equals`, which the assertion below checks.
     fireEvent.click(screen.getByText(OPERATOR_LABELS["not-equals"]));
 
     expect(spy).toHaveBeenCalled();

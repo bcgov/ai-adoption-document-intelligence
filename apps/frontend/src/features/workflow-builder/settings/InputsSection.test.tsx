@@ -360,11 +360,10 @@ describe("InputsSection", () => {
     ).toBeInTheDocument();
   });
 
-  // D21 — "Inputs listed as Pinned don't have any input edges, so who is
-  // choosing this connection? … is that someone the user or a developer?"
-  // The old tooltip said "Pinned by you", which is false on every seeded demo
-  // (their explicit ctx bindings become locks at load time). The badge must
-  // describe the act without claiming an actor it cannot know.
+  // A Pinned input has no input edge, so the reader needs the badge to say
+  // who or what chose the connection. "Pinned by you" would be false on every
+  // seeded demo (their explicit ctx bindings become locks at load time). The
+  // badge must describe the act without claiming an actor it cannot know.
   it("explains a pin without asserting who made it", async () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",

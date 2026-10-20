@@ -299,9 +299,9 @@ describe("JoinNodeSettings — Scenario 4: edits propagate a typed update", () =
     ) as HTMLInputElement;
     fireEvent.change(resultsField, { target: { value: "summary" } });
 
-    // D7 — free-text settings fields draft locally and commit on a quiet
-    // period (or blur/unmount) instead of once per character, so the commit
-    // is asserted through `waitFor` rather than synchronously.
+    // Free-text settings fields draft locally and commit on a quiet period
+    // (or blur/unmount) instead of once per character, so the commit is
+    // asserted through `waitFor` rather than synchronously.
     await waitFor(() => expect(spy).toHaveBeenCalled());
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes.j1 as JoinNode;

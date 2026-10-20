@@ -2,28 +2,26 @@
  * `NodeResultStrip` — the one-line, **fixed-height** result band on a node
  * card, and the popover that holds the full preview behind it.
  *
- * UX walkthrough 2026-08-06, item 9. Alex, watching a Try on the shared
- * screen: *"when you hit try, it also resized the boxes and they started to
- * overlap in a strange way … it's kind of jarring."* The cause was
- * arithmetic, not styling — `NodePreviewOverlay` mounted the full
- * `PreviewWidget` INLINE in the card body, so a card grew by up to
- * `PREVIEW_MAX_HEIGHT_PX` (200px) into dagre's 60px `nodesep`, and grew twice:
- * once for the 120px loading skeleton, again when real content replaced it.
+ * Pressing Try must not resize the cards or make them overlap. The constraint
+ * is arithmetic, not styling — the full `PreviewWidget` mounted INLINE in the
+ * card body would grow a card by up to `PREVIEW_MAX_HEIGHT_PX` (200px) into
+ * dagre's 60px `nodesep`, and grow it twice: once for the 120px loading
+ * skeleton, again when real content replaces it.
  *
- * Option C (ruled 2026-08-08) fixes it by making the card's height *constant*:
+ * So the card's height is *constant*:
  *
  *   - Every card that can produce output carries this strip at ALL times,
  *     including before a run — "Not run yet" — so pressing Try changes what
  *     the strip says and never how tall it is.
  *   - The strip is exactly `PREVIEW_STRIP_HEIGHT_PX` tall in every state. The
  *     loading state is a skeleton *inside* that height, not a 120px block.
- *   - The full, scrollable preview moves into a popover opened by clicking the
+ *   - The full, scrollable preview lives in a popover opened by clicking the
  *     strip. It renders the same `PreviewWidget` off the same shared batch
  *     query, so opening it costs no extra request.
  *
  * The cost, stated plainly: during a run you see *that* each node produced
  * something and roughly what, rather than every node's whole payload at once.
- * That was the accepted trade — see
+ * That trade is deliberate — see
  * `feature-docs/20260806-ux-review-batch-four/DECISIONS/09-try-reflow.md`.
  *
  * **Control-flow nodes get no strip at all.** They pass `producesOutput=false`
@@ -405,13 +403,12 @@ export function NodeResultStrip({
          * them — then the strip has to say which output you are looking at,
          * because the popover's chips can change it.
          *
-         * The kind used to be printed here too. It was measured out: on the
-         * try-in-place demo the upload card is 200px wide, and "DocumentRef"
-         * took so much of the strip that the value it was labelling showed as
-         * "seedd…". The kind is already on the card — the output port's kind
-         * pill and, on activity cards, the port rows — so spending a narrow
-         * card's only line repeating it buys nothing, while the value's first
-         * line is the thing Alex ruled the strip should show.
+         * The kind is not printed here. On the try-in-place demo the upload
+         * card is 200px wide, and "DocumentRef" takes so much of the strip
+         * that the value it labels shows as "seedd…". The kind is already on
+         * the card — the output port's kind pill and, on activity cards, the
+         * port rows — so spending a narrow card's only line repeating it buys
+         * nothing, while the value's first line is what the strip is for.
          */}
         {previewOutputs.length > 1 && (
           <Text

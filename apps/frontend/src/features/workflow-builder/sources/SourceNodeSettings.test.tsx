@@ -248,9 +248,9 @@ describe("SourceNodeSettings — Scenario 3: form body renders the right fields"
     ) as HTMLInputElement;
     fireEvent.change(ctxKeyInput, { target: { value: "uploadedUrl" } });
 
-    // D7 — free-text settings fields draft locally and commit on a quiet
-    // period (or blur/unmount) instead of once per character, so the commit
-    // is asserted through `waitFor` rather than synchronously.
+    // Free-text settings fields draft locally and commit on a quiet period
+    // (or blur/unmount) instead of once per character, so the commit is
+    // asserted through `waitFor` rather than synchronously.
     await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
     const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes["src-upload-1"] as SourceNode;
