@@ -18,6 +18,10 @@
  *   - `initialDelay`, `timeout` — optional `TextInput` Temporal durations,
  *     each with the same inline validation as `interval`.
  *
+ * The four schedule boxes keep what is typed locally and commit it once
+ * typing pauses, on blur, or when the panel unmounts, so a keystroke does not
+ * rewrite the workflow. The three optional limits start folded.
+ *
  * The common header (label / type badge / delete) and footer
  * (input / output port bindings) live in the shared `NodeSettingsPanel`;
  * this component renders only the pollUntil-specific body.
@@ -33,14 +37,13 @@ import {
   Box,
   Collapse,
   Divider,
-  NumberInput,
   Select,
   Stack,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type {
   ConditionExpression,
   GraphWorkflowConfig,
@@ -53,6 +56,8 @@ import {
   type JsonSchemaProperty,
 } from "../../json-schema-form";
 import { replaceNode } from "../../replace-node";
+import { useDebouncedTextCommit } from "../../use-debounced-text-commit";
+import { DebouncedNumberInput } from "../rich-widgets";
 import {
   isValidTemporalDuration,
   TEMPORAL_DURATION_HELP_TEXT,
@@ -187,47 +192,26 @@ export function PollUntilNodeSettings({
     });
   };
 
-  // ── Interval (Temporal duration, required) ─────────────────────────────
-  // `interval` is required on the node, so we keep a local draft so the
-  // user can type invalid values briefly and see an inline error without
-  // the form propagating broken values into the graph config.
-  const [intervalDraft, setIntervalDraft] = useState(node.interval);
-  useEffect(() => {
-    setIntervalDraft(node.interval);
-  }, [node.interval]);
-
-  const intervalDraftValid = isValidTemporalDuration(intervalDraft);
-  const intervalError =
-    !intervalDraftValid && intervalDraft.length > 0
-      ? "Enter a Temporal duration like 30s, 5m, 1h."
-      : intervalDraft.length === 0
-        ? "Interval is required."
-        : null;
-
-  const commitInterval = (raw: string) => {
-    setIntervalDraft(raw);
-    if (!isValidTemporalDuration(raw)) return;
-    if (raw === node.interval) return;
-    updateNode({ ...node, interval: raw });
-  };
-
   // ── Max attempts (optional integer >= 1) ───────────────────────────────
-  const setMaxAttempts = (next: number | string) => {
-    if (next === "" || next === null || next === undefined) {
+  // An emptied box clears the limit; a value below 1 or with a fraction is
+  // not a valid attempt count and is not committed.
+  const setMaxAttempts = (next: number | undefined) => {
+    if (next === undefined) {
+      if (node.maxAttempts === undefined) return;
       const cleared: PollUntilNode = { ...node };
       delete cleared.maxAttempts;
       updateNode(cleared);
       return;
     }
-    if (typeof next !== "number" || !Number.isFinite(next)) return;
     if (next < 1 || !Number.isInteger(next)) return;
+    if (next === node.maxAttempts) return;
     updateNode({ ...node, maxAttempts: next });
   };
 
-  // ── D30 — the three optional limits, folded by default ─────────────────
-  // Anything already set is named in the toggle's own label, so folding can
-  // never conceal a configured value; and a node that arrives with one set
-  // opens the section rather than making the reader find it.
+  // ── The three optional limits, folded on arrival ───────────────────────
+  // All three have engine defaults, so they start folded on every poll step.
+  // Every limit that is set is named in the toggle's own label, so folding
+  // never conceals a configured value.
   const setLimits: string[] = [];
   if (node.maxAttempts !== undefined) {
     setLimits.push(`max ${node.maxAttempts} attempts`);
@@ -240,7 +224,7 @@ export function PollUntilNodeSettings({
   }
   const limitsSummary =
     setLimits.length > 0 ? setLimits.join(", ") : "none set, engine defaults";
-  const [limitsOpen, setLimitsOpen] = useState(setLimits.length > 0);
+  const [limitsOpen, setLimitsOpen] = useState(false);
 
   return (
     <Stack
@@ -249,11 +233,10 @@ export function PollUntilNodeSettings({
       data-node-id={node.id}
     >
       {/*
-        D30 — "Why does a node like Poll OCR Results have so many more fields
-        than something like Extract OCR Results?" Because it is not the same
-        shape of thing: this card is a LOOP that wraps a step, so it carries
-        the loop's own settings on top of the step's. Saying so once at the top
-        costs one line and answers the question before it is asked.
+        This card is a loop that wraps a step, so it carries the loop's own
+        settings on top of the step's, and has more fields than the same
+        activity on a card of its own. The sentence says so before the
+        reader has to ask.
       */}
       <Text size="xs" c="dimmed" data-testid="poll-until-node-settings-intro">
         This is a loop, not a single step. It runs the activity below over and
@@ -317,23 +300,22 @@ export function PollUntilNodeSettings({
           Schedule
         </Title>
         <Stack gap="xs">
-          <TextInput
+          <DurationTextInput
             label="Interval"
-            description={TEMPORAL_DURATION_HELP_TEXT}
             placeholder="e.g. 30s"
-            size="xs"
-            withAsterisk
-            value={intervalDraft}
-            error={intervalError}
-            onChange={(event) => commitInterval(event.currentTarget.value)}
-            data-testid="poll-until-node-settings-interval"
+            required
+            value={node.interval}
+            onCommit={(next) => {
+              if (next === undefined) return;
+              updateNode({ ...node, interval: next });
+            }}
+            testId="poll-until-node-settings-interval"
           />
           {/*
-            D30 — the three limits below all have engine defaults and are the
-            fields a reader least often sets, so they fold away. Folded, NOT
-            dropped: the panel is shorter by default and every control is one
-            click away, and the summary line names anything already set so a
-            configured limit can never hide behind a collapsed section.
+            The three limits below all have engine defaults, so they start
+            folded. Folded, not dropped: every control is one click away, and
+            the summary line names anything already set, so a configured
+            limit never hides behind the fold.
           */}
           <Anchor
             component="button"
@@ -346,7 +328,7 @@ export function PollUntilNodeSettings({
           </Anchor>
           <Collapse in={limitsOpen}>
             <Stack gap="xs" data-testid="poll-until-node-settings-limits">
-              <NumberInput
+              <DebouncedNumberInput
                 label="Max attempts (optional)"
                 description="Upper bound on polling iterations. Leave empty for the engine default."
                 placeholder="e.g. 10"
@@ -355,8 +337,8 @@ export function PollUntilNodeSettings({
                 step={1}
                 allowDecimal={false}
                 allowNegative={false}
-                value={node.maxAttempts ?? ""}
-                onChange={setMaxAttempts}
+                value={node.maxAttempts}
+                onCommit={setMaxAttempts}
                 data-testid="poll-until-node-settings-max-attempts"
               />
               <DurationTextInput
@@ -398,7 +380,7 @@ export function PollUntilNodeSettings({
 }
 
 // ---------------------------------------------------------------------------
-// Optional Temporal-duration TextInput
+// Temporal-duration TextInput
 // ---------------------------------------------------------------------------
 
 interface DurationTextInputProps {
@@ -406,10 +388,13 @@ interface DurationTextInputProps {
   placeholder: string;
   /** Current persisted value on the node (undefined when unset). */
   value: string | undefined;
+  /** A required duration cannot be emptied: an empty box is an error. */
+  required?: boolean;
   /**
-   * Fires with the next persisted value:
+   * Fires once typing pauses, on blur, or on unmount, with the next
+   * persisted value:
    *   - a valid duration string when the user enters one,
-   *   - `undefined` when the field is cleared.
+   *   - `undefined` when an optional field is cleared.
    * Invalid drafts are kept local and surfaced as an inline error; they
    * never reach `onCommit`.
    */
@@ -421,29 +406,31 @@ function DurationTextInput({
   label,
   placeholder,
   value,
+  required = false,
   onCommit,
   testId,
 }: DurationTextInputProps) {
-  const [draft, setDraft] = useState(value ?? "");
-  useEffect(() => {
-    setDraft(value ?? "");
-  }, [value]);
+  const { draft, setDraft, flush } = useDebouncedTextCommit(
+    value ?? "",
+    (next) => {
+      if (next.length === 0) {
+        if (!required && value !== undefined) onCommit(undefined);
+        return;
+      }
+      if (!isValidTemporalDuration(next)) return;
+      if (next === value) return;
+      onCommit(next);
+    },
+  );
 
-  const hasContent = draft.length > 0;
-  const valid = !hasContent || isValidTemporalDuration(draft);
   const error =
-    hasContent && !valid ? "Enter a Temporal duration like 30s, 5m, 1h." : null;
-
-  const handleChange = (raw: string) => {
-    setDraft(raw);
-    if (raw.length === 0) {
-      if (value !== undefined) onCommit(undefined);
-      return;
-    }
-    if (!isValidTemporalDuration(raw)) return;
-    if (raw === value) return;
-    onCommit(raw);
-  };
+    draft.length === 0
+      ? required
+        ? `${label} is required.`
+        : null
+      : isValidTemporalDuration(draft)
+        ? null
+        : "Enter a Temporal duration like 30s, 5m, 1h.";
 
   return (
     <TextInput
@@ -451,9 +438,11 @@ function DurationTextInput({
       description={TEMPORAL_DURATION_HELP_TEXT}
       placeholder={placeholder}
       size="xs"
+      withAsterisk={required}
       value={draft}
       error={error}
-      onChange={(event) => handleChange(event.currentTarget.value)}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onBlur={flush}
       data-testid={testId}
     />
   );

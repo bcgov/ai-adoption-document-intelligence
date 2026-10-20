@@ -10,6 +10,7 @@ import "@testing-library/jest-dom";
 import { ACTIVITY_CATALOG } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -261,6 +262,8 @@ describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressi
       "poll-until-node-settings-condition-left-ref-input",
     ) as HTMLInputElement;
     fireEvent.change(leftRef, { target: { value: "ctx.status" } });
+    // Moving on to the other operand leaves this box, which commits it.
+    fireEvent.blur(leftRef);
 
     // Switch the right operand to literal mode.
     const rightMode = screen.getByTestId(
@@ -273,10 +276,11 @@ describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressi
       "poll-until-node-settings-condition-right-literal-input",
     ) as HTMLInputElement;
     fireEvent.change(rightLiteral, { target: { value: "completed" } });
+    fireEvent.blur(rightLiteral);
 
-    // D7 — free-text settings fields draft locally and commit on a quiet
-    // period (or blur/unmount) instead of once per character, so the commit
-    // is asserted through `waitFor` rather than synchronously.
+    // Free-text settings fields draft locally and commit once typing pauses
+    // (or on blur/unmount) instead of once per character, so the commit is
+    // asserted through `waitFor` rather than synchronously.
     await waitFor(() => {
       const latest = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = latest?.nodes.p1 as PollUntilNode | undefined;
@@ -363,6 +367,7 @@ describe("PollUntilNodeSettings — Scenario 4: interval is validated as a Tempo
 
     // ── 1) '30s' is accepted and propagated. ─────────────────────────────
     fireEvent.change(intervalInput, { target: { value: "30s" } });
+    fireEvent.blur(intervalInput);
     const after30s = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((after30s.nodes.p1 as PollUntilNode).interval).toBe("30s");
     const callCountAfter30s = spy.mock.calls.length;
@@ -371,6 +376,7 @@ describe("PollUntilNodeSettings — Scenario 4: interval is validated as a Tempo
 
     // ── 2) 'abc' is rejected — no new onConfigChange and an error shows. ─
     fireEvent.change(intervalInput, { target: { value: "abc" } });
+    fireEvent.blur(intervalInput);
     // The committed interval still reads as "30s" because invalid drafts
     // are not propagated.
     expect(spy.mock.calls.length).toBe(callCountAfter30s);
@@ -382,6 +388,7 @@ describe("PollUntilNodeSettings — Scenario 4: interval is validated as a Tempo
 
     // ── 3) '5m' is accepted and propagated. ──────────────────────────────
     fireEvent.change(intervalInput, { target: { value: "5m" } });
+    fireEvent.blur(intervalInput);
     const after5m = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((after5m.nodes.p1 as PollUntilNode).interval).toBe("5m");
     // Once a valid value is entered, the aria-invalid flag clears.
@@ -395,11 +402,11 @@ describe("PollUntilNodeSettings — Scenario 4: interval is validated as a Tempo
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// D30 — "Why does a node like Poll OCR Results have so many more fields than
-// something like Extract OCR Results?"
+// The panel explains why a poll step has more fields than the activity it
+// wraps, and keeps the three optional limits folded.
 // ---------------------------------------------------------------------------
 
-describe("PollUntilNodeSettings — D30: the panel explains its own size", () => {
+describe("PollUntilNodeSettings — the panel explains its own size", () => {
   it("states that this is a loop wrapping an activity", () => {
     const { spy: _spy } = mountWithSpy(
       makeConfig([pollUntilNode("p1", "Poll")]),
@@ -424,32 +431,48 @@ describe("PollUntilNodeSettings — D30: the panel explains its own size", () =>
     ).toBeInTheDocument();
   });
 
-  it("opens the section and names the values when limits are already set", () => {
+  it("keeps set limits folded too, naming each value in the toggle", () => {
     mountWithSpy(
       makeConfig([
         pollUntilNode("p1", "Poll", { maxAttempts: 10, timeout: "10m" }),
       ]),
       "p1",
     );
-    const toggle = screen.getByTestId("poll-until-node-settings-limits-toggle");
-    // Already open, so the affordance offers to hide rather than to show —
-    // a configured limit can never be concealed by the fold.
-    expect(toggle).toHaveTextContent("Hide limits");
-  });
-
-  it("summarises set limits in the toggle when collapsed", () => {
-    mountWithSpy(
-      makeConfig([
-        pollUntilNode("p1", "Poll", { maxAttempts: 10, timeout: "10m" }),
-      ]),
-      "p1",
-    );
-    fireEvent.click(
-      screen.getByTestId("poll-until-node-settings-limits-toggle"),
-    );
+    // Folded on arrival even though limits are set: the toggle line names
+    // every value, so nothing configured is hidden.
     expect(
       screen.getByTestId("poll-until-node-settings-limits-toggle"),
     ).toHaveTextContent("Show limits — max 10 attempts, gives up after 10m");
+  });
+
+  it("names all three limits when a step sets all of them", () => {
+    mountWithSpy(
+      makeConfig([
+        pollUntilNode("p1", "Poll", {
+          maxAttempts: 20,
+          initialDelay: "5s",
+          timeout: "10m",
+        }),
+      ]),
+      "p1",
+    );
+    expect(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    ).toHaveTextContent(
+      "Show limits — max 20 attempts, starts after 5s, gives up after 10m",
+    );
+  });
+
+  it("opens and closes the limits from the toggle", () => {
+    mountWithSpy(
+      makeConfig([pollUntilNode("p1", "Poll", { maxAttempts: 10 })]),
+      "p1",
+    );
+    const toggle = screen.getByTestId("poll-until-node-settings-limits-toggle");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveTextContent("Hide limits");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveTextContent("Show limits — max 10 attempts");
   });
 });
 
@@ -459,18 +482,23 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
     const config = makeConfig([initial]);
 
     const { spy } = mountWithSpy(config, "p1");
+    fireEvent.click(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    );
 
     // ── maxAttempts: set to 10, then clear ───────────────────────────────
     const maxAttemptsInput = screen.getByTestId(
       "poll-until-node-settings-max-attempts",
     ) as HTMLInputElement;
     fireEvent.change(maxAttemptsInput, { target: { value: "10" } });
+    fireEvent.blur(maxAttemptsInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
       expect(updated.maxAttempts).toBe(10);
     }
     fireEvent.change(maxAttemptsInput, { target: { value: "" } });
+    fireEvent.blur(maxAttemptsInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
@@ -482,6 +510,7 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
       "poll-until-node-settings-initial-delay",
     ) as HTMLInputElement;
     fireEvent.change(initialDelayInput, { target: { value: "5s" } });
+    fireEvent.blur(initialDelayInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
@@ -490,6 +519,7 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
     // Validation: an invalid draft should not propagate, and surface an
     // inline error.
     fireEvent.change(initialDelayInput, { target: { value: "abc" } });
+    fireEvent.blur(initialDelayInput);
     expect(initialDelayInput).toHaveAttribute("aria-invalid", "true");
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
@@ -498,6 +528,7 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
       expect(updated.initialDelay).toBe("5s");
     }
     fireEvent.change(initialDelayInput, { target: { value: "" } });
+    fireEvent.blur(initialDelayInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
@@ -509,6 +540,7 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
       "poll-until-node-settings-timeout",
     ) as HTMLInputElement;
     fireEvent.change(timeoutInput, { target: { value: "10m" } });
+    fireEvent.blur(timeoutInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
@@ -516,6 +548,7 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
     }
     // Invalid draft does not propagate and surfaces an error.
     fireEvent.change(timeoutInput, { target: { value: "zzz" } });
+    fireEvent.blur(timeoutInput);
     expect(timeoutInput).toHaveAttribute("aria-invalid", "true");
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
@@ -524,11 +557,101 @@ describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and valid
       expect(updated.timeout).toBe("10m");
     }
     fireEvent.change(timeoutInput, { target: { value: "" } });
+    fireEvent.blur(timeoutInput);
     {
       const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
       const updated = next.nodes.p1 as PollUntilNode;
       expect(updated.timeout).toBeUndefined();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The schedule boxes commit once per burst of typing, not per keystroke
+// ---------------------------------------------------------------------------
+
+/** Types `text` one character at a time, the way a keyboard does. */
+function typeInto(input: HTMLElement, from: string, text: string) {
+  for (let i = 1; i <= text.length; i++) {
+    fireEvent.change(input, { target: { value: from + text.slice(0, i) } });
+  }
+}
+
+async function waitPastDebounce() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+}
+
+describe("PollUntilNodeSettings — schedule boxes commit once per burst", () => {
+  it.each([
+    ["interval", "poll-until-node-settings-interval", "20s"],
+    ["initialDelay", "poll-until-node-settings-initial-delay", "120s"],
+    ["timeout", "poll-until-node-settings-timeout", "300s"],
+  ] as const)("%s: a duration typed character by character commits once, after typing pauses", async (field, testId, typed) => {
+    const { spy } = mountWithSpy(
+      makeConfig([pollUntilNode("p1", "Poll", { interval: "1s" })]),
+      "p1",
+    );
+    fireEvent.click(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    );
+    const input = screen.getByTestId(testId) as HTMLInputElement;
+
+    // Select-all and type over whatever the box holds.
+    typeInto(input, "", typed);
+    expect(input.value).toBe(typed);
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const updated = (spy.mock.lastCall?.[0] as GraphWorkflowConfig).nodes
+      .p1 as PollUntilNode;
+    expect(updated[field]).toBe(typed);
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("max attempts typed digit by digit commits the whole number once", async () => {
+    const { spy } = mountWithSpy(
+      makeConfig([pollUntilNode("p1", "Poll")]),
+      "p1",
+    );
+    fireEvent.click(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    );
+    const input = screen.getByTestId("poll-until-node-settings-max-attempts");
+
+    for (const value of ["2", "25", "250"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const updated = (spy.mock.lastCall?.[0] as GraphWorkflowConfig).nodes
+      .p1 as PollUntilNode;
+    expect(updated.maxAttempts).toBe(250);
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("an invalid duration shows its error at once and is never committed", async () => {
+    const { spy } = mountWithSpy(
+      makeConfig([pollUntilNode("p1", "Poll", { interval: "30s" })]),
+      "p1",
+    );
+    const input = screen.getByTestId("poll-until-node-settings-interval");
+
+    fireEvent.change(input, { target: { value: "30 seconds" } });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+
+    await waitPastDebounce();
+    fireEvent.blur(input);
+    expect(spy).not.toHaveBeenCalled();
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 });
 
