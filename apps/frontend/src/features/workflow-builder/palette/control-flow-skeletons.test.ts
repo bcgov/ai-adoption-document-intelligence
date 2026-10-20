@@ -8,16 +8,19 @@
 import { describe, expect, it } from "vitest";
 import type {
   ChildWorkflowNode,
+  GraphWorkflowConfig,
   HumanGateNode,
   JoinNode,
   MapNode,
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import { declareCtxKey } from "../graph-widgets/ctx-declaration";
 import {
   buildControlFlowSkeleton,
   DEFAULT_MAP_ITEM_CTX_KEY,
   DEFAULT_MAP_MAX_CONCURRENCY,
+  declareSkeletonCtxKeys,
 } from "./control-flow-skeletons";
 
 describe("buildControlFlowSkeleton", () => {
@@ -131,11 +134,11 @@ describe("map skeleton seeds a concurrency limit (G-067)", () => {
   });
 });
 
-describe("map skeleton seeds an item ctx key (D24)", () => {
+describe("map skeleton seeds an item ctx key", () => {
   it("gives a newly dropped map a non-empty item variable", () => {
     const skeleton = buildControlFlowSkeleton("map", "m1") as MapNode;
     // An empty itemCtxKey is a hard validation error, so a map dropped from
-    // the palette used to arrive already red before the author touched it.
+    // the palette would arrive already red before the author touched it.
     expect(skeleton.itemCtxKey).not.toBe("");
     expect(skeleton.itemCtxKey.trim()).toBe(skeleton.itemCtxKey);
   });
@@ -158,12 +161,70 @@ describe("map skeleton seeds an item ctx key (D24)", () => {
   });
 
   it("is a creation-time default only — the builder never sees a saved node", () => {
-    // Guards the "existing workflows must be untouched" half of D24: this
-    // module's only export path is construction from a palette drop, so there
-    // is no code path here that could rewrite a loaded config.
+    // Existing workflows keep the item name they were authored with: this
+    // module builds nodes to be placed, and reads no saved node.
     const a = buildControlFlowSkeleton("map", "m1") as MapNode;
     const b = buildControlFlowSkeleton("map", "m2") as MapNode;
     expect(a).not.toBe(b);
     expect(a.itemCtxKey).toBe(b.itemCtxKey);
+  });
+});
+
+describe("declareSkeletonCtxKeys", () => {
+  const base: GraphWorkflowConfig = {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "",
+    nodes: {},
+    edges: [],
+    ctx: { documentId: { type: "string" } },
+  };
+
+  it("declares a new loop's item variable the way + Create variable does", () => {
+    const loop = buildControlFlowSkeleton("map", "map_1");
+    const placed: GraphWorkflowConfig = { ...base, nodes: { map_1: loop } };
+
+    const next = declareSkeletonCtxKeys(placed, loop);
+
+    // The same declaration the picker's "+ Create variable" writes.
+    expect(next.ctx[DEFAULT_MAP_ITEM_CTX_KEY]).toEqual(
+      declareCtxKey(placed, DEFAULT_MAP_ITEM_CTX_KEY).ctx[
+        DEFAULT_MAP_ITEM_CTX_KEY
+      ],
+    );
+    expect(next.ctx[DEFAULT_MAP_ITEM_CTX_KEY]).toEqual({ type: "object" });
+    // Nothing else changes.
+    expect(next.ctx.documentId).toEqual({ type: "string" });
+    expect(next.nodes).toBe(placed.nodes);
+  });
+
+  it("leaves a name that is already declared as it is, so a second loop changes nothing", () => {
+    const declared: GraphWorkflowConfig = {
+      ...base,
+      ctx: {
+        ...base.ctx,
+        [DEFAULT_MAP_ITEM_CTX_KEY]: {
+          type: "object",
+          description: "The segment the first loop is on",
+        },
+      },
+    };
+    const secondLoop = buildControlFlowSkeleton("map", "map_2");
+
+    expect(declareSkeletonCtxKeys(declared, secondLoop)).toBe(declared);
+  });
+
+  it("declares nothing for the other control-flow steps", () => {
+    const others = [
+      "switch",
+      "join",
+      "childWorkflow",
+      "pollUntil",
+      "humanGate",
+    ] as const;
+    for (const type of others) {
+      const node = buildControlFlowSkeleton(type, `${type}_1`);
+      expect(declareSkeletonCtxKeys(base, node)).toBe(base);
+    }
   });
 });

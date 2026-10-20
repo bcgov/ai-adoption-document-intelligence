@@ -4,7 +4,7 @@
  * Each builder returns a fully-typed `GraphNode` with the defaults
  * locked in for US-011 Scenario 3:
  *   - switch        → cases: []
- *   - map           → itemCtxKey: "currentSegment" (D24), empty collection
+ *   - map           → itemCtxKey: "currentSegment", empty collection
  *                     ctxKey + empty body refs
  *   - join          → empty sourceMapNodeId, strategy: "all"
  *   - childWorkflow → workflowRef: { type: "library", workflowId: "" }
@@ -14,7 +14,9 @@
  * Position metadata is intentionally NOT set here — the host
  * (`WorkflowEditorV2Page.addControlFlowNode`) injects the same
  * `x = 80 + i*240, y = 100 + (i%3)*140` stagger the activity-add path
- * uses, so the position logic stays in one place.
+ * uses, so the position logic stays in one place. Whoever places a skeleton
+ * must pass the result through `declareSkeletonCtxKeys` in the same write, so
+ * the variables the skeleton writes are declared along with it.
  *
  * `type` is narrowed to `Exclude<NodeType, "activity">` because "activity"
  * is not a control-flow type and has its own add path. This keeps each
@@ -24,6 +26,7 @@
 import type {
   ChildWorkflowNode,
   GraphNode,
+  GraphWorkflowConfig,
   HumanGateNode,
   JoinNode,
   MapNode,
@@ -31,6 +34,7 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import { declareCtxKey } from "../graph-widgets/ctx-declaration";
 import {
   CONTROL_FLOW_PALETTE_ENTRIES,
   type ControlFlowPaletteEntry,
@@ -74,11 +78,12 @@ function buildSwitchSkeleton(id: string): SwitchNode {
 export const DEFAULT_MAP_MAX_CONCURRENCY = 5;
 
 /**
- * Default item variable for a newly dropped map (D24).
+ * Default item variable for a newly dropped map.
  *
- * `itemCtxKey` is required and was created EMPTY, which is a hard validation
- * error on every new loop before the author has touched it — the node arrives
- * already red.
+ * `itemCtxKey` is required, so a new loop arrives with one filled in rather
+ * than starting with a validation error before the author has touched it.
+ * `declareSkeletonCtxKeys` declares it as a workflow variable when the loop is
+ * placed, because the steps inside the loop read it as soon as they are wired.
  *
  * `currentSegment` rather than any other name because the choice is not
  * cosmetic: the `segment.<field>` shorthand in condition expressions is
@@ -159,6 +164,25 @@ function buildHumanGateSkeleton(id: string): HumanGateNode {
     // that takes. `onTimeout` only applies once the author sets a timeout.
     onTimeout: "fail",
   };
+}
+
+/**
+ * Declares the workflow variables a freshly placed skeleton writes, in the
+ * config that already holds it.
+ *
+ * A new loop writes its item variable on every iteration, and a step wired
+ * inside the loop reads it straight away; an undeclared variable on a port
+ * binding is a validation error. So the item variable is declared the way
+ * "+ Create variable" declares one (`declareCtxKey`, as an `object`). An
+ * existing declaration is left as it is, so a second loop reusing the name
+ * changes nothing and keeps its reuse warning.
+ */
+export function declareSkeletonCtxKeys(
+  config: GraphWorkflowConfig,
+  node: GraphNode,
+): GraphWorkflowConfig {
+  if (node.type !== "map" || node.itemCtxKey === "") return config;
+  return declareCtxKey(config, node.itemCtxKey);
 }
 
 /**

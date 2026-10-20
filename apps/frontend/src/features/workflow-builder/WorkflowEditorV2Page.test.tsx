@@ -4158,3 +4158,80 @@ describe("WorkflowEditorV2Page — description moves to Workflow settings (R-2)"
     expect(liveConfig().metadata.description).toBe("From the config");
   });
 });
+
+// ---------------------------------------------------------------------------
+// A loop added from the palette arrives with its item variable declared
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — a new loop's item variable is declared", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedPaletteProps.current = null;
+    existingWorkflowRef.current = null;
+  });
+
+  function addFromPalette(type: string) {
+    const onAddControlFlowNode = capturedPaletteProps.current
+      ?.onAddControlFlowNode as ((t: string) => void) | undefined;
+    if (!onAddControlFlowNode) {
+      throw new Error("Palette stub did not capture onAddControlFlowNode");
+    }
+    act(() => {
+      onAddControlFlowNode(type);
+    });
+  }
+
+  function canvasConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  it("declares the pre-filled item variable in the same write that adds the loop", () => {
+    renderPage();
+    expect(canvasConfig().ctx.currentSegment).toBeUndefined();
+
+    addFromPalette("map");
+
+    const config = canvasConfig();
+    const loop = config.nodes.map_1;
+    expect(loop?.type === "map" && loop.itemCtxKey).toBe("currentSegment");
+    // What "+ Create variable" would have written.
+    expect(config.ctx.currentSegment).toEqual({ type: "object" });
+  });
+
+  it("leaves the declaration alone when a second loop reuses the name", () => {
+    renderPage();
+    addFromPalette("map");
+    const declared = canvasConfig().ctx.currentSegment;
+
+    addFromPalette("map");
+
+    const config = canvasConfig();
+    expect(Object.keys(config.nodes).sort()).toEqual(["map_1", "map_2"]);
+    expect(config.ctx.currentSegment).toBe(declared);
+  });
+
+  it("removes the loop and its declaration together on one Undo", () => {
+    renderPage();
+    addFromPalette("map");
+    expect(canvasConfig().ctx.currentSegment).toEqual({ type: "object" });
+
+    fireEvent.click(screen.getByTestId("undo-button"));
+
+    const config = canvasConfig();
+    expect(config.nodes).toEqual({});
+    expect(config.ctx.currentSegment).toBeUndefined();
+  });
+
+  it("declares nothing for a control-flow step that writes no variable", () => {
+    renderPage();
+    const ctxBefore = canvasConfig().ctx;
+
+    addFromPalette("switch");
+
+    expect(canvasConfig().ctx).toBe(ctxBefore);
+  });
+});

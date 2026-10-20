@@ -122,6 +122,7 @@ import { ActivityPalette } from "./palette/ActivityPalette";
 import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
+  declareSkeletonCtxKeys,
 } from "./palette/control-flow-skeletons";
 import {
   type ReplayVersionRef,
@@ -1213,14 +1214,19 @@ function WorkflowEditorV2PageBody({
         ...(newNode.metadata ?? {}),
         position: pos,
       };
+      // One write, so one undo step: the node, and the variables it writes
+      // (a new loop's item variable) declared alongside it.
       setConfig((prev) => {
         const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
         const nextNodes = { ...prev.nodes, [id]: newNode };
-        return {
-          ...prev,
-          nodes: nextNodes,
-          entryNodeId: nextEntryNodeId,
-        };
+        return declareSkeletonCtxKeys(
+          {
+            ...prev,
+            nodes: nextNodes,
+            entryNodeId: nextEntryNodeId,
+          },
+          newNode,
+        );
       });
       setSelectedNodeId(id);
     },
