@@ -905,18 +905,18 @@ no custom node.
 
 ## Questions where the app was right and would not say so
 
-### D10 · Order-of-operations edges can't be drawn by hand — **Answered: they always could**
+### D10 · Order-of-operations edges can't be drawn by hand — **Answered, and the drop made forgiving**
 
 > *"Cannot seem to manually connect order-of-operations edges. Is this
 > intentional?"*
 
-**Neither. The gesture works, and always did — nothing was disabled and nothing
-was enabled.** Drawn by hand in a real browser in both directions, both producing
+**Neither. Dot to dot, the gesture works and always did — nothing was
+disabled.** Drawn by hand in a real browser in both directions, both producing
 the dashed grey wire. Both handles are plain connectable handles and the
 node-level branch of the connect handler has always created the edge. **The
 behaviour was intentional; the invisibility was not.**
 
-Three measured reasons you could not find it:
+Four measured reasons you could not find it:
 
 1. **The dot did not say it was a run-order dot.** On a control-flow card (map,
    join, sub-workflow, human gate, poll-until, switch) hovering it read
@@ -932,6 +932,9 @@ Three measured reasons you could not find it:
    while the drag target sat at `x:1073 y:600`, i.e. underneath it. The press
    still lands and the drag still works, but what the UI *says* when you approach
    that dot is "pick a step to add", not "drag me".
+4. **Letting go over the other card, rather than on its dot, did nothing.** A
+   drop connects only when it lands within a few pixels of a dot; anywhere else
+   on the card, no wire was drawn and nothing was said.
 
 Both dots now carry one sentence, identical on every card, in the legend's own
 vocabulary:
@@ -941,7 +944,10 @@ vocabulary:
 
 The sentence opens beside the dot. It never shows while the "pick a step" list
 is open, so the two do not cover each other, and the list opened from a
-run-order dot repeats the sentence at its top.
+run-order dot repeats the sentence at its top. And a run-order drag let go
+anywhere over another step's card gets what a drop on that card's dot gets: the
+wire, or the reason it can't be drawn — it would change nothing, or close a
+loop.
 
 **No screenshot: the change is a tooltip that requires a hover, and a
 hover-held frame would cover the connectors it is about.** Confirmed after the
@@ -949,7 +955,8 @@ change on both a control-flow card and an activity card, returning identical
 strings.
 
 **See it yourself.** Any workflow editor: hover either grey node-level dot, then
-drag from one card's outgoing dot to another card's incoming dot.
+drag from one card's outgoing dot to another card — onto its incoming dot, or
+anywhere over the card.
 
 ### D28 · Run-order connectors — inconsistent, different heights, different sizes — **One accident, one real signal, one explanation**
 

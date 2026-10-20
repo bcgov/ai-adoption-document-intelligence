@@ -158,8 +158,8 @@ even if I start it from the Segments output."*
 **Expected:** A drag begun on a data port completes as a data edge, or refuses —
 it must not silently become a different kind of edge.
 
-### D10. [-] Order-of-operations edges cannot be drawn by hand
-**Answered — they were always drawable; nothing was disabled.** Three reasons he could not find the gesture: on control-flow cards the dot's hover described *data ports*, on the connector that carries no data; on activity cards it named the dot without saying it can be dragged; and hovering the outgoing dot opens the "pick a step" list over the space you would drag across. Every run-order dot now says *"Runs after — drag from here to another step's matching dot to make it run after this one. Order only, no data."*, beside the dot and never while that list is open; the list opened from a run-order dot repeats the sentence at its top.
+### D10. [x] Order-of-operations edges cannot be drawn by hand
+**Answered and fixed — dot to dot they were always drawable; nothing was disabled.** Four reasons he could not find the gesture: on control-flow cards the dot's hover described *data ports*, on the connector that carries no data; on activity cards it named the dot without saying it can be dragged; hovering the outgoing dot opens the "pick a step" list over the space you would drag across; and letting go over the other card, rather than on its dot, drew nothing and said nothing. Every run-order dot now says *"Runs after — drag from here to another step's matching dot to make it run after this one. Order only, no data."*, beside the dot and never while that list is open; the list opened from a run-order dot repeats the sentence at its top. A run-order drag let go anywhere over another step's card gets what a drop on its dot gets: the wire, or the reason it can't be drawn.
 **What he said:** *"Cannot seem to manually connect order-of-operations edges.
 Is this intentional?"*
 **Expected:** Decide and make it legible — either enable the drag, or make the
