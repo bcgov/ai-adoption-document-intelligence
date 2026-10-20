@@ -8,7 +8,14 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -284,11 +291,12 @@ describe("ConditionExpressionEditor — Scenario 2: ValueRef Ref/Literal toggle"
     expect(lastAfterToggle.left).toEqual({ literal: "" });
     expect("ref" in lastAfterToggle.left).toBe(false);
 
-    // Now type a literal value.
+    // Now type a literal value. Leaving the box writes it into the condition.
     const literalInput = screen.getByTestId(
       "condition-expression-editor-left-literal-input",
     ) as HTMLInputElement;
     fireEvent.change(literalInput, { target: { value: "42" } });
+    fireEvent.blur(literalInput);
 
     const lastAfterEdit = onChange.mock.lastCall?.[0] as ComparisonExpression;
     expect(lastAfterEdit.left).toEqual({ literal: 42 });
@@ -343,13 +351,15 @@ describe("ConditionExpressionEditor — §4.13 literal input stability", () => {
       "condition-expression-editor-right-literal-input",
     ) as HTMLInputElement;
 
-    // Author the STRING "10" via JSON quotes.
+    // Author the STRING "10" via JSON quotes, and leave the box to write it.
     fireEvent.change(input, { target: { value: '"10"' } });
+    fireEvent.blur(input);
 
-    // The input keeps exactly what was typed (no reformat that strips quotes).
-    expect(input.value).toBe('"10"');
+    // The written value is the string, and the box still shows exactly what
+    // was typed once that value has come back through the parent.
     const last = onChange.mock.lastCall?.[0] as ComparisonExpression;
     expect(last.right).toEqual({ literal: "10" });
+    expect(input.value).toBe('"10"');
   });
 
   it("does not reformat the visible text while typing an interim value", () => {
@@ -367,8 +377,195 @@ describe("ConditionExpressionEditor — §4.13 literal input stability", () => {
     // A plain number still parses to a number.
     fireEvent.change(input, { target: { value: "42" } });
     expect(input.value).toBe("42");
+    fireEvent.blur(input);
     const last = onChange.mock.lastCall?.[0] as ComparisonExpression;
     expect(last.right).toEqual({ literal: 42 });
+    expect(input.value).toBe("42");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typed values are written once per burst of typing
+// ---------------------------------------------------------------------------
+
+describe("ConditionExpressionEditor — typed values are written once per burst of typing", () => {
+  /**
+   * The parent owns the condition, as the settings panels do, so every write
+   * comes back into the editor as its new `value`. `rightWrites` records only
+   * the writes that set the right-hand side to a typed value.
+   */
+  function Harness({
+    initialRight,
+    rightWrites,
+    onAnyChange,
+  }: {
+    initialRight: ComparisonExpression["right"];
+    rightWrites: unknown[];
+    onAnyChange?: (next: ConditionExpression | undefined) => void;
+  }) {
+    const [value, setValue] = useState<ConditionExpression | undefined>({
+      operator: "equals",
+      left: { ref: "ctx.status" },
+      right: initialRight,
+    });
+    const [shown, setShown] = useState(true);
+    return (
+      <>
+        {shown && (
+          <ConditionExpressionEditor
+            value={value}
+            onChange={(next) => {
+              onAnyChange?.(next);
+              const right = (next as ComparisonExpression | undefined)?.right;
+              if (right !== undefined && "literal" in right) {
+                rightWrites.push(right.literal);
+              }
+              setValue(next);
+            }}
+            config={makeConfig([], { status: { type: "string" } })}
+          />
+        )}
+        <button
+          type="button"
+          data-testid="write-elsewhere"
+          onClick={() =>
+            setValue({
+              operator: "equals",
+              left: { ref: "ctx.status" },
+              right: { literal: "set elsewhere" },
+            })
+          }
+        >
+          write elsewhere
+        </button>
+        <button
+          type="button"
+          data-testid="close-editor"
+          onClick={() => setShown(false)}
+        >
+          close
+        </button>
+        <span data-testid="stored-right">
+          {JSON.stringify((value as ComparisonExpression | undefined)?.right)}
+        </span>
+      </>
+    );
+  }
+
+  const box = () =>
+    screen.getByTestId(
+      "condition-expression-editor-right-literal-input",
+    ) as HTMLInputElement;
+
+  /** One `change` per character, the way typing arrives. */
+  function typeInto(input: HTMLInputElement, from: string, text: string) {
+    for (let i = 1; i <= text.length; i++) {
+      fireEvent.change(input, { target: { value: from + text.slice(0, i) } });
+    }
+  }
+
+  /** Lets more than the commit pause go by. */
+  const pause = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+
+  it("writes the condition once after a burst of typing, not once per key", async () => {
+    const rightWrites: unknown[] = [];
+    renderEditor(
+      <Harness
+        initialRight={{ literal: "running" }}
+        rightWrites={rightWrites}
+      />,
+    );
+
+    typeInto(box(), "running", " late");
+    // Nothing is written while the keys are still coming.
+    expect(rightWrites).toEqual([]);
+    expect(box().value).toBe("running late");
+
+    await waitFor(() => expect(rightWrites).toEqual(["running late"]));
+    await pause();
+    expect(rightWrites).toEqual(["running late"]);
+    expect(screen.getByTestId("stored-right").textContent).toBe(
+      '{"literal":"running late"}',
+    );
+    expect(box().value).toBe("running late");
+  });
+
+  it("writes straight away when the box loses focus", () => {
+    const rightWrites: unknown[] = [];
+    renderEditor(
+      <Harness
+        initialRight={{ literal: "running" }}
+        rightWrites={rightWrites}
+      />,
+    );
+
+    typeInto(box(), "", "12");
+    fireEvent.blur(box());
+
+    expect(rightWrites).toEqual([12]);
+  });
+
+  it("writes a pending value when the editor is closed mid-burst", () => {
+    const rightWrites: unknown[] = [];
+    renderEditor(
+      <Harness
+        initialRight={{ literal: "running" }}
+        rightWrites={rightWrites}
+      />,
+    );
+
+    typeInto(box(), "", "done");
+    fireEvent.click(screen.getByTestId("close-editor"));
+
+    expect(rightWrites).toEqual(["done"]);
+  });
+
+  it("shows an outside change and drops the draft it replaced", async () => {
+    const rightWrites: unknown[] = [];
+    renderEditor(
+      <Harness
+        initialRight={{ literal: "running" }}
+        rightWrites={rightWrites}
+      />,
+    );
+
+    typeInto(box(), "", "draft");
+    fireEvent.click(screen.getByTestId("write-elsewhere"));
+
+    expect(box().value).toBe("set elsewhere");
+    await pause();
+    expect(rightWrites).toEqual([]);
+    expect(screen.getByTestId("stored-right").textContent).toBe(
+      '{"literal":"set elsewhere"}',
+    );
+  });
+
+  it("keeps a switch to From a step when a typed value was still pending", async () => {
+    const rightWrites: unknown[] = [];
+    const onAnyChange =
+      vi.fn<(next: ConditionExpression | undefined) => void>();
+    renderEditor(
+      <Harness
+        initialRight={{ literal: "running" }}
+        rightWrites={rightWrites}
+        onAnyChange={onAnyChange}
+      />,
+    );
+
+    typeInto(box(), "", "abandoned");
+    fireEvent.click(
+      within(
+        screen.getByTestId("condition-expression-editor-right-mode"),
+      ).getByText("From a step"),
+    );
+    await pause();
+
+    expect(rightWrites).toEqual([]);
+    const last = onAnyChange.mock.lastCall?.[0] as ComparisonExpression;
+    expect(last.right).toEqual({ ref: "" });
   });
 });
 
@@ -621,11 +818,12 @@ describe("ConditionExpressionEditor — Scenario 5: 3-level nested round-trip", 
 
     renderEditor(<Wrapper />);
 
-    // Find the contains comparison's RIGHT literal input and edit it.
+    // Find the contains comparison's RIGHT literal input, edit it and leave it.
     const literalInput = screen.getByTestId(
       "condition-expression-editor-operand-1-editor-right-literal-input",
     ) as HTMLInputElement;
     fireEvent.change(literalInput, { target: { value: "y" } });
+    fireEvent.blur(literalInput);
 
     const next = onChange.mock.lastCall?.[0] as LogicalExpression;
     expect(next.operator).toBe("and");
@@ -1251,7 +1449,7 @@ describe("ConditionExpressionEditor — reads as a sentence", () => {
     );
   });
 
-  it("keeps the sentence in step as the condition is edited", () => {
+  it("keeps the sentence in step as the condition is edited", async () => {
     function Harness() {
       const [expr, setExpr] = useState<ConditionExpression | undefined>(
         stopsWhenDone,
@@ -1271,8 +1469,12 @@ describe("ConditionExpressionEditor — reads as a sentence", () => {
       screen.getByTestId("condition-expression-editor-right-literal-input"),
       { target: { value: '"failed"' } },
     );
-    expect(sentence()).toBe(
-      'Polling stops when Poll OCR Results → Poll status is not equal to "failed".',
+    // The sentence reads the condition, which takes the typed value once
+    // typing pauses.
+    await waitFor(() =>
+      expect(sentence()).toBe(
+        'Polling stops when Poll OCR Results → Poll status is not equal to "failed".',
+      ),
     );
   });
 

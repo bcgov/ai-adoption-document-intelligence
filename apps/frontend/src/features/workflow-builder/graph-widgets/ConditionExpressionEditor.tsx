@@ -33,7 +33,7 @@ import {
   IconChevronRight,
   IconTrash,
 } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type {
   ComparisonExpression,
   ConditionExpression,
@@ -45,6 +45,7 @@ import type {
   ValueRef,
 } from "../../../types/workflow";
 import { formatConditionExpanded } from "../canvas/edge-labels";
+import { useDebouncedTextCommit } from "../use-debounced-text-commit";
 import { ConditionProducerPicker } from "./ConditionProducerPicker";
 import {
   producerCtxKey,
@@ -104,8 +105,9 @@ export interface ConditionExpressionEditorProps {
   /** Current expression. `undefined` renders a fresh editor (defaults to comparison). */
   value: ConditionExpression | undefined;
   /**
-   * Fires with the updated expression on every change, or `undefined`
-   * when the editor is cleared.
+   * Fires with the updated expression, or `undefined` when the editor is
+   * cleared. A typed value is written once typing pauses, or on blur or
+   * unmount, rather than on every key.
    */
   onChange: (next: ConditionExpression | undefined) => void;
   /** Full graph config, forwarded to nested `VariablePicker` instances. */
@@ -865,6 +867,15 @@ function parseLiteral(input: string): unknown {
   }
 }
 
+/**
+ * Whether two literals are the same value, type included: the string "10"
+ * and the number 10 differ. Literals are JSON values, so their JSON text is
+ * an exact comparison.
+ */
+function sameLiteral(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 function ValueRefEditor({
   label,
   value,
@@ -896,32 +907,34 @@ function ValueRefEditor({
     });
   };
 
-  // §4.13: hold the literal input as local text so typing is STABLE. The
-  // input's displayed value used to be re-derived from the parsed literal on
-  // every keystroke (`literalToString(parseLiteral(text))`), so the stored
-  // type flipped mid-typing (string→number→bool→null) and quoted strings like
-  // `"10"` were reformatted away (making `status == "10"` impossible to
-  // author). Local text is the source of truth for display; we still emit the
-  // parsed value on change. We re-sync from an EXTERNAL value change (mode
-  // switch, loading a different condition) but ignore the echo of our own
-  // edits by comparing the canonical string of what we last emitted.
+  // The typed value is a local draft, written into the condition after a pause
+  // in typing, on blur and on unmount: each write replaces the whole workflow
+  // config and re-renders the editor, which is too slow to do on every key.
+  //
+  // The box shows exactly what was typed (§4.13). `"10"` is the string 10 and
+  // `10` the number 10, yet both read back from the stored value as the text
+  // `10`. So while the stored value is what the last committed text parses
+  // to, the hook is handed that text rather than the stored value's own
+  // spelling. Otherwise the echo of this box's own write would look like an
+  // outside change and re-seed the box, turning `"10"` into `10` and the
+  // string into a number. A real outside change (undo, the mode switch, the
+  // agent) shows the stored value's own text and drops any pending draft.
+  //
+  // The hook sits here rather than in the literal branch so that switching to
+  // "From a step" is such an outside change, not an unmount that would flush a
+  // pending draft back over the switch.
   const incomingLiteral = "literal" in value ? value.literal : undefined;
-  const incomingCanonical = literalToString(incomingLiteral);
-  const [literalText, setLiteralText] = useState<string>(incomingCanonical);
-  const lastEmittedCanonicalRef = useRef<string>(incomingCanonical);
-  useEffect(() => {
-    if (incomingCanonical !== lastEmittedCanonicalRef.current) {
-      setLiteralText(incomingCanonical);
-      lastEmittedCanonicalRef.current = incomingCanonical;
-    }
-  }, [incomingCanonical]);
-
-  const handleLiteralChange = (text: string) => {
-    setLiteralText(text);
-    const parsed = parseLiteral(text);
-    lastEmittedCanonicalRef.current = literalToString(parsed);
-    onChange({ literal: parsed });
-  };
+  const committedTextRef = useRef(literalToString(incomingLiteral));
+  const storedText = sameLiteral(
+    parseLiteral(committedTextRef.current),
+    incomingLiteral,
+  )
+    ? committedTextRef.current
+    : literalToString(incomingLiteral);
+  const literalDraft = useDebouncedTextCommit(storedText, (text) => {
+    committedTextRef.current = text;
+    onChange({ literal: parseLiteral(text) });
+  });
 
   const setMode = (nextMode: string) => {
     const m = nextMode as ValueRefMode;
@@ -940,9 +953,9 @@ function ValueRefEditor({
           {label}
         </Text>
         {/*
-          D22 — "Ref" and "Literal" are both names for the mechanism rather
-          than for what the reader is choosing between. Spelled out, the
-          switch itself says the list underneath is other steps' output.
+          Named for what the reader is choosing between, another step's
+          output or a value typed here, rather than for the mechanism. The
+          switch itself then says the list underneath is other steps' output.
         */}
         <SegmentedControl
           size="xs"
@@ -1038,9 +1051,10 @@ function ValueRefEditor({
         <TextInput
           size="xs"
           placeholder="Literal value (JSON or plain string)"
-          value={literalText}
+          value={literalDraft.draft}
           data-testid={`${testId}-literal-input`}
-          onChange={(e) => handleLiteralChange(e.currentTarget.value)}
+          onChange={(e) => literalDraft.setDraft(e.currentTarget.value)}
+          onBlur={literalDraft.flush}
         />
       )}
     </Stack>
