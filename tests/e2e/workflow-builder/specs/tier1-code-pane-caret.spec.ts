@@ -1,24 +1,27 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { FRONTEND_URL, setupWorkflowBuilderTest } from "../helpers/wb-test";
 
 /**
- * Tier 1 — D8: the custom-step code editor must not have its buffer replaced
+ * Tier 1 — the custom-step code editor must not have its buffer replaced
  * underneath the author.
  *
- * ## The defect
+ * ## What this guards
  *
  * `CodePane` mirrors Monaco's text into React state, debounces it 150 ms, and
  * hands it to `DynamicNodeEditor`, which stores it and feeds the same string
  * straight back down as the `script` prop. `script` is therefore not an
- * independent input — it is this pane's own text arriving back late. The
- * "the prop changed, re-seed the editor" effect could not tell that echo apart
- * from a real external change, and `@monaco-editor/react` applies a changed
- * `value` as one full-model `executeEdits` with `forceMoveMarkers: true`.
- * Replacing the whole model that way throws the caret to the end of the
- * document and discards whatever was typed after the echoed snapshot was taken.
- * The same path re-inserted the entire boilerplate when the editor was cleared,
- * because the seed expression was `script || DYNAMIC_NODE_BOILERPLATE` and the
- * echo of an emptied editor is `""`.
+ * independent input — it is this pane's own text arriving back late. Two
+ * things keep that echo out of the buffer:
+ *
+ *  - `CodePane` re-seeds the editor only for a genuine external change, never
+ *    for its own echo. Re-seeding from an echo replaces the whole model with a
+ *    snapshot that is already stale, which drops whatever was typed after it
+ *    and throws the caret to the end of the document. An emptied editor echoes
+ *    `""`, and re-seeding from that would put the starter template back.
+ *  - `CodePane` passes Monaco `defaultValue`, never `value`. With `value`,
+ *    `@monaco-editor/react` applies any difference from the live model as one
+ *    full-model `executeEdits` with `forceMoveMarkers: true`, and React state
+ *    trails the model by a commit whenever two keystrokes land inside one.
  *
  * ## Why this has to be a browser test
  *
@@ -30,11 +33,10 @@ import { FRONTEND_URL, setupWorkflowBuilderTest } from "../helpers/wb-test";
  *
  * ## Scope
  *
- * Both live tests run in create-mode (`/dynamic-nodes/new`). Nothing is
+ * All three tests run in create-mode (`/dynamic-nodes/new`). Nothing is
  * published and nothing is written to the database, so this stays in the
  * default hermetic tier — no `@infra`, no deno-runner, no seed fixture to
- * restore afterwards. The third test is a `fixme` reproduction of a *different*
- * cause of the same symptom, which the D8 fix does not close; see its comment.
+ * restore afterwards.
  */
 
 /** The literal `@description` line of `DYNAMIC_NODE_BOILERPLATE`. */
@@ -47,7 +49,7 @@ const FIRST_BOILERPLATE_LINE =
 const ONCHANGE_DEBOUNCE_MS = 150;
 
 interface EditorSnapshot {
-  /** One entry per *model* line currently rendered, in visual order. */
+  /** One entry per rendered row, top to bottom. */
   lines: string[];
   /** Index into `lines` of the line the caret sits on, or -1 if not found. */
   caretLine: number;
@@ -65,9 +67,10 @@ interface EditorSnapshot {
  * anyway.
  *
  * `.view-line` elements are absolutely positioned and Monaco recycles them, so
- * DOM order is meaningless — they are sorted by box top. With `wordWrap: "on"`
- * a wrapped model line is still a single `.view-line` holding several visual
- * rows, so `textContent` is the whole logical line.
+ * DOM order is meaningless — they are sorted by box top. Each rendered row is
+ * a `.view-line` of its own: with `wordWrap: "on"`, a line wider than the
+ * editor spans several. The lines these tests type into stay well inside the
+ * editor's width at the default viewport, so each is one row.
  */
 async function readEditor(page: Page): Promise<EditorSnapshot> {
   return page.evaluate(() => {
@@ -107,7 +110,12 @@ async function openEditor(page: Page): Promise<void> {
   await setupWorkflowBuilderTest(page);
   await page.goto(`${FRONTEND_URL}/dynamic-nodes/new`);
   await expect(page.getByTestId("code-pane")).toBeVisible();
-  await expect(page.locator(".monaco-editor .view-lines")).toBeVisible();
+  // A fresh browser context fetches and starts the bundled Monaco from
+  // scratch: 3–4 s on its own, and longer with several workers loading it at
+  // once. The editor allows itself 15 s before reporting it failed to load.
+  await expect(page.locator(".monaco-editor .view-lines")).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(page.getByTestId("code-pane-strip-ok")).toBeVisible({
     timeout: 20_000,
   });
@@ -144,7 +152,7 @@ async function parkCaretOnDescriptionLine(page: Page): Promise<void> {
   ).toBe(DESCRIPTION_LINE);
 }
 
-test.describe("D8 — custom-step editor: the round-trip must not move the caret", () => {
+test.describe("custom-step editor: the round-trip must not move the caret", () => {
   let pageErrors: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -157,11 +165,10 @@ test.describe("D8 — custom-step editor: the round-trip must not move the caret
   });
 
   /**
-   * The deterministic half of D8. Select-all + Delete emits `""` upward; the
-   * parent stores it and echoes it back; the pane's seed expression was
-   * `script || DYNAMIC_NODE_BOILERPLATE`, so an empty echo re-inserted the
-   * whole boilerplate and left the caret at the end of it. No timing window is
-   * involved — this fails on every run against the pre-fix build.
+   * Select-all + Delete emits `""` upward; the parent stores it and echoes it
+   * back. The pane seeds an empty editor from the starter template, so if it
+   * re-seeded from that echo the whole template would come back with the caret
+   * at its end. No timing window is involved: the echo arrives every time.
    */
   test("select-all + delete stays deleted — the boilerplate is not re-inserted", async ({
     page,
@@ -188,27 +195,26 @@ test.describe("D8 — custom-step editor: the round-trip must not move the caret
   });
 
   /**
-   * The reported half of D8 — "the editor occasionally forces the cursor to the
-   * end of the last line… makes it very frustrating to type."
+   * Typing with pauses, as a person does. The caret must stay where the author
+   * is typing rather than jump to the end of the last line.
    *
-   * The window is real but narrow: it opens when the 150 ms debounce timer
-   * fires and closes once React has committed the parent's state and re-run the
+   * The risky window is narrow: it opens when the 150 ms debounce timer fires
+   * and closes once React has committed the parent's state and re-run the
    * pane's `[script]` effect — measured at roughly 10–15 ms on this stack. A
    * keystroke landing inside it advances the live buffer past the snapshot
-   * already on its way back down; the stale echo then overwrites the buffer,
-   * dropping that character and throwing the caret to the end of the document.
+   * already on its way back down; if that stale echo reached the buffer it
+   * would drop the character and throw the caret to the end of the document.
    *
    * One pause cannot be relied on to hit a 15 ms window, so this types 26
    * pause-and-resume cycles with the pause swept across the debounce boundary
    * (148–174 ms), which lands inside it repeatedly. Every character is typed
-   * after its own pause, at a human cadence, on purpose — see the `fixme`
-   * below for why back-to-back keystrokes are a different defect that must not
-   * be mixed in here.
+   * after its own pause, at a human cadence, on purpose: back-to-back
+   * keystrokes exercise a different path, covered by the next test.
    *
    * The assertion is exact, not statistical: all 26 characters must be on the
-   * line they were typed on, in order, with the caret still there. Post-fix
-   * that is an invariant rather than a probability — the echo guard makes the
-   * overwrite impossible — so there is no flake in the passing direction.
+   * line they were typed on, in order, with the caret still there. The echo
+   * guard makes the overwrite impossible rather than unlikely, so there is no
+   * flake in the passing direction.
    */
   test("pausing and resuming typing keeps every character and leaves the caret in place", async ({
     page,
@@ -239,67 +245,57 @@ test.describe("D8 — custom-step editor: the round-trip must not move the caret
     ).toContain(expected);
     expect(
       after.lines[after.caretLine],
-      "the caret left the line being typed on (pre-fix it was thrown to the end of the document)",
+      "the caret left the line being typed on",
     ).toBe(expected);
   });
 
   /**
-   * KNOWN FAILURE — a second, still-open cause of the identical symptom, found
-   * while writing the two tests above. Marked `fixme` because it reproduces
-   * reliably and must not be reported as a pass.
+   * Two keystrokes inside one React commit. `CodePane` passes Monaco
+   * `defaultValue`, never `value`, so the editor owns its buffer while the
+   * author types and re-seeds are pushed in imperatively.
    *
-   * The D8 echo guard closes the 150 ms round-trip through the parent, and
-   * instrumentation confirms it: every echo in a typing run is now suppressed.
-   * But `CodePane` also drives Monaco as a *controlled* component locally —
-   * `<Editor value={internalText} onChange={(v) => setInternalText(v)} />` — so
-   * `value` trails the model by one React commit whenever two keystrokes land
-   * inside the same commit. `@monaco-editor/react` then sees
-   * `value !== editor.getValue()` and applies the shorter, older string as a
-   * full-model `executeEdits` with `forceMoveMarkers: true`, exactly as the
-   * echo used to. Captured from `onDidChangeModelContent` /
-   * `onDidChangeCursorPosition` with two keystrokes 9 ms apart:
+   * If the pane passed `value`, it would trail the model by one commit
+   * whenever two keystrokes land inside the same one, and
+   * `@monaco-editor/react`, seeing `value !== editor.getValue()`, would apply
+   * the shorter, older string as a full-model `executeEdits` with
+   * `forceMoveMarkers: true`. Captured from `onDidChangeModelContent` /
+   * `onDidChangeCursorPosition` with two keystrokes 9 ms apart and a `value`
+   * prop:
    *
    *     content isFlush=false changes=[[402,401]]   ← whole model replaced, one char short
    *     cursor 16:1 reason=2 source=modelChange     ← caret thrown to the end
    *     content isFlush=false changes=[[401,402]]   ← next commit restores the text…
    *                                                    …but not the caret
    *
-   * The text survives (the second rewrite puts the missing character back), so
-   * only the caret is lost — which is exactly what was reported, and why it
-   * looked intermittent: it needs two keystrokes closer together than one React
-   * commit. Playwright's ~9 ms between keystrokes hits it every time; a human
-   * hits it whenever a commit runs long, which a large script makes routine.
-   *
-   * FIXED 2026-08-15: `CodePane` now passes `defaultValue`, never `value`, so
-   * the editor owns its buffer while the author types and re-seeds are pushed
-   * imperatively. This test was `fixme` while that was still a proposal; it is
-   * live now and is what proves the second cause closed.
+   * The text survives, so only the caret is lost, and only when two
+   * keystrokes come closer together than one React commit. Playwright's ~9 ms
+   * between keystrokes does that every time; a person does whenever a commit
+   * runs long, which a large script makes routine.
    */
-  test(
-    "typing two characters inside one React commit must not rewrite the model or move the caret",
-    async ({ page }) => {
-      test.setTimeout(90_000);
+  test("typing two characters inside one React commit must not rewrite the model or move the caret", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
 
-      await openEditor(page);
-      await focusEditor(page);
-      await parkCaretOnDescriptionLine(page);
+    await openEditor(page);
+    await focusEditor(page);
+    await parkCaretOnDescriptionLine(page);
 
-      // Pairs of back-to-back keystrokes: each pair is dispatched faster than
-      // React can commit the first one.
-      const typed = "abcdefghijklmnopqrstuvwxyz";
-      for (let i = 0; i < typed.length; i += 2) {
-        await page.keyboard.type(typed[i]);
-        await page.keyboard.type(typed[i + 1]);
-        await page.waitForTimeout(ONCHANGE_DEBOUNCE_MS + 10);
-      }
+    // Pairs of back-to-back keystrokes: each pair is dispatched faster than
+    // React can commit the first one.
+    const typed = "abcdefghijklmnopqrstuvwxyz";
+    for (let i = 0; i < typed.length; i += 2) {
+      await page.keyboard.type(typed[i]);
+      await page.keyboard.type(typed[i + 1]);
+      await page.waitForTimeout(ONCHANGE_DEBOUNCE_MS + 10);
+    }
 
-      await page.waitForTimeout(1_000);
+    await page.waitForTimeout(1_000);
 
-      const expected = `${DESCRIPTION_LINE}${typed}`;
-      const after = await readEditor(page);
+    const expected = `${DESCRIPTION_LINE}${typed}`;
+    const after = await readEditor(page);
 
-      expect(after.lines).toContain(expected);
-      expect(after.lines[after.caretLine]).toBe(expected);
-    },
-  );
+    expect(after.lines).toContain(expected);
+    expect(after.lines[after.caretLine]).toBe(expected);
+  });
 });
