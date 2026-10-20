@@ -78,18 +78,6 @@ describe("VersionHistoryPane (US-179)", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Scenario 2 — loading state
-  // -----------------------------------------------------------------------
-  it("renders three Skeleton rows while loading", () => {
-    renderPane({
-      slug: "alpha",
-      isLoading: true,
-      versions: [],
-    });
-    expect(screen.getByTestId("version-history-loading")).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
   // Scenario 2 — error state
   // -----------------------------------------------------------------------
   it("renders the error alert when the fetch fails", () => {

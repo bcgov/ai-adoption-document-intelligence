@@ -16,8 +16,8 @@
  * row on the next render.
  *
  * Create-mode (no slug yet) renders a gray "publish to create v1"
- * placeholder. Loading shows three Skeleton rows; error renders a red
- * `<Alert>`.
+ * placeholder; a failed fetch renders a red `<Alert>`. The editor mounts
+ * this pane only once the lineage has loaded, so it has no loading state.
  */
 
 import {
@@ -29,7 +29,6 @@ import {
   JsonInput,
   Modal,
   SimpleGrid,
-  Skeleton,
   Stack,
   Text,
   Tooltip,
@@ -57,8 +56,6 @@ function formatTimestamp(iso: string): string {
 export interface VersionHistoryPaneProps {
   /** Undefined in create-mode (`slug` not yet known). */
   slug?: string;
-  /** True while `useDynamicNode(slug)` is in-flight (edit-mode only). */
-  isLoading?: boolean;
   error?: ApiError | null;
   /** Newest-first version list. Pass `[]` in create-mode. */
   versions: DynamicNodeVersionDetail[];
@@ -75,7 +72,6 @@ export interface VersionHistoryPaneProps {
 
 export function VersionHistoryPane({
   slug,
-  isLoading,
   error,
   versions,
   headVersionNumber,
@@ -103,16 +99,6 @@ export function VersionHistoryPane({
       >
         No versions yet — publish to create v1.
       </Text>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <Stack gap="xs" data-testid="version-history-loading">
-        <Skeleton height={64} radius="sm" />
-        <Skeleton height={64} radius="sm" />
-        <Skeleton height={64} radius="sm" />
-      </Stack>
     );
   }
 

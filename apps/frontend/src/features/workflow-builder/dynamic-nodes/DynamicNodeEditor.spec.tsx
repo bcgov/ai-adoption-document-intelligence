@@ -21,6 +21,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../../../auth/AuthContext";
 import { API_BASE_URL } from "../../../shared/constants";
@@ -52,7 +53,7 @@ vi.mock("../../../auth/GroupContext", async () => {
 // so we stub the editor with a plain <textarea>. The shell tests just
 // need to read `value` + drive `onChange`. The `codemirror-stub`
 // testid name is preserved so older test assertions keep working.
-// D-13 — `CodePane` bundles Monaco locally and awaits the chunk before
+// `CodePane` bundles Monaco locally and awaits the chunk before
 // rendering `<Editor>`. Stub the loader so the 70 MB `monaco-editor` import
 // never runs under jsdom; the editor surface itself is stubbed just below.
 const ensureLocalMonacoMock = vi.hoisted(() =>
@@ -62,7 +63,7 @@ vi.mock("./monaco-loader", () => ({
   ensureLocalMonaco: ensureLocalMonacoMock,
 }));
 
-// D8 (second cause) — `CodePane` no longer passes `value`: the editor owns its
+// `CodePane` passes Monaco `defaultValue`, never `value`: the editor owns its
 // buffer and re-seeds are pushed imperatively through `setValue`. A controlled
 // `<textarea value={…}>` cannot express that contract, so the stub mirrors the
 // real one in `CodePane.spec.tsx`: uncontrolled `defaultValue`, an `onMount`
@@ -179,14 +180,17 @@ function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
   });
 }
 
-function renderEditor(props: Partial<Parameters<typeof DynamicNodeEditor>[0]>) {
+function renderEditor(
+  props: Partial<Parameters<typeof DynamicNodeEditor>[0]>,
+  { strict = false }: { strict?: boolean } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
       mutations: { retry: false },
     },
   });
-  return render(
+  const tree = (
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <ModalsProvider>
@@ -194,8 +198,9 @@ function renderEditor(props: Partial<Parameters<typeof DynamicNodeEditor>[0]>) {
           <DynamicNodeEditor {...props} />
         </ModalsProvider>
       </MantineProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 
 function sampleDetail(slug: string) {
@@ -285,7 +290,7 @@ describe("DynamicNodeEditor (US-176)", () => {
   // -----------------------------------------------------------------------
   it("seeds the editor with the boilerplate when no slug is provided", async () => {
     renderEditor({});
-    // D-13 — the editor renders only after the local Monaco chunk resolves.
+    // The editor renders only after the local Monaco chunk resolves.
     const editor = (await screen.findByTestId(
       "codemirror-stub",
     )) as HTMLTextAreaElement;
@@ -438,13 +443,13 @@ describe("DynamicNodeEditor (US-176)", () => {
   });
 
   // -----------------------------------------------------------------------
-  // D3 (residual) — an unreachable custom-node checker is not a script error
+  // An unreachable custom-node checker is not a script error
   // -----------------------------------------------------------------------
   it("shows the backend's sentence, hides `details` behind a toggle, and does not promise error markers", async () => {
-    // What the backend now returns on 503: a human instruction as `message`,
-    // the endpoint diagnostic as `details`. The script itself is the valid
-    // boilerplate, so a client-side reparse produces NO markers — which is
-    // exactly the case the old "— see error markers" copy lied about.
+    // What the backend returns on 503: a human instruction as `message`, the
+    // endpoint diagnostic as `details`. The script itself is the valid
+    // boilerplate, so a client-side reparse produces NO markers, and nothing
+    // may say "see error markers".
     fetchSpy.mockResolvedValueOnce(
       jsonResponse(
         {
@@ -547,6 +552,21 @@ describe("DynamicNodeEditor (US-176)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("says in the Delete confirmation what brings a deleted lineage back", async () => {
+    // A deleted lineage is listed nowhere and its script cannot be fetched;
+    // the backend restores it when a node is published under the same name.
+    fetchSpy.mockResolvedValue(jsonResponse(sampleDetail("alpha")));
+    renderEditor({ slug: "alpha" });
+
+    fireEvent.click(await screen.findByTestId("dynamic-node-editor-delete"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      "To bring it back, publish a new dynamic node named alpha: that restores it, with its version history continued.",
+    );
+    expect(dialog).not.toHaveTextContent(/management page/i);
+  });
+
   // -----------------------------------------------------------------------
   // Scenario layout — full-page mount renders with the same panes
   // -----------------------------------------------------------------------
@@ -579,10 +599,10 @@ describe("DynamicNodeEditor (US-176)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D-13 — Publish must refuse while the code pane cannot render the script.
+// Publish must refuse while the code pane cannot render the script.
 // Publishing a script the author was never shown is worse than not publishing.
 // ---------------------------------------------------------------------------
-describe("DynamicNodeEditor — editor unavailable (D-13)", () => {
+describe("DynamicNodeEditor — editor unavailable", () => {
   it("disables Publish and explains why when the script editor fails to load", async () => {
     ensureLocalMonacoMock.mockImplementation(() =>
       Promise.reject(new Error("Failed to fetch dynamically imported module")),
@@ -607,21 +627,21 @@ describe("DynamicNodeEditor — editor unavailable (D-13)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D8 — the reviewer's "maybe this is happening when it reloads" hunch.
+// The lineage's script arrives with a fetch, and must not land on top of the
+// editor's text.
 //
-// Three modals mount this editor with `detailQuery` still loading (the canvas
-// node menu, the palette, the dynamic-node settings body). The boilerplate
-// shows, the author starts typing, and when the fetch lands 200–500 ms later
-// `headScript` changes and the hydration effect overwrites what was typed.
-// Publishing did the same thing, because it invalidates the detail query.
+// Three builder windows mount this editor with the detail fetch still in
+// flight (the canvas node menu, the palette, the custom step's settings), and
+// a Publish invalidates the detail query, so a new head lands while the
+// author may still be typing. The editor is created from the fetched script,
+// and nothing that arrives later replaces what is in it — except a revert.
 // ---------------------------------------------------------------------------
 
-describe("DynamicNodeEditor — D8: a late fetch must not clobber the buffer", () => {
+describe("DynamicNodeEditor — a late fetch must not clobber the buffer", () => {
   it("offers no editor to type into while the detail fetch is in flight", async () => {
-    // The clobber needed a window in which the author could type into the
-    // boilerplate before the real script arrived. There is no such window
-    // now: edit mode shows a loader until the script is in hand, exactly as
-    // the full-page route always did.
+    // Edit mode shows a loader until the script is in hand, as the full-page
+    // route does, so there is no window in which the author could type into
+    // a buffer that is about to be replaced.
     const detail = sampleDetail("alpha");
     let releaseDetail: (() => void) | undefined;
     const detailLanded = new Promise<void>((resolve) => {
@@ -655,8 +675,8 @@ describe("DynamicNodeEditor — D8: a late fetch must not clobber the buffer", (
 
   it("hydrates once per lineage — the post-Publish refetch does not re-seed the buffer", async () => {
     // Publishing invalidates the detail query, so a fresh head lands a moment
-    // later. Before the guard that new `headScript` was written straight into
-    // the editor, discarding anything typed since the click.
+    // later. Written into the editor, it would discard anything typed since
+    // the click.
     const detail = sampleDetail("alpha");
     const afterPublish = {
       ...detail,
@@ -699,9 +719,57 @@ describe("DynamicNodeEditor — D8: a late fetch must not clobber the buffer", (
     expect(editor.value).toBe("// my unsaved edit");
   });
 
+  it("opens on the head script under React.StrictMode, and Publish sends that script", async () => {
+    // The app renders inside <StrictMode> (main.tsx), which runs a newly
+    // mounted component's effects a second time after its parent's effects.
+    // The editor therefore has to be created from the fetched script: any
+    // text the code pane starts with is emitted again after the parent has
+    // stored the real script, and becomes what the author sees and publishes.
+    const detail = sampleDetail("alpha");
+    fetchSpy.mockImplementation(async (_url, init) => {
+      if ((init as RequestInit | undefined)?.method === "PUT") {
+        return jsonResponse({
+          slug: "alpha",
+          version: 3,
+          signature: sampleSignature("alpha"),
+          errors: [],
+        });
+      }
+      return jsonResponse(detail);
+    });
+
+    renderEditor({ slug: "alpha" }, { strict: true });
+
+    const editor = (await screen.findByTestId(
+      "codemirror-stub",
+    )) as HTMLTextAreaElement;
+    // Past the code pane's 150 ms emit and 300 ms parse debounces.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+    expect(editor.value).toBe(detail.versions[0].script);
+    expect(screen.queryByText("my-custom-node")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("dynamic-node-editor-publish"));
+    });
+    const put = await vi.waitFor(() => {
+      const call = fetchSpy.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
+      );
+      if (!call) throw new Error("no PUT yet");
+      return call;
+    });
+    const body = JSON.parse(String((put[1] as RequestInit).body)) as {
+      script: string;
+    };
+    expect(body.script).toBe(detail.versions[0].script);
+  });
+
   it("revert still pushes the reverted script into the editor", async () => {
-    // The once-per-lineage guard would otherwise block the one re-seed the
-    // author explicitly asked for, so `handleRevert` states it directly.
+    // The editor's text is seeded once, from the fetched script, so the one
+    // replacement the author explicitly asks for is pushed in by
+    // `handleRevert` itself.
     const detail = sampleDetail("alpha");
     fetchSpy.mockImplementation(async (_url, init) => {
       if ((init as RequestInit | undefined)?.method === "PUT") {

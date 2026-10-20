@@ -3,10 +3,11 @@
  * (Phase 6 US-176 / Milestone E; lives at
  * `apps/frontend/src/features/workflow-builder/dynamic-nodes/`).
  *
- * Three-pane Mantine `<Grid>`:
- *   - CodePane (~60% modal / ~70% full-page)
- *   - SignaturePreviewPane (~25% / ~20%)
- *   - VersionHistoryPane (~15% / ~10%)
+ * Three panes in a Mantine `<Grid>`. From the `lg` breakpoint up:
+ *   - CodePane on the left, in all the width the right-hand column leaves;
+ *   - on the right, a column of {@link SIDE_COLUMN_WIDTH} holding the
+ *     SignaturePreviewPane with the VersionHistoryPane under it.
+ * Below `lg` the three stack in that order.
  *
  * Top bar: Publish + Delete buttons.
  *
@@ -16,6 +17,9 @@
  *   - US-181 standalone management page (`layout="full-page"`)
  *   - US-183 in-situ Mantine `<Modal size="80%">` (`layout="modal"`,
  *     the default)
+ *
+ * In edit mode the editor is created only once the lineage's script has been
+ * fetched — see {@link DynamicNodeEditor} for why.
  *
  * Publish flow:
  *   1. CodePane fires `onChange(text)` (debounced 150 ms inside) — the
@@ -54,10 +58,14 @@ import {
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import type { ApiError } from "../sources/useSourceUpload";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { CodePane } from "./CodePane";
-import type { DynamicNodeVersionDetail } from "./dynamic-node-api";
+import type {
+  DynamicNodeDetail,
+  DynamicNodeVersionDetail,
+} from "./dynamic-node-api";
 import { SignaturePreviewPane } from "./SignaturePreviewPane";
 import { adaptEntryToSignature } from "./signature-preview-helpers";
 import { useDynamicNode } from "./useDynamicNode";
@@ -85,42 +93,38 @@ export interface DynamicNodeEditorProps {
    */
   onClose?: () => void;
   /**
-   * Layout mode. Determines the pane width ratio:
-   *   - `"modal"` (default): 60 / 25 / 15
-   *   - `"full-page"`: 70 / 20 / 10
-   *
-   * Both layouts render the same three panes — only the grid
-   * proportions change.
+   * Where the editor is mounted: `"modal"` (default) in the builder's
+   * windows, `"full-page"` on the `/dynamic-nodes` routes. Exposed as
+   * `data-layout`. Both lay the three panes out the same way.
    */
   layout?: DynamicNodeEditorLayout;
 }
 
-interface PaneSpan {
-  code: number;
-  preview: number;
-  history: number;
-}
-
 /**
- * Mantine `<Grid>` uses a 12-column system. The layout knob picks one
- * of two presets; both sum to 12 and approximate the brief's percentages.
- */
-const PANE_SPANS: Record<DynamicNodeEditorLayout, PaneSpan> = {
-  modal: { code: 7, preview: 3, history: 2 }, // ~58 / 25 / 17
-  "full-page": { code: 8, preview: 3, history: 1 }, // ~67 / 25 / 8
-};
-
-/**
- * D3 (residual) — a publish failure that is NOT about the script.
+ * Width of the right-hand column (the signature preview over the version
+ * history) from the `lg` breakpoint up.
  *
- * The backend now answers an unreachable custom-node checker with a 503 whose
+ * Both panes need a fixed width rather than a share of the window. A version
+ * row puts its version badge, the head badge and the publish date on one
+ * line, with View and Revert side by side: in BC Sans the widest such line (a
+ * three-digit version, the head badge and "Jan 28, 2026, 12:59 PM") is 247 px,
+ * and its card adds 18 px of padding and border. The preview's port rows put
+ * the port name, its kind and a REQUIRED badge on one line, which for
+ * "document : Document" fits in 256 px but not in 240. 304 px leaves room for
+ * longer port and kind names, and stacking the two panes leaves the rest of
+ * the row to the code.
+ */
+const SIDE_COLUMN_WIDTH = 304;
+
+/**
+ * A publish failure that is not about the script carries a `details` field.
+ *
+ * The backend answers an unreachable custom-node checker with a 503 whose
  * `message` is a sentence a person can act on ("The custom-node checker is not
- * running… start it with…") and whose `details` carries the diagnostic that
- * used to be the headline (`POST http://…/check could not be reached: …`).
- * This lifts `details` off the response body so the editor can show the
- * sentence and keep the diagnostic one click away, instead of what it did
- * before: append `" — see error markers"` to a failure that produces no
- * markers at all.
+ * running… start it with…") and whose `details` carries the diagnostic
+ * (`POST http://…/check could not be reached: …`). This lifts `details` off the
+ * response body so the editor can show the sentence and keep the diagnostic
+ * one click away.
  */
 function extractFailureDetails(err: unknown): string | null {
   const body = (err as { body?: unknown })?.body;
@@ -160,6 +164,23 @@ function extractServerParseErrors(err: unknown): ParseError[] {
   return out;
 }
 
+/**
+ * The editor for a new node, or for an existing lineage once its script is in
+ * hand.
+ *
+ * In edit mode nothing is created until the detail fetch has landed, so the
+ * code pane starts from the lineage's head script. A pane created before the
+ * script arrives starts from the starter template and hands that text up from
+ * its mount effect. Under React's StrictMode, which `main.tsx` turns on, a
+ * newly mounted component's effects run a second time after its parent's, so
+ * that template would land after the fetched script and replace it: in the
+ * editor, the preview, and what Publish sends. This also means there is never
+ * a buffer to type into that is about to be replaced.
+ *
+ * The three builder windows (the canvas node menu, the step list's palette and
+ * the custom step's settings) mount this component directly; the full-page
+ * route waits for the fetch itself. Gating here covers all of them.
+ */
 export function DynamicNodeEditor({
   slug,
   onAfterPublish,
@@ -167,57 +188,96 @@ export function DynamicNodeEditor({
   layout = "modal",
 }: DynamicNodeEditorProps) {
   const detailQuery = useDynamicNode(slug);
+  const detail = detailQuery.data;
+
+  if (slug !== undefined && detail === undefined) {
+    return (
+      <Box
+        pos="relative"
+        data-testid="dynamic-node-editor"
+        data-layout={layout}
+      >
+        {detailQuery.error ? (
+          <Stack gap="md">
+            <Title order={4} mb={0}>
+              Editing {slug}
+            </Title>
+            <Alert
+              color="red"
+              title="Failed to load lineage"
+              data-testid="dynamic-node-editor-load-error"
+            >
+              {detailQuery.error.message}
+            </Alert>
+          </Stack>
+        ) : (
+          <Stack
+            align="center"
+            justify="center"
+            mih={240}
+            gap="xs"
+            data-testid="dynamic-node-editor-loading"
+          >
+            <Loader />
+            <Text size="sm" c="dimmed">
+              Loading {slug}…
+            </Text>
+          </Stack>
+        )}
+      </Box>
+    );
+  }
+
+  return (
+    <DynamicNodeEditorBody
+      // A different lineage is a different document: start again from its
+      // script rather than carrying this one's text across.
+      key={slug ?? ""}
+      slug={slug}
+      initialScript={
+        slug === undefined
+          ? DYNAMIC_NODE_BOILERPLATE
+          : (detail?.versions[0]?.script ?? "")
+      }
+      detail={detail}
+      detailError={detailQuery.error}
+      onAfterPublish={onAfterPublish}
+      onClose={onClose}
+      layout={layout}
+    />
+  );
+}
+
+interface DynamicNodeEditorBodyProps {
+  slug: string | undefined;
+  /** The text the editor is created with; read once, on mount. */
+  initialScript: string;
+  /** The lineage's versions (edit mode), kept current by the detail query. */
+  detail: DynamicNodeDetail | undefined;
+  /** A failed refetch; the editor stays usable with the last good detail. */
+  detailError: ApiError | null;
+  onAfterPublish?: (publishedSlug: string) => void;
+  onClose?: () => void;
+  layout: DynamicNodeEditorLayout;
+}
+
+function DynamicNodeEditorBody({
+  slug,
+  initialScript,
+  detail,
+  detailError,
+  onAfterPublish,
+  onClose,
+  layout,
+}: DynamicNodeEditorBodyProps) {
   const publishMutation = useDynamicNodePublish();
   const deleteMutation = useDynamicNodeDelete();
 
-  // ── Editor text — seeded from boilerplate (create) or headVersion.script (edit)
-  const headScript = detailQuery.data?.versions[0]?.script;
-  const initialScript = useMemo(
-    () => headScript ?? (slug ? "" : DYNAMIC_NODE_BOILERPLATE),
-    [headScript, slug],
-  );
+  // The editor's text. Seeded once from the fetched head script (edit) or the
+  // starter template (create). A head that arrives later — the refetch after
+  // a Publish — never replaces it, or it would discard what the author typed
+  // while the round-trip was in flight; a revert sets it explicitly.
   const [currentText, setCurrentText] = useState<string>(initialScript);
-
-  /**
-   * Edit-mode: hydrate the editor from the head version's script when the
-   * detail fetch lands — ONCE per lineage.
-   *
-   * D8 — the dep is a string, so the classic "new object per refetch" trap was
-   * already avoided, but there was no once-per-slug guard, and this component
-   * is mounted by three modals (the canvas node menu, the palette, the
-   * dynamic-node settings body) while `detailQuery` is still loading. Those
-   * mounts show the boilerplate, the author starts typing, the fetch lands
-   * 200–500 ms later and `headScript` changes — clobbering what was typed.
-   * Publishing does the same thing, because it invalidates the detail query.
-   * The full-page route (`DynamicNodeEditPage`) gates on `isLoading` and was
-   * always immune; the modals are not, and this makes them so.
-   *
-   * Revert deliberately does NOT come through here — it re-seeds the editor
-   * itself in `handleRevert`, because a guard keyed on the lineage cannot
-   * distinguish "the same head arriving again" from "a new head the author
-   * asked for".
-   */
-  const hydratedSlugRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!slug || headScript === undefined) return;
-    if (hydratedSlugRef.current === slug) return;
-    hydratedSlugRef.current = slug;
-    setCurrentText(headScript);
-  }, [slug, headScript]);
-
-  // Create-mode: when the editor mounts with no slug, ensure the editor
-  // text is the boilerplate. (The initial state covers the first render;
-  // this effect covers a slug-removal which doesn't happen in 6.0 but
-  // is the conservative default.)
-  useEffect(() => {
-    if (!slug) {
-      setCurrentText(DYNAMIC_NODE_BOILERPLATE);
-    }
-    // We intentionally omit `currentText` from the dependency list —
-    // running this effect on every keystroke would clobber the user's
-    // edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
 
   // ── Live signature parse (drives the SignaturePreviewPane) ────────────
   const liveSignature = useMemo<DynamicNodeSignature | null>(() => {
@@ -229,15 +289,15 @@ export function DynamicNodeEditor({
   // ── Publish-time errors — flow into the CodePane via `publishErrors`
   const [publishErrors, setPublishErrors] = useState<ParseError[]>([]);
 
-  // D-13 — non-null while the CodePane cannot render the script.
+  // Non-null while the CodePane cannot render the script.
   const [editorUnavailable, setEditorUnavailable] = useState<string | null>(
     null,
   );
 
-  // D3 (residual) — the last publish failure, kept on screen. A notification
-  // is gone in four seconds; a failure whose fix is "start this service and
-  // publish again" has to survive long enough to be acted on, and its
-  // diagnostic has to be readable without the browser console.
+  // The last publish failure, kept on screen. A notification is gone in four
+  // seconds; a failure whose fix is "start this service and publish again"
+  // has to survive long enough to be acted on, and its diagnostic has to be
+  // readable without the browser console.
   const [publishFailure, setPublishFailure] = useState<{
     message: string;
     details: string | null;
@@ -249,9 +309,9 @@ export function DynamicNodeEditor({
 
   // Publish disabled until the script parses cleanly (we always send
   // the raw script; the server re-parses + re-validates — but blocking
-  // the click on parse failure shortens the round-trip). D-13 adds the
-  // editor's own availability: publishing a script the author was never
-  // shown is worse than not publishing at all.
+  // the click on parse failure shortens the round-trip). It is also
+  // blocked while the editor cannot render: publishing a script the
+  // author was never shown is worse than not publishing at all.
   const publishBlockedReason: string | null =
     editorUnavailable !== null
       ? `${editorUnavailable} Publishing is blocked until it loads.`
@@ -289,8 +349,8 @@ export function DynamicNodeEditor({
       // unreachable checker, or a network drop) — fall back to a client-side
       // reparse so the user still sees jsdoc-parse + signature-semantics
       // issues in the strip. That reparse legitimately yields nothing when the
-      // script is fine and the *service* is what failed, which is exactly the
-      // case the old copy mis-described.
+      // script is fine and the *service* is what failed, which is why the
+      // failure's wording mentions markers only when some were produced.
       const markers =
         serverErrors.length > 0
           ? serverErrors
@@ -304,7 +364,7 @@ export function DynamicNodeEditor({
       });
       notifications.show({
         title: "Publish failed",
-        // D3 — error markers are only promised when some were produced.
+        // Error markers are only promised when some were produced.
         message:
           markers.length > 0 ? `${message} — see error markers` : message,
         color: "red",
@@ -320,7 +380,8 @@ export function DynamicNodeEditor({
         <Text size="sm">
           This soft-deletes the lineage. Workflows that reference{" "}
           <code>dyn.{slug}</code> will surface a "Deleted" badge on the canvas.
-          Restore from the management page.
+          To bring it back, publish a new dynamic node named <code>{slug}</code>
+          {": that restores it, with its version history continued."}
         </Text>
       ),
       labels: { confirm: "Delete", cancel: "Cancel" },
@@ -354,12 +415,9 @@ export function DynamicNodeEditor({
         onSuccess: (result) => {
           setPublishErrors([]);
           setPublishFailure(null);
-          // D8 — the editor used to pick the reverted script up indirectly,
-          // via the invalidated detail query re-running the hydration effect.
-          // That effect is now once-per-lineage (it has to be, or a modal's
-          // in-flight fetch clobbers what the author typed), so revert states
-          // its own intent: this is the one place a new head should replace
-          // the buffer.
+          // The one event after creation that replaces the editor's text:
+          // the new head is the script the author asked for, so it goes into
+          // the buffer here rather than through the refetched detail.
           setCurrentText(version.script);
           notifications.show({
             title: `Reverted to v${version.versionNumber} as v${result.version}`,
@@ -378,43 +436,6 @@ export function DynamicNodeEditor({
       },
     );
   };
-
-  const spans = PANE_SPANS[layout];
-
-  /**
-   * D8 — nothing may be typed into a buffer that is about to be replaced.
-   *
-   * In edit mode the script arrives with the detail fetch. Rendering the code
-   * pane before it lands showed the boilerplate, let the author start typing,
-   * and then overwrote what they typed when the fetch resolved 200–500 ms
-   * later — the reviewer's "maybe this is happening when it reloads". The
-   * full-page route (`DynamicNodeEditPage`) has always gated on `isLoading`
-   * and was immune; the three modal mount sites (canvas node menu, palette,
-   * dynamic-node settings body) mount this component directly and were not.
-   * Gating here fixes all three at once, and keeps one rule rather than four.
-   */
-  if (isEditMode && detailQuery.isLoading) {
-    return (
-      <Box
-        pos="relative"
-        data-testid="dynamic-node-editor"
-        data-layout={layout}
-      >
-        <Stack
-          align="center"
-          justify="center"
-          mih={240}
-          gap="xs"
-          data-testid="dynamic-node-editor-loading"
-        >
-          <Loader />
-          <Text size="sm" c="dimmed">
-            Loading {slug}…
-          </Text>
-        </Stack>
-      </Box>
-    );
-  }
 
   return (
     <Box pos="relative" data-testid="dynamic-node-editor" data-layout={layout}>
@@ -460,13 +481,13 @@ export function DynamicNodeEditor({
           </Group>
         </Group>
 
-        {detailQuery.error && (
+        {detailError && (
           <Alert
             color="red"
             title="Failed to load lineage"
             data-testid="dynamic-node-editor-load-error"
           >
-            {detailQuery.error.message}
+            {detailError.message}
           </Alert>
         )}
 
@@ -526,8 +547,12 @@ export function DynamicNodeEditor({
         )}
 
         <Grid gutter="md" align="stretch">
+          {/* `miw={0}`: a grid column's minimum width is its content's, and
+              Monaco's content is the width it last laid itself out at, so
+              without it this column could not shrink when the window does. */}
           <Grid.Col
-            span={{ base: 12, md: spans.code }}
+            span={{ base: 12, lg: "auto" }}
+            miw={0}
             data-testid="dynamic-node-editor-code-col"
           >
             <CodePane
@@ -537,24 +562,21 @@ export function DynamicNodeEditor({
               onEditorUnavailable={setEditorUnavailable}
             />
           </Grid.Col>
-          <Grid.Col
-            span={{ base: 12, md: spans.preview }}
-            data-testid="dynamic-node-editor-preview-col"
-          >
-            <SignaturePreviewPane signature={liveSignature} />
-          </Grid.Col>
-          <Grid.Col
-            span={{ base: 12, md: spans.history }}
-            data-testid="dynamic-node-editor-history-col"
-          >
-            <VersionHistoryPane
-              slug={slug}
-              isLoading={isEditMode && detailQuery.isLoading}
-              error={detailQuery.error}
-              versions={detailQuery.data?.versions ?? []}
-              headVersionNumber={detailQuery.data?.headVersion.versionNumber}
-              onRevert={handleRevert}
-            />
+          <Grid.Col span={{ base: 12, lg: "content" }}>
+            <Stack gap="md" w={{ base: "100%", lg: SIDE_COLUMN_WIDTH }}>
+              <Box data-testid="dynamic-node-editor-preview-col">
+                <SignaturePreviewPane signature={liveSignature} />
+              </Box>
+              <Box data-testid="dynamic-node-editor-history-col">
+                <VersionHistoryPane
+                  slug={slug}
+                  error={detailError}
+                  versions={detail?.versions ?? []}
+                  headVersionNumber={detail?.headVersion.versionNumber}
+                  onRevert={handleRevert}
+                />
+              </Box>
+            </Stack>
           </Grid.Col>
         </Grid>
       </Stack>
