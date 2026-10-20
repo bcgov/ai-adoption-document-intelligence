@@ -1,5 +1,5 @@
 /**
- * `NoOutputNotice` — the single rendering of a `NoOutputReason` (G-012).
+ * `NoOutputNotice` — the single rendering of a `NoOutputReason`.
  *
  * Both preview surfaces (the node-card `PreviewWidget` and the wire
  * `WirePeekPopover`) route every "no output here" branch through this
@@ -12,19 +12,11 @@
  *
  * ## `failed` is the one reason drawn as an error
  *
- * Inderdeep, 2026-08-06: *"This error message is grayed out, should be similar
- * … with a red background. And if it failed, there is an action that the user
- * can take. Explanation, yes, but then there is an action … here there's
- * nothing. What do I do with this if it failed? What next?"* — and Alex:
- * *"why did it fail?"*
- *
- * Every reason used to render as the same grey box, so the only genuine
- * failure on the surface was dimmer than the (non-failure) cache-evicted
- * Alert beside it, said nothing about the cause, and offered no way forward.
- * `failed` now renders `StepFailedAlert`: red, carrying the engine's own
+ * A failed step is the one state on this surface that needs the reader to do
+ * something, so it renders `StepFailedAlert`: red, carrying the engine's own
  * error text, and with a Re-run action. The other `notable` reasons stay grey
  * on purpose — "the run took a different branch" is a fact, not a fault, and
- * making everything red would put us back where we started.
+ * drawing it red would make every no-output state look like a failure.
  */
 
 import {
@@ -41,7 +33,12 @@ import { useNodeId } from "@xyflow/react";
 import { type ReactNode, useState } from "react";
 
 import { useOptionalRunState } from "../run/RunStateContext";
-import { fetchInputCtx, startRunWithCtx } from "./CacheEvictedAlert";
+import {
+  fetchInputCtx,
+  RERUN_SCOPE_COLOR,
+  RERUN_SCOPE_NOTE,
+  startRunWithCtx,
+} from "./CacheEvictedAlert";
 import { describeNoOutput, type NoOutputReason } from "./no-output-state";
 
 export interface NoOutputNoticeProps {
@@ -56,20 +53,6 @@ export interface NoOutputNoticeProps {
  *                   button stays enabled so the user can try again.
  */
 type RerunState = "idle" | "rerunning" | "error";
-
-/**
- * I5, second half — the reviewer could not tell from the button whether
- * "Re-run workflow" retries the failed step or restarts everything, and the
- * code says unambiguously that it restarts everything: `onRerun` GETs the
- * run's original `initialCtx` and POSTs it to `POST /api/workflows/:id/tries`,
- * which calls `startGraphWorkflow` — a brand-new Temporal execution of the
- * whole graph from its entry node. There is no re-execute-one-step endpoint,
- * so "Try again" would have been the untrue label. The button keeps the
- * honest one and this line says what it costs, since a whole-workflow restart
- * is not what a reader assumes from a per-step error card.
- */
-const RERUN_SCOPE_NOTE =
-  "Runs the whole workflow again from the start, with the same input.";
 
 /**
  * The failure surface: red Alert, the engine's own reason, and one action.
@@ -92,15 +75,14 @@ const RERUN_SCOPE_NOTE =
  * **What Re-run does, exactly.** The same thing `CacheEvictedAlert`'s button
  * does: refetch the run's original `initialCtx` and POST a fresh Try with it.
  * There is no re-execute-one-step endpoint, so the label says "workflow" —
- * the action must not read as if it retried the failed step alone, and
- * `RERUN_SCOPE_NOTE` now says it in the card as well as in this comment.
+ * the action must not read as if it retried the failed step alone — and
+ * `RERUN_SCOPE_NOTE` says in the card what it costs.
  *
- * **The action is recoverable, so it is not painted as destructive** (I5,
- * Inderdeep 2026-08-14: *"red button means a destructive action whereas
- * re-run workflow isn't destructive"*). The alert keeps the B.C. Design
- * System inline-alert danger treatment — tinted panel, 1px danger border,
- * danger icon, bold first line — because the step really did fail; the CTA
- * inside it is an outlined button, because re-running deletes nothing.
+ * **The action is recoverable, so it is not painted as destructive.** A
+ * filled red button reads as a destructive action, and re-running deletes
+ * nothing. The alert keeps the B.C. Design System inline-alert danger
+ * treatment — tinted panel, 1px danger border, danger icon, bold first line —
+ * because the step really did fail; the CTA inside it is an outlined button.
  */
 export function StepFailedAlert(): ReactNode {
   const nodeId = useNodeId();
@@ -124,7 +106,7 @@ export function StepFailedAlert(): ReactNode {
     setRerunError(null);
     try {
       const { initialCtx } = await fetchInputCtx(workflowId, runId);
-      // G-024 — re-run the version being viewed, not head, exactly as the
+      // Re-run the version being viewed, not head, exactly as the
       // cache-evicted recovery does.
       const result = await startRunWithCtx(
         workflowId,
@@ -146,8 +128,8 @@ export function StepFailedAlert(): ReactNode {
     <Alert
       color="red"
       variant="light"
-      // I5 — the B.C. Design System inline alert is a tinted panel with a
-      // 1px semantic border, not a tint alone. `--mantine-color-red-4` is
+      // The B.C. Design System inline alert is a tinted panel with a 1px
+      // semantic border, not a tint alone. `--mantine-color-red-4` is
       // the BC danger red (#CE3E39) as mapped in `appTheme`, so the border
       // and the icon take the token rather than a pasted hex.
       bd="1px solid var(--mantine-color-red-4)"
@@ -174,7 +156,11 @@ export function StepFailedAlert(): ReactNode {
         )}
         {canRerun && (
           <>
-            <Text size="xs" c="dimmed" data-testid="step-failed-rerun-scope">
+            <Text
+              size="xs"
+              c={RERUN_SCOPE_COLOR}
+              data-testid="step-failed-rerun-scope"
+            >
               {RERUN_SCOPE_NOTE}
             </Text>
             <Group gap="xs" align="center" justify="flex-end">
@@ -194,8 +180,8 @@ export function StepFailedAlert(): ReactNode {
               )}
               <Button
                 size="xs"
-                // I5 — recoverable, therefore NOT destructive: an outlined
-                // button on the alert's own surface, not a filled red one.
+                // Recoverable, therefore not destructive: an outlined button
+                // on the alert's own surface, not a filled red one.
                 variant="outline"
                 color="red"
                 bg="var(--mantine-color-body)"

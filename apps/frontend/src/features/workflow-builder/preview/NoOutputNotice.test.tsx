@@ -1,15 +1,12 @@
 /**
- * Unit tests for `NoOutputNotice` — batch-four items 10 and 11 of the
- * Inderdeep UX review (2026-08-06).
+ * Unit tests for `NoOutputNotice`.
  *
- * Item 11: the only genuine failure on the preview surface rendered as a grey,
- * action-free sentence — dimmer than the (non-failure) cache-evicted Alert
- * next to it, silent about the cause, and offering nothing to do next. These
- * specs pin the three things that changed: the error treatment, the engine's
- * own reason text, and the Re-run action.
+ * A failed step is the one genuine failure on the preview surface, and needs
+ * to say so: these specs pin the error treatment, the engine's own reason
+ * text, and the Re-run action with its scope.
  *
- * Item 10: the load-bearing guard is that a step which SUCCEEDED never gets
- * that treatment. `noOutputReasonForNode` maps a succeeded node with no cache
+ * The load-bearing guard the other way is that a step which SUCCEEDED never
+ * gets that treatment. `noOutputReasonForNode` maps a succeeded node with no cache
  * row to `evicted`, so this file asserts that reason (and every other
  * non-failure reason) renders without the error tone. The neutral styling of
  * the evicted Alert itself is covered in `CacheEvictedAlert.test.tsx`.
@@ -87,10 +84,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Item 11 — the failure surface
+// The failure surface
 // ---------------------------------------------------------------------------
 
-describe("item 11 — a failed step is drawn as an error, explained, and actionable", () => {
+describe("a failed step is drawn as an error, explained, and actionable", () => {
   it("uses the error treatment rather than the dimmed one", () => {
     renderNotice("failed");
 
@@ -194,8 +191,8 @@ describe("item 11 — a failed step is drawn as an error, explained, and actiona
   });
 
   // -------------------------------------------------------------------------
-  // I5 (2026-08-14) — the CTA is recoverable, so it must not be painted as a
-  // destructive one, and it must say what it really re-runs.
+  // The CTA is recoverable, so it must not be painted as a destructive one,
+  // and it must say what it really re-runs.
   // -------------------------------------------------------------------------
 
   it("draws the Re-run CTA as an outlined button, not the destructive filled red", () => {
@@ -218,6 +215,16 @@ describe("item 11 — a failed step is drawn as an error, explained, and actiona
     expect(screen.getByTestId("step-failed-rerun-scope")).toHaveTextContent(
       "Runs the whole workflow again from the start, with the same input.",
     );
+  });
+
+  it("draws the scope line in gray.7, which reads at 5.4:1 on the alert's tint", () => {
+    // jsdom computes no colours, so this pins the token; the ratio itself was
+    // measured in Chromium. `dimmed` (gray.6) measured 2.27:1 there.
+    renderNotice("failed");
+
+    expect(
+      screen.getByTestId("step-failed-rerun-scope").getAttribute("style"),
+    ).toContain("color: var(--mantine-color-gray-7)");
   });
 
   it("omits the per-node reason from the wire peek, where no node owns the popover", () => {
@@ -243,10 +250,10 @@ describe("item 11 — a failed step is drawn as an error, explained, and actiona
 });
 
 // ---------------------------------------------------------------------------
-// Item 10 — a succeeded step must never wear the failure treatment
+// A succeeded step must never wear the failure treatment
 // ---------------------------------------------------------------------------
 
-describe("item 10 — only a failure gets the failure treatment", () => {
+describe("only a failure gets the failure treatment", () => {
   it("maps a succeeded node with no cache row to `evicted`, not `failed`", () => {
     expect(
       noOutputReasonForNode({

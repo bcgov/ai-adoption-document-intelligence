@@ -18,17 +18,14 @@
  * the Re-run button disabled. The user can dismiss the error state via a
  * Close link to fall back to the standard evicted-cache Alert.
  *
- * **A missing preview is not a failed step** (Inderdeep, 2026-08-06 —
- * *"It got a little green checkbox. So it's like both green and red at the
- * same time."*). This Alert is only ever rendered for a node whose run status
- * is `succeeded` or `skipped` (see `noOutputReasonForNode`), so its idle state
- * used to dress a perfectly good step in the same red-alert treatment a
- * genuine failure gets, directly contradicting the green check on the same
- * card. The idle (and in-flight) presentation is therefore NEUTRAL — a grey
- * Alert with a "no stored data" icon — and leads with the step's verdict
- * before saying what is missing. Red is reserved for the two states that
- * really are errors: a re-run that failed, and a re-run that cannot be offered
- * at all. See `MODE_PRESENTATION` below.
+ * **A missing preview is not a failed step.** This Alert is only ever rendered
+ * for a node whose run status is `succeeded` or `skipped` (see
+ * `noOutputReasonForNode`), and the same card carries a green check, so a red
+ * treatment would contradict it. The idle (and in-flight) presentation is
+ * therefore NEUTRAL — a grey Alert with a "no stored data" icon — and leads
+ * with the step's verdict before saying what is missing. Red is reserved for
+ * a re-run that failed; a re-run that cannot be offered at all is a warning.
+ * See `MODE_PRESENTATION` below.
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L42
@@ -90,10 +87,6 @@ export interface StartRunResponseBody {
 }
 
 /**
- * Pulls the CSRF token from the `csrf_token` cookie. Mirrors the helper
- * in `api.service.ts` so this component stays decoupled from axios.
- */
-/**
  * Extracts the human-friendly `message` field from an error response
  * body. Falls back to `response.statusText` when the body isn't JSON or
  * carries no `message`. Identical helper to the one in
@@ -148,16 +141,16 @@ export async function fetchInputCtx(
  * Starts a fresh Try via `POST /api/workflows/:id/tries` with the supplied
  * `initialCtx`. Exported so unit tests can stub the network surface.
  *
- * D-17 — `/tries`, not `/runs`. Re-running to repopulate an evicted preview
- * row is canvas iteration, not a production run: it must be stamped
+ * `/tries`, not `/runs`. Re-running to repopulate an evicted preview row is
+ * canvas iteration, not a production run: it must be stamped
  * `RunTrigger = "try"` so the next Try can cancel it, and so it doesn't read
  * as a production execution in run history.
  *
- * G-024 — `workflowVersionId` targets the version the user is LOOKING AT.
- * Omitting it makes the backend default to head, so a re-run offered while
- * replaying an old run silently executed a different graph and filed the
- * result in history as if it were the same thing. Absent only when not
- * replaying, where head is the correct target.
+ * `workflowVersionId` targets the version the user is LOOKING AT. Without it
+ * the backend defaults to head, so a re-run offered while replaying an old run
+ * would execute a different graph and file the result in history as if it
+ * were the same thing. Absent only when not replaying, where head is the
+ * correct target.
  */
 export async function startRunWithCtx(
   workflowId: string,
@@ -184,6 +177,23 @@ export async function startRunWithCtx(
   return (await response.json()) as StartRunResponseBody;
 }
 
+/**
+ * What Re-run does, said next to the button: here and on a failed step's
+ * card (`StepFailedAlert`). Both fetch the run's original input and start a
+ * new Try with it, which runs the whole graph from its entry step; no endpoint
+ * re-runs one step. The button sits on one step's card, where a reader would
+ * not assume a whole-workflow restart, so the cost is stated.
+ */
+export const RERUN_SCOPE_NOTE =
+  "Runs the whole workflow again from the start, with the same input.";
+
+/**
+ * Colour of that line. The theme's `gray.7` (#605E5C) is 5.4:1 on the red
+ * alerts' tint and 5.9:1 on the grey one; `dimmed` (`gray.6`, #9F9D9C) is
+ * 2.3–2.5:1 on them, below the 4.5:1 that text this small needs.
+ */
+export const RERUN_SCOPE_COLOR = "gray.7";
+
 export interface CacheEvictedAlertProps {
   /** Lineage id of the workflow whose preview-cache row was evicted. */
   workflowId: string;
@@ -203,7 +213,7 @@ export interface CacheEvictedAlertProps {
 /**
  * Internal mode tracking the Alert's transient UI state:
  *   - `idle`              : default — Re-run button is enabled.
- *   - `rerunning`         : input-ctx fetch in flight OR `/runs` POST
+ *   - `rerunning`         : input-ctx fetch in flight OR `/tries` POST
  *                           in flight. Button shows `<Loader>` + is
  *                           disabled; Alert text reads "Re-running...".
  *   - `retention-cleaned` : the input-ctx endpoint returned 404 (the
@@ -223,8 +233,8 @@ type Mode = "idle" | "rerunning" | "retention-cleaned" | "error";
  * error" without reaching into Mantine's class names.
  *
  *   - `neutral` — the step is fine, we simply do not hold its preview. Grey,
- *     with a "no stored data" icon and an unstyled button. This is the state
- *     that used to contradict the node's green check badge.
+ *     with a "no stored data" icon and an unstyled button, so it agrees with
+ *     the node's green check badge.
  *   - `error`   — the re-run itself failed. Red, and the button stays enabled
  *     so the user can try again.
  *   - `warning` — the historical input is gone, so no recovery can be
@@ -262,11 +272,10 @@ const MODE_PRESENTATION: Record<Mode, ModePresentation> = {
   },
   error: {
     tone: "error",
-    // I5 (Inderdeep, 2026-08-14) — the panel stays red because the re-run
-    // really did fail, but the button that retries it is outlined, not
-    // filled: filled red is this UI's destructive-action treatment, and
-    // re-running destroys nothing. Same change, same reason, as the
-    // `StepFailedAlert` CTA in `NoOutputNotice`.
+    // The panel stays red because the re-run really did fail, but the button
+    // that retries it is outlined, not filled: filled red is this UI's
+    // destructive-action treatment, and re-running destroys nothing. The
+    // `StepFailedAlert` CTA in `NoOutputNotice` is drawn the same way.
     color: "red",
     Icon: IconAlertCircle,
     buttonVariant: "outline",
@@ -294,9 +303,9 @@ export function CacheEvictedAlert({
     setErrorMessage(null);
     try {
       const { initialCtx } = await fetchInputCtx(workflowId, runId);
-      // G-024 — re-run THE VERSION BEING VIEWED. `replayVersion` is the
-      // version pin G-004 put on the replay; without it this POST defaults
-      // to head, which after G-004 is visibly a different graph.
+      // Re-run THE VERSION BEING VIEWED. `replayVersion` is the version the
+      // replay is pinned to; without it this POST defaults to head, which can
+      // be a different graph from the one on screen.
       const result = await startRunWithCtx(
         workflowId,
         initialCtx,
@@ -338,9 +347,9 @@ export function CacheEvictedAlert({
       case "idle":
         // Lead with the step's verdict: this Alert only renders for a node
         // that succeeded (or was served from cache), so saying only
-        // "unavailable" read as a second, contradictory failure verdict next
-        // to the green check. Name the re-run target too, so the user is not
-        // guessing which graph runs.
+        // "unavailable" would read as a second, contradictory failure verdict
+        // next to the green check. Name the re-run target too, so the user is
+        // not guessing which graph runs.
         return versionLabel
           ? `This step completed. Preview unavailable — its output isn't in the preview cache. Re-run ${versionLabel} (the version you are viewing) to see it.`
           : "This step completed. Preview unavailable — its output isn't in the preview cache. Re-run to see it.";
@@ -363,6 +372,15 @@ export function CacheEvictedAlert({
         <Text size="sm" data-testid={`cache-evicted-alert-text-${nodeId}`}>
           {alertText}
         </Text>
+        {mode !== "retention-cleaned" && (
+          <Text
+            size="xs"
+            c={RERUN_SCOPE_COLOR}
+            data-testid={`cache-evicted-rerun-scope-${nodeId}`}
+          >
+            {RERUN_SCOPE_NOTE}
+          </Text>
+        )}
         <Group gap="xs" align="center">
           <Button
             size="xs"
@@ -370,7 +388,7 @@ export function CacheEvictedAlert({
             color={presentation.buttonColor}
             onClick={onRerun}
             disabled={buttonDisabled}
-            // No `color` on the Loader: the button is now an unstyled
+            // No `color` on the Loader: the button is an unstyled
             // `variant="default"` in `rerunning`, where a white spinner would
             // be invisible against its light background.
             leftSection={mode === "rerunning" ? <Loader size="xs" /> : null}

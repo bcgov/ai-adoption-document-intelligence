@@ -131,13 +131,12 @@ describe("Scenario 1 — default Alert + Re-run button", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Batch-four item 10 — a succeeded node showed a green check AND this Alert in
-// red at the same time (Inderdeep: "it's like both green and red at the same
-// time"). This Alert only ever renders for `succeeded` / `skipped`, so its
-// resting state must not use the failure treatment.
+// This Alert only ever renders for a `succeeded` / `skipped` node, whose card
+// carries a green check, so its resting state must not use the failure
+// treatment.
 // ---------------------------------------------------------------------------
 
-describe("item 10 — an evicted preview on a succeeded step is not an error", () => {
+describe("an evicted preview on a succeeded step is not an error", () => {
   it("renders the idle Alert with a neutral tone, not the failure treatment", () => {
     renderAlert();
 
@@ -176,9 +175,9 @@ describe("item 10 — an evicted preview on a succeeded step is not an error", (
   });
 
   it("retries from an outlined button — a failed re-run is recoverable, not destructive", async () => {
-    // I5 (2026-08-14): filled red is this UI's destructive treatment. The
-    // panel stays red because the re-run failed; the button that repeats it
-    // does not, exactly as in `NoOutputNotice`'s `StepFailedAlert`.
+    // Filled red is this UI's destructive treatment. The panel stays red
+    // because the re-run failed; the button that repeats it does not, exactly
+    // as in `NoOutputNotice`'s `StepFailedAlert`.
     fetchSpy.mockResolvedValue(
       jsonResponse({ message: "boom" }, { status: 500 }),
     );
@@ -260,8 +259,8 @@ describe("Scenario 3 — Re-run fetches input-ctx then POSTs /tries", () => {
 
     const secondCallUrl = String(fetchSpy.mock.calls[1][0]);
     const secondCallInit = fetchSpy.mock.calls[1][1];
-    // D-17 — repopulating an evicted preview row is canvas iteration, so
-    // it starts a Try (`/tries`), not a production run (`/runs`).
+    // Repopulating an evicted preview row is canvas iteration, so it starts
+    // a Try (`/tries`), not a production run (`/runs`).
     expect(secondCallUrl).toContain(`/workflows/${WORKFLOW_ID}/tries`);
     expect(secondCallInit?.method).toBe("POST");
     expect(secondCallInit?.body).toBe(JSON.stringify({ initialCtx }));
@@ -396,13 +395,13 @@ describe("Scenario 5 — 404 input-ctx path", () => {
 });
 
 // ---------------------------------------------------------------------------
-// G-024 — the offered remedy must not compound the problem. The Re-run
-// button POSTed with no `workflowVersionId`, i.e. against head — which after
-// G-004 is visibly a different graph from the one being replayed, and which
-// then appears in history as a new official result.
+// The offered remedy must not compound the problem. A Re-run POSTed with no
+// `workflowVersionId` would run against head — which can be a different graph
+// from the one being replayed — and appear in history as a new official
+// result.
 // ---------------------------------------------------------------------------
 
-describe("CacheEvictedAlert — G-024 re-run targets the replayed version", () => {
+describe("CacheEvictedAlert — re-run targets the replayed version", () => {
   function replayCtx(): RunStateContextValue {
     return buildRunStateContextValue({
       workflowId: WORKFLOW_ID,
@@ -471,5 +470,56 @@ describe("CacheEvictedAlert — G-024 re-run targets the replayed version", () =
     expect(JSON.parse(String(init?.body))).toEqual({
       initialCtx: { documentId: "d1" },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The Re-run says what it runs. It restarts the whole workflow, as the failed
+// step's Re-run does, and the button sits on one step's card.
+// ---------------------------------------------------------------------------
+
+describe("CacheEvictedAlert — the Re-run's scope", () => {
+  it("says next to Re-run that it runs the whole workflow from the start", () => {
+    renderAlert();
+
+    expect(
+      screen.getByTestId(`cache-evicted-rerun-scope-${NODE_ID}`),
+    ).toHaveTextContent(
+      "Runs the whole workflow again from the start, with the same input.",
+    );
+  });
+
+  it("draws that line in gray.7, which reads at more than 4.5:1 on the alert's tint", () => {
+    // jsdom computes no colours, so this pins the token; the ratio itself was
+    // measured in Chromium.
+    renderAlert();
+
+    expect(
+      screen
+        .getByTestId(`cache-evicted-rerun-scope-${NODE_ID}`)
+        .getAttribute("style"),
+    ).toContain("color: var(--mantine-color-gray-7)");
+  });
+
+  it("drops the line when no re-run can be offered", async () => {
+    // A 404 from input-ctx means the run's input is gone: nothing can be
+    // re-run, so nothing may promise it.
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ message: "not found" }, { status: 404 }),
+    );
+    renderAlert();
+
+    fireEvent.click(screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`));
+
+    await waitFor(() => {
+      expect(
+        screen
+          .getByTestId(`cache-evicted-alert-${NODE_ID}`)
+          .getAttribute("data-mode"),
+      ).toBe("retention-cleaned");
+    });
+    expect(
+      screen.queryByTestId(`cache-evicted-rerun-scope-${NODE_ID}`),
+    ).toBeNull();
   });
 });
