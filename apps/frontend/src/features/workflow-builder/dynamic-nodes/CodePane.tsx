@@ -27,7 +27,7 @@
  * gutter; the strip is the explicit list (clickable + sortable), the
  * gutter is the inline anchor.
  *
- * D-13 — Monaco is bundled locally (`./monaco-loader`), not fetched from a
+ * Monaco is bundled locally (`./monaco-loader`), not fetched from a
  * CDN, and the mount is bounded: if the loader rejects or the editor never
  * reaches `onMount` inside {@link EDITOR_MOUNT_TIMEOUT_MS}, the pane says so
  * and reports upward via `onEditorUnavailable` so Publish can refuse. An
@@ -82,7 +82,7 @@ export interface CodePaneProps {
   /** Pixel height of the editor surface. Defaults to 480. */
   height?: number;
   /**
-   * D-13 — called whenever the editor's availability changes: a human-readable
+   * Called whenever the editor's availability changes: a human-readable
    * reason while the code surface cannot be shown, `null` once it is live.
    * The parent MUST refuse Publish while a reason is set.
    */
@@ -94,8 +94,8 @@ const ONCHANGE_DEBOUNCE_MS = 150;
 /**
  * How long the editor may take to reach `onMount` before we call it dead.
  * Generous — a cold local Monaco chunk on a slow machine is well under this.
- * The point is that *some* finite bound exists: the failure this replaces was
- * an indefinite "Loading…".
+ * The point is that *some* finite bound exists, so a failed bring-up says so
+ * instead of showing "Loading…" indefinitely.
  */
 const EDITOR_MOUNT_TIMEOUT_MS = 15_000;
 
@@ -117,34 +117,44 @@ interface ParseStripState {
 }
 
 /**
- * D26 — "Couldn't get it to turn red. What's it looking for?"
+ * What the strip checks, and what waits for Publish.
  *
- * The strip only ever reads the `@workflow-node` JSDoc header. Everything the
- * reviewer was likely to break — the TypeScript body, an un-allowed hostname —
- * is checked somewhere else, so no amount of editing the function turned the
- * tick red and the surface never said which half it owned. These two lists are
- * that answer, rendered next to the tick rather than left in a design doc.
+ * The strip only reads the `@workflow-node` JSDoc header. The TypeScript body
+ * and the hosts in `@allowNet` are checked by the server when Publish is
+ * pressed, so editing the function never turns the strip red; the popover
+ * says which half the strip owns.
  *
- * The wording is derived from the two client-side stages in
- * `parseDynamicNodeSignature` (`jsdoc-parse`, then `signature-semantics`) and
- * from the two that only exist server-side (`ts-check`, `allowlist`).
+ * `STRIP_LIVE_CHECKS` covers every check `parseDynamicNodeSignature` makes, in
+ * its two stages (`jsdoc-parse`, then `signature-semantics`). The parser
+ * publishes no list of its checks, so `CodePane.spec.tsx` reads its source and
+ * fails when it can report an error that no line here covers.
+ *
+ * `STRIP_PUBLISH_CHECKS` is what the server adds when publishing
+ * (`DynamicNodesService.publish`): the TypeScript check, the `@allowNet`
+ * allowlist, and the name rules — a published version keeps its lineage's
+ * name, and a new lineage cannot take the name of a live one.
  */
 const STRIP_LIVE_CHECKS = [
-  "The header exists and is marked @workflow-node.",
-  "@name, @description, @inputs and @outputs are all present.",
-  "@name is lower-case letters, digits and hyphens, up to 64 characters.",
-  "Every input and output names a kind the system knows about.",
-  "Each @parameters entry is a string, number, boolean or enum.",
+  "The top of the file has a /** … */ comment containing @workflow-node. Only imports, // comments and blank lines may come before it.",
+  "@name, @description, @inputs and @outputs are all present, and @name and @description are not empty.",
+  "@name starts with a lower-case letter and has only lower-case letters, digits and hyphens, up to 64 characters.",
+  "The values of @inputs, @outputs, @parameters and @allowNet parse as JSON. Comments, unquoted keys and trailing commas are fine.",
+  '@inputs and @outputs map each port name to an object with a kind, like { doc: { kind: "Document" } }.',
+  "Every input and output kind is one the system knows. Add [] for a list.",
+  "@parameters, if present, maps each name to an object whose type is string, number, boolean or enum. An enum lists its values, as strings, in enum.",
+  "@deterministic, if present, is true or false.",
+  "@timeoutMs and @maxMemoryMB, if present, are numbers.",
 ] as const;
 
 const STRIP_PUBLISH_CHECKS = [
-  "The TypeScript itself compiles (the editor does not type-check as you type).",
-  "Every host in @allowNet is one this server permits.",
+  "The TypeScript compiles. The editor does not type-check as you type.",
+  "Every host in @allowNet is one this server allows.",
+  "@name is the name of the node being edited or, for a new node, not the name of an existing custom node in your group.",
 ] as const;
 
 /**
- * D26 — the "what is this checking?" affordance, shown in both the green and
- * the red state so the answer does not depend on having already failed.
+ * The "what is this checking?" popover, shown in both the green and the red
+ * state so the answer does not depend on having already failed.
  */
 function StripChecksPopover() {
   return (
@@ -166,7 +176,11 @@ function StripChecksPopover() {
             <Text size="xs" fw={600}>
               Checked here, as you type
             </Text>
-            <List size="xs" spacing={2}>
+            <List
+              size="xs"
+              spacing={2}
+              data-testid="code-pane-strip-checks-live"
+            >
               {STRIP_LIVE_CHECKS.map((check) => (
                 <List.Item key={check}>{check}</List.Item>
               ))}
@@ -176,16 +190,21 @@ function StripChecksPopover() {
             <Text size="xs" fw={600}>
               Checked when you press Publish
             </Text>
-            <List size="xs" spacing={2}>
+            <List
+              size="xs"
+              spacing={2}
+              data-testid="code-pane-strip-checks-publish"
+            >
               {STRIP_PUBLISH_CHECKS.map((check) => (
                 <List.Item key={check}>{check}</List.Item>
               ))}
             </List>
           </Stack>
           <Text size="xs" c="dimmed">
-            A failure here turns this strip red and lists the line and column;
-            click a line to jump to it. A failure at Publish keeps the strip
-            green and marks the code instead.
+            A failure here turns this strip red and lists each problem, with its
+            line where it has one; click a line to jump to it. A failure at
+            Publish leaves the strip green and is shown above the editor, with
+            TypeScript errors also marked in the code.
           </Text>
         </Stack>
       </Popover.Dropdown>
@@ -246,7 +265,7 @@ export function CodePane({
   const monacoRef = useRef<Monaco | null>(null);
 
   /**
-   * D8 (second cause) — **Monaco owns the buffer while the author types.**
+   * **Monaco owns the buffer while the author types.**
    *
    * This is the seed the editor is CREATED with, and it changes only on a
    * deliberate re-seed (see {@link reseedEditor}) — never on a keystroke. It is
@@ -260,18 +279,17 @@ export function CodePane({
    *                                text: value, forceMoveMarkers: true }])
    *
    * with no `endCursorState`. React state is always one commit behind a
-   * keystroke, so two keystrokes inside a single commit made `value` trail the
-   * model by one character, the whole model was replaced with the older
-   * string, and the caret was thrown to the end of the document. The text
-   * recovered on the next commit; the caret did not. That is the reported
-   * "forces the cursor to the end of the last line".
+   * keystroke, so two keystrokes inside a single commit would make `value`
+   * trail the model by one character, the whole model would be replaced with
+   * the older string, and the caret thrown to the end of the document. The
+   * text recovers on the next commit; the caret does not.
    *
    * Monaco's own guidance says the same thing from the other side: `setValue`
    * is documented as "replace the entire text buffer", and the preferred way
    * to edit a model in place is `pushEditOperations`, which takes a cursor
    * state. A per-keystroke mirror is not an edit that needs applying at all —
-   * the characters are already in the model — so the fix is to stop applying
-   * one, not to apply it more carefully.
+   * the characters are already in the model — so none is applied, rather than
+   * one applied more carefully.
    */
   const [editorSeed, setEditorSeed] = useState<string>(
     () => script || DYNAMIC_NODE_BOILERPLATE,
@@ -288,7 +306,7 @@ export function CodePane({
   );
 
   /**
-   * D8 — the last text this pane sent UP, recorded before the parent can send
+   * The last text this pane sent UP, recorded before the parent can send
    * it back down. `script` is not an independent input: it is this pane's own
    * debounced text echoed through the parent's state 150 ms later, so "the
    * prop genuinely changed" (below) is true on every debounce cycle, not only
@@ -328,7 +346,7 @@ export function CodePane({
   useEffect(() => {
     if (script === lastHydratedScriptRef.current) return;
     lastHydratedScriptRef.current = script;
-    // D8 — ignore the echo of our own edit. Re-seeding from a stale echo
+    // Ignore the echo of our own edit. Re-seeding from a stale echo
     // overwrites every character typed since the debounce fired, and
     // `setValue` resets the caret. This guard is what keeps the round-trip
     // through the parent from reaching the buffer at all; it is also what
@@ -338,7 +356,7 @@ export function CodePane({
     reseedEditor(script || DYNAMIC_NODE_BOILERPLATE);
   }, [script, reseedEditor]);
 
-  // ── D-13: bounded editor bring-up ─────────────────────────────────────
+  // ── Bounded editor bring-up ───────────────────────────────────────────
   // "configuring" → the local Monaco chunk is still loading, so `<Editor>`
   // is not rendered yet (the wrapper reads `loader.config` once, at first
   // init — configuring afterwards silently falls back to the CDN).
@@ -370,8 +388,8 @@ export function CodePane({
   }, []);
 
   // A bound on the whole bring-up, not just the chunk fetch: `loader.init()`
-  // resolving is not the same as the editor rendering, and the old failure
-  // mode was a hang somewhere in between.
+  // resolving is not the same as the editor rendering, and a hang can happen
+  // anywhere in between.
   useEffect(() => {
     if (editorStatus === "ready" || editorStatus === "failed") return;
     const timer = setTimeout(
@@ -430,9 +448,9 @@ export function CodePane({
   useEffect(() => {
     // Recorded BEFORE the call, so the echo always arrives strictly later and
     // is always recognised by the guard above. This is also what makes
-    // clearing the editor stick: select-all + delete used to round-trip an
-    // empty string, hit the `script || DYNAMIC_NODE_BOILERPLATE` fallback and
-    // re-insert the whole boilerplate with the caret at its end.
+    // clearing the editor stick: select-all + delete round-trips an empty
+    // string, which would otherwise hit the `script || DYNAMIC_NODE_BOILERPLATE`
+    // fallback and re-insert the whole boilerplate with the caret at its end.
     lastEmittedRef.current = debouncedText;
     onChangeRef.current(debouncedText);
   }, [debouncedText]);

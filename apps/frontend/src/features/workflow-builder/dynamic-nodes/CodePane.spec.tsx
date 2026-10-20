@@ -10,6 +10,7 @@
 
 import "@testing-library/jest-dom";
 
+import { parseDynamicNodeSignature } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
 import {
   act,
@@ -21,6 +22,7 @@ import {
 import { ReactFlow } from "@xyflow/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import parserSource from "../../../../../../packages/graph-workflow/src/dynamic-nodes/parse-signature.ts?raw";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { CodePane } from "./CodePane";
 
@@ -28,7 +30,7 @@ import { CodePane } from "./CodePane";
 // through `value` / `onChange`; Monaco's marker decorations + the deno-
 // runner-style language services don't fire in this stub, but the
 // parse-strip behaviour is driven by the editor's text, not the gutter.
-// D-13 — `CodePane` bundles Monaco locally and awaits the chunk before
+// `CodePane` bundles Monaco locally and awaits the chunk before
 // rendering `<Editor>`. Stub the loader so the 70 MB `monaco-editor` import
 // never runs under jsdom; the editor surface itself is stubbed just below.
 // Hoisted + per-test overridable so the failure surface can be exercised.
@@ -41,7 +43,7 @@ vi.mock("./monaco-loader", () => ({
 
 /**
  * The Monaco stub mirrors the ONE property of `@monaco-editor/react` this
- * component now depends on: the editor owns its buffer.
+ * component depends on: the editor owns its buffer.
  *
  * So the stub is an *uncontrolled* `<textarea>` seeded once from
  * `defaultValue`, exactly as the real library creates its model from
@@ -49,16 +51,15 @@ vi.mock("./monaco-loader", () => ({
  * push text into it; the only way text changes after mount is the author
  * typing, or `CodePane` calling `editor.setValue()` through the handle it got
  * from `onMount`. That is what makes these tests able to fail: a stale echo
- * reaching the buffer now shows up as a `setValue` that clobbers the textarea.
+ * reaching the buffer shows up as a `setValue` that clobbers the textarea.
  *
- * A previous version of this stub was `<textarea value={value}>`, which pinned
- * the controlled shape that caused D8's second cause — two keystrokes inside
- * one React commit made `value` trail the model and the library replaced the
- * whole model, throwing the caret to the end. Pinning it here would have made
- * the fix look like a regression.
+ * A controlled `<textarea value={value}>` stub would pin the shape this
+ * component must not have: with `value`, two keystrokes inside one React
+ * commit make `value` trail the model, and the library replaces the whole
+ * model and throws the caret to the end.
  *
  * `onMount` fires by default. `monacoStubMounts` turns it off for the one
- * D-13 test that stands in for an editor hanging mid-init.
+ * test that stands in for an editor hanging mid-init.
  */
 const monacoStubMounts = vi.hoisted(() => ({ current: true }));
 
@@ -186,7 +187,7 @@ describe("CodePane (US-177)", () => {
   // -----------------------------------------------------------------------
   it("seeds the editor with the boilerplate when `script` is empty", async () => {
     renderPane({ script: "" });
-    // D-13 — the editor renders only after the local Monaco chunk resolves.
+    // The editor renders only after the local Monaco chunk resolves.
     const editor = (await screen.findByTestId(
       "monaco-stub",
     )) as HTMLTextAreaElement;
@@ -235,12 +236,9 @@ describe("CodePane (US-177)", () => {
   });
 
   // -----------------------------------------------------------------------
-  // D26 — "Couldn't get it to turn red. What's it looking for?"
-  //
-  // The strip owns exactly one half of the checking, and never said which.
-  // These pin the copy that now says so, in both states, and pin the one
-  // concrete gesture that DOES turn it red — breaking the JSDoc header, not
-  // the TypeScript.
+  // The strip owns exactly one half of the checking — the JSDoc header, not
+  // the TypeScript — and has to say so. These pin that copy, in both states,
+  // and the one concrete gesture that DOES turn it red: breaking the header.
   // -----------------------------------------------------------------------
   it("says what the green strip checked, and offers the full list", async () => {
     renderPane({ script: "" });
@@ -324,15 +322,14 @@ describe("CodePane (US-177)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D-13 — the editor's bring-up is bounded and its failure is visible.
+// The editor's bring-up is bounded and its failure is visible.
 //
-// Before this, Monaco was fetched from cdn.jsdelivr.net at runtime. With the
-// CDN blocked — an egress proxy, an air-gapped deploy — the pane sat on
-// "Loading…" indefinitely and Publish stayed enabled, so an author could ship
-// a script they had never been shown. Monaco is bundled locally now; these
-// cover what happens when the bring-up still doesn't finish.
+// Monaco is bundled locally, but its chunk can still fail to load, or the
+// editor hang mid-init. The pane must then say so rather than sit on
+// "Loading…", and Publish must be refused: an author must never ship a script
+// they have not been shown.
 // ---------------------------------------------------------------------------
-describe("CodePane — editor bring-up failure (D-13)", () => {
+describe("CodePane — editor bring-up failure", () => {
   it("surfaces an error and reports unavailable when the Monaco chunk fails to load", async () => {
     ensureLocalMonacoMock.mockImplementation(() =>
       Promise.reject(new Error("Failed to fetch dynamically imported module")),
@@ -354,8 +351,8 @@ describe("CodePane — editor bring-up failure (D-13)", () => {
 
   it("gives up after the mount timeout when the editor never reaches onMount", async () => {
     // The loader resolves, so `<Editor>` renders — but the stub never calls
-    // `onMount`, standing in for an editor that hangs mid-init. This is the
-    // exact shape of the old bug: no rejection to catch, just silence.
+    // `onMount`, standing in for an editor that hangs mid-init: no rejection
+    // to catch, just silence.
     monacoStubMounts.current = false;
     const onEditorUnavailable = vi.fn();
     renderPane({ script: "", onEditorUnavailable });
@@ -388,10 +385,10 @@ describe("CodePane — editor bring-up failure (D-13)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D8 — the parent's `script` prop is this pane's own text echoed back.
+// The parent's `script` prop is this pane's own text echoed back.
 //
-// The existing tests above pass a STATIC `script`, so the round-trip that
-// causes the bug never happens in them. These use a controlled harness — the
+// The tests above pass a STATIC `script`, so the round-trip through the
+// parent never happens in them. These use a controlled harness — the
 // parent holds `script` in state and feeds it straight back — which is what
 // `DynamicNodeEditor` does (`<CodePane script={currentText}
 // onChange={setCurrentText} />`).
@@ -404,12 +401,12 @@ describe("CodePane — editor bring-up failure (D-13)", () => {
 // The caret half is owned by
 // `tests/e2e/workflow-builder/specs/tier1-code-pane-caret.spec.ts`, which drives
 // real Monaco in Chromium and reads the caret's line out of the rendered
-// `.cursors-layer`. It covers all three defects: select-all + delete stays
-// deleted with the caret on the one empty line; 26 pause-and-resume typing
-// cycles swept across the 150 ms debounce boundary leave every character and
-// the caret on the line they were typed on; and two keystrokes inside a single
-// React commit no longer rewrite the model, which is what the move off the
-// controlled `value` prop closed.
+// `.cursors-layer`. It covers three cases: select-all + delete stays deleted
+// with the caret on the one empty line; 26 pause-and-resume typing cycles
+// swept across the 150 ms debounce boundary leave every character and the
+// caret on the line they were typed on; and two keystrokes inside a single
+// React commit do not rewrite the model, which passing `defaultValue` rather
+// than `value` guarantees.
 // ---------------------------------------------------------------------------
 
 function ControlledCodePane({
@@ -434,7 +431,7 @@ function ControlledCodePane({
   );
 }
 
-describe("CodePane — D8: the parent's echo must not overwrite the buffer", () => {
+describe("CodePane — the parent's echo must not overwrite the buffer", () => {
   it("clearing the editor stays cleared — it does not re-insert the boilerplate", async () => {
     render(<ControlledCodePane initialScript="const x = 1;" />);
     const editor = (await screen.findByTestId(
@@ -447,9 +444,9 @@ describe("CodePane — D8: the parent's echo must not overwrite the buffer", () 
       vi.advanceTimersByTime(400);
     });
 
-    // Before the fix: `script` echoes back as "", the effect re-seeds from
-    // `script || DYNAMIC_NODE_BOILERPLATE`, and the entire boilerplate
-    // reappears with the caret at its end. 100% reproducible, no race needed.
+    // Without the echo guard, `script` echoes back as "", the effect re-seeds
+    // from `script || DYNAMIC_NODE_BOILERPLATE`, and the entire boilerplate
+    // reappears with the caret at its end — every time, no race needed.
     await waitFor(() => expect(editor.value).toBe(""));
   });
 
@@ -478,11 +475,11 @@ describe("CodePane — D8: the parent's echo must not overwrite the buffer", () 
     fireEvent.change(editor, { target: { value: "const x = 123;" } });
     await sleep(700);
 
-    // Before the fix the stale echo (T_A) won and the "3" was discarded —
-    // and in real Monaco the whole model was replaced with `forceMoveMarkers`,
-    // sending the caret to the end of the last line.
+    // Without the echo guard the stale echo (T_A) wins and the "3" is
+    // discarded — and in real Monaco the whole model is replaced with
+    // `forceMoveMarkers`, sending the caret to the end of the last line.
     //
-    // This still has teeth against the uncontrolled stub: remove the echo
+    // This has teeth against the uncontrolled stub too: remove the echo
     // guard and `reseedEditor` calls `setValue("const x = 12;")` on the
     // handle it got from `onMount`, which overwrites the textarea directly.
     expect(editor.value).toBe("const x = 123;");
@@ -552,5 +549,222 @@ describe("CodePane — open over the canvas", () => {
     );
 
     expect(notClaimed).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "What is checked?" names every check the live parser makes.
+//
+// `parseDynamicNodeSignature` publishes no list of its own checks, so these
+// read its source for every error message it can produce and require each one
+// to be mapped to a line of the popover. A check added to the parser with no
+// line fails the first test; a row whose probe no longer trips its check
+// fails the second; a popover line that no check maps to, or a mapped line
+// missing from the popover, fails the third.
+// ---------------------------------------------------------------------------
+
+/** The popover's "Checked here, as you type" lines, as rendered. */
+const LIVE_LINES = {
+  marker:
+    "The top of the file has a /** … */ comment containing @workflow-node. Only imports, // comments and blank lines may come before it.",
+  required:
+    "@name, @description, @inputs and @outputs are all present, and @name and @description are not empty.",
+  name: "@name starts with a lower-case letter and has only lower-case letters, digits and hyphens, up to 64 characters.",
+  json: "The values of @inputs, @outputs, @parameters and @allowNet parse as JSON. Comments, unquoted keys and trailing commas are fine.",
+  ports:
+    '@inputs and @outputs map each port name to an object with a kind, like { doc: { kind: "Document" } }.',
+  kinds:
+    "Every input and output kind is one the system knows. Add [] for a list.",
+  parameters:
+    "@parameters, if present, maps each name to an object whose type is string, number, boolean or enum. An enum lists its values, as strings, in enum.",
+  deterministic: "@deterministic, if present, is true or false.",
+  numbers: "@timeoutMs and @maxMemoryMB, if present, are numbers.",
+} as const;
+
+const PROBE_TAGS = {
+  marker: " * @workflow-node",
+  name: " * @name probe-node",
+  description: " * @description Probe",
+  inputs: ' * @inputs { doc: { kind: "Document" } }',
+  outputs: ' * @outputs { out: { kind: "Artifact" } }',
+} as const;
+const VALID_HEADER: string[] = Object.values(PROBE_TAGS);
+
+function probeScript(headerLines: string[]): string {
+  return [
+    "/**",
+    ...headerLines,
+    " */",
+    "export default async function dynamicNode() { return {}; }",
+  ].join("\n");
+}
+/** A valid header with one more tag line at its end. */
+const adding = (line: string) => probeScript([...VALID_HEADER, line]);
+/** A valid header with one of its lines swapped for another. */
+const swapping = (from: string, to: string) =>
+  probeScript(VALID_HEADER.map((line) => (line === from ? to : line)));
+/** A valid header with one of its lines left out. */
+const dropping = (line: string) =>
+  probeScript(VALID_HEADER.filter((l) => l !== line));
+
+interface ParserCheck {
+  /** The parser's message, with each `${…}` placeholder shown as `…`. */
+  message: string;
+  /** A script that fails this check. */
+  probe: string;
+  /** The popover line that covers it. */
+  line: string;
+}
+
+const PARSER_CHECKS: ParserCheck[] = [
+  {
+    message: "Missing @workflow-node marker",
+    probe: dropping(PROBE_TAGS.marker),
+    line: LIVE_LINES.marker,
+  },
+  {
+    message: "Missing required tag …",
+    probe: dropping(PROBE_TAGS.description),
+    line: LIVE_LINES.required,
+  },
+  {
+    message: "@name must match /^[a-z][a-z0-9-]*$/ max 64 chars",
+    probe: swapping(PROBE_TAGS.name, " * @name Probe_Node"),
+    line: LIVE_LINES.name,
+  },
+  {
+    message:
+      "Invalid … value: expected a JSON object or array, got empty value",
+    probe: adding(" * @parameters"),
+    line: LIVE_LINES.json,
+  },
+  {
+    message: "Invalid … value: …",
+    probe: swapping(PROBE_TAGS.inputs, " * @inputs { doc: "),
+    line: LIVE_LINES.json,
+  },
+  {
+    message: "… must be an object mapping port names to { kind, ... }",
+    probe: swapping(PROBE_TAGS.inputs, ' * @inputs ["doc"]'),
+    line: LIVE_LINES.ports,
+  },
+  {
+    message: '….… must be an object with at least a "kind" property',
+    probe: swapping(PROBE_TAGS.inputs, ' * @inputs { doc: "Document" }'),
+    line: LIVE_LINES.ports,
+  },
+  {
+    message: '….… is missing a string "kind"',
+    probe: swapping(
+      PROBE_TAGS.inputs,
+      " * @inputs { doc: { required: true } }",
+    ),
+    line: LIVE_LINES.ports,
+  },
+  {
+    message: "Unknown kind: …",
+    probe: swapping(
+      PROBE_TAGS.inputs,
+      ' * @inputs { doc: { kind: "NotARealKind" } }',
+    ),
+    line: LIVE_LINES.kinds,
+  },
+  {
+    message:
+      "@parameters must be an object mapping param names to { type, ... }",
+    probe: adding(' * @parameters ["level"]'),
+    line: LIVE_LINES.parameters,
+  },
+  {
+    message: '@parameters.… must be an object with at least a "type" property',
+    probe: adding(' * @parameters { level: "string" }'),
+    line: LIVE_LINES.parameters,
+  },
+  {
+    message:
+      '@parameters.….type "…" is not supported (expected one of: string, number, boolean, enum)',
+    probe: adding(' * @parameters { level: { type: "date" } }'),
+    line: LIVE_LINES.parameters,
+  },
+  {
+    message: '@parameters.….type is "enum" but no "enum" array was provided',
+    probe: adding(' * @parameters { level: { type: "enum" } }'),
+    line: LIVE_LINES.parameters,
+  },
+  {
+    message: "@parameters.….enum must be an array of strings",
+    probe: adding(' * @parameters { level: { type: "enum", enum: [1, 2] } }'),
+    line: LIVE_LINES.parameters,
+  },
+  {
+    message:
+      'Invalid @deterministic value: expected "true" or "false", got "…"',
+    probe: adding(" * @deterministic yes"),
+    line: LIVE_LINES.deterministic,
+  },
+  {
+    message: 'Invalid … value: expected a number, got "…"',
+    probe: adding(" * @timeoutMs soon"),
+    line: LIVE_LINES.numbers,
+  },
+];
+
+/**
+ * Every error message `parse-signature.ts` sets, as `ParserCheck.message`
+ * spells it: the string or template literal after `message:`, without its
+ * quotes, each `${…}` placeholder shown as `…`.
+ */
+function parserMessages(): string[] {
+  const found = new Set<string>();
+  for (const match of parserSource.matchAll(/message:\s*(`[^`]*`|"[^"]*")/g)) {
+    found.add(match[1].slice(1, -1).replace(/\$\{[^}]*\}/g, "…"));
+  }
+  return [...found].sort();
+}
+
+/** A `ParserCheck.message` as a pattern in which each `…` matches any text. */
+function messagePattern(message: string): RegExp {
+  const parts = message
+    .split("…")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${parts.join(".*")}$`);
+}
+
+describe('CodePane — "What is checked?" covers every check the parser makes', () => {
+  it("maps every error the parser can report to a line", () => {
+    const mapped = PARSER_CHECKS.map((check) => check.message).sort();
+    // A parser message missing from PARSER_CHECKS is a check the popover
+    // does not mention: add its line to STRIP_LIVE_CHECKS in CodePane.tsx,
+    // then a row here.
+    expect(mapped).toEqual(parserMessages());
+  });
+
+  it.each(PARSER_CHECKS)("$message — its probe trips that check", (check) => {
+    const { errors } = parseDynamicNodeSignature(check.probe);
+    const pattern = messagePattern(check.message);
+    expect(
+      errors.map((e) => e.message).filter((m) => pattern.test(m)),
+      `no error matched; the parser said: ${errors.map((e) => e.message).join(" | ")}`,
+    ).not.toHaveLength(0);
+  });
+
+  it("shows exactly the lines those checks map to", async () => {
+    renderPane({ script: "" });
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    fireEvent.click(
+      (await screen.findAllByTestId("code-pane-strip-checks-trigger"))[0],
+    );
+    const live = await screen.findByTestId("code-pane-strip-checks-live");
+    // Read the items directly: while the dropdown fades in, role queries
+    // treat them as hidden.
+    const shown = Array.from(live.querySelectorAll("li"))
+      .map((item) => item.textContent ?? "")
+      .sort();
+    const mapped = [
+      ...new Set(PARSER_CHECKS.map((check) => check.line)),
+    ].sort();
+    expect(shown).toEqual(mapped);
   });
 });
