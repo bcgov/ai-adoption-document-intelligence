@@ -1,9 +1,9 @@
 /**
- * Structural diff of two workflow configs (D31).
+ * Structural diff of two workflow configs, for the compare-to-head modal.
  *
- * The compare-to-head modal used to print both configs in full and leave the
- * reader to spot the difference — on a real workflow that is two ~400-line
- * JSON blocks, side by side, with no marker on the three lines that moved.
+ * Two full configs side by side leave the reader to spot the difference in
+ * two ~400-line JSON blocks, so the modal leads with this list of changed
+ * fields instead.
  *
  * No diff library is in the frontend's dependency tree (checked
  * `apps/frontend/package.json` — no `diff`, `jsondiffpatch`,
@@ -12,12 +12,21 @@
  * whose key ORDER is not meaningful, so a line diff reports moves as
  * changes. This walks the two objects to their leaves instead and compares
  * leaf by leaf, which is what "what changed in this workflow" actually means.
+ *
+ * List items are matched by identity where the list has one, not by
+ * position: deleting a step removes its wires from the middle of `edges`, and
+ * a positional comparison would then report every later wire as changed or
+ * removed although it is still there.
  */
 
 export type ConfigDiffKind = "added" | "removed" | "changed" | "unchanged";
 
 export interface ConfigDiffEntry {
-  /** Dotted path to the leaf, array elements as `edges[0].from`. */
+  /**
+   * Dotted path to the leaf. A list item is named by its identity when the
+   * list has one (`edges[id=a-b].source`, `nodes.ocr.inputs[port=file].ctxKey`)
+   * and by its position otherwise (`metadata.tags[0]`).
+   */
   path: string;
   kind: ConfigDiffKind;
   /** JSON-rendered value on the older version. `undefined` when added. */
@@ -52,6 +61,15 @@ type JsonValue =
  * omission is stated rather than silent.
  */
 export const DERIVED_PATHS: readonly string[] = ["metadata.configHash"];
+
+/**
+ * Fields that identify an item within a list, tried in order: a wire by its
+ * `id`, a step's input or output binding by its `port`. A list is matched on
+ * the first field that every item on both sides holds as a string, with no
+ * two items on one side sharing a value. Any other list is matched by
+ * position.
+ */
+const IDENTITY_FIELDS: readonly string[] = ["id", "port"];
 
 /** Objects and arrays — the things the walk can descend into. */
 function isContainer(value: JsonValue): boolean {
@@ -96,6 +114,66 @@ function childAt(value: JsonValue, key: string): JsonValue | undefined {
   return undefined;
 }
 
+/** The value of `field` on a list item, when the item is an object holding it as a string. */
+function identityOf(item: JsonValue, field: string): string | undefined {
+  if (item === null || typeof item !== "object" || Array.isArray(item)) {
+    return undefined;
+  }
+  const value = item[field];
+  return typeof value === "string" ? value : undefined;
+}
+
+function identifiesEveryItem(items: JsonValue[], field: string): boolean {
+  const seen = new Set<string>();
+  for (const item of items) {
+    const identity = identityOf(item, field);
+    if (identity === undefined || seen.has(identity)) return false;
+    seen.add(identity);
+  }
+  return true;
+}
+
+/** The identity field shared by every item of every given list, if any. */
+function identityFieldFor(...lists: JsonValue[][]): string | null {
+  for (const field of IDENTITY_FIELDS) {
+    if (lists.every((items) => identifiesEveryItem(items, field))) {
+      return field;
+    }
+  }
+  return null;
+}
+
+/**
+ * Pairs list items that share an identity and diffs each pair. Items present
+ * on one side only are reported whole, as added or removed. Order is the
+ * older version's items first, then the ones only head has.
+ */
+function walkByIdentity(
+  left: JsonValue[],
+  right: JsonValue[],
+  field: string,
+  path: string,
+  out: ConfigDiffEntry[],
+): void {
+  const rightById = new Map<string, JsonValue>();
+  for (const item of right) {
+    const identity = identityOf(item, field);
+    if (identity !== undefined) rightById.set(identity, item);
+  }
+  const leftIds = new Set<string>();
+  for (const item of left) {
+    const identity = identityOf(item, field);
+    if (identity === undefined) continue;
+    leftIds.add(identity);
+    walk(item, rightById.get(identity), `${path}[${field}=${identity}]`, out);
+  }
+  for (const item of right) {
+    const identity = identityOf(item, field);
+    if (identity === undefined || leftIds.has(identity)) continue;
+    walk(undefined, item, `${path}[${field}=${identity}]`, out);
+  }
+}
+
 /**
  * Collects every leaf under `value` as an entry of the given one-sided kind —
  * used when a whole subtree exists on only one side.
@@ -113,6 +191,19 @@ function collectSide(
         : { path, kind, left: formatValue(value) },
     );
     return;
+  }
+  // Named the same way as a list present on both sides, so a deleted step's
+  // bindings read `inputs[port=…]` like everyone else's.
+  if (Array.isArray(value)) {
+    const identityField = identityFieldFor(value);
+    if (identityField !== null) {
+      for (const item of value) {
+        const identity = identityOf(item, identityField);
+        if (identity === undefined) continue;
+        collectSide(item, `${path}[${identityField}=${identity}]`, kind, out);
+      }
+      return;
+    }
   }
   const { keys, isArray } = keysOf(value);
   for (const key of keys) {
@@ -168,6 +259,14 @@ function walk(
     return;
   }
 
+  if (Array.isArray(left) && Array.isArray(right)) {
+    const identityField = identityFieldFor(left, right);
+    if (identityField !== null) {
+      walkByIdentity(left, right, identityField, path, out);
+      return;
+    }
+  }
+
   const leftKeys = keysOf(left);
   const rightKeys = keysOf(right);
   const seen = new Set<string>();
@@ -186,8 +285,8 @@ function walk(
 
 /**
  * Diffs two configs leaf by leaf. Entries come back in walk order (left's
- * keys first, then keys only present on the right), which keeps related
- * fields — a node and its parameters — next to each other.
+ * keys and list items first, then those only present on the right), which
+ * keeps related fields — a node and its parameters — next to each other.
  */
 export function diffConfigs(left: unknown, right: unknown): ConfigDiffEntry[] {
   const out: ConfigDiffEntry[] = [];
