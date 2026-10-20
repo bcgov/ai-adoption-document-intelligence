@@ -9,7 +9,7 @@ import {
 import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
 
 /**
- * Tier 2 — D24: the map node's item ctx key default, and the collision warning
+ * Tier 2 — the map node's item ctx key default, and the collision warning
  * that pays for it.
  *
  * Both halves are invisible to jsdom. The default is applied by the PALETTE
@@ -44,7 +44,7 @@ function buildSeedConfig(name: string): GraphConfig {
   };
 }
 
-test.describe("map item ctx key default + collision warning (D24)", () => {
+test.describe("map item ctx key default + collision warning", () => {
   let pageErrors: string[] = [];
   let createdId: string | null = null;
 
@@ -88,7 +88,7 @@ test.describe("map item ctx key default + collision warning (D24)", () => {
 
     // The new node is auto-selected on add, so its settings form is already up.
     await expect(page.getByTestId("map-node-settings")).toBeVisible();
-    // The point of D24: this used to be "" — a required field that is a hard
+    // The item key is required, so an empty default would be a hard
     // validation error the instant the node exists.
     await expect(
       page.getByTestId("map-node-settings-item-ctx-key"),
