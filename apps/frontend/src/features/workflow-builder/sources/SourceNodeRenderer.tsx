@@ -26,7 +26,7 @@ import {
 } from "@ai-di/graph-workflow";
 import { Text, Tooltip } from "@mantine/core";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useRef } from "react";
 
 import { colorForKind, shapeForColor } from "../canvas/artifact-kind-colour";
 import { handleBackground, portShapeStyle } from "../canvas/handle-style";
@@ -88,6 +88,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
   const accent = ACTIVITY_ACCENT;
   const Icon = hints.Icon;
   const outputKind: KindRef = entry?.outputKind ?? "Artifact";
+  const outputDotRef = useRef<HTMLDivElement>(null);
   const handleColor = colorForKind(outputKind);
 
   // The ctx key this source writes its output to — where the preview value
@@ -211,28 +212,37 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
         Hover tooltip reads the kind literal verbatim ("Document" /
         "Artifact"). NO target handle on the left — that's the whole
         point of US-117 Scenario 1.
+
+        The tooltip targets the dot itself. The wrapper has no box of its
+        own (its only child is absolutely positioned), so a tooltip around
+        it would open at the card's corner rather than beside the dot.
       */}
-      <Tooltip label={outputKind} withArrow position="right">
-        <span
-          data-testid={`source-output-handle-wrapper-${id}`}
-          data-port-direction="output"
-          data-port-color={handleColor}
-          data-port-tooltip={outputKind}
-        >
-          <Handle
-            id="out"
-            type="source"
-            position={Position.Right}
-            style={{
-              background: handleBackground(handleColor),
-              ...portShapeStyle(shapeForColor(handleColor), {
-                color: handleColor,
-                side: "right",
-              }),
-            }}
-          />
-        </span>
-      </Tooltip>
+      <span
+        data-testid={`source-output-handle-wrapper-${id}`}
+        data-port-direction="output"
+        data-port-color={handleColor}
+        data-port-tooltip={outputKind}
+      >
+        <Handle
+          ref={outputDotRef}
+          id="out"
+          type="source"
+          position={Position.Right}
+          style={{
+            background: handleBackground(handleColor),
+            ...portShapeStyle(shapeForColor(handleColor), {
+              color: handleColor,
+              side: "right",
+            }),
+          }}
+        />
+      </span>
+      <Tooltip
+        label={outputKind}
+        target={outputDotRef}
+        withArrow
+        position="right"
+      />
       {/*
         On-selection type pill — only the output side. Mirrors the
         anchoring used by activity nodes' output pill (see
