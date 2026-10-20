@@ -29,7 +29,7 @@
  * | State | Where |
  * |---|---|
  * | Succeeded run | try-in-place demo — upload-and-Try over `file.prepare` |
- * | Cache hit (`skipped` + `cacheHit`) | try-in-place demo — same graph, same inputs, second run |
+ * | Cache hit (`skipped`, with the first run's `cacheKey`) | try-in-place demo — same graph, same inputs, second run |
  * | Failed run | try-in-place demo — a blob key that does not resolve |
  * | Taken branch (`selectedEdgeId`) | branch/error demo — the switch reads the prepared file's real `fileType` |
  * | Taken error path (`selectedEdgeId`) | branch/error demo — `errorPolicy: "fallback"` diverts a genuine failure |
@@ -327,14 +327,14 @@ async function seedTryPreviewRuns(wf) {
   const cachedRunId = await startTry(wf.id, ctx);
   const cached = await waitForNodes(wf.id, cachedRunId, target.nodeIds);
   await waitForRunStatus(wf.id, cachedRunId);
-  if (cached.prep.status !== "skipped" || !cached.prep.cacheHit) {
+  if (cached.prep.status !== "skipped" || !cached.prep.cacheKey) {
     throw new Error(
       `expected a cache hit on the re-run, got ${JSON.stringify(cached.prep)}`,
     );
   }
   console.log(
     `  ✓ cache-hit run   ${cachedRunId} (prep=skipped, ` +
-      `inputHash=${cached.prep.cacheHit.inputHash.slice(0, 12)}…)`,
+      `inputHash=${cached.prep.cacheKey.inputHash.slice(0, 12)}…)`,
   );
 
   const failedRunId = await startTry(wf.id, {
