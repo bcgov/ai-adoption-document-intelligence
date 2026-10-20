@@ -280,8 +280,8 @@ describe("WorkflowEditorV2Page — US-083 revert-to-version flow", () => {
   });
 
   it("Scenario 2: confirming calls the mutation with { lineageId, workflowVersionId }, closes the drawer, and fires a green notification", async () => {
-    // D11 — the restore APPENDS a new version, so the mutation resolves with
-    // the new head (v4 holding v2's steps), not with the version that was
+    // The restore APPENDS a new version, so the mutation resolves with the
+    // new head (v4 holding v2's steps), not with the version that was
     // clicked.
     revertMutateAsyncMock.mockResolvedValueOnce({
       ...baseWorkflow,

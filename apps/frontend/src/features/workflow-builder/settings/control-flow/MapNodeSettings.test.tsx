@@ -306,9 +306,9 @@ describe("MapNodeSettings — Scenario 4: edits propagate a typed update", () =>
     ) as HTMLInputElement;
     fireEvent.change(itemField, { target: { value: "page" } });
 
-    // D7 — free-text settings fields draft locally and commit on a quiet
-    // period (or blur/unmount) instead of once per character, so the commit
-    // is asserted through `waitFor` rather than synchronously.
+    // Free-text settings fields draft locally and commit on a quiet period
+    // (or blur/unmount) instead of once per character, so the commit is
+    // asserted through `waitFor` rather than synchronously.
     await waitFor(() => expect(spy).toHaveBeenCalled());
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes.m1 as MapNode;
@@ -550,21 +550,18 @@ describe("MapNodeSettings — G-071 body-entry picker filter", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D7 — typing cost.
-//
-// The reviewer's step-7 case: "typing in the field is very laggy... updates
-// are causing a lot of the page to re-render when it really shouldn't". Every
-// keystroke used to replace the whole workflow config at page level, which
-// re-runs the auto-wire resolver (an upstream graph walk per typed input port
-// on every node), rewrites downstream bindings, changes the canvas's
-// structural fingerprint and re-projects every card.
+// Typing cost. Typing in a settings field has to keep pace with the keyboard
+// without re-rendering most of the page. A config write per keystroke would
+// replace the whole workflow config at page level, which re-runs the
+// auto-wire resolver (an upstream graph walk per typed input port on every
+// node), rewrites downstream bindings, changes the canvas's structural
+// fingerprint and re-projects every card.
 //
 // This counts the mechanism rather than the feel: config writes per burst, and
 // renders of a stand-in for the expensive sibling that consumes the config.
-// Wall-clock numbers from the running app are in the worklog.
 // ---------------------------------------------------------------------------
 
-describe("MapNodeSettings — D7: typing does not rewrite the config per character", () => {
+describe("MapNodeSettings — typing does not rewrite the config per character", () => {
   function mountWithCanvasProbe(
     initialConfig: GraphWorkflowConfig,
     mapNodeId: string,
@@ -625,7 +622,7 @@ describe("MapNodeSettings — D7: typing does not rewrite the config per charact
     fireEvent.change(itemField, { target: { value: `${typed}!` } });
 
     // Mid-burst: the field shows everything typed and NOTHING has reached the
-    // config. Before the fix this was 10 writes and 10 probe renders.
+    // config. Committing per keystroke would be 10 writes and 10 probe renders.
     expect(itemField.value).toBe("segmentXY!");
     expect(configWrites).not.toHaveBeenCalled();
     expect(probeRenders.count).toBe(rendersBeforeTyping);
@@ -640,16 +637,15 @@ describe("MapNodeSettings — D7: typing does not rewrite the config per charact
 });
 
 // ---------------------------------------------------------------------------
-// D24 — "Why currentSegment? Is this what the node looks for, and if it's
-// always this, why do we specify it?"
-//
-// The factual answer: the name is FREE (a fresh map node starts with an empty
-// item key and nothing defaults it), but the `segment.<field>` shorthand in
-// conditions is hard-wired to read `ctx.currentSegment`. Both halves have to
-// be in the help text, or the reader concludes the field is ceremony.
+// The item ctx key's help text has to say whether the loop needs the name
+// `currentSegment` and, if not, why a new loop starts with it. The name is
+// FREE — a new loop is pre-filled with `currentSegment`, but any name works —
+// while the `segment.<field>` shorthand in conditions is hard-wired to read
+// `ctx.currentSegment`. Both halves have to be in the help text, or the
+// reader concludes the field is ceremony.
 // ---------------------------------------------------------------------------
 
-describe("MapNodeSettings — D24: the item ctx key explains itself", () => {
+describe("MapNodeSettings — the item ctx key explains itself", () => {
   it("says the name is free AND names what currentSegment buys", () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
