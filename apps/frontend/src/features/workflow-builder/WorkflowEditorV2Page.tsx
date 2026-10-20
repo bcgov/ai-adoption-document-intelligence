@@ -250,18 +250,27 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
    * reach it; whichever body is mounted registers itself into it.
    */
   const openValidationDrawerRef = useRef<(() => void) | null>(null);
+  /**
+   * How many versions have been restored in this editor. A restore replaces
+   * the whole workflow with an older version's steps, so it mounts a fresh
+   * body, the same as opening the page on the restored version.
+   */
+  const [restoreCount, setRestoreCount] = useState(0);
+  const handleRestored = useCallback(() => setRestoreCount((n) => n + 1), []);
   return (
     <RunStateProvider workflowId={workflowId ?? ""}>
       {/*
-        Keyed by workflowId so the in-editor workflow switcher (the UX reviewer
-        walkthrough 2026-07-29) gets a clean remount when navigating between
-        two edit routes — name/config history are local state and would
-        otherwise survive the param change.
+        Keyed by the workflow id and the restore count, so switching to another
+        workflow or restoring a version mounts a fresh body. The name, the undo
+        history and the unsaved-changes baseline are local state; carried over,
+        Undo would bring back the canvas a restore discarded, and the next Save
+        would store it over the restored version.
       */}
       <WorkflowEditorV2PageBody
-        key={workflowId ?? "create"}
+        key={`${workflowId ?? "create"}#${restoreCount}`}
         mode={mode}
         openValidationDrawerRef={openValidationDrawerRef}
+        onRestored={handleRestored}
       />
     </RunStateProvider>
   );
@@ -270,11 +279,17 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
 interface WorkflowEditorV2PageBodyProps extends WorkflowEditorV2PageProps {
   /** See `WorkflowEditorV2Page` — survives the keyed remount. */
   openValidationDrawerRef: RefObject<(() => void) | null>;
+  /**
+   * Called once a restore has succeeded and the new head is in the query
+   * cache. The page then mounts a fresh body on the restored version.
+   */
+  onRestored: () => void;
 }
 
 function WorkflowEditorV2PageBody({
   mode,
   openValidationDrawerRef,
+  onRestored,
 }: WorkflowEditorV2PageBodyProps) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
@@ -1528,13 +1543,16 @@ function WorkflowEditorV2PageBody({
   );
 
   /**
-   * Revert-to-version handler (US-083). Opens a confirm modal warning the
-   * user the in-flight canvas state will be replaced with the selected
-   * version's config. On confirm, calls `useRevertWorkflowHead`; on
-   * success, closes the history drawer and notifies. The query
-   * invalidation inside the hook causes `useWorkflow(workflowId)` to
-   * refetch, which is then synced into canvas state by the existing
-   * `useEffect` above (the one that depends on `existingWorkflow`).
+   * Restore-a-version handler (US-083). Opens a confirm modal saying the
+   * selected version will be copied forward as the new head and that unsaved
+   * canvas changes will be discarded. On confirm it calls
+   * `useRevertWorkflowHead`. On success it writes the new head into the
+   * workflow query and asks the page for a fresh body (`onRestored`), which
+   * opens on the restored steps with no unsaved changes and nothing to undo.
+   *
+   * The hydration effect above cannot do this on its own: it never replaces a
+   * canvas with unsaved edits, so after a restore those edits would stay on
+   * screen and the next Save would store them over the restored version.
    */
   const handleRevert = useCallback(
     (versionId: string, versionNumber: number, createdAt: string) => {
@@ -1557,19 +1575,26 @@ function WorkflowEditorV2PageBody({
         cancelProps: { "data-testid": "revert-cancel-button" },
         onConfirm: async () => {
           try {
-            // D11 — the response carries the NEW version this restore created.
-            // Naming it is what makes "a new version was created" visible;
-            // saying only "reverted to v1" is what read as a re-tag of head.
+            // The response is the new head: the restored version's steps under
+            // a new version number. The toast names both numbers, so the
+            // reader can see a version was added rather than head moved back.
             const restored = await revertWorkflow.mutateAsync({
               lineageId: workflowId,
               workflowVersionId: versionId,
             });
-            setHistoryDrawerOpen(false);
+            // The mutation's own refetch of this query is still in flight.
+            // Writing the response in now lets the fresh body open straight on
+            // the restored steps rather than on the head it had before.
+            queryClient.setQueryData<WorkflowInfo>(
+              ["workflow", workflowId],
+              restored,
+            );
             notifications.show({
               color: "green",
               title: `Restored v${versionNumber} as v${restored.version}`,
               message: `The editor is on v${restored.version}, a new version holding v${versionNumber}'s steps. v${versionNumber} is still in the history.`,
             });
+            onRestored();
           } catch (err) {
             notifications.show({
               color: "red",
@@ -1580,7 +1605,7 @@ function WorkflowEditorV2PageBody({
         },
       });
     },
-    [workflowId, revertWorkflow],
+    [workflowId, revertWorkflow, queryClient, onRestored],
   );
 
   /**
