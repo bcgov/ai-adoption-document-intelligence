@@ -6,6 +6,7 @@
  * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 5.2
  */
 
+import type { CacheKey } from "../cache/cached-activity";
 import { writeSourceNodeCache } from "../cache/source-node-cache";
 import type {
   GraphWorkflowExecutionInput,
@@ -86,8 +87,9 @@ export async function runGraphExecution(
       startedAt: sourceStartedAt,
     };
 
+    let sourceCacheKey: CacheKey | null = null;
     if (state.cacheDeps && state.workflowLineageId) {
-      await writeSourceNodeCache(
+      sourceCacheKey = await writeSourceNodeCache(
         state.cacheDeps,
         node as SourceNode,
         initialCtxSnapshot,
@@ -106,11 +108,14 @@ export async function runGraphExecution(
     // Phase 4 (US-135) — the source node's "execution" is the
     // ctx-merge that already happened in `initializeContext`. It is
     // never served from a cache lookup (the cache write is a side-
-    // effect), so the canvas surfaces it as `"succeeded"`.
+    // effect), so the canvas surfaces it as `"succeeded"`. When the
+    // write landed, the row's key goes on the status so a replay reads
+    // this run's own input back.
     state.nodeRunStatuses[node.id] = {
       status: "succeeded",
       startedAt: sourceStartedAt,
       endedAt: sourceEndedAt,
+      ...(sourceCacheKey ? { cacheKey: sourceCacheKey } : {}),
     };
   }
 
@@ -179,24 +184,20 @@ export async function runGraphExecution(
           // a finished run can still show which way it went. Absent for
           // nodes that route implicitly down every outgoing normal edge.
           const selectedEdgeId = state.selectedEdges.get(nodeId);
-          // Phase 4 (US-135) — flip the run-status map based on whether
-          // the activity-node cache decorator short-circuited.
-          if (executionResult.kind === "skipped") {
-            state.nodeRunStatuses[nodeId] = {
-              status: "skipped",
-              startedAt,
-              endedAt,
-              cacheHit: executionResult.cacheHit,
-              ...(selectedEdgeId ? { selectedEdgeId } : {}),
-            };
-          } else {
-            state.nodeRunStatuses[nodeId] = {
-              status: "succeeded",
-              startedAt,
-              endedAt,
-              ...(selectedEdgeId ? { selectedEdgeId } : {}),
-            };
-          }
+          // Phase 4 (US-135) — "skipped" when the activity-node cache
+          // decorator short-circuited, "succeeded" otherwise, and the key
+          // of the cache row holding the node's output whenever one does,
+          // so a replay reads this run's own row.
+          state.nodeRunStatuses[nodeId] = {
+            status:
+              executionResult.kind === "skipped" ? "skipped" : "succeeded",
+            startedAt,
+            endedAt,
+            ...(executionResult.cacheKey
+              ? { cacheKey: executionResult.cacheKey }
+              : {}),
+            ...(selectedEdgeId ? { selectedEdgeId } : {}),
+          };
         } catch (error) {
           // Phase 4 (US-135) — record the failure status (with the
           // error message) BEFORE handing off to `handleNodeError`,

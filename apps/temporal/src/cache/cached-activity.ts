@@ -39,12 +39,12 @@
  *         parameters; for other node variants the empty object (those
  *         node types don't go through the worker decorator in 4.0 but
  *         the type system requires a value).
- *     Hashing parameters ALONE (the pre-G-018 behaviour) meant nothing
- *     in `(workflowLineageId, nodeId, configHash, inputHash)` said which
+ *     Hashing parameters ALONE would leave nothing in
+ *     `(workflowLineageId, nodeId, configHash, inputHash)` saying which
  *     activity produced a row: retyping a node in place from
- *     `azureOcr.extract` to `document.classify` kept the id, parameters
- *     and inputs identical, so the classifier was served the OCR result
- *     until the row's TTL expired.
+ *     `azureOcr.extract` to `document.classify` keeps the id, parameters
+ *     and inputs identical, so the classifier would be served the OCR
+ *     result until the row's TTL expired.
  *   - `inputHash = computeInputHash(node, ctx)` — content-addressable
  *     hash of the consumed ctx slice (shared helper, US-129).
  * ## `nonCacheable` bypass
@@ -68,9 +68,9 @@
  * indistinguishable from any other terminal write failure (§3.4). The cache
  * is best-effort, so the decorator treats ANY upsert failure the same way:
  * re-run `findFresh` (guarded), overlay the winner's `outputCtx` if a row now
- * exists (returning `{ cacheHit: true }`), otherwise keep the already-applied
- * delta and continue uncached (`{ cacheHit: false }`). A failed cache write
- * never fails the node — the user-visible result stays correct.
+ * exists (a cache hit, keyed by that row), otherwise keep the already-applied
+ * delta and continue uncached, with no row holding the output. A failed cache
+ * write never fails the node — the user-visible result stays correct.
  *
  * ## Failure (Scenario 5)
  *
@@ -108,20 +108,28 @@ export interface CachedActivityDeps {
 }
 
 /**
- * Return shape — `cacheHit` is consumed by US-135's `nodeStatuses` map
- * (a hit flips the node status from `"running"` to `"skipped"`).
- *
- * `configHash` + `inputHash` are also returned so the workflow status
- * map can surface them in the `cacheHit` field of `NodeRunStatus` —
- * the canvas displays these so the user can see which cache row served
- * the node's output. They are emitted on every path (hit, miss,
- * bypass) so callers don't need to recompute them.
+ * The two hashes that, with the workflow lineage and the node id, make up
+ * the unique key of an `ActivityOutputCache` row.
  */
-export interface ExecuteCachedActivityResult {
-  cacheHit: boolean;
+export interface CacheKey {
   configHash: string;
   inputHash: string;
 }
+
+/**
+ * What the decorator did with one node, for the run's status map:
+ *
+ *   - `cacheHit` — the output came from an existing row and the activity
+ *     did not run, so the node shows as `"skipped"`;
+ *   - `cacheKey` — the key of the row that holds this node's output for
+ *     this run, recorded on the node's status so a replay can read exactly
+ *     this run's result back. `null` when no row holds it: a non-cacheable
+ *     activity is never written, and a failed write leaves no row unless
+ *     another worker's write for the same key landed.
+ */
+export type ExecuteCachedActivityResult =
+  | { cacheHit: true; cacheKey: CacheKey }
+  | { cacheHit: false; cacheKey: CacheKey | null };
 
 /**
  * Returns `true` when the catalog declares this node's underlying
@@ -266,27 +274,29 @@ function deepMergeCtx(
 
 /**
  * Worker-side decorator: wraps `rawExecute` with a cache lookup and
- * cache write. Returns `{ cacheHit }` so the workflow's status map can
- * distinguish "this node ran" from "this node was served from cache".
+ * cache write. Reports whether the output came from the cache, so the
+ * workflow's status map can distinguish "this node ran" from "this node
+ * was served from cache", and which row holds the output for this run.
  *
  * Contract:
  *   - On bypass (nonCacheable activity): calls `rawExecute`, assigns
- *     delta into ctx, returns `{ cacheHit: false }`.
+ *     delta into ctx, returns `{ cacheHit: false, cacheKey: null }`.
  *   - On hit: assigns `row.outputCtx` into ctx, skips `rawExecute`,
- *     returns `{ cacheHit: true }`.
+ *     returns `{ cacheHit: true, cacheKey }`.
  *   - On a failed initial `findFresh` (transient cache-DB fault after the
  *     proxy's own retries): treated as a MISS — the activity executes and
  *     the run continues. The cache is best-effort on BOTH sides; a run
  *     must never pay more availability cost with the cache than without
  *     it.
  *   - On miss: calls `rawExecute`, assigns delta into ctx, attempts
- *     `upsert`, returns `{ cacheHit: false }`. If `upsert` fails for ANY
- *     reason (a lost race is indistinguishable from a transient write
- *     failure across the activity boundary — §3.4), it re-runs `findFresh`
- *     best-effort: overlays the winner's `outputCtx` and returns
- *     `{ cacheHit: true }` when a row now exists, otherwise keeps the
- *     already-applied delta and returns `{ cacheHit: false }`. A failed
- *     cache write never fails the node.
+ *     `upsert`, and returns `{ cacheHit: false, cacheKey }` once the row is
+ *     written. If `upsert` fails for ANY reason (a lost race is
+ *     indistinguishable from a transient write failure across the activity
+ *     boundary — §3.4), it re-runs `findFresh` best-effort: overlays the
+ *     winner's `outputCtx` and returns `{ cacheHit: true, cacheKey }` when a
+ *     row now exists, otherwise keeps the already-applied delta and returns
+ *     `{ cacheHit: false, cacheKey: null }`. A failed cache write never
+ *     fails the node.
  *   - On rawExecute failure: propagates the error without calling
  *     `upsert`.
  */
@@ -297,28 +307,24 @@ export async function executeCachedActivity(
   workflowLineageId: string,
   rawExecute: () => Promise<Record<string, unknown>>,
 ): Promise<ExecuteCachedActivityResult> {
-  const configHash = computeNodeConfigHash(node);
-
-  // Scenario 3 — bypass for non-cacheable activities. We still compute
-  // hashes so the workflow status map (US-135) can surface them in the
-  // cacheHit field on the very-next replay should the catalog flip the
-  // activity to cacheable; the bypass result itself reports
-  // `cacheHit: false`.
+  // Scenario 3 — bypass for non-cacheable activities: nothing is read from
+  // or written to the cache, so no row holds their output.
   if (isNonCacheable(node)) {
-    const inputHash = computeInputHash(node, ctx);
     const delta = await rawExecute();
     deepMergeCtx(ctx, delta);
-    return { cacheHit: false, configHash, inputHash };
+    return { cacheHit: false, cacheKey: null };
   }
 
+  const configHash = computeNodeConfigHash(node);
   const inputHash = computeInputHash(node, ctx);
+  const cacheKey: CacheKey = { configHash, inputHash };
 
   // Scenario 2 — cache hit short-circuit. Guarded the same way as the
   // Scenario 4 write side: `deps.findFresh` is an activity proxy whose own
-  // retries (3 × 10 s) absorb short blips, but a longer cache-DB outage
-  // used to propagate here and fail the node — a run paying MORE
-  // availability cost with the cache than without it, against the module
-  // contract. Any read failure is a cache miss; the activity just runs.
+  // retries (3 × 10 s) absorb short blips, and a longer cache-DB outage
+  // must not fail the node, or a run would pay MORE availability cost with
+  // the cache than without it, against the module contract. Any read
+  // failure is a cache miss; the activity just runs.
   let cached: ActivityOutputCacheFindFreshResult | null;
   try {
     cached = await deps.findFresh({
@@ -333,7 +339,7 @@ export async function executeCachedActivity(
 
   if (cached !== null) {
     deepMergeCtx(ctx, cached.outputCtx as Record<string, unknown>);
-    return { cacheHit: true, configHash, inputHash };
+    return { cacheHit: true, cacheKey };
   }
 
   // Scenario 1 (miss) + Scenario 5 (failure propagation).
@@ -346,14 +352,13 @@ export async function executeCachedActivity(
   // constraint violation reaches the workflow as an ActivityFailure /
   // ApplicationFailure with Prisma's `.code` stripped — a lost race is
   // therefore INDISTINGUISHABLE from a transient write failure across the
-  // activity boundary. A `code === "P2002"` probe never matched in
-  // production, so any terminal upsert failure used to rethrow and fail the
-  // node even though the activity had already produced its output. The cache
-  // is best-effort (see the module contract), so on ANY upsert failure we
-  // must NOT fail the node: the `delta` is already applied to ctx. Re-check
-  // for a row another worker may have committed (the race case) and overlay
-  // its canonical outputCtx for downstream determinism; if none exists, keep
-  // our just-applied delta and continue uncached.
+  // activity boundary, and no `code === "P2002"` probe can tell them apart.
+  // The cache is best-effort (see the module contract), so on ANY upsert
+  // failure we must NOT fail the node: the activity has already produced its
+  // output and the `delta` is applied to ctx. Re-check for a row another
+  // worker may have committed (the race case) and overlay its canonical
+  // outputCtx for downstream determinism; if none exists, keep our
+  // just-applied delta and continue uncached.
   try {
     await deps.upsert({
       workflowLineageId,
@@ -379,10 +384,10 @@ export async function executeCachedActivity(
     }
     if (winner !== null) {
       deepMergeCtx(ctx, winner.outputCtx as Record<string, unknown>);
-      return { cacheHit: true, configHash, inputHash };
+      return { cacheHit: true, cacheKey };
     }
-    return { cacheHit: false, configHash, inputHash };
+    return { cacheHit: false, cacheKey: null };
   }
 
-  return { cacheHit: false, configHash, inputHash };
+  return { cacheHit: false, cacheKey };
 }

@@ -4,7 +4,9 @@
  * Focus: the writer is BEST-EFFORT — a failed `upsert` must not abort the
  * workflow (§3.2). The `deps.upsert` proxy is a Temporal activity, so a
  * terminal failure surfaces as a thrown error here; `writeSourceNodeCache`
- * must swallow it and still return the computed hashes.
+ * must swallow it. It returns the row's key only when the row was written,
+ * because the key goes on the source node's run status and a replay reads
+ * the run's input back by it.
  */
 
 import type { SourceNode } from "@ai-di/graph-workflow";
@@ -37,7 +39,7 @@ const sourceNode = {
 } as unknown as SourceNode;
 
 describe("writeSourceNodeCache", () => {
-  it("writes the cache row keyed on the inbound payload and returns the hashes", async () => {
+  it("writes the cache row keyed on the inbound payload and returns that row's key", async () => {
     const { deps, upsert } = makeDeps();
     const initialCtx = { document: { id: "d-1" } };
 
@@ -52,17 +54,43 @@ describe("writeSourceNodeCache", () => {
     const call = upsert.mock.calls[0][0] as {
       workflowLineageId: string;
       nodeId: string;
+      configHash: string;
+      inputHash: string;
       outputCtx: unknown;
     };
     expect(call.workflowLineageId).toBe("wfl-1");
     expect(call.nodeId).toBe("upload1");
     // Source nodes write `outputCtx === initialCtx`.
     expect(call.outputCtx).toEqual(initialCtx);
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(call.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(call.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result).toEqual({
+      configHash: call.configHash,
+      inputHash: call.inputHash,
+    });
   });
 
-  it("§3.2 — swallows a failed upsert (best-effort) and still returns the hashes", async () => {
+  it("keys two different inbound payloads apart", async () => {
+    const { deps } = makeDeps();
+
+    const first = await writeSourceNodeCache(
+      deps,
+      sourceNode,
+      { documentUrl: "a.pdf" },
+      "wfl-1",
+    );
+    const second = await writeSourceNodeCache(
+      deps,
+      sourceNode,
+      { documentUrl: "b.pdf" },
+      "wfl-1",
+    );
+
+    expect(first?.configHash).toBe(second?.configHash);
+    expect(first?.inputHash).not.toBe(second?.inputHash);
+  });
+
+  it("§3.2 — swallows a failed upsert (best-effort) and returns no key, since no row holds the input", async () => {
     const { deps, upsert } = makeDeps();
     // Simulate a terminal ActivityFailure from the upsert proxy.
     upsert.mockRejectedValueOnce(new Error("DB unavailable"));
@@ -75,8 +103,7 @@ describe("writeSourceNodeCache", () => {
     );
 
     // The failure did NOT propagate; the workflow can continue.
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result).toBeNull();
     expect(upsert).toHaveBeenCalledTimes(1);
   });
 });

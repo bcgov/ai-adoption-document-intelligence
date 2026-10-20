@@ -38,7 +38,7 @@ import {
   stableJson,
 } from "@ai-di/graph-workflow";
 
-import type { CachedActivityDeps } from "./cached-activity";
+import type { CachedActivityDeps, CacheKey } from "./cached-activity";
 import { computeNodeConfigHash } from "./cached-activity";
 
 /**
@@ -70,19 +70,6 @@ function resolveSourceOutputKind(sourceType: string): string | null {
 }
 
 /**
- * Hashes computed for a source-node cache row, returned to the caller
- * so the Phase 4 workflow status map (US-135) can surface them in the
- * `cacheHit` field of the node's `NodeRunStatus`. Source nodes are
- * always served from cache (their "execution" is the immediate ctx-
- * merge at workflow start), so every successful source emits these
- * hashes for the canvas to display.
- */
-export interface WriteSourceNodeCacheResult {
-  configHash: string;
-  inputHash: string;
-}
-
-/**
  * Write the source node's cache row at workflow start. Idempotent —
  * uses `upsert` so repeated invocations with the same `initialCtx`
  * overwrite the existing row (per the design's racetrack handling in
@@ -92,16 +79,16 @@ export interface WriteSourceNodeCacheResult {
  * not abort the workflow. The decorator handles the same case the
  * same way (`Object.assign` first, then attempt upsert).
  *
- * Returns the computed `configHash` + `inputHash` so the workflow's
- * `nodeStatuses` map (US-135) can populate the source node's
- * `cacheHit` detail.
+ * Returns the row's key once the write lands, so the run's status map can
+ * record it on the source node and a replay can read this run's input back
+ * exactly; `null` when the write failed and no row holds the input.
  */
 export async function writeSourceNodeCache(
   deps: CachedActivityDeps,
   node: SourceNode,
   initialCtx: Record<string, unknown>,
   workflowLineageId: string,
-): Promise<WriteSourceNodeCacheResult> {
+): Promise<CacheKey | null> {
   const configHash = computeNodeConfigHash(node);
   const inputHash = sha256Hex(stableJson(initialCtx));
   const outputKind = resolveSourceOutputKind(node.sourceType);
@@ -110,7 +97,7 @@ export async function writeSourceNodeCache(
   // MUST NOT abort the workflow. `deps.upsert` is a Temporal activity proxy,
   // so a terminal failure (e.g. a transient DB blip that exhausts the
   // activity's retries) surfaces here as an ActivityFailure. Without this
-  // guard the caller (`graph-workflow.ts`, which awaits this at workflow
+  // guard the caller (`graph-runner.ts`, which awaits this at workflow
   // start) would fail the entire run before any real node executes. The
   // source's ctx-merge already happened before this runs, so swallowing the
   // write only forfeits a cache row — the run's result is unaffected.
@@ -124,7 +111,7 @@ export async function writeSourceNodeCache(
       outputKind,
     });
   } catch {
-    // Silently dropped — see the contract above.
+    return null;
   }
 
   return { configHash, inputHash };

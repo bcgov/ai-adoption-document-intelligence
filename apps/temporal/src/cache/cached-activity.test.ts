@@ -3,16 +3,17 @@
  *
  * Covers all five behavioural paths the story enumerates in Scenario 6:
  *   1. Cache-miss happy path — findFresh→null, rawExecute called, delta
- *      written into ctx, upsert called, return `{ cacheHit: false }`.
+ *      written into ctx, upsert called, return `{ cacheHit: false }` with
+ *      the written row's key.
  *   2. Cache-hit short-circuit — findFresh returns a row, ctx is overlaid
  *      from `row.outputCtx`, rawExecute is NEVER called, return
- *      `{ cacheHit: true }`.
+ *      `{ cacheHit: true }` with the served row's key.
  *   3. `nonCacheable` bypass — when the catalog marks the activity as
  *      nonCacheable, the decorator calls rawExecute directly and skips
- *      findFresh AND upsert.
+ *      findFresh AND upsert; no row holds the output, so no key.
  *   4. Concurrent-write race — upsert throws P2002, decorator re-runs
  *      findFresh and assigns the winner's outputCtx into ctx, returning
- *      `{ cacheHit: true }`.
+ *      `{ cacheHit: true }` with the winner's key.
  *   5. Activity failure — rawExecute throws, the error propagates and
  *      upsert is never called.
  *
@@ -166,11 +167,10 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(false);
-    // US-135 — hashes are echoed back so the workflow's status map can
-    // populate the `cacheHit` field of `NodeRunStatus` on subsequent
-    // hits.
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // The written row holds this run's output, so its key is reported for
+    // the node's run status.
+    expect(result.cacheKey?.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.cacheKey?.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(ctx).toEqual({
       existing: "kept",
@@ -199,9 +199,11 @@ describe("executeCachedActivity (US-132)", () => {
     };
     expect(upsertCall.configHash).toMatch(/^[0-9a-f]{64}$/);
     expect(upsertCall.inputHash).toMatch(/^[0-9a-f]{64}$/);
-    // Hashes returned to the caller match the ones written to the cache.
-    expect(result.configHash).toBe(upsertCall.configHash);
-    expect(result.inputHash).toBe(upsertCall.inputHash);
+    // The key returned to the caller is exactly the one the row was written under.
+    expect(result.cacheKey).toEqual({
+      configHash: upsertCall.configHash,
+      inputHash: upsertCall.inputHash,
+    });
   });
 
   it("Scenario 2 — cache-hit: assigns row.outputCtx, skips rawExecute, returns cacheHit=true", async () => {
@@ -224,10 +226,15 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(true);
-    // US-135 — even on a hit the hashes are echoed back so the status
-    // map can name the cache row.
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // The key reported is the one the served row was found under.
+    const findCall = findFresh.mock.calls[0][0] as {
+      configHash: string;
+      inputHash: string;
+    };
+    expect(result.cacheKey).toEqual({
+      configHash: findCall.configHash,
+      inputHash: findCall.inputHash,
+    });
     expect(rawExecute).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
     expect(ctx).toEqual({
@@ -237,7 +244,7 @@ describe("executeCachedActivity (US-132)", () => {
     expect(findFresh).toHaveBeenCalledTimes(1);
   });
 
-  it("Scenario 3 — nonCacheable bypass: skips findFresh + upsert, calls rawExecute, returns cacheHit=false", async () => {
+  it("Scenario 3 — nonCacheable bypass: skips findFresh + upsert, calls rawExecute, returns cacheHit=false and no key", async () => {
     const { deps, findFresh, upsert } = makeDeps();
 
     const node = makeNonCacheableNode();
@@ -255,9 +262,9 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(false);
-    // Hashes are computed even on the bypass path (US-135).
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // Nothing is written for a non-cacheable activity, so no row holds the
+    // output and no key is reported.
+    expect(result.cacheKey).toBeNull();
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(findFresh).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
@@ -282,8 +289,8 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(false);
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.cacheKey?.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.cacheKey?.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(findFresh).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(rawExecute).toHaveBeenCalledTimes(1);
@@ -326,8 +333,15 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(true);
-    expect(result.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(result.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // The winner's row holds the output now, under the same key.
+    const upsertCall = upsert.mock.calls[0][0] as {
+      configHash: string;
+      inputHash: string;
+    };
+    expect(result.cacheKey).toEqual({
+      configHash: upsertCall.configHash,
+      inputHash: upsertCall.inputHash,
+    });
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(findFresh).toHaveBeenCalledTimes(2);
@@ -437,6 +451,8 @@ describe("executeCachedActivity (US-132)", () => {
 
     // The node completes (uncached); the error never propagates.
     expect(result.cacheHit).toBe(false);
+    // No row holds the output, so no key is reported for the run status.
+    expect(result.cacheKey).toBeNull();
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     // Re-checked for a racing row (found none), kept the already-applied delta.
@@ -468,6 +484,7 @@ describe("executeCachedActivity (US-132)", () => {
     );
 
     expect(result.cacheHit).toBe(true);
+    expect(result.cacheKey?.inputHash).toMatch(/^[0-9a-f]{64}$/);
     expect(findFresh).toHaveBeenCalledTimes(2);
     expect(ctx).toEqual({ ok: true, canonical: true });
   });
@@ -587,7 +604,9 @@ describe("executeCachedActivity (US-132)", () => {
       expect(secondRun.cacheHit).toBe(false);
       expect(classifyExecute).toHaveBeenCalledTimes(1);
       expect(ctxB).toEqual({ result: "classification-output" });
-      expect(secondRun.configHash).not.toBe(firstRun.configHash);
+      expect(secondRun.cacheKey?.configHash).not.toBe(
+        firstRun.cacheKey?.configHash,
+      );
     });
 
     it("still serves a cached result to the same activity", async () => {
@@ -617,7 +636,8 @@ describe("executeCachedActivity (US-132)", () => {
       expect(second.cacheHit).toBe(true);
       expect(secondExecute).not.toHaveBeenCalled();
       expect(ctx).toEqual({ result: "v1" });
-      expect(second.configHash).toBe(first.configHash);
+      // The hit is served from, and reports, the very row the first run wrote.
+      expect(second.cacheKey).toEqual(first.cacheKey);
     });
 
     it("distinguishes a control-flow node from an activity with the same id", async () => {
@@ -662,7 +682,7 @@ describe("executeCachedActivity (US-132)", () => {
       expect(second.cacheHit).toBe(false);
       expect(joinExecute).toHaveBeenCalledTimes(1);
       expect(ctx).toEqual({ result: "from-join" });
-      expect(second.configHash).not.toBe(first.configHash);
+      expect(second.cacheKey?.configHash).not.toBe(first.cacheKey?.configHash);
     });
 
     it("keeps the cache across a pure rename — label is NOT part of the key", async () => {
@@ -696,7 +716,7 @@ describe("executeCachedActivity (US-132)", () => {
         renamedExecute,
       );
 
-      expect(second.configHash).toBe(first.configHash);
+      expect(second.cacheKey?.configHash).toBe(first.cacheKey?.configHash);
       expect(second.cacheHit).toBe(true);
       expect(renamedExecute).not.toHaveBeenCalled();
     });

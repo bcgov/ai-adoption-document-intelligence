@@ -17,7 +17,7 @@ import {
   workflowInfo,
 } from "@temporalio/workflow";
 import { isRegisteredActivityType } from "../activity-types";
-import { executeCachedActivity } from "../cache/cached-activity";
+import { type CacheKey, executeCachedActivity } from "../cache/cached-activity";
 import {
   DYN_RUN_ACTIVITY_OPTIONS,
   type DynRunActivityInput,
@@ -159,13 +159,15 @@ function buildActivityParams(
 
 /**
  * Outcome of executing a single non-switch node. Drives the per-node
- * status map (US-135) — when an `activity` node short-circuits through
- * the Phase 4 cache decorator (US-133) it is marked `"skipped"` with
- * the cache row's hashes; otherwise the node is marked `"succeeded"`.
+ * status map (US-135): a node whose output the Phase 4 cache decorator
+ * (US-133) served from an existing row is marked `"skipped"`; any other
+ * node is marked `"succeeded"`. `cacheKey` names the cache row that holds
+ * the node's output for this run, whenever one does, so a replay can read
+ * exactly this run's result back.
  */
 export type NodeExecutionResult =
-  | { kind: "completed" }
-  | { kind: "skipped"; cacheHit: { configHash: string; inputHash: string } };
+  | { kind: "completed"; cacheKey?: CacheKey }
+  | { kind: "skipped"; cacheKey: CacheKey };
 
 /**
  * Execute a node based on its type. Returns a `NodeExecutionResult` so
@@ -433,10 +435,11 @@ async function executeActivityNode(
   };
 
   if (state.cacheDeps && state.workflowLineageId && dynamicNodeCacheable) {
-    // Phase 4 cache path (US-133 + US-135). The decorator's `cacheHit`
-    // return drives the per-node status map: a hit flips `"running"` →
-    // `"skipped"` with the cache row's `(configHash, inputHash)` so the
-    // canvas can surface which inputs produced the cached output.
+    // Phase 4 cache path (US-133 + US-135). The decorator's result drives
+    // the per-node status map: a hit flips `"running"` → `"skipped"`, and
+    // the key of the row holding the output (hit, or a miss whose write
+    // landed) is recorded on the status so a replay reads this run's own
+    // row rather than whichever row another run wrote.
     //
     // Non-deterministic dynamic nodes (`dynamicNodeCacheable === false`) skip
     // this and fall through to the uncached path below so they re-execute.
@@ -448,15 +451,11 @@ async function executeActivityNode(
       rawExecute,
     );
     if (result.cacheHit) {
-      return {
-        kind: "skipped",
-        cacheHit: {
-          configHash: result.configHash,
-          inputHash: result.inputHash,
-        },
-      };
+      return { kind: "skipped", cacheKey: result.cacheKey };
     }
-    return { kind: "completed" };
+    return result.cacheKey
+      ? { kind: "completed", cacheKey: result.cacheKey }
+      : { kind: "completed" };
   }
 
   // Legacy uncached path — preserves behaviour for tests / callers that
@@ -1271,24 +1270,19 @@ export async function executeBranchSubgraph(
           // `nodeRunStatuses` is shared with the parent state (unlike
           // `selectedEdges`, which is per-branch), so this reaches the query.
           const selectedEdgeId = branchState.selectedEdges.get(nodeId);
-          // Phase 4 (US-135) — flip the run-status map based on whether
-          // the activity-node cache decorator short-circuited.
-          if (executionResult.kind === "skipped") {
-            branchState.nodeRunStatuses[nodeId] = {
-              status: "skipped",
-              startedAt,
-              endedAt,
-              cacheHit: executionResult.cacheHit,
-              ...(selectedEdgeId ? { selectedEdgeId } : {}),
-            };
-          } else {
-            branchState.nodeRunStatuses[nodeId] = {
-              status: "succeeded",
-              startedAt,
-              endedAt,
-              ...(selectedEdgeId ? { selectedEdgeId } : {}),
-            };
-          }
+          // Phase 4 (US-135) — same status write as the top-level runner:
+          // "skipped" when the cache decorator short-circuited, and the key
+          // of the cache row holding the output whenever one does.
+          branchState.nodeRunStatuses[nodeId] = {
+            status:
+              executionResult.kind === "skipped" ? "skipped" : "succeeded",
+            startedAt,
+            endedAt,
+            ...(executionResult.cacheKey
+              ? { cacheKey: executionResult.cacheKey }
+              : {}),
+            ...(selectedEdgeId ? { selectedEdgeId } : {}),
+          };
         } catch (error) {
           // Phase 4 (US-135) — record the failure status BEFORE
           // `handleNodeError` (which re-throws on the default policy).

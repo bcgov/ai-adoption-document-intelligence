@@ -25,6 +25,7 @@
  */
 
 import { defineQuery } from "@temporalio/workflow";
+import type { CacheKey } from "./cache/cached-activity";
 
 /**
  * Per-node live run status surfaced to the canvas.
@@ -42,7 +43,7 @@ import { defineQuery } from "@temporalio/workflow";
  *     propagates so the canvas can pick it up even on a workflow-fatal
  *     failure.
  *   - `"skipped"` — the Phase 4 cache decorator (US-133) served the
- *     node's output from a cache row; `cacheHit` names the row.
+ *     node's output from a cache row; `cacheKey` names the row.
  */
 export interface NodeRunStatus {
   status: "pending" | "running" | "succeeded" | "failed" | "skipped";
@@ -56,12 +57,19 @@ export interface NodeRunStatus {
   /** Populated on `status === "failed"`. The thrown error's `.message`. */
   errorMessage?: string;
   /**
-   * Populated on `status === "skipped"`. Names the cache row the Phase 4
-   * decorator served the output from — the canvas surfaces these in the
-   * preview pane so the user knows which inputs produced the cached
-   * output.
+   * The key of the `ActivityOutputCache` row that holds this node's output
+   * for this run. With the run's workflow lineage and the node id, these
+   * two hashes are the row's unique key, so the run's results can be read
+   * back exactly (the preview-cache endpoints do this for a replay), even
+   * when other runs of the same workflow wrote rows at the same time.
+   *
+   * Present whenever a row holds the output: a cache hit (`"skipped"`), a
+   * cacheable node whose row was written (`"succeeded"`), and a source node,
+   * whose row is written at workflow start. Absent for nodes that are never
+   * cached, for runs that do not use the cache (anything but an editor Try),
+   * and when the cache write failed.
    */
-  cacheHit?: { configHash: string; inputHash: string };
+  cacheKey?: CacheKey;
   /**
    * G-014 — the id of the ONE outgoing edge this node routed to, when the
    * node made a branch decision. Written for `switch` nodes (the case whose

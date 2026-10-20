@@ -11,8 +11,10 @@
  *   - Scenario 3 — failure path records `errorMessage` BEFORE the
  *     error propagates out of the runner.
  *   - Scenario 5 — untouched-branch nodes stay absent.
- *   - Scenario 6 (b) — cache-hit flips status to `"skipped"` with
- *     `cacheHit: { configHash, inputHash }` populated.
+ *   - Scenario 6 (b) — cache-hit flips status to `"skipped"`.
+ *   - `cacheKey` — the status names the cache row that holds the node's
+ *     output for this run (hit, cacheable miss, source node, map branch),
+ *     and names none when no row holds it.
  *
  * Scenarios 1, 2, 4 + 6a are exercised in `graph-workflow.test.ts`
  * (the in-VM tests that use the actual `setHandler` registration).
@@ -58,9 +60,11 @@ import type { CachedActivityDeps } from "../cache/cached-activity";
 import type {
   GraphWorkflowConfig,
   GraphWorkflowExecutionInput,
+  MapNode,
 } from "../graph-workflow-types";
 import type { ExecutionState } from "./execution-state";
 import { runGraphExecution } from "./graph-runner";
+import { executeNode } from "./node-executors";
 
 const LINEAGE_ID = "wfl-us135";
 
@@ -117,7 +121,7 @@ describe("runGraphExecution — Phase 4 nodeRunStatuses map (US-135)", () => {
   // Scenario 6 (b) — cache-hit short-circuit flips status to "skipped".
   // -----------------------------------------------------------------
 
-  it("Scenario 6b — activity cache-hit flips status to 'skipped' with cacheHit populated", async () => {
+  it("Scenario 6b — activity cache-hit flips status to 'skipped' and names the served row", async () => {
     const { deps, findFresh, upsert } = makeCacheDeps();
     findFresh.mockResolvedValue({
       outputCtx: { lookupResult: { value: 99, fromCache: true } },
@@ -149,16 +153,22 @@ describe("runGraphExecution — Phase 4 nodeRunStatuses map (US-135)", () => {
     expect(mockActivityFn).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
 
-    // The run-status map flips the node to "skipped" with the cache
-    // row's `(configHash, inputHash)` for the canvas to display.
+    // The run-status map flips the node to "skipped" and records the key of
+    // the row the output was served from.
     const status = state.nodeRunStatuses.lookup;
     expect(status).toBeDefined();
     expect(status.status).toBe("skipped");
     expect(status.startedAt).toBeDefined();
     expect(status.endedAt).toBeDefined();
-    expect(status.cacheHit).toBeDefined();
-    expect(status.cacheHit?.configHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(status.cacheHit?.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    const lookedUp = findFresh.mock.calls[0][0] as {
+      configHash: string;
+      inputHash: string;
+    };
+    expect(status.cacheKey).toEqual({
+      configHash: lookedUp.configHash,
+      inputHash: lookedUp.inputHash,
+    });
+    expect(status.cacheKey?.configHash).toMatch(/^[0-9a-f]{64}$/);
     // No errorMessage on the skipped path.
     expect(status.errorMessage).toBeUndefined();
   });
@@ -168,7 +178,7 @@ describe("runGraphExecution — Phase 4 nodeRunStatuses map (US-135)", () => {
   // (NOT "skipped"). Sanity check the contrast with the cache-hit case.
   // -----------------------------------------------------------------
 
-  it("Scenario 6b contrast — cache-miss runs the activity and flips status to 'succeeded'", async () => {
+  it("Scenario 6b contrast — cache-miss runs the activity, flips status to 'succeeded' and names the row it wrote", async () => {
     const { deps, findFresh, upsert } = makeCacheDeps();
     findFresh.mockResolvedValue(null); // miss
     upsert.mockResolvedValue(undefined);
@@ -202,7 +212,15 @@ describe("runGraphExecution — Phase 4 nodeRunStatuses map (US-135)", () => {
     expect(status.status).toBe("succeeded");
     expect(status.startedAt).toBeDefined();
     expect(status.endedAt).toBeDefined();
-    expect(status.cacheHit).toBeUndefined();
+    // The row this run wrote holds the output, so the status names it.
+    const written = upsert.mock.calls[0][0] as {
+      configHash: string;
+      inputHash: string;
+    };
+    expect(status.cacheKey).toEqual({
+      configHash: written.configHash,
+      inputHash: written.inputHash,
+    });
     expect(status.errorMessage).toBeUndefined();
   });
 
@@ -550,5 +568,309 @@ describe("runGraphExecution — G-014 selectedEdgeId on the run status", () => {
 
     expect(state.nodeRunStatuses.a.status).toBe("succeeded");
     expect(state.nodeRunStatuses.a.selectedEdgeId).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `cacheKey` — the run status names the cache row that holds the node's
+// output for THIS run, so a replay can read exactly that row back instead of
+// guessing from timestamps. It must be present whenever such a row exists
+// and absent whenever none does.
+// ---------------------------------------------------------------------------
+
+describe("runGraphExecution — cacheKey on the run status", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  /** A source.upload node feeding one cacheable activity. */
+  function sourceGraph(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "source-then-lookup", description: "" },
+      entryNodeId: "upload1",
+      ctx: { documentUrl: { type: "string" } },
+      nodes: {
+        upload1: {
+          id: "upload1",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+          parameters: { ctxKey: "documentUrl" },
+          outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        },
+        lookup: {
+          id: "lookup",
+          type: "activity",
+          label: "Lookup",
+          activityType: "tables.lookup",
+          inputs: [{ port: "key", ctxKey: "documentUrl" }],
+          outputs: [{ port: "result", ctxKey: "lookupResult" }],
+        },
+      },
+      edges: [
+        {
+          id: "upload1-lookup",
+          source: "upload1",
+          target: "lookup",
+          type: "normal",
+        },
+      ],
+    } as unknown as GraphWorkflowConfig;
+  }
+
+  type WrittenKey = { nodeId: string; configHash: string; inputHash: string };
+
+  function writtenKeyFor(upsert: jest.Mock, nodeId: string): WrittenKey {
+    const call = upsert.mock.calls
+      .map((args) => args[0] as WrittenKey)
+      .find((input) => input.nodeId === nodeId);
+    if (!call) throw new Error(`no cache write for ${nodeId}`);
+    return call;
+  }
+
+  it("a source node names the row written for it at workflow start", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ result: "ok" });
+
+    const state = makeFreshState(deps);
+    const input = makeInput(sourceGraph());
+    input.initialCtx = { documentUrl: "uploads/a.pdf" };
+    await runGraphExecution(input, state);
+
+    const status = state.nodeRunStatuses.upload1;
+    expect(status.status).toBe("succeeded");
+    const written = writtenKeyFor(upsert, "upload1");
+    expect(status.cacheKey).toEqual({
+      configHash: written.configHash,
+      inputHash: written.inputHash,
+    });
+  });
+
+  it("two runs with different uploads name different source rows", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ result: "ok" });
+
+    const first = makeFreshState(deps);
+    const firstInput = makeInput(sourceGraph());
+    firstInput.initialCtx = { documentUrl: "uploads/a.pdf" };
+    await runGraphExecution(firstInput, first);
+
+    const second = makeFreshState(deps);
+    const secondInput = makeInput(sourceGraph());
+    secondInput.initialCtx = { documentUrl: "uploads/b.pdf" };
+    await runGraphExecution(secondInput, second);
+
+    expect(first.nodeRunStatuses.upload1.cacheKey).toBeDefined();
+    expect(second.nodeRunStatuses.upload1.cacheKey).toBeDefined();
+    expect(first.nodeRunStatuses.upload1.cacheKey?.inputHash).not.toBe(
+      second.nodeRunStatuses.upload1.cacheKey?.inputHash,
+    );
+    // The downstream step consumed a different value, so its row differs too.
+    expect(first.nodeRunStatuses.lookup.cacheKey?.inputHash).not.toBe(
+      second.nodeRunStatuses.lookup.cacheKey?.inputHash,
+    );
+  });
+
+  it("a source node names no row when its cache write failed, and the run still completes", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    // The source write fails; the activity's write lands.
+    upsert.mockImplementation(async (input: WrittenKey) => {
+      if (input.nodeId === "upload1") throw new Error("cache DB unreachable");
+    });
+    mockActivityFn.mockResolvedValue({ result: "ok" });
+
+    const state = makeFreshState(deps);
+    const input = makeInput(sourceGraph());
+    input.initialCtx = { documentUrl: "uploads/a.pdf" };
+    await runGraphExecution(input, state);
+
+    expect(state.nodeRunStatuses.upload1.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.upload1.cacheKey).toBeUndefined();
+    expect(state.nodeRunStatuses.lookup.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.lookup.cacheKey).toBeDefined();
+  });
+
+  it("a non-cacheable activity names no row: nothing is written for it", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({});
+
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "non-cacheable", description: "" },
+      entryNodeId: "mark",
+      ctx: {},
+      nodes: {
+        mark: {
+          id: "mark",
+          type: "activity",
+          label: "Mark",
+          // Catalog `nonCacheable: true` — a status write must re-run.
+          activityType: "document.updateStatus",
+          parameters: { status: "complete" },
+        },
+      },
+      edges: [],
+    };
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(graph), state);
+
+    expect(mockActivityFn).toHaveBeenCalledTimes(1);
+    expect(findFresh).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    expect(state.nodeRunStatuses.mark.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.mark.cacheKey).toBeUndefined();
+  });
+
+  it("a cacheable miss whose write failed names no row", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    // Miss, the write fails, and the re-check finds no row from another writer.
+    findFresh.mockResolvedValue(null);
+    upsert.mockRejectedValue(new Error("connection refused"));
+    mockActivityFn.mockResolvedValue({ result: { value: 1 } });
+
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "write-fails", description: "" },
+      entryNodeId: "lookup",
+      ctx: {},
+      nodes: {
+        lookup: {
+          id: "lookup",
+          type: "activity",
+          label: "Lookup",
+          activityType: "tables.lookup",
+          outputs: [{ port: "result", ctxKey: "lookupResult" }],
+        },
+      },
+      edges: [],
+    };
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(graph), state);
+
+    expect(state.nodeRunStatuses.lookup.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.lookup.cacheKey).toBeUndefined();
+  });
+
+  it("a run without the cache (no cache deps) names no row for any node", async () => {
+    mockActivityFn.mockResolvedValue({ result: "ok" });
+
+    const state = makeFreshState();
+    state.workflowLineageId = null;
+    const input = makeInput(sourceGraph());
+    input.initialCtx = { documentUrl: "uploads/a.pdf" };
+    await runGraphExecution(input, state);
+
+    expect(state.nodeRunStatuses.upload1.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.upload1.cacheKey).toBeUndefined();
+    expect(state.nodeRunStatuses.lookup.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.lookup.cacheKey).toBeUndefined();
+  });
+
+  // The map node's body runs through the branch runner
+  // (`executeBranchSubgraph`), which writes the shared status map itself.
+  describe("inside a map branch", () => {
+    function mapConfig(bodyActivityType: string): GraphWorkflowConfig {
+      const mapNode: MapNode = {
+        id: "MAP",
+        type: "map",
+        label: "Map",
+        collectionCtxKey: "items",
+        itemCtxKey: "currentItem",
+        bodyEntryNodeId: "BODY",
+        bodyExitNodeId: "BODY",
+      };
+      return {
+        schemaVersion: "1.0",
+        metadata: { name: "map-branch", description: "" },
+        entryNodeId: "MAP",
+        ctx: {},
+        nodes: {
+          MAP: mapNode,
+          BODY: {
+            id: "BODY",
+            type: "activity",
+            label: "Body",
+            activityType: bodyActivityType,
+            inputs: [{ port: "currentItem", ctxKey: "currentItem" }],
+            outputs: [{ port: "ok", ctxKey: "branchOut" }],
+          },
+        },
+        edges: [
+          { id: "e-map-body", source: "MAP", target: "BODY", type: "normal" },
+        ],
+      } as GraphWorkflowConfig;
+    }
+
+    function branchState(deps: CachedActivityDeps): ExecutionState {
+      const state = makeFreshState(deps);
+      // One item, so the branch's status is unambiguous.
+      state.ctx = { items: ["only-item"] };
+      return state;
+    }
+
+    it("a cacheable miss in a branch names the row it wrote", async () => {
+      const { deps, findFresh, upsert } = makeCacheDeps();
+      findFresh.mockResolvedValue(null);
+      upsert.mockResolvedValue(undefined);
+      mockActivityFn.mockResolvedValue({ ok: "done" });
+
+      const config = mapConfig("tables.lookup");
+      const state = branchState(deps);
+      await executeNode(config.nodes.MAP, config, state);
+
+      const status = state.nodeRunStatuses.BODY;
+      expect(status.status).toBe("succeeded");
+      const written = writtenKeyFor(upsert, "BODY");
+      expect(status.cacheKey).toEqual({
+        configHash: written.configHash,
+        inputHash: written.inputHash,
+      });
+    });
+
+    it("a cache hit in a branch is skipped and names the served row", async () => {
+      const { deps, findFresh, upsert } = makeCacheDeps();
+      findFresh.mockResolvedValue({
+        outputCtx: { branchOut: "from-cache" },
+        outputKind: null,
+      });
+
+      const config = mapConfig("tables.lookup");
+      const state = branchState(deps);
+      await executeNode(config.nodes.MAP, config, state);
+
+      expect(mockActivityFn).not.toHaveBeenCalled();
+      expect(upsert).not.toHaveBeenCalled();
+      const status = state.nodeRunStatuses.BODY;
+      expect(status.status).toBe("skipped");
+      const lookedUp = findFresh.mock.calls[0][0] as WrittenKey;
+      expect(status.cacheKey).toEqual({
+        configHash: lookedUp.configHash,
+        inputHash: lookedUp.inputHash,
+      });
+    });
+
+    it("a non-cacheable step in a branch names no row", async () => {
+      const { deps, findFresh, upsert } = makeCacheDeps();
+      mockActivityFn.mockResolvedValue({ ok: "done" });
+
+      const config = mapConfig("document.updateStatus");
+      const state = branchState(deps);
+      await executeNode(config.nodes.MAP, config, state);
+
+      expect(findFresh).not.toHaveBeenCalled();
+      expect(upsert).not.toHaveBeenCalled();
+      expect(state.nodeRunStatuses.BODY.status).toBe("succeeded");
+      expect(state.nodeRunStatuses.BODY.cacheKey).toBeUndefined();
+    });
   });
 });
