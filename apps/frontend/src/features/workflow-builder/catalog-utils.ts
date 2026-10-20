@@ -6,7 +6,8 @@
  *   already use. Emoji render differently per platform and are not
  *   reliably announced, so every icon surface renders an SVG component.
  * - resolves `colorHint` strings to Mantine colour tokens / hex codes.
- * - returns reasonable defaults for unknown activity types.
+ * - classifies custom steps (`dyn.*`), which the shared catalog does not hold,
+ *   and returns reasonable defaults for unknown activity types.
  */
 
 import {
@@ -53,13 +54,11 @@ import type { ComponentType } from "react";
 
 import { ACTIVITY_ACCENT } from "./node-accents";
 
-// The seven-colour `COLOR_TOKENS` map that used to live here is gone (item 20,
-// 2026-08-09). It gave each activity CATEGORY its own accent, and those seven
-// plus the six control-flow accents produced 14 colliding pairs under
-// colour-vision simulation — including `#22c55e` meaning three different
-// things. Every activity now takes one accent; the category is still carried
-// by the icon, the label, and the palette sidebar's grouping. See
-// `node-accents.ts` for the measurement and the roles.
+// Every activity takes one accent, `ACTIVITY_ACCENT`. The category is carried
+// by the icon, the label and the palette sidebar's grouping instead: seven
+// category accents next to the six control-flow accents give 14 pairs that
+// collide under colour-vision simulation. See `node-accents.ts` for the
+// measurement and the roles.
 
 export interface TablerIconProps {
   size?: number | string;
@@ -104,12 +103,18 @@ const ICON_COMPONENTS: Record<string, ActivityIconComponent> = {
   download: IconDownload,
   database: IconDatabase,
   transform: IconTransform,
-  // Both of these were emitted by the catalog but never mapped, so they fell
-  // through to the neutral fallback — `code` covers EVERY `dyn.*` dynamic
-  // node, which is why custom nodes all looked alike on the canvas.
   gauge: IconGauge,
-  code: IconCode,
 };
+
+/**
+ * Every custom step's activity type is `dyn.<name>`. The shared catalog holds
+ * the built-in activities only; custom steps are published in the app and are
+ * classified by this prefix.
+ */
+const CUSTOM_STEP_PREFIX = "dyn.";
+
+/** Rendered for a custom step: the glyph the palette's Custom section shows. */
+const CUSTOM_STEP_ICON: ActivityIconComponent = IconCode;
 
 /** Rendered for an activity type the catalog does not know at all. */
 const UNKNOWN_ACTIVITY_ICON: ActivityIconComponent = IconHelpCircle;
@@ -122,18 +127,36 @@ export interface ActivityVisualHints {
   category: string;
   color: string;
   /**
-   * Resolved Tabler icon component. Falls back to a help glyph for
-   * unregistered activity types and to a neutral dot for catalogued
+   * Resolved Tabler icon component. A code glyph for custom steps, a help
+   * glyph for unregistered activity types, and a neutral dot for catalogued
    * activities carrying an unmapped `iconHint`.
    */
   Icon: ActivityIconComponent;
   description: string;
 }
 
+/**
+ * Display strings and icon for an activity type.
+ *
+ * A custom step (`dyn.<name>`) is not in the shared catalog, but it is not an
+ * unknown type either. Whether it is still published or was deleted is only
+ * known to the merged catalog, which the step's own settings and its canvas
+ * pill read; so its description says what kind of step it is, which holds
+ * either way, and never claims it is registered or that it is gone.
+ */
 export function getActivityVisualHints(
   activityType: string,
 ): ActivityVisualHints {
   const entry = getActivityCatalogEntry(activityType);
+  if (!entry && activityType.startsWith(CUSTOM_STEP_PREFIX)) {
+    return {
+      displayName: activityType.slice(CUSTOM_STEP_PREFIX.length),
+      category: "Custom",
+      color: ACTIVITY_ACCENT,
+      Icon: CUSTOM_STEP_ICON,
+      description: "Custom step, written in TypeScript.",
+    };
+  }
   if (!entry) {
     return {
       displayName: activityType,

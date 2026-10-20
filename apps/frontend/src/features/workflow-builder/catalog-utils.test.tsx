@@ -76,6 +76,42 @@ describe("getActivityVisualHints — icons", () => {
   });
 });
 
+describe("getActivityVisualHints — custom steps", () => {
+  it("names a custom step by its slug and does not call it unregistered", () => {
+    const hints = getActivityVisualHints("dyn.demo-uppercase");
+    expect(hints.displayName).toBe("demo-uppercase");
+    expect(hints.category).toBe("Custom");
+    expect(hints.description).toBe("Custom step, written in TypeScript.");
+    expect(hints.description).not.toMatch(/unregistered/i);
+  });
+
+  it("draws the code glyph, not the unknown-type glyph", () => {
+    const hints = getActivityVisualHints("dyn.demo-uppercase");
+    const { container } = render(<hints.Icon size={16} />);
+    expect(container.querySelector("svg.tabler-icon-code")).not.toBeNull();
+    expect(hints.Icon).not.toBe(
+      getActivityVisualHints("not.a.real.activity").Icon,
+    );
+  });
+
+  it("says the same of every custom step, published or deleted, since it cannot tell which", () => {
+    const live = getActivityVisualHints("dyn.demo-uppercase");
+    const deleted = getActivityVisualHints("dyn.demo-deleted-node");
+    expect(deleted.description).toBe(live.description);
+    expect(deleted.Icon).toBe(live.Icon);
+    expect(deleted.displayName).toBe("demo-deleted-node");
+  });
+
+  it("still calls a type outside the dyn. namespace unregistered", () => {
+    for (const activityType of ["dynamic.thing", "dyn", "acme.notRegistered"]) {
+      const hints = getActivityVisualHints(activityType);
+      expect(hints.description).toBe("Unregistered activity.");
+      expect(hints.category).toBe("Unknown");
+      expect(hints.displayName).toBe(activityType);
+    }
+  });
+});
+
 describe("getActivityVisualHints — colours and copy", () => {
   it("resolves the catalog colour hint to a hex token", () => {
     expect(getActivityVisualHints("file.prepare").color).toMatch(
