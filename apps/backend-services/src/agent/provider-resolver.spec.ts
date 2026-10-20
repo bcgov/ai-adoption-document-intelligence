@@ -131,14 +131,12 @@ describe("ProviderResolver", () => {
 });
 
 /**
- * D4 / I1, 2026-08-14. `AgentEnv` used to throw from its constructor when no
- * provider was configured. `AgentEnv` is a plain provider inside `AgentModule`
- * and `AppModule` imports `AgentModule` unconditionally, so that throw was a
- * DI failure at startup — a developer with no API key got an app that would
- * not boot, and the message named the agent module, so it read as the agent
- * having broken the build. The contract is now: the app comes up, the
- * assistant is disabled, and anything that asks for a turn is refused with a
- * cause it can render.
+ * `AgentEnv` is a plain provider inside `AgentModule`, and `AppModule` imports
+ * `AgentModule` unconditionally, so a throw from its constructor would be a DI
+ * failure at startup: a developer with no API key would get an app that does
+ * not boot, with a message naming the agent module. The contract: the app
+ * comes up, the assistant is disabled, and anything that asks for a turn is
+ * refused with a cause it can render.
  */
 describe("ProviderResolver — nothing configured at all", () => {
   async function unconfiguredResolver(): Promise<ProviderResolver> {

@@ -102,10 +102,9 @@ describe("listConfiguredModels", () => {
   });
 });
 
-// I1 / D4, 2026-08-14. An empty list used to be indistinguishable from a
-// failed request, so the drawer showed "Server default model" over a server
-// that had no model at all. The list is now paired with the variable NAMES
-// that would fix it.
+// An empty list is a real answer, not a failed request: it comes paired with
+// the variable NAMES that would fix it, so the drawer can say the server has no
+// model instead of offering a default it cannot run.
 describe("listMissingProviderConfig", () => {
   it("reports every provider, with its variables, when nothing is configured", () => {
     const env = makeEnv({});

@@ -206,10 +206,10 @@ describe("AgentController", () => {
     expect(providers).not.toContain("anthropic");
   });
 
-  // I1 / D4, 2026-08-14. An empty `items` is a real answer — "no provider has
-  // credentials here" — and used to be indistinguishable from a failed list
-  // request, so the drawer said "Server default model" and left the composer
-  // live over a server that could not answer at all.
+  // An empty `items` is a real answer — "no provider has credentials here" —
+  // and must not read like a failed list request: it names the variables that
+  // would fix it, so the drawer can say why the assistant is disabled instead
+  // of offering a default model the server cannot run.
   it("listModels: says WHICH variables are missing when nothing is configured", () => {
     envValues = {};
     const { controller } = makeController();
