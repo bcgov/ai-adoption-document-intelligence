@@ -17,6 +17,7 @@ import {
   Badge,
   Box,
   Button,
+  Code,
   Group,
   Modal,
   Select,
@@ -101,13 +102,27 @@ export function DynamicNodeSettings({
             Deleted
           </Badge>
         </Group>
+        {/* A deleted lineage is not listed anywhere and its script cannot be
+            fetched, so the one way back is a create-mode publish under the
+            same name, which the backend treats as a restore: it clears the
+            deletion and appends the next version to its existing history. */}
         <Alert
           color="red"
           icon={<IconAlertCircle size={16} />}
           data-testid="dynamic-node-settings-deleted-alert"
         >
-          This dynamic node was deleted. Restore from the management page to use
-          this node, or delete the node from this workflow.
+          <Stack gap={4}>
+            <Text size="sm">This dynamic node was deleted.</Text>
+            <Text size="sm">
+              To use it again, publish a new dynamic node named{" "}
+              <Code>{slug}</Code>, with New custom node in the Activity palette
+              or New dynamic node on the Dynamic nodes page. That restores it,
+              with its version history continued.
+            </Text>
+            <Text size="sm">
+              Otherwise, delete this step from the workflow.
+            </Text>
+          </Stack>
         </Alert>
       </Stack>
     );
