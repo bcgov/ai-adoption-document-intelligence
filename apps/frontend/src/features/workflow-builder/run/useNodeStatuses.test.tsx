@@ -65,7 +65,7 @@ const terminalMap: NodeStatusesMap = {
   },
   "node-2": {
     status: "skipped",
-    cacheHit: { configHash: "cfg-1", inputHash: "in-1" },
+    cacheKey: { configHash: "cfg-1", inputHash: "in-1" },
   },
 };
 

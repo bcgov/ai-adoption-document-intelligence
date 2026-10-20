@@ -32,11 +32,12 @@ export type NodeRunStatusValue =
   | "cancelled";
 
 /**
- * Cache-hit metadata. Populated only when `status === "skipped"` —
- * the Phase 4 cache decorator (US-128) records which cache row served
- * the output so the canvas can surface "served from cache" UX.
+ * The key of the cache row that holds a node's output for a run: with the
+ * run's workflow lineage and the node id, these two hashes make up the
+ * `ActivityOutputCache` row's unique key. The backend's preview endpoints
+ * read a run's rows by these keys, so a replay shows that run's results.
  */
-export interface NodeRunStatusCacheHit {
+export interface NodeRunStatusCacheKey {
   configHash: string;
   inputHash: string;
 }
@@ -53,8 +54,12 @@ export interface NodeRunStatus {
   endedAt?: string;
   /** Populated when `status === "failed"`. The thrown error's `.message`. */
   errorMessage?: string;
-  /** Populated when `status === "skipped"`. Names the cache row served. */
-  cacheHit?: NodeRunStatusCacheHit;
+  /**
+   * Present whenever a cache row holds this node's output for the run: a
+   * cache hit (`skipped`), a cacheable step whose row was written
+   * (`succeeded`), and a source node. Absent otherwise.
+   */
+  cacheKey?: NodeRunStatusCacheKey;
   /**
    * G-014 — the id of the ONE outgoing edge this node routed to, when it
    * made a branch decision (a `switch`'s matched case or default edge, a

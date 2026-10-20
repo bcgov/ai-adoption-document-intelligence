@@ -118,7 +118,7 @@ describe("computeActiveEdges", () => {
     const statuses: Record<string, NodeRunStatus> = {
       a: {
         status: "skipped",
-        cacheHit: { configHash: "ch", inputHash: "ih" },
+        cacheKey: { configHash: "ch", inputHash: "ih" },
       },
       b: { status: "pending" },
     };
