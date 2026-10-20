@@ -3139,19 +3139,19 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D13 — "Simplified view" is a VIEW control, and a view control must never
-// rewrite the document.
+// "Simplified view" is a VIEW control, and a view control must never rewrite
+// the document.
 //
-// It used to. `simplifiedView` was closed over by `runAutoArrange`, whose
-// identity flowed through `handleArrangeOnLoad` → `scheduleArrangeOnLoad` into
-// the dependency array of the server-hydration effect. So every flip of the
-// switch re-ran the hydrate on any workflow with no unsaved *config* edits —
-// exactly the state a demo opens in. The measured arrange-on-load layout was
-// thrown away for the loose pre-mount fallback, an unsaved rename was reverted
-// by `setName`, and neither left an undo step to get back from.
+// The hazard: if `runAutoArrange` closed over `simplifiedView`, its identity
+// would flow through `handleArrangeOnLoad` → `scheduleArrangeOnLoad` into the
+// dependency array of the server-hydration effect, so every flip of the switch
+// would re-run the hydrate on any workflow with no unsaved *config* edits —
+// exactly the state a demo opens in. That throws away the measured
+// arrange-on-load layout for the loose pre-mount fallback and reverts an
+// unsaved rename through `setName`, and neither leaves an undo step.
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorV2Page — D13: the simplified-view toggle must not re-hydrate", () => {
+describe("WorkflowEditorV2Page — the simplified-view toggle must not re-hydrate", () => {
   beforeEach(() => {
     capturedCanvasProps.current = null;
     capturedCreateDto.current = null;
@@ -3169,9 +3169,9 @@ describe("WorkflowEditorV2Page — D13: the simplified-view toggle must not re-h
   }
 
   it("keeps the measured arrange-on-load layout across an ON/OFF toggle pair", async () => {
-    // The reviewer's case: a seeded workflow arrives with no authored
-    // positions, so the page re-arranges it with real measured widths after
-    // mount. Toggling used to hand back the loose pre-mount coordinates.
+    // A seeded workflow arrives with no authored positions, so the page
+    // re-arranges it with real measured widths after mount. A re-hydrate on
+    // toggle would hand back the loose pre-mount coordinates.
     const config = buildTemplateConfig({ positions: "none" });
     measuredNodes.current = Object.keys(config.nodes).map((id) => ({
       id,
@@ -3197,8 +3197,8 @@ describe("WorkflowEditorV2Page — D13: the simplified-view toggle must not re-h
 
   it("keeps an unsaved rename across an ON/OFF toggle pair", async () => {
     // The title writes `name` state only, never `config`, so the hydration
-    // effect's dirty guard (a config reference compare) never protected it —
-    // `setName(existingWorkflow.name)` simply reverted the typed name.
+    // effect's dirty guard (a config reference compare) does not protect it —
+    // a re-hydrate's `setName(existingWorkflow.name)` reverts the typed name.
     existingWorkflowRef.current = {
       id: "wf-d13-name",
       name: "Server workflow",
@@ -3229,8 +3229,8 @@ describe("WorkflowEditorV2Page — D13: the simplified-view toggle must not re-h
 
   it("states the invariant directly: the config handed to the canvas is reference-identical across a toggle pair", async () => {
     // The fixture carries a lineage `description` and no
-    // `metadata.description`, so the R-2 seeding branch in the hydration
-    // effect ALLOCATES a fresh config every time it runs. That makes a
+    // `metadata.description`, so the description-seeding branch in the
+    // hydration effect ALLOCATES a fresh config each time it runs. That makes a
     // reference compare a true statement about whether the effect fired —
     // with a fixture hydration happens to pass through untouched, the compare
     // would be vacuously true.

@@ -124,9 +124,9 @@ describe("ConditionExpressionEditor — Scenario 1: renders each kind's body", (
     expect(
       screen.getByTestId("condition-expression-editor-right"),
     ).toBeInTheDocument();
-    // Operator dropdown reflects the value.
-    // D23 — the SELECT shows the human label; the stored value is unchanged
-    // (the expression above still carries `operator: "equals"`).
+    // Operator dropdown reflects the value. The SELECT shows the human label;
+    // the stored value is unchanged (the expression above still carries
+    // `operator: "equals"`).
     expect(selectValue("condition-expression-editor-comparison-op")).toBe(
       OPERATOR_LABELS.equals,
     );

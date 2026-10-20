@@ -2,24 +2,24 @@
  * `useDebouncedTextCommit` — local draft state for a text field whose commit is
  * expensive, with the echo guard that makes a controlled field safe to draft.
  *
- * **Why (D7).** Every node-settings text field was fully controlled by the
- * editor's page-level config: one keystroke wrote a whole new
- * `GraphWorkflowConfig`, which re-ran the auto-wire resolver over every typed
- * input port on every node (an upstream graph walk per port), rewrote
- * downstream input bindings, changed the canvas's structural fingerprint, and
- * re-projected every card — allocating a fresh object per node, which defeats
- * xyflow's identity reuse so every node component re-rendered. Typing lagged
- * behind the keyboard. The field keeps its own draft now and commits once per
- * editing burst instead of once per character.
+ * **Why.** A node-settings text field controlled directly by the editor's
+ * page-level config writes a whole new `GraphWorkflowConfig` per keystroke,
+ * which re-runs the auto-wire resolver over every typed input port on every
+ * node (an upstream graph walk per port), rewrites downstream input bindings,
+ * changes the canvas's structural fingerprint, and re-projects every card —
+ * allocating a fresh object per node, which defeats xyflow's identity reuse so
+ * every node component re-renders. Typing then lags behind the keyboard. So
+ * the field keeps its own draft and commits once per editing burst instead of
+ * once per character.
  *
  * **The echo guard is not optional.** A controlled field that also holds a
  * draft has two writers, and the parent's value arrives *late* — it is the
  * draft coming back through the parent's state. Re-seeding the draft from that
- * echo overwrites whatever was typed in the meantime; in the Monaco editor the
- * same shape lost characters and threw the caret to the end of the document
- * (D8). `lastSyncedRef` records the value we emitted *before* the parent can
- * echo it, so an echo is always recognised and only a genuine external change
- * (an undo, an agent write, a hydration) re-seeds the draft.
+ * echo overwrites whatever was typed in the meantime; in a Monaco editor the
+ * same shape loses characters and throws the caret to the end of the document.
+ * `lastSyncedRef` records the value we emitted *before* the parent can echo
+ * it, so an echo is always recognised and only a genuine external change (an
+ * undo, an agent write, a hydration) re-seeds the draft.
  *
  * The pending commit is flushed on blur and on unmount, so navigating away
  * mid-burst cannot silently drop what was typed.

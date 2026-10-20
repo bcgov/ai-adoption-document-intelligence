@@ -206,13 +206,13 @@ export function VariablePicker({
   resolveProducerKind,
   onCreateCtxKey,
 }: VariablePickerProps) {
-  // D7 — the typed text is local. Committing it upwards rewrites the whole
+  // The typed text is local. Committing it upwards rewrites the whole
   // workflow config, which re-runs the auto-wire resolver and re-projects
-  // every card on the canvas; at one write per character that is what made
-  // typing here lag behind the keyboard. Options below still expand against
-  // the DRAFT, so field drill-down stays live while the graph work waits for
-  // the author to stop typing. Picking an option commits immediately — that is
-  // a discrete choice, not typing.
+  // every card on the canvas; at one write per character, typing here would
+  // lag behind the keyboard. Options below still expand against the DRAFT, so
+  // field drill-down stays live while the graph work waits for the author to
+  // stop typing. Picking an option commits immediately — that is a discrete
+  // choice, not typing.
   const { draft, setDraft, commit, flush } = useDebouncedTextCommit(
     value,
     onChange,

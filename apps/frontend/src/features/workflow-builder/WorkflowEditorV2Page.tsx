@@ -608,12 +608,10 @@ function WorkflowEditorV2PageBody({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
-  // Batch-four item 8 (2026-08-08): the top bar used to carry TWO buttons
-  // ("Try" and "Run this workflow") that opened this one drawer on
-  // different tabs — the same surface behind two doors, which is what
-  // Inderdeep objected to. There is now ONE entry point, so the state is
-  // a plain open/closed flag and the tab is pre-selected from the
-  // workflow's own inputs (`runDrawerOpenMode` below).
+  // The run drawer has ONE top-bar entry point, not a button per tab — two
+  // buttons opening it on different tabs would put the same surface behind
+  // two doors. So the state is a plain open/closed flag, and the tab is
+  // pre-selected from the workflow's own inputs (`runDrawerOpenMode` below).
   const [runDrawerOpen, setRunDrawerOpen] = useState(false);
   // US-081: version-history drawer open/close state. The drawer body
   // (`VersionHistoryDrawer`) is mounted in US-082; this story owns the
@@ -761,15 +759,15 @@ function WorkflowEditorV2PageBody({
   useUndoRedoHotkeys({ undo, redo });
 
   /**
-   * D13 — `runAutoArrange` reads the simplified-view flag only at CALL time,
-   * but closing over the state value made the callback's identity change on
-   * every flip of the toggle. That identity is the only unstable dependency of
-   * the server-hydration effect below (via `handleArrangeOnLoad` →
-   * `scheduleArrangeOnLoad`), so toggling a *view* control re-ran a *document*
-   * hydration: the measured arrange-on-load layout was replaced by the loose
-   * pre-mount fallback, and an unsaved rename was reverted by `setName`.
-   * Holding the flag in a ref keeps the read at call time while making the
-   * callback identity stable.
+   * `runAutoArrange` reads the simplified-view flag only at CALL time, so the
+   * flag lives in a ref. Closing over the state value would change the
+   * callback's identity on every flip of the toggle, and that identity would
+   * be the only unstable dependency of the server-hydration effect below (via
+   * `handleArrangeOnLoad` → `scheduleArrangeOnLoad`): toggling a *view*
+   * control would re-run a *document* hydration, replacing the measured
+   * arrange-on-load layout with the loose pre-mount fallback and reverting an
+   * unsaved rename through `setName`. The ref keeps the read at call time
+   * while making the callback identity stable.
    */
   const simplifiedViewRef = useRef(simplifiedView);
   simplifiedViewRef.current = simplifiedView;
@@ -1067,12 +1065,12 @@ function WorkflowEditorV2PageBody({
   // it cheaply. When there are no local edits it's safe to adopt the new
   // server state (e.g. the agent's write). `handleSave` re-baselines.
   //
-  // D13 — and hydration must be driven by "the SERVER copy changed", never by
-  // the identity of anything in this component. `hydratedFromRef` states that
+  // Hydration must also be driven by "the SERVER copy changed", never by the
+  // identity of anything in this component. `hydratedFromRef` states that
   // invariant directly, so a future unstable dependency cannot quietly turn a
-  // UI change back into a document rewrite. TanStack Query's structural
-  // sharing keeps `existingWorkflow` referentially stable across refetches
-  // that return equal data, so §4.4 (adopt the agent's write) still fires.
+  // UI change into a document rewrite. TanStack Query's structural sharing
+  // keeps `existingWorkflow` referentially stable across refetches that
+  // return equal data, so §4.4 (adopt the agent's write) still fires.
   const hydratedFromRef = useRef<WorkflowInfo | null>(null);
   useEffect(() => {
     if (!isEditMode || !existingWorkflow) return;
@@ -2288,33 +2286,29 @@ function ValidationButton({
 }
 
 /**
- * Replay-mode banner (US-154; reshaped by the 2026-08-06 UX walkthrough,
- * item 13). Renders a full-width strip between the top bar and the canvas
- * when `isReplay === true`; otherwise renders nothing. "Leave replay"
- * restores live mode by resetting both `activeRunId` and `isReplay` on
- * `RunStateContext`. Must be mounted inside the `RunStateProvider` subtree.
+ * Replay-mode banner (US-154). Renders a full-width strip between the top bar
+ * and the canvas when `isReplay === true`; otherwise renders nothing. "Leave
+ * replay" restores live mode by resetting both `activeRunId` and `isReplay`
+ * on `RunStateContext`. Must be mounted inside the `RunStateProvider` subtree.
  *
- * Why a banner and not the chip it replaces (DECISIONS/13-replay-mode.md):
- * this was a filled Mantine `Badge` parked in the top bar's action row, and
- * Alex read it as a stray tag — *"there's like a weird tag there … it makes
- * sense for it to be an indicator somewhere, but perhaps not there and not
- * like that."* Two things were wrong with the chip beyond where it sat.
- * First, replay is a MODE that silently swallows work — Undo/Redo are
- * disabled and config edits hit `if (isReplay) return;` in three handlers —
- * so an author drags a node, types in a field, presses Ctrl+Z, and nothing
- * happens with no explanation. A badge is not proportionate to that.
- * Second, the badge was already carrying a full sentence with a caveat in a
- * control sized for a word: the orange state means the run's version could
- * not be loaded, so **the graph on screen is the current one while the run
- * came from an older one** — the single most important thing the editor can
- * say at that moment, and it was squeezed into a chip. Here each state is a
- * sentence with room to be one.
+ * Why a banner and not a chip (DECISIONS/13-replay-mode.md): a filled Mantine
+ * `Badge` in the top bar's action row reads as a stray tag, not as the
+ * indicator replay needs. Placement aside, a chip fails twice. First, replay
+ * is a MODE that silently swallows work — Undo/Redo are disabled and config
+ * edits hit `if (isReplay) return;` in three handlers — so an author drags a
+ * node, types in a field, presses Ctrl+Z, and nothing happens with no
+ * explanation. A badge is not proportionate to that. Second, each state is a
+ * full sentence with a caveat, too much for a control sized for a word: the
+ * orange state means the run's version could not be loaded, so **the graph on
+ * screen is the current one while the run came from an older one** — the
+ * single most important thing the editor can say at that moment. Here each
+ * state is a sentence with room to be one.
  *
  * Layout: a `flexShrink: 0` sibling of the top bar inside the page's
  * height-100% column, so the space it takes comes out of the canvas below
  * and nothing overflows. It is deliberately NOT in the top bar, which is
- * where the controls it explains the deadness of live, and whose horizontal
- * budget item 14 has just finished reclaiming.
+ * where the controls it explains the deadness of live, and which has no
+ * horizontal room to spare.
  */
 function ReplayModeBanner({
   versionUnavailable,

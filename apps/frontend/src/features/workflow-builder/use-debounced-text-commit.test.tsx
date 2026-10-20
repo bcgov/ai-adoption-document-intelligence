@@ -1,11 +1,11 @@
 /**
- * Tests for `useDebouncedTextCommit` (D7).
+ * Tests for `useDebouncedTextCommit`.
  *
  * The hook exists to stop one keystroke costing one whole-graph config
  * rewrite, and the thing that makes it safe is the echo guard — the parent's
  * `value` arrives late and IS the draft coming back, so re-seeding from it
- * would overwrite whatever was typed in between. That is the bug D8 is, in the
- * Monaco editor; these tests pin the guard down here.
+ * would overwrite whatever was typed in between. A Monaco editor is exposed to
+ * the same race; these tests pin the guard down here.
  */
 
 import "@testing-library/jest-dom";
@@ -75,7 +75,7 @@ function typeChars(text: string) {
   return field;
 }
 
-describe("useDebouncedTextCommit (D7)", () => {
+describe("useDebouncedTextCommit", () => {
   it("commits ONCE for a burst of keystrokes, not once per character", async () => {
     const onCommit = vi.fn();
     render(<ControlledHarness onCommit={onCommit} />);
@@ -89,14 +89,14 @@ describe("useDebouncedTextCommit (D7)", () => {
 
     await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
     expect(onCommit).toHaveBeenCalledWith("preparedItem");
-    // 12 characters, 1 commit. Before this hook it was 12 commits — each one a
-    // new workflow config, a full auto-wire graph walk and a canvas
+    // 12 characters, 1 commit. Without this hook it would be 12 commits — each
+    // one a new workflow config, a full auto-wire graph walk and a canvas
     // re-projection.
     expect("preparedItem".length).toBe(12);
   });
 
   it("does not lose characters typed while the parent is echoing the previous commit", async () => {
-    // The D8 race, reproduced at unit level: the parent takes 30 ms to hand
+    // The echo race, reproduced at unit level: the parent takes 30 ms to hand
     // the value back, and the author keeps typing inside that window. Without
     // the echo guard the late value wins and the characters typed in between
     // are discarded.
