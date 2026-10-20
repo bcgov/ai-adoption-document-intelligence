@@ -19,9 +19,13 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  *   - Update APIM Request ID → Prepare File Data is then refused: it would
  *     close a loop.
  *   - The drawn wire's right-click menu removes it.
+ *   - A wire let go over a card's body, away from its dots, gets what a drop
+ *     on the card's dot gets: a data wire that no input can take is refused
+ *     with the reason, and a run-order wire is drawn.
  *
  * Each refusal says why in a notice. Real drags and a real right-click, so
- * this lives in the canvas tier. Nothing is saved.
+ * this lives in the canvas tier: finding the card under a release point is
+ * the browser's hit-testing, which jsdom does not have. Nothing is saved.
  */
 
 const PREPARE = "prepareFileData";
@@ -118,6 +122,45 @@ async function pointOnWire(
   return point;
 }
 
+/** A point on a card's title, well away from its dots. */
+async function cardTitlePoint(
+  page: Page,
+  nodeId: string,
+): Promise<{ x: number; y: number }> {
+  const box = await page
+    .locator(`.react-flow__node[data-id="${nodeId}"]`)
+    .boundingBox();
+  if (!box) throw new Error(`no card for ${nodeId}`);
+  return { x: box.x + box.width / 2, y: box.y + Math.min(28, box.height / 3) };
+}
+
+/**
+ * Drags from one of a card's output dots (`out`, or `out-<port>`) and lets go
+ * at a point. Grabbed at the dot's outer edge, as `dragConnect` does: the dot
+ * straddles the card border and paints under the card's content at its
+ * centre.
+ */
+async function dragFromDotTo(
+  page: Page,
+  nodeId: string,
+  handleId: string,
+  to: { x: number; y: number },
+): Promise<void> {
+  const from = await page
+    .locator(
+      `.react-flow__node[data-id="${nodeId}"] .react-flow__handle[data-handleid="${handleId}"]`,
+    )
+    .boundingBox();
+  if (!from) throw new Error(`no ${handleId} dot on ${nodeId}`);
+  const fromX = from.x + from.width - 1;
+  const fromY = from.y + from.height / 2;
+  await page.mouse.move(fromX, fromY);
+  await page.mouse.down();
+  await page.mouse.move((fromX + to.x) / 2, (fromY + to.y) / 2, { steps: 8 });
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await page.mouse.up();
+}
+
 test.describe("run-order wires on the canvas", () => {
   test("refuses a wire that changes nothing or closes a loop, and removes one from its menu", async ({
     page,
@@ -159,5 +202,45 @@ test.describe("run-order wires on the canvas", () => {
     await page.mouse.click(x, y, { button: "right" });
     await page.getByTestId("wire-menu-remove-run-order").click();
     await expect.poll(() => edgeIds(page)).toEqual(seeded);
+  });
+
+  test("a wire let go over a card's body gets what a drop on the card's dot gets", async ({
+    page,
+  }) => {
+    await setupWorkflowBuilderTest(page);
+    await new WorkflowEditorPage(page).openExisting(
+      SEED_WORKFLOW_IDS.standardOcr,
+      3,
+    );
+    await zoomToFirstSteps(page);
+    const seeded = await edgeIds(page);
+
+    // Prepare File Data's prepared file, let go over Update APIM Request ID,
+    // which takes only a document id and a request id: refused, with the
+    // reason, and not the "pick a step" list a release on empty canvas opens.
+    await dragFromDotTo(
+      page,
+      PREPARE,
+      "out-preparedData",
+      await cardTitlePoint(page, UPDATE),
+    );
+    await expect(
+      page.getByText(/^"Update APIM Request ID" has no input that accepts /),
+    ).toBeVisible();
+    await expect(page.getByTestId("hover-extend-popover")).toHaveCount(0);
+    expect(await edgeIds(page)).toEqual(seeded);
+
+    // A run-order wire from Prepare File Data, let go over the same title:
+    // drawn, as it would be on the card's incoming dot.
+    await dismissPopovers(page);
+    await dragFromDotTo(
+      page,
+      PREPARE,
+      "out",
+      await cardTitlePoint(page, UPDATE),
+    );
+    await expect
+      .poll(async () => (await edgeIds(page)).length)
+      .toBe(seeded.length + 1);
   });
 });
