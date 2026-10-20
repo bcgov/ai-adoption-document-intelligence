@@ -127,4 +127,116 @@ describe("ConditionProducerPicker", () => {
     );
     expect(screen.getByTestId("condition-producer-empty")).toBeInTheDocument();
   });
+
+  it("offers no step of its own to a condition on a step without outputs", () => {
+    mount(
+      <ConditionProducerPicker
+        config={chainConfig()}
+        currentNodeId="C"
+        value=""
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByTestId("condition-producer-own-heading"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// A → P(poll, consumer). The poll step's condition reads the status its own
+// attempts return, the way the Standard OCR template's does.
+function pollConfig(): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "A",
+    nodes: {
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "Prepare file",
+      },
+      P: {
+        id: "P",
+        type: "pollUntil",
+        activityType: "azureOcr.poll",
+        label: "Poll OCR Results",
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.ocrStatus" },
+          right: { literal: "running" },
+        },
+        interval: "5s",
+        outputs: [
+          { port: "ocrResponse", ctxKey: "ocrResponseRef" },
+          { port: "status", ctxKey: "ocrStatus" },
+        ],
+      },
+    },
+    edges: [{ id: "e1", source: "A", target: "P", type: "normal" }],
+    ctx: {},
+  };
+}
+
+describe("ConditionProducerPicker — a poll step's own condition", () => {
+  it("lists the step's own outputs first, under their own heading", () => {
+    mount(
+      <ConditionProducerPicker
+        config={pollConfig()}
+        currentNodeId="P"
+        value=""
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId("condition-producer-own-heading"),
+    ).toHaveTextContent("This step's result");
+    const rows = screen
+      .getAllByTestId("condition-producer-row")
+      .map((r) => r.textContent ?? "");
+    expect(rows[0]).toContain("Poll OCR Results → OCR response");
+    expect(rows[0]).toContain("this step");
+    expect(rows[1]).toContain("Poll OCR Results → Poll status");
+    expect(rows[2]).toContain("Prepare file → Prepared file data");
+    expect(rows[2]).toContain("1 step upstream");
+  });
+
+  it("selects the output the stored ctx-prefixed ref reads", () => {
+    mount(
+      <ConditionProducerPicker
+        config={pollConfig()}
+        currentNodeId="P"
+        value="ctx.ocrStatus"
+        onChange={vi.fn()}
+      />,
+    );
+    const row = screen
+      .getByText("Poll OCR Results → Poll status")
+      .closest("[data-testid='condition-producer-row']");
+    expect(row).toHaveAttribute("data-selected", "true");
+    const others = screen
+      .getAllByTestId("condition-producer-row")
+      .filter((r) => r !== row);
+    for (const other of others) {
+      expect(other).toHaveAttribute("data-selected", "false");
+    }
+  });
+
+  it("emits the step itself as the producer when its own row is picked", () => {
+    const onChange = vi.fn();
+    mount(
+      <ConditionProducerPicker
+        config={pollConfig()}
+        currentNodeId="P"
+        value=""
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByText("Poll OCR Results → Poll status"));
+    expect(onChange).toHaveBeenCalledWith({
+      producerNodeId: "P",
+      producerPort: "status",
+    });
+  });
 });
