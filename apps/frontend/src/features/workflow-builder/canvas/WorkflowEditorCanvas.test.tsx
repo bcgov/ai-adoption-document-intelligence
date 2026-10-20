@@ -3164,14 +3164,13 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
     expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
   });
 
-  it("port-source dropped on a node-level target binds the input it was aimed at (D9)", () => {
-    // This used to "fall through to plain edge creation", and that fall-
-    // through is exactly what review item D9 reported: a drag begun on a
-    // data port, released on the target's run-order dot, silently became an
-    // execution edge. The gesture's ORIGIN now decides what it can become —
-    // `submit` has exactly one input a `PreparedFile` can land in, so the
-    // drop completes as the data edge that was drawn. Anything ambiguous or
-    // incompatible is refused instead (see `data-drop-target.test.ts`).
+  it("port-source dropped on a node-level target binds the input it was aimed at", () => {
+    // A drag begun on a data port and released on the target's run-order dot
+    // is a data gesture, never an execution edge. The gesture's ORIGIN
+    // decides what it can become: `submit` has exactly one input a
+    // `PreparedFile` can land in, so the drop completes as the data edge that
+    // was drawn. Anything ambiguous or incompatible is refused instead (see
+    // `data-drop-target.test.ts`).
     const config = makeUnwiredPairConfig();
     const { onConfigChange } = renderCanvas(config);
 
@@ -3441,9 +3440,8 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
         fromHandle: { id: "out-segments" },
         toNode: { id: "ocr" },
         // Released on the target's RUN-ORDER dot rather than an input dot
-        // (xyflow names the node with no port handle id). This used to be
-        // silence on the way to an execution edge — review item D9. It now
-        // names the reason instead.
+        // (xyflow names the node with no port handle id). The refusal names
+        // the reason.
         toHandle: null,
       });
     });
