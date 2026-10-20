@@ -918,7 +918,7 @@ export class WorkflowController {
     summary:
       "Restore an older version: appends its config as a NEW version and points head at it (does not change benchmark definition pins)",
     description:
-      "The selected version's config is copied forward as `head.versionNumber + 1`; the source version row is left untouched, so its run history stays attached to it. The response's `workflow.version` is the NEW version number (D11).",
+      "The selected version's config is copied forward as `head.versionNumber + 1`; the source version row is left untouched, so its run history stays attached to it. The response's `workflow.version` is the NEW version number.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiBody({ type: RevertHeadDto })
