@@ -26,7 +26,6 @@ import {
   Button,
   Group,
   JsonInput,
-  NumberInput,
   Paper,
   Select,
   Stack,
@@ -41,6 +40,7 @@ import {
   ClassificationRuleEditor,
   type ConfusionMap,
   ConfusionMapEditor,
+  DebouncedNumberInput,
   type KeywordPattern,
   KeywordPatternEditor,
   type PageRange,
@@ -257,12 +257,13 @@ function FieldRenderer({
     defaultHint !== undefined ? String(defaultHint) : undefined;
   const widget = fieldSchema["x-widget"];
 
-  // D7 — the free-text branches below draft locally and commit on a quiet
-  // period, on blur, or on unmount. Every commit here replaces the node's
-  // `parameters` at page level, which rewrites the whole workflow config; at
-  // one write per character that re-ran the auto-wire graph walk and
-  // re-projected the canvas on every keystroke. Called unconditionally so hook
-  // order is stable across the schema branches (only the string ones read it).
+  // The free-text branches below draft locally and commit once typing
+  // pauses, on blur, or on unmount; number fields do the same through
+  // `DebouncedNumberInput`. Every commit replaces the node's `parameters` in
+  // the page-level workflow config, which re-resolves bindings and redraws
+  // the canvas, so it happens once per editing burst rather than once per
+  // keystroke. Called unconditionally so hook order is stable across the
+  // schema branches (only the string ones read it).
   const text = useDebouncedTextCommit(
     typeof value === "string" ? value : "",
     (next) => onChange(next === "" ? undefined : next),
@@ -345,16 +346,16 @@ function FieldRenderer({
   // ── number / integer ──────────────────────────────────────────────────
   if (fieldSchema.type === "number" || fieldSchema.type === "integer") {
     return (
-      <NumberInput
+      <DebouncedNumberInput
         label={label}
         description={description}
         placeholder={placeholder}
-        value={typeof value === "number" ? value : ""}
+        value={typeof value === "number" ? value : undefined}
         min={fieldSchema.minimum}
         max={safeNumericMax(fieldSchema.maximum)}
         step={fieldSchema["x-step"]}
         decimalScale={fieldSchema.type === "integer" ? 0 : undefined}
-        onChange={(v) => onChange(typeof v === "number" ? v : undefined)}
+        onCommit={onChange}
         withAsterisk={required}
         disabled={readOnly}
       />

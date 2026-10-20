@@ -9,7 +9,14 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -404,6 +411,8 @@ describe("NodeSettingsPanel — Scenario 4: edits bubble up via onConfigChange",
 
     const labelInput = screen.getByTestId("node-settings-label");
     fireEvent.change(labelInput, { target: { value: "Renamed Branch" } });
+    // Leaving the field commits what was typed.
+    fireEvent.blur(labelInput);
 
     expect(onConfigChange).toHaveBeenCalled();
     const lastCall = onConfigChange.mock.lastCall;
@@ -437,6 +446,7 @@ describe("NodeSettingsPanel — Scenario 4: edits bubble up via onConfigChange",
 
     const labelInput = screen.getByTestId("node-settings-label");
     fireEvent.change(labelInput, { target: { value: "Renamed Activity" } });
+    fireEvent.blur(labelInput);
 
     expect(onConfigChange).toHaveBeenCalled();
     const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
@@ -446,6 +456,66 @@ describe("NodeSettingsPanel — Scenario 4: edits bubble up via onConfigChange",
     expect(updated.activityType).toBe("test.noop");
     // Inputs preserved.
     expect(updated.inputs).toEqual([{ port: "in", ctxKey: "ctx.in" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Node label: typing stays local until it pauses, so a keystroke does not
+// rewrite the workflow and redraw the canvas.
+// ---------------------------------------------------------------------------
+
+/** Types `text` one character at a time, the way a keyboard does. */
+function typeInto(input: HTMLElement, from: string, text: string) {
+  for (let i = 1; i <= text.length; i++) {
+    fireEvent.change(input, { target: { value: from + text.slice(0, i) } });
+  }
+}
+
+describe("NodeSettingsPanel — Node label commits once per burst of typing", () => {
+  it("shows every keystroke at once and writes the workflow once, after typing pauses", async () => {
+    const config = makeConfig([activityNode("a1", "Act")]);
+    const { onConfigChange } = mountWithSpy(config, "a1");
+
+    const labelInput = screen.getByTestId(
+      "node-settings-label",
+    ) as HTMLInputElement;
+    typeInto(labelInput, "Act", " renamed");
+
+    expect(labelInput.value).toBe("Act renamed");
+    expect(onConfigChange).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(onConfigChange).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect(next.nodes.a1.label).toBe("Act renamed");
+
+    // Nothing else is written once the burst has landed.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("selecting another node commits the pending label to the node it was typed for", () => {
+    const config = makeConfig([
+      activityNode("a1", "First"),
+      activityNode("a2", "Second"),
+    ]);
+    const { onConfigChange } = mountWithSpy(config, "a1");
+
+    typeInto(screen.getByTestId("node-settings-label"), "First", " edited");
+    expect(onConfigChange).not.toHaveBeenCalled();
+
+    selectNode("a2");
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect(next.nodes.a1.label).toBe("First edited");
+    expect(next.nodes.a2.label).toBe("Second");
+    expect(
+      (screen.getByTestId("node-settings-label") as HTMLInputElement).value,
+    ).toBe("Second");
   });
 });
 

@@ -18,7 +18,13 @@ import {
   type ValidationRule,
 } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { JsonSchemaForm } from "./JsonSchemaForm";
@@ -438,7 +444,9 @@ describe("JsonSchemaForm — US-034 Scenario 2: edits propagate", () => {
     ) as HTMLInputElement;
 
     fireEvent.change(from0, { target: { value: "1" } });
+    fireEvent.blur(from0);
     fireEvent.change(to0, { target: { value: "I" } });
+    fireEvent.blur(to0);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0];
@@ -891,5 +899,77 @@ describe("JsonSchemaForm — a switch with no saved value", () => {
     expect(
       screen.getByRole("switch", { name: "On by default" }),
     ).not.toBeChecked();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Text and number fields commit once per burst of typing. Each commit
+// replaces the step's parameters in the workflow, so a commit per keystroke
+// would rewrite the workflow on every one.
+// ---------------------------------------------------------------------------
+
+describe("JsonSchemaForm — typing commits once per burst", () => {
+  const schema: JsonSchemaProperty = {
+    type: "object",
+    properties: {
+      status: { type: "string", title: "Status" },
+      threshold: { type: "number", title: "Threshold" },
+      pages: { type: "integer", title: "Pages", minimum: 1 },
+    },
+  };
+
+  async function waitPastDebounce() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+  }
+
+  it("a text field typed character by character commits once, after typing pauses", async () => {
+    const { spy } = mountWithSpy(schema, { status: "on" });
+    const input = screen.getByLabelText("Status") as HTMLInputElement;
+
+    for (const value of ["ong", "ongo", "ongoi", "ongoing"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(input.value).toBe("ongoing");
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect(spy.mock.lastCall?.[0]).toEqual({ status: "ongoing" });
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["number", "Threshold", "threshold", ["0", "0.", "0.8", "0.85"], 0.85],
+    ["integer", "Pages", "pages", ["1", "12", "120"], 120],
+  ] as const)("a %s field typed character by character commits the whole number once", async (_type, label, key, steps, expected) => {
+    const { spy } = mountWithSpy(schema, {});
+    const input = screen.getByLabelText(label) as HTMLInputElement;
+
+    for (const value of steps) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect(spy.mock.lastCall?.[0]).toEqual({ [key]: expected });
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("emptying a number field removes the setting once it is committed", () => {
+    const { spy } = mountWithSpy(schema, { threshold: 0.5, status: "x" });
+    const input = screen.getByLabelText("Threshold");
+
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.lastCall?.[0]).toEqual({ status: "x" });
   });
 });

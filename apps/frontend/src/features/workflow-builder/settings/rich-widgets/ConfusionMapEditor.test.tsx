@@ -13,7 +13,14 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ConfusionMapEditor } from "./ConfusionMapEditor";
@@ -111,6 +118,7 @@ describe("ConfusionMapEditor — Scenario 2: Rows → object on change", () => {
       "confusion-map-editor-to-0",
     ) as HTMLInputElement;
     fireEvent.change(to0, { target: { value: "Q" } });
+    fireEvent.blur(to0);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0];
@@ -126,6 +134,7 @@ describe("ConfusionMapEditor — Scenario 2: Rows → object on change", () => {
       "confusion-map-editor-from-0",
     ) as HTMLInputElement;
     fireEvent.change(from0, { target: { value: "Q" } });
+    fireEvent.blur(from0);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0];
@@ -160,10 +169,17 @@ describe("ConfusionMapEditor — Scenario 3: Duplicate from keys warn per-row", 
       "confusion-map-editor-to-1",
     ) as HTMLInputElement;
 
-    fireEvent.change(from0, { target: { value: "0" } });
-    fireEvent.change(to0, { target: { value: "O" } });
-    fireEvent.change(from1, { target: { value: "0" } });
-    fireEvent.change(to1, { target: { value: "Q" } });
+    // Each box is left before the next is filled in, as a person tabbing
+    // through them would.
+    for (const [input, value] of [
+      [from0, "0"],
+      [to0, "O"],
+      [from1, "0"],
+      [to1, "Q"],
+    ] as const) {
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+    }
 
     // Row 0 has no warning (it's the first occurrence of "0").
     expect(
@@ -198,6 +214,7 @@ describe("ConfusionMapEditor — Scenario 4: empty `from` rows are dropped", () 
       "confusion-map-editor-to-1",
     ) as HTMLInputElement;
     fireEvent.change(to1, { target: { value: "X" } });
+    fireEvent.blur(to1);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0];
@@ -260,5 +277,33 @@ describe("ConfusionMapEditor — Scenario 5: Add / remove rows", () => {
 
     const remove = screen.getByTestId("confusion-map-editor-remove-0");
     expect(remove).toBeEnabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+describe("ConfusionMapEditor — typing commits once per burst", () => {
+  it("a replacement typed character by character commits once, after typing pauses", async () => {
+    const { spy } = mountWithSpy({ "0": "O" });
+    const to0 = screen.getByTestId(
+      "confusion-map-editor-to-0",
+    ) as HTMLInputElement;
+
+    for (const value of ["Oo", "Ooo", "Oooh"]) {
+      fireEvent.change(to0, { target: { value } });
+    }
+    expect(to0.value).toBe("Oooh");
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect(spy.mock.lastCall?.[0]).toEqual({ "0": "Oooh" });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

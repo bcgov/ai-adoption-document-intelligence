@@ -10,6 +10,7 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -363,6 +364,7 @@ describe("ChildWorkflowNodeSettings — Scenario 3: inline mode is an editable J
           '{"schemaVersion":"1.0","metadata":{"name":"Renamed"},"nodes":{},"edges":[],"entryNodeId":"","ctx":{}}',
       },
     });
+    fireEvent.blur(editor);
     const committed = spy.mock.calls[spy.mock.calls.length - 1]?.[0];
     const ref = (committed?.nodes.c1 as ChildWorkflowNode).workflowRef;
     expect(ref.type).toBe("inline");
@@ -374,6 +376,7 @@ describe("ChildWorkflowNodeSettings — Scenario 3: inline mode is an editable J
     const callsBefore = spy.mock.calls.length;
     fireEvent.change(editor, { target: { value: "{ not json" } });
     expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
+    fireEvent.blur(editor);
     expect(spy.mock.calls.length).toBe(callsBefore);
   });
 });
@@ -750,9 +753,9 @@ describe("ChildWorkflowNodeSettings — US-100 Scenario 2: signature summary sur
     );
     expect(inputRow.textContent ?? "").toContain("Doc (string, Document)");
     // The KindDot's `data-kind-dot` attribute is rendered as a child span. It
-    // carries the family token AND its silhouette as attributes (item 20), so
-    // the assertion no longer has to reach into the inline style — which is
-    // just as well, because the palette is literal hexes now.
+    // carries the family token AND its silhouette as attributes, so the
+    // assertion reads those rather than the inline style, whose colours are
+    // literal hexes.
     const inputDot = inputRow.querySelector('[data-kind-dot="Document"]');
     expect(inputDot).not.toBeNull();
     expect(inputDot?.getAttribute("data-kind-color")).toBe("blue");
@@ -831,7 +834,7 @@ describe("ChildWorkflowNodeSettings — US-100 Scenario 3: untyped library ports
 // not just parse errors.
 // ---------------------------------------------------------------------------
 
-describe("ChildWorkflowNodeSettings — G-015: inline graph validation", () => {
+describe("ChildWorkflowNodeSettings — inline graph validation", () => {
   const validInlineGraph = {
     schemaVersion: "1.0",
     metadata: { name: "Nested" },
@@ -915,5 +918,122 @@ describe("ChildWorkflowNodeSettings — G-015: inline graph validation", () => {
     expect(
       screen.queryByTestId("child-workflow-inline-problems-none"),
     ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+describe("ChildWorkflowNodeSettings — typing commits once per burst", () => {
+  async function waitPastDebounce() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+  }
+
+  it("a mapping port typed character by character commits once, after typing pauses", async () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      inputMappings: [{ port: "pay", ctxKey: "doc" }],
+    });
+    const { spy } = mountWithSpy(
+      makeConfig([initial], { doc: { type: "object" } }),
+      "c1",
+    );
+    const port = screen.getByTestId(
+      "child-workflow-node-settings-input-row-0-port",
+    ) as HTMLInputElement;
+
+    for (const value of ["payl", "paylo", "payloa", "payload"]) {
+      fireEvent.change(port, { target: { value } });
+    }
+    expect(port.value).toBe("payload");
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((next.nodes.c1 as ChildWorkflowNode).inputMappings).toEqual([
+      { port: "payload", ctxKey: "doc" },
+    ]);
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("the inline graph commits once per burst while its problems follow the text as typed", async () => {
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Nested" },
+      nodes: {
+        step: {
+          id: "step",
+          type: "activity",
+          label: "Inner step",
+          activityType: "data.transform",
+          parameters: {
+            inputFormat: "json",
+            outputFormat: "json",
+            fieldMapping: "{}",
+          },
+        },
+      },
+      edges: [],
+      entryNodeId: "step",
+      ctx: {},
+    };
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: { type: "inline", graph },
+    });
+    const { spy } = mountWithSpy(makeConfig([initial]), "c1");
+    const editor = screen.getByTestId(
+      "child-workflow-node-settings-inline-editor",
+    ) as HTMLTextAreaElement;
+    expect(
+      screen.getByTestId("child-workflow-inline-problems-none"),
+    ).toBeInTheDocument();
+
+    // Each step parses: a name edited letter by letter, then a dangling
+    // entry point that the validator reports.
+    for (const name of ["N", "Ne", "Nes"]) {
+      fireEvent.change(editor, {
+        target: { value: JSON.stringify({ ...graph, metadata: { name } }) },
+      });
+    }
+    fireEvent.change(editor, {
+      target: {
+        value: JSON.stringify({
+          ...graph,
+          metadata: { name: "Nes" },
+          entryNodeId: "ghost",
+        }),
+      },
+    });
+    // The problem shows while the write is still waiting.
+    expect(
+      screen.getByTestId("child-workflow-inline-problems"),
+    ).toHaveTextContent(/entryNodeId/i);
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const ref = (
+      (spy.mock.lastCall?.[0] as GraphWorkflowConfig).nodes
+        .c1 as ChildWorkflowNode
+    ).workflowRef;
+    if (ref.type !== "inline") throw new Error("ref type changed");
+    expect(ref.graph.entryNodeId).toBe("ghost");
+    expect(ref.graph.metadata?.name).toBe("Nes");
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+    // The editor keeps the text as typed rather than the reformatted graph.
+    expect(editor.value).toBe(
+      JSON.stringify({
+        ...graph,
+        metadata: { name: "Nes" },
+        entryNodeId: "ghost",
+      }),
+    );
   });
 });

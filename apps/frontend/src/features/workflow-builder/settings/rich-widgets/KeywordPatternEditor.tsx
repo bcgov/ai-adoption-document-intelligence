@@ -9,6 +9,10 @@
  * and requires `pattern.min(1)`, `segmentType.min(1)`, and
  * `keywordPatterns.min(1)`.
  *
+ * Both text boxes keep what is typed locally and commit it once typing
+ * pauses, on blur, or when the row unmounts, so a keystroke does not rewrite
+ * the workflow.
+ *
  * Surface-only validation: the regex is compiled via `new RegExp(pattern)`
  * inside a try/catch on `blur` (not on every keystroke — performance + ux).
  * An invalid regex surfaces an inline error with the JS error message, but
@@ -27,6 +31,8 @@ import {
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
+import { useDebouncedTextCommit } from "../../use-debounced-text-commit";
+import { DebouncedTextInput } from "./DebouncedInputs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -150,8 +156,15 @@ function KeywordPatternRow({
   // regexes on a hot path under control.
   const [regexError, setRegexError] = useState<string | null>(null);
 
+  const pattern = useDebouncedTextCommit(value.pattern, (next) =>
+    onChange({ ...value, pattern: next }),
+  );
+
+  // Checks the text as typed: the committed value is behind it until the
+  // flush on this same blur has been rendered.
   const handlePatternBlur = () => {
-    setRegexError(regexErrorOrNull(value.pattern));
+    pattern.flush();
+    setRegexError(regexErrorOrNull(pattern.draft));
   };
 
   return (
@@ -168,27 +181,24 @@ function KeywordPatternRow({
           <TextInput
             label="Pattern"
             withAsterisk
-            value={value.pattern}
+            value={pattern.draft}
             error={regexError ?? undefined}
             onChange={(e) => {
-              const next = e.currentTarget.value;
               // Clear stale error as soon as the user edits — they'll see
               // a fresh evaluation on the next blur.
               if (regexError !== null) setRegexError(null);
-              onChange({ ...value, pattern: next });
+              pattern.setDraft(e.currentTarget.value);
             }}
             onBlur={handlePatternBlur}
             data-testid={`keyword-pattern-editor-pattern-${index}`}
           />
         </Box>
         <Box style={{ flex: 1 }}>
-          <TextInput
+          <DebouncedTextInput
             label="Segment type"
             withAsterisk
             value={value.segmentType}
-            onChange={(e) =>
-              onChange({ ...value, segmentType: e.currentTarget.value })
-            }
+            onCommit={(next) => onChange({ ...value, segmentType: next })}
             data-testid={`keyword-pattern-editor-segment-type-${index}`}
           />
         </Box>

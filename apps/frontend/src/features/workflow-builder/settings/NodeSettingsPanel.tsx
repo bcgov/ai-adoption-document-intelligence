@@ -33,7 +33,6 @@ import {
   ScrollArea,
   Stack,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -82,6 +81,7 @@ import {
   findOrphanedParameterKeys,
   removeParameterKeys,
 } from "./orphaned-parameters";
+import { DebouncedTextInput } from "./rich-widgets";
 
 interface NodeSettingsPanelProps {
   config: GraphWorkflowConfig;
@@ -139,6 +139,7 @@ export function NodeSettingsPanel({
       <PanelShell>
         <ScrollArea style={{ flex: 1, height: "100%" }} type="auto">
           <GroupNodeSettings
+            key={activeGroupId}
             groupId={activeGroupId}
             config={config}
             onConfigChange={onConfigChange}
@@ -161,8 +162,13 @@ export function NodeSettingsPanel({
     );
   }
 
+  // Keyed by node: the settings fields keep typed text locally until typing
+  // pauses, and selecting another node must commit that text to the node it
+  // was typed for. A new key unmounts the previous node's fields, which
+  // flushes them with that node's own handlers.
   return (
     <NodeSettings
+      key={node.id}
       node={node}
       config={config}
       onConfigChange={onConfigChange}
@@ -317,11 +323,11 @@ function NodeSettings({
 
           <Divider />
 
-          <TextInput
+          <DebouncedTextInput
             label="Node label"
             description="Shown on the canvas and in error messages."
             value={node.label}
-            onChange={(e) => setLabel(e.currentTarget.value)}
+            onCommit={setLabel}
             size="xs"
             data-testid="node-settings-label"
           />
@@ -620,7 +626,7 @@ function NodeBody({ node, config, onConfigChange, workflowId }: NodeBodyProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Activity body (was previously inlined in ActivityNodeSettings).
+// Activity body: the schema-driven parameters form.
 // ---------------------------------------------------------------------------
 
 interface ActivityNodeBodyProps {
@@ -884,8 +890,8 @@ interface PortBindingsEditorProps {
   /**
    * When true, the editor renders the reusable `VariablePicker` (grouped
    * autocomplete over `ctx` + other nodes' outputs) instead of a free-text
-   * `TextInput`. Used for input bindings; output bindings leave this off
-   * so the user can declare a fresh ctx key.
+   * box. Used for input bindings; output bindings leave this off so the
+   * user can declare a fresh ctx key.
    */
   useVariablePicker?: boolean;
   /** Threaded to the input VariablePicker so a new ctx key can be declared inline. */
@@ -957,13 +963,13 @@ function PortBindingsEditor({
             );
           }
           return (
-            <TextInput
+            <DebouncedTextInput
               key={port.name}
               label={fieldLabel}
               placeholder="ctx key (e.g. preparedData)"
               value={existing?.ctxKey ?? ""}
               size="xs"
-              onChange={(e) => setBinding(port.name, e.currentTarget.value)}
+              onCommit={(next) => setBinding(port.name, next)}
             />
           );
         })}

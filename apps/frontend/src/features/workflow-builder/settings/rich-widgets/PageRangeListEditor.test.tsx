@@ -14,7 +14,14 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { PageRangeListEditor } from "./PageRangeListEditor";
@@ -158,6 +165,7 @@ describe("PageRangeListEditor — Scenario 3: start <= end per-row validation", 
       "page-range-list-editor-end-0",
     ) as HTMLInputElement;
     fireEvent.change(endInput, { target: { value: "3" } });
+    fireEvent.blur(endInput);
 
     // onChange fires with the new value even though end < start.
     expect(spy).toHaveBeenCalled();
@@ -202,6 +210,7 @@ describe("PageRangeListEditor — Scenario 4: 1-based positive integers", () => 
     // minimum (1). It must NOT propagate 0 (or any number < 1) through
     // onChange.
     fireEvent.change(startInput, { target: { value: "0" } });
+    fireEvent.blur(startInput);
 
     // Verify the spy never received a payload whose start is below 1.
     for (const call of spy.mock.calls) {
@@ -210,5 +219,44 @@ describe("PageRangeListEditor — Scenario 4: 1-based positive integers", () => 
         expect(row.start).toBeGreaterThanOrEqual(1);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+describe("PageRangeListEditor — typing commits once per burst", () => {
+  it("a page number typed digit by digit commits the whole number once", async () => {
+    const { spy } = mountWithSpy([{ start: 1, end: 1 }]);
+    const endInput = screen.getByTestId(
+      "page-range-list-editor-end-0",
+    ) as HTMLInputElement;
+
+    fireEvent.change(endInput, { target: { value: "1" } });
+    fireEvent.change(endInput, { target: { value: "12" } });
+    fireEvent.change(endInput, { target: { value: "120" } });
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect(spy.mock.lastCall?.[0]).toEqual([{ start: 1, end: 120 }]);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("an emptied bound is not committed: both bounds are required", () => {
+    const { spy } = mountWithSpy([{ start: 2, end: 4 }]);
+    const startInput = screen.getByTestId(
+      "page-range-list-editor-start-0",
+    ) as HTMLInputElement;
+
+    fireEvent.change(startInput, { target: { value: "" } });
+    fireEvent.blur(startInput);
+
+    expect(spy).not.toHaveBeenCalled();
   });
 });

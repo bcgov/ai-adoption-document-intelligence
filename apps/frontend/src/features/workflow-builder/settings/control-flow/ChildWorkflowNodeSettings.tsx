@@ -10,13 +10,17 @@
  *     `library`. (Future: dropdown sourced from the workflow list API —
  *     out of scope here.)
  *   - `workflowRef.graph` — editable JSON textarea shown when the ref type
- *     is `inline`, with a live problems list underneath (G-015): the inline
- *     graph is validated by the SAME `validateGraphConfig` and the same
- *     injected options the outer graph gets, so it can no longer accept a
- *     structurally invalid graph in silence.
+ *     is `inline`, with a live problems list underneath: the inline graph is
+ *     validated by the SAME `validateGraphConfig` and the same injected
+ *     options the outer graph gets, so a structurally invalid graph is
+ *     reported where it is typed.
  *   - `inputMappings` / `outputMappings` — list editors of `PortBinding`
  *     rows (`port` `TextInput` + `ctxKey` `VariablePicker`), each with
  *     Add Row + Remove affordances.
+ *
+ * The inline graph and the mapping ports keep what is typed locally and
+ * commit it once typing pauses, on blur, or when the panel unmounts, so a
+ * keystroke does not rewrite the workflow.
  *
  * The common header (label / type badge / delete) and footer
  * (input / output port bindings) live in the shared `NodeSettingsPanel`;
@@ -36,11 +40,10 @@ import {
   Stack,
   Text,
   Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconBook2, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   useWorkflow,
   useWorkflowVersion,
@@ -58,7 +61,9 @@ import { KindDot, VariablePicker } from "../../graph-widgets";
 import { formatLibraryPortSummary } from "../../library/format-library-port-summary";
 import { LibraryPickerModal } from "../../library/LibraryPickerModal";
 import { replaceNode } from "../../replace-node";
+import { useDebouncedTextCommit } from "../../use-debounced-text-commit";
 import { useValidatorOptions } from "../../validation/useGraphValidation";
+import { DebouncedTextInput } from "../rich-widgets";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -108,6 +113,25 @@ function emptyMapping(): PortBinding {
   return { port: "", ctxKey: "" };
 }
 
+type InlineGraphText =
+  | { kind: "graph"; graph: GraphWorkflowConfig }
+  | { kind: "invalid"; message: string };
+
+/** Reads the inline editor's text: a graph, or the JSON parse error. */
+function readInlineGraph(text: string): InlineGraphText {
+  try {
+    // User-authored JSON; the full graph validator runs below and on Save.
+    // Here we only guard against a parse error so a half-typed brace
+    // doesn't crash.
+    return { kind: "graph", graph: JSON.parse(text) as GraphWorkflowConfig };
+  } catch (err) {
+    return {
+      kind: "invalid",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -152,34 +176,30 @@ export function ChildWorkflowNodeSettings({
   };
 
   // ── inline graph JSON editor (editable draft) ──────────────────────────
-  const [inlineDraft, setInlineDraft] = useState("");
-  const [inlineError, setInlineError] = useState<string | null>(null);
-  // Re-seed the draft only when we ENTER inline mode or the node changes —
-  // NOT on every keystroke (which would fight the user's typing).
-  useEffect(() => {
-    if (node.workflowRef.type === "inline") {
-      setInlineDraft(JSON.stringify(node.workflowRef.graph, null, 2));
-      setInlineError(null);
-    }
-  }, [node.id, node.workflowRef.type]);
-
-  const commitInlineDraft = (raw: string) => {
-    setInlineDraft(raw);
+  // The text is seeded from the node only when inline mode is entered or
+  // another node is shown, never from this editor's own commit coming back:
+  // a committed graph returns reformatted, and replacing the text with it
+  // mid-edit would move the caret.
+  const inlineSeed = useMemo(
+    () =>
+      node.workflowRef.type === "inline"
+        ? JSON.stringify(node.workflowRef.graph, null, 2)
+        : "",
+    [node.id, node.workflowRef.type],
+  );
+  const commitInlineText = (raw: string) => {
     if (node.workflowRef.type !== "inline") return;
-    let parsed: GraphWorkflowConfig;
-    try {
-      // User-authored JSON; the full graph validator runs on Save. Here we
-      // only guard against a parse error so a half-typed brace doesn't crash.
-      parsed = JSON.parse(raw) as GraphWorkflowConfig;
-    } catch (err) {
-      setInlineError(
-        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return;
-    }
-    setInlineError(null);
-    updateNode({ ...node, workflowRef: { type: "inline", graph: parsed } });
+    const read = readInlineGraph(raw);
+    if (read.kind === "invalid") return;
+    updateNode({ ...node, workflowRef: { type: "inline", graph: read.graph } });
   };
+  const inlineText = useDebouncedTextCommit(inlineSeed, commitInlineText);
+  // Parse error and problems list follow the text as typed, while the write
+  // to the workflow waits for typing to pause.
+  const inlineRead = useMemo(
+    () => readInlineGraph(inlineText.draft),
+    [inlineText.draft],
+  );
 
   const setLibraryRef = (selection: {
     workflowId: string;
@@ -268,13 +288,18 @@ export function ChildWorkflowNodeSettings({
             maxRows={24}
             size="xs"
             styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
-            value={inlineDraft}
-            error={inlineError}
-            onChange={(event) => commitInlineDraft(event.currentTarget.value)}
+            value={inlineText.draft}
+            error={
+              inlineRead.kind === "invalid"
+                ? `Invalid JSON: ${inlineRead.message}`
+                : null
+            }
+            onChange={(event) => inlineText.setDraft(event.currentTarget.value)}
+            onBlur={inlineText.flush}
             data-testid="child-workflow-node-settings-inline-editor"
           />
           <InlineGraphProblems
-            graph={inlineError === null ? node.workflowRef.graph : null}
+            graph={inlineRead.kind === "graph" ? inlineRead.graph : null}
           />
         </Box>
       )}
@@ -431,14 +456,12 @@ function MappingRow({
         </ActionIcon>
       </Group>
       <Stack gap="xs">
-        <TextInput
+        <DebouncedTextInput
           label="Port"
           placeholder="e.g. payload"
           size="xs"
           value={value.port}
-          onChange={(event) =>
-            onChange({ ...value, port: event.currentTarget.value })
-          }
+          onCommit={(next) => onChange({ ...value, port: next })}
           data-testid={`${testIdBase}-port`}
         />
         <VariablePicker
@@ -689,20 +712,17 @@ function SignaturePortRow({ port, testId }: SignaturePortRowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Inline child-graph problems (G-015)
+// Inline child-graph problems
 // ---------------------------------------------------------------------------
 
 /**
- * G-015 — the inline JSON editor used to report ONLY parse errors, so a
- * structurally invalid graph (dangling `entryNodeId`, a switch naming a
- * missing edge, an unregistered activity type) was accepted in silence and
- * the top bar stayed green.
- *
- * The validator now descends into `workflowRef.inline` and those problems
+ * A graph that parses can still be structurally invalid: a dangling
+ * `entryNodeId`, a switch naming a missing edge, an unregistered activity
+ * type. The validator descends into `workflowRef.inline`, so those problems
  * reach the top-bar count and the drawer anchored to this node. This panel is
- * the third surface: the problems shown at the point of editing, so the
- * author doesn't have to open the drawer to learn the JSON they are typing is
- * wrong.
+ * the third surface: the problems shown at the point of editing, for the text
+ * as typed, so the author doesn't have to open the drawer to learn the JSON
+ * they are typing is wrong.
  *
  * It runs the SAME `validateGraphConfig` with the SAME injected options the
  * outer graph gets (`useValidatorOptions`) — deliberately not a second,

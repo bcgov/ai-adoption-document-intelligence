@@ -14,7 +14,14 @@ import "@testing-library/jest-dom";
 
 import type { ValidationRule } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ValidationRuleEditor } from "./ValidationRuleEditor";
@@ -345,6 +352,7 @@ describe("FieldMatchRuleBody — US-028 Scenario 2: name edit propagates", () =>
       "field-match-name-0",
     ) as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: "Subtotal match" } });
+    fireEvent.blur(nameInput);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0] as ValidationRule[];
@@ -386,6 +394,7 @@ describe("FieldMatchRuleBody — US-028 Scenario 3: tolerance stripped when blan
 
     // Type "5"
     fireEvent.change(amountInput, { target: { value: "5" } });
+    fireEvent.blur(amountInput);
 
     expect(spy).toHaveBeenCalled();
     const afterSet = spy.mock.lastCall?.[0] as ValidationRule[];
@@ -402,6 +411,7 @@ describe("FieldMatchRuleBody — US-028 Scenario 3: tolerance stripped when blan
 
     // Clear the amount
     fireEvent.change(amountInput, { target: { value: "" } });
+    fireEvent.blur(amountInput);
 
     const afterClear = spy.mock.lastCall?.[0] as ValidationRule[];
     expect(afterClear).toHaveLength(1);
@@ -511,6 +521,7 @@ describe("ArrayMatchRuleBody — US-028 Scenario 5: add/remove primaryFields ite
       "array-match-primary-fields-item-1-0",
     ) as HTMLInputElement;
     fireEvent.change(newRow, { target: { value: "y" } });
+    fireEvent.blur(newRow);
 
     const afterAdd = spy.mock.lastCall?.[0] as ValidationRule[];
     expect(afterAdd[0].type).toBe("array-match");
@@ -748,6 +759,7 @@ describe("ArithmeticRuleBody — US-029 Scenario 3: add/remove expression.fields
       "arithmetic-expression-fields-item-2-0",
     ) as HTMLInputElement;
     fireEvent.change(newRow, { target: { value: "c" } });
+    fireEvent.blur(newRow);
 
     const afterAdd = spy.mock.lastCall?.[0] as ValidationRule[];
     expect(afterAdd[0].type).toBe("arithmetic");
@@ -810,6 +822,7 @@ describe("ArithmeticRuleBody — US-029 Scenario 4: editing expression.equals pr
       "arithmetic-expression-equals-0",
     ) as HTMLInputElement;
     fireEvent.change(equalsInput, { target: { value: "netTotal" } });
+    fireEvent.blur(equalsInput);
 
     const next = spy.mock.lastCall?.[0] as ValidationRule[];
     expect(next).toHaveLength(1);
@@ -874,5 +887,65 @@ describe("ArithmeticRuleBody — US-029 Scenario 5: default-shape arithmetic rul
       "arithmetic-expression-equals-0",
     ) as HTMLInputElement;
     expect(equalsInput.value).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+describe("ValidationRuleEditor — typing commits once per burst", () => {
+  const rule: ValidationRule = {
+    type: "field-match",
+    name: "",
+    primaryField: "a",
+    attachmentField: "b",
+    operator: "equals",
+    fieldType: "text",
+  };
+
+  async function waitPastDebounce() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+  }
+
+  it("a rule name typed character by character commits once, after typing pauses", async () => {
+    const { spy } = mountWithSpy([rule]);
+    const input = screen.getByTestId("field-match-name-0") as HTMLInputElement;
+
+    for (const value of ["S", "Su", "Sub", "Subt", "Subto"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(input.value).toBe("Subto");
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect((spy.mock.lastCall?.[0] as ValidationRule[])[0].name).toBe("Subto");
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("a tolerance typed digit by digit commits the whole number once", async () => {
+    const { spy } = mountWithSpy([rule]);
+    const input = screen.getByTestId(
+      "field-match-tolerance-amount-0",
+    ) as HTMLInputElement;
+
+    for (const value of ["1", "12", "125"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = (spy.mock.lastCall?.[0] as ValidationRule[])[0];
+    if (next.type !== "field-match") throw new Error("variant changed");
+    expect(next.tolerance).toEqual({ amount: 125 });
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

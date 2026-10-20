@@ -15,6 +15,10 @@
  * The component imports `ClassificationRule` / `ClassificationPattern`
  * from `@ai-di/graph-workflow` — the catalog's Zod schema is the single
  * source of truth for rule + pattern shape.
+ *
+ * The text boxes keep what is typed locally and commit it once typing
+ * pauses, on blur, or when the row unmounts, so a keystroke does not rewrite
+ * the workflow.
  */
 
 import {
@@ -31,10 +35,10 @@ import {
   Select,
   Stack,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { DebouncedTextInput } from "./DebouncedInputs";
 
 // ---------------------------------------------------------------------------
 // Catalog-derived enum unions — kept as type-level mirrors of the imported
@@ -190,21 +194,19 @@ function RuleRow({ index, value, onChange, onRemove }: RuleRowProps) {
       </Group>
 
       <Stack gap="xs">
-        <TextInput
+        <DebouncedTextInput
           label="Rule name"
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.currentTarget.value })}
+          onCommit={(next) => onChange({ ...value, name: next })}
           withAsterisk
           data-testid={`classification-rule-editor-name-${index}`}
         />
 
-        <TextInput
+        <DebouncedTextInput
           label="Result type"
           description="Document type to assign if this rule matches."
           value={value.resultType}
-          onChange={(e) =>
-            onChange({ ...value, resultType: e.currentTarget.value })
-          }
+          onCommit={(next) => onChange({ ...value, resultType: next })}
           withAsterisk
           data-testid={`classification-rule-editor-result-type-${index}`}
         />
@@ -358,12 +360,10 @@ function PatternRow({
           />
         </Box>
         <Box style={{ flex: 1 }}>
-          <TextInput
+          <DebouncedTextInput
             label="Value"
             value={value.value}
-            onChange={(e) =>
-              onChange({ ...value, value: e.currentTarget.value })
-            }
+            onCommit={(next) => onChange({ ...value, value: next })}
             withAsterisk
             data-testid={`classification-pattern-value-${rowIndex}-${ruleIndex}`}
           />

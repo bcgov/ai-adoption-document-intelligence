@@ -20,19 +20,16 @@
  * `packages/graph-workflow/src/catalog/activities/ocr-character-confusion.ts`
  * and allows an empty `Record` (the field is `.optional()`), so trash on
  * the last row is enabled.
+ *
+ * The text boxes keep what is typed locally and commit it once typing
+ * pauses, on blur, or when the row unmounts, so a keystroke does not rewrite
+ * the workflow.
  */
 
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Group,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Group, Stack, Text } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
+import { DebouncedTextInput } from "./DebouncedInputs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -216,20 +213,18 @@ function ConfusionMapRowEditor({
     >
       <Group align="flex-end" gap="xs" wrap="nowrap">
         <Box style={{ flex: 1 }}>
-          <TextInput
+          <DebouncedTextInput
             label="From"
             value={value.from}
-            onChange={(e) =>
-              onChange({ ...value, from: e.currentTarget.value })
-            }
+            onCommit={(next) => onChange({ ...value, from: next })}
             data-testid={`confusion-map-editor-from-${index}`}
           />
         </Box>
         <Box style={{ flex: 1 }}>
-          <TextInput
+          <DebouncedTextInput
             label="To"
             value={value.to}
-            onChange={(e) => onChange({ ...value, to: e.currentTarget.value })}
+            onCommit={(next) => onChange({ ...value, to: next })}
             data-testid={`confusion-map-editor-to-${index}`}
           />
         </Box>

@@ -9,7 +9,14 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { Notifications, notifications } from "@mantine/notifications";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -169,10 +176,63 @@ describe("GroupNodeSettings — Scenario 2: editing label propagates", () => {
       "group-settings-label",
     ) as HTMLInputElement;
     fireEvent.change(labelInput, { target: { value: "Renamed branch" } });
+    fireEvent.blur(labelInput);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect(next.nodeGroups?.g1.label).toBe("Renamed branch");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Label and description commit once per burst of typing. A group's label is
+// part of what the canvas draws, so each commit redraws every card.
+// ---------------------------------------------------------------------------
+
+describe("GroupNodeSettings — label and description commit once per burst", () => {
+  function groupConfig() {
+    return makeConfig(
+      [activityNode("n1", "Step 1"), activityNode("n2", "Step 2")],
+      { g1: { label: "OCR", description: "Runs OCR", nodeIds: ["n1", "n2"] } },
+    );
+  }
+
+  it.each([
+    ["label", "group-settings-label"],
+    ["description", "group-settings-description"],
+  ] as const)("a burst typed into the %s commits once, after typing pauses", async (field, testId) => {
+    const { spy } = mountWithSpy(groupConfig(), "g1");
+    const input = screen.getByTestId(testId) as
+      | HTMLInputElement
+      | HTMLTextAreaElement;
+    const start = input.value;
+
+    for (const suffix of [" e", " ex", " ext", " extr"]) {
+      fireEvent.change(input, { target: { value: start + suffix } });
+    }
+    expect(input.value).toBe(`${start} extr`);
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1[field]).toBe(`${start} extr`);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("an emptied description is removed from the group once committed", () => {
+    const { spy } = mountWithSpy(groupConfig(), "g1");
+    const description = screen.getByTestId("group-settings-description");
+
+    fireEvent.change(description, { target: { value: "" } });
+    fireEvent.blur(description);
+
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1).not.toHaveProperty("description");
   });
 });
 

@@ -20,6 +20,10 @@
  *     `fallback` drops the field from the emitted node so the JSON stays
  *     clean.
  *
+ * The signal name, payload schema and timeout keep what is typed locally and
+ * commit it once typing pauses, on blur, or when the panel unmounts, so a
+ * keystroke does not rewrite the workflow.
+ *
  * The common header (label / type badge / delete) and footer
  * (input / output port bindings) live in the shared `NodeSettingsPanel`;
  * this component renders only the humanGate-specific body.
@@ -38,13 +42,14 @@ import {
   Title,
 } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type {
   GraphWorkflowConfig,
   HumanGateNode,
 } from "../../../../types/workflow";
 import { EdgePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
+import { useDebouncedTextCommit } from "../../use-debounced-text-commit";
 import {
   isValidTemporalDuration,
   TEMPORAL_DURATION_HELP_TEXT,
@@ -93,6 +98,31 @@ function isOnTimeoutValue(value: string): value is HumanGateNode["onTimeout"] {
  */
 const SIGNAL_NAME_PRESETS = ["humanApproval"] as const;
 
+type PayloadSchema = NonNullable<HumanGateNode["signal"]["payloadSchema"]>;
+
+type PayloadSchemaText =
+  | { kind: "empty" }
+  | { kind: "schema"; schema: PayloadSchema }
+  | { kind: "invalid"; message: string };
+
+function formatPayloadSchema(schema: PayloadSchema | undefined): string {
+  return schema ? JSON.stringify(schema, null, 2) : "";
+}
+
+/** Reads the payload-schema editor's text: empty, a schema, or a parse error. */
+function readPayloadSchema(text: string): PayloadSchemaText {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return { kind: "empty" };
+  try {
+    return { kind: "schema", schema: JSON.parse(trimmed) as PayloadSchema };
+  } catch (err) {
+    return {
+      kind: "invalid",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -106,10 +136,7 @@ export function HumanGateNodeSettings({
     onConfigChange(replaceNode(config, node.id, next));
   };
 
-  // ── signal.name (required TextInput) ───────────────────────────────────
-  const signalNameError =
-    node.signal.name.length === 0 ? "Signal name is required." : null;
-
+  // ── signal.name (required) ─────────────────────────────────────────────
   const setSignalName = (raw: string) => {
     if (raw === node.signal.name) return;
     updateNode({
@@ -117,29 +144,28 @@ export function HumanGateNodeSettings({
       signal: { ...node.signal, name: raw },
     });
   };
+  const signalName = useDebouncedTextCommit(node.signal.name, setSignalName);
+  const signalNameError =
+    signalName.draft.length === 0 ? "Signal name is required." : null;
 
   // ── signal.payloadSchema (editable JSON draft) ─────────────────────────
   // The schema is a small `{ field: type }` map describing the approval
-  // payload a reviewer sends. Edit it as JSON; commit on valid parse.
-  const [schemaDraft, setSchemaDraft] = useState("");
-  const [schemaError, setSchemaError] = useState<string | null>(null);
-  // Reseed the draft only when the selected node changes (not on every
-  // keystroke, which would fight the user's typing).
-  useEffect(() => {
-    setSchemaDraft(
-      node.signal.payloadSchema
-        ? JSON.stringify(node.signal.payloadSchema, null, 2)
-        : "",
-    );
-    setSchemaError(null);
-  }, [node.id]);
-
-  const commitSchemaDraft = (raw: string) => {
-    setSchemaDraft(raw);
-    const trimmed = raw.trim();
-    if (trimmed.length === 0) {
+  // payload a reviewer sends. Edit it as JSON; text that parses is committed.
+  //
+  // The text is seeded from the node only when another node is shown, never
+  // from this editor's own commit coming back: a committed schema returns
+  // reformatted, and replacing the text with it mid-edit would move the
+  // caret.
+  const schemaSeed = useMemo(
+    () => formatPayloadSchema(node.signal.payloadSchema),
+    [node.id],
+  );
+  const commitSchemaText = (raw: string) => {
+    const read = readPayloadSchema(raw);
+    if (read.kind === "invalid") return;
+    if (read.kind === "empty") {
       // Cleared → drop the schema from the node.
-      setSchemaError(null);
+      if (node.signal.payloadSchema === undefined) return;
       const cleared: HumanGateNode = {
         ...node,
         signal: { ...node.signal },
@@ -148,39 +174,26 @@ export function HumanGateNodeSettings({
       updateNode(cleared);
       return;
     }
-    let parsed: Record<string, string>;
-    try {
-      parsed = JSON.parse(trimmed) as Record<string, string>;
-    } catch (err) {
-      setSchemaError(
-        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return;
-    }
-    setSchemaError(null);
     updateNode({
       ...node,
-      signal: { ...node.signal, payloadSchema: parsed },
+      signal: { ...node.signal, payloadSchema: read.schema },
     });
   };
-
-  // ── timeout (optional Temporal duration) ───────────────────────────────
-  // Mirror the PollUntilNodeSettings pattern: keep a local draft so the
-  // user can type invalid values briefly with an inline error, without
-  // propagating broken values into the graph config. An empty value means
-  // no time limit, so clearing the field removes the timeout.
-  const [timeoutDraft, setTimeoutDraft] = useState(node.timeout ?? "");
-  useEffect(() => {
-    setTimeoutDraft(node.timeout ?? "");
-  }, [node.timeout]);
-
-  const timeoutError =
-    timeoutDraft.length > 0 && !isValidTemporalDuration(timeoutDraft)
-      ? "Enter a Temporal duration like 30s, 5m, 1h."
+  const schemaText = useDebouncedTextCommit(schemaSeed, commitSchemaText);
+  const schemaRead = useMemo(
+    () => readPayloadSchema(schemaText.draft),
+    [schemaText.draft],
+  );
+  const schemaError =
+    schemaRead.kind === "invalid"
+      ? `Invalid JSON: ${schemaRead.message}`
       : null;
 
+  // ── timeout (optional Temporal duration) ───────────────────────────────
+  // An invalid draft stays local with an inline error and never reaches the
+  // graph config. An empty value means no time limit, so clearing the field
+  // removes the timeout.
   const commitTimeout = (raw: string) => {
-    setTimeoutDraft(raw);
     if (raw.length === 0) {
       if (node.timeout === undefined) return;
       const cleared: HumanGateNode = { ...node };
@@ -192,6 +205,11 @@ export function HumanGateNodeSettings({
     if (raw === node.timeout) return;
     updateNode({ ...node, timeout: raw });
   };
+  const timeoutText = useDebouncedTextCommit(node.timeout ?? "", commitTimeout);
+  const timeoutError =
+    timeoutText.draft.length > 0 && !isValidTemporalDuration(timeoutText.draft)
+      ? "Enter a Temporal duration like 30s, 5m, 1h."
+      : null;
 
   // What happens on timeout only matters while there is a timeout.
   const hasTimeout = node.timeout !== undefined;
@@ -259,9 +277,11 @@ export function HumanGateNodeSettings({
             size="xs"
             withAsterisk
             data={[...SIGNAL_NAME_PRESETS]}
-            value={node.signal.name}
+            value={signalName.draft}
             error={signalNameError}
-            onChange={setSignalName}
+            onChange={signalName.setDraft}
+            onOptionSubmit={signalName.commit}
+            onBlur={signalName.flush}
             data-testid="human-gate-node-settings-signal-name"
           />
           <Box data-testid="human-gate-node-settings-payload-schema">
@@ -281,9 +301,12 @@ export function HumanGateNodeSettings({
               size="xs"
               placeholder={`{ "approved": "boolean" }`}
               styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
-              value={schemaDraft}
+              value={schemaText.draft}
               error={schemaError}
-              onChange={(event) => commitSchemaDraft(event.currentTarget.value)}
+              onChange={(event) =>
+                schemaText.setDraft(event.currentTarget.value)
+              }
+              onBlur={schemaText.flush}
               data-testid="human-gate-node-settings-payload-schema-editor"
             />
           </Box>
@@ -302,9 +325,12 @@ export function HumanGateNodeSettings({
             description={`Leave empty for no time limit: the run waits until the signal arrives. ${TEMPORAL_DURATION_HELP_TEXT}`}
             placeholder="No time limit"
             size="xs"
-            value={timeoutDraft}
+            value={timeoutText.draft}
             error={timeoutError}
-            onChange={(event) => commitTimeout(event.currentTarget.value)}
+            onChange={(event) =>
+              timeoutText.setDraft(event.currentTarget.value)
+            }
+            onBlur={timeoutText.flush}
             data-testid="human-gate-node-settings-timeout"
           />
           {hasTimeout && (

@@ -10,6 +10,10 @@
  * The component imports `validationRuleSchema` / `ValidationRule` from
  * `@ai-di/graph-workflow` — the catalog's Zod schema is the single source
  * of truth for rule shape.
+ *
+ * The text and number boxes keep what is typed locally and commit it once
+ * typing pauses, on blur, or when the row unmounts, so a keystroke does not
+ * rewrite the workflow.
  */
 
 import type { ValidationRule } from "@ai-di/graph-workflow";
@@ -18,14 +22,13 @@ import {
   Box,
   Button,
   Group,
-  NumberInput,
   Select,
   Stack,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { DebouncedNumberInput, DebouncedTextInput } from "./DebouncedInputs";
 
 // ---------------------------------------------------------------------------
 // Enum option constants — mirror the catalog's Zod schema at
@@ -333,30 +336,26 @@ function FieldMatchRuleBody({ value, index, onChange }: FieldMatchBodyProps) {
   return (
     <Box data-testid="field-match-body">
       <Stack gap="xs">
-        <TextInput
+        <DebouncedTextInput
           label="Rule name"
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.currentTarget.value })}
+          onCommit={(next) => onChange({ ...value, name: next })}
           withAsterisk
           data-testid={`field-match-name-${index}`}
         />
 
-        <TextInput
+        <DebouncedTextInput
           label="Primary field path"
           value={value.primaryField}
-          onChange={(e) =>
-            onChange({ ...value, primaryField: e.currentTarget.value })
-          }
+          onCommit={(next) => onChange({ ...value, primaryField: next })}
           withAsterisk
           data-testid={`field-match-primary-field-${index}`}
         />
 
-        <TextInput
+        <DebouncedTextInput
           label="Attachment field path"
           value={value.attachmentField}
-          onChange={(e) =>
-            onChange({ ...value, attachmentField: e.currentTarget.value })
-          }
+          onCommit={(next) => onChange({ ...value, attachmentField: next })}
           withAsterisk
           data-testid={`field-match-attachment-field-${index}`}
         />
@@ -376,29 +375,21 @@ function FieldMatchRuleBody({ value, index, onChange }: FieldMatchBodyProps) {
         />
 
         <Group grow align="flex-start">
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance amount"
-            value={value.tolerance?.amount ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  amount: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.amount}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { amount: next }))
             }
             data-testid={`field-match-tolerance-amount-${index}`}
           />
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance %"
             min={0}
             max={100}
-            value={value.tolerance?.percentage ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  percentage: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.percentage}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { percentage: next }))
             }
             data-testid={`field-match-tolerance-percentage-${index}`}
           />
@@ -441,10 +432,10 @@ function ArithmeticRuleBody({ value, index, onChange }: ArithmeticBodyProps) {
   return (
     <Box data-testid="arithmetic-body">
       <Stack gap="xs">
-        <TextInput
+        <DebouncedTextInput
           label="Rule name"
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.currentTarget.value })}
+          onCommit={(next) => onChange({ ...value, name: next })}
           withAsterisk
           data-testid={`arithmetic-name-${index}`}
         />
@@ -487,16 +478,13 @@ function ArithmeticRuleBody({ value, index, onChange }: ArithmeticBodyProps) {
               required
             />
 
-            <TextInput
+            <DebouncedTextInput
               label="Expected field path"
               value={value.expression.equals}
-              onChange={(e) =>
+              onCommit={(next) =>
                 onChange({
                   ...value,
-                  expression: {
-                    ...value.expression,
-                    equals: e.currentTarget.value,
-                  },
+                  expression: { ...value.expression, equals: next },
                 })
               }
               withAsterisk
@@ -520,29 +508,21 @@ function ArithmeticRuleBody({ value, index, onChange }: ArithmeticBodyProps) {
         />
 
         <Group grow align="flex-start">
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance amount"
-            value={value.tolerance?.amount ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  amount: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.amount}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { amount: next }))
             }
             data-testid={`arithmetic-tolerance-amount-${index}`}
           />
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance %"
             min={0}
             max={100}
-            value={value.tolerance?.percentage ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  percentage: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.percentage}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { percentage: next }))
             }
             data-testid={`arithmetic-tolerance-percentage-${index}`}
           />
@@ -587,10 +567,10 @@ function ArrayMatchRuleBody({ value, index, onChange }: ArrayMatchBodyProps) {
   return (
     <Box data-testid="array-match-body">
       <Stack gap="xs">
-        <TextInput
+        <DebouncedTextInput
           label="Rule name"
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.currentTarget.value })}
+          onCommit={(next) => onChange({ ...value, name: next })}
           withAsterisk
           data-testid={`array-match-name-${index}`}
         />
@@ -642,29 +622,21 @@ function ArrayMatchRuleBody({ value, index, onChange }: ArrayMatchBodyProps) {
         />
 
         <Group grow align="flex-start">
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance amount"
-            value={value.tolerance?.amount ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  amount: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.amount}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { amount: next }))
             }
             data-testid={`array-match-tolerance-amount-${index}`}
           />
-          <NumberInput
+          <DebouncedNumberInput
             label="Tolerance %"
             min={0}
             max={100}
-            value={value.tolerance?.percentage ?? ""}
-            onChange={(v) =>
-              onChange(
-                applyToleranceUpdate(value, {
-                  percentage: typeof v === "number" ? v : undefined,
-                }),
-              )
+            value={value.tolerance?.percentage}
+            onCommit={(next) =>
+              onChange(applyToleranceUpdate(value, { percentage: next }))
             }
             data-testid={`array-match-tolerance-percentage-${index}`}
           />
@@ -739,9 +711,9 @@ function StringArrayEditor({
         {values.map((item, i) => (
           <Group key={i} gap="xs" align="center" wrap="nowrap">
             <Box style={{ flex: 1 }}>
-              <TextInput
+              <DebouncedTextInput
                 value={item}
-                onChange={(e) => updateAt(i, e.currentTarget.value)}
+                onCommit={(next) => updateAt(i, next)}
                 data-testid={`${testIdBase}-item-${i}-${rowIndex}`}
               />
             </Box>

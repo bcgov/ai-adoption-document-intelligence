@@ -8,7 +8,14 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -131,16 +138,16 @@ describe("HumanGateNodeSettings — Scenario 1: signal.name is a required TextIn
     // Empty value surfaces an inline required-field error.
     expect(signalInput).toHaveAttribute("aria-invalid", "true");
 
-    // Type a name → propagates via onConfigChange with signal.name updated.
+    // Type a name: the error clears as soon as there is one.
     fireEvent.change(signalInput, { target: { value: "approve-doc" } });
+    expect(signalInput).toHaveAttribute("aria-invalid", "false");
 
+    // Leaving the field propagates it via onConfigChange.
+    fireEvent.blur(signalInput);
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes.hg1 as HumanGateNode;
     expect(updated.signal.name).toBe("approve-doc");
-
-    // Once a name is present, the error clears.
-    expect(signalInput).toHaveAttribute("aria-invalid", "false");
   });
 });
 
@@ -167,6 +174,7 @@ describe("HumanGateNodeSettings — Scenario 2: payloadSchema is editable JSON",
     fireEvent.change(editor, {
       target: { value: '{"approved":"boolean","note":"string"}' },
     });
+    fireEvent.blur(editor);
     const committed = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((committed.nodes.hg1 as HumanGateNode).signal.payloadSchema).toEqual(
       {
@@ -179,7 +187,10 @@ describe("HumanGateNodeSettings — Scenario 2: payloadSchema is editable JSON",
     const before = spy.mock.calls.length;
     fireEvent.change(editor, { target: { value: "{ oops" } });
     expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
+    fireEvent.blur(editor);
     expect(spy.mock.calls.length).toBe(before);
+    // The text being edited is left as typed, not replaced by the saved one.
+    expect(editor.value).toBe("{ oops");
   });
 
   it("shows the how-it-works guidance and an (empty) editable schema when none is set", () => {
@@ -200,6 +211,7 @@ describe("HumanGateNodeSettings — Scenario 2: payloadSchema is editable JSON",
 
     // Typing a schema sets payloadSchema on the node.
     fireEvent.change(editor, { target: { value: '{"approved":"boolean"}' } });
+    fireEvent.blur(editor);
     const committed = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((committed.nodes.hg1 as HumanGateNode).signal.payloadSchema).toEqual(
       {
@@ -226,6 +238,7 @@ describe("HumanGateNodeSettings — Scenario 3: timeout is optional and validate
 
     // ── 1) '1h' is accepted and propagated. ──────────────────────────────
     fireEvent.change(timeoutInput, { target: { value: "1h" } });
+    fireEvent.blur(timeoutInput);
     const after1h = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((after1h.nodes.hg1 as HumanGateNode).timeout).toBe("1h");
     const callCountAfter1h = spy.mock.calls.length;
@@ -233,6 +246,7 @@ describe("HumanGateNodeSettings — Scenario 3: timeout is optional and validate
 
     // ── 2) 'abc' is rejected — no new onConfigChange, inline error. ──────
     fireEvent.change(timeoutInput, { target: { value: "abc" } });
+    fireEvent.blur(timeoutInput);
     expect(spy.mock.calls.length).toBe(callCountAfter1h);
     const stillAt1h = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect((stillAt1h.nodes.hg1 as HumanGateNode).timeout).toBe("1h");
@@ -240,6 +254,7 @@ describe("HumanGateNodeSettings — Scenario 3: timeout is optional and validate
 
     // ── 3) Empty means no time limit — the timeout key is removed. ───────
     fireEvent.change(timeoutInput, { target: { value: "" } });
+    fireEvent.blur(timeoutInput);
     expect(spy.mock.calls.length).toBe(callCountAfter1h + 1);
     const cleared = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     expect("timeout" in (cleared.nodes.hg1 as HumanGateNode)).toBe(false);
@@ -267,9 +282,98 @@ describe("HumanGateNodeSettings — Scenario 3: timeout is optional and validate
     ).not.toBeInTheDocument();
 
     fireEvent.change(timeoutInput, { target: { value: "2h" } });
+    fireEvent.blur(timeoutInput);
     expect(
       screen.getByTestId("human-gate-node-settings-on-timeout"),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+async function waitPastDebounce() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+}
+
+describe("HumanGateNodeSettings — typing commits once per burst", () => {
+  it("a signal name typed character by character commits once, after typing pauses", async () => {
+    const { spy } = mountWithSpy(
+      makeConfig([humanGateNode("hg1", "Gate", { signal: { name: "" } })]),
+      "hg1",
+    );
+    const input = screen.getByTestId(
+      "human-gate-node-settings-signal-name",
+    ) as HTMLInputElement;
+
+    for (const value of ["a", "ap", "app", "appr"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(input.value).toBe("appr");
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((next.nodes.hg1 as HumanGateNode).signal.name).toBe("appr");
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("a payload schema edited inside a value commits once, and the text is not reformatted under the caret", async () => {
+    const { spy } = mountWithSpy(
+      makeConfig([
+        humanGateNode("hg1", "Gate", {
+          signal: { name: "approve", payloadSchema: { ok: "bool" } },
+        }),
+      ]),
+      "hg1",
+    );
+    const editor = screen.getByTestId(
+      "human-gate-node-settings-payload-schema-editor",
+    ) as HTMLTextAreaElement;
+
+    // Every one of these parses, so each would have been a commit of its own.
+    for (const value of ['{"ok":"boole', '{"ok":"boolea', '{"ok":"boolean"}']) {
+      fireEvent.change(editor, { target: { value } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((next.nodes.hg1 as HumanGateNode).signal.payloadSchema).toEqual({
+      ok: "boolean",
+    });
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(editor.value).toBe('{"ok":"boolean"}');
+  });
+
+  it("a timeout typed character by character commits once, after typing pauses", async () => {
+    const { spy } = mountWithSpy(
+      makeConfig([humanGateNode("hg1", "Gate", { timeout: undefined })]),
+      "hg1",
+    );
+    const input = screen.getByTestId("human-gate-node-settings-timeout");
+
+    for (const value of ["4", "48", "48h"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((next.nodes.hg1 as HumanGateNode).timeout).toBe("48h");
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -16,6 +16,11 @@
  * `exposedParams[i]` whose `nodeId` referenced the removed node and
  * surfaces the prune via a Mantine `notifications.show` toast so the
  * change is visible in the UI.
+ *
+ * The label and description keep what is typed locally and commit it once
+ * typing pauses, on blur, or when the panel unmounts. A group's label is part
+ * of what the canvas draws, so committing per keystroke would redraw every
+ * card on each one.
  */
 
 import {
@@ -29,7 +34,6 @@ import {
   Stack,
   Text,
   Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -43,6 +47,8 @@ import type {
 import { isSyntheticMapBodyGroupId } from "../../canvas/map-body-groups";
 import { GROUP_ICON_KEYS, GROUP_ICONS } from "../../group/group-icons";
 import { pruneNodeFromGroups } from "../../group/prune-node-from-groups";
+import { useDebouncedTextCommit } from "../../use-debounced-text-commit";
+import { DebouncedTextInput } from "../rich-widgets";
 import { ExposedParamsEditor } from "./ExposedParamsEditor";
 
 // ---------------------------------------------------------------------------
@@ -147,9 +153,8 @@ export function GroupNodeSettings({
     const nextGroups = { ...(config.nodeGroups ?? {}) };
     delete nextGroups[groupId];
     onConfigChange({ ...config, nodeGroups: nextGroups });
-    // UX walkthrough 2026-07-29 — grouping fires a toast but its
-    // inverse fired nothing, so ungrouping was indistinguishable from a
-    // misclick. Mirror the feedback.
+    // Grouping fires a toast, so its inverse does too: without one,
+    // ungrouping is indistinguishable from a misclick.
     notifications.show({
       color: "green",
       title: "Ungrouped",
@@ -245,25 +250,19 @@ export function GroupNodeSettings({
 
       <Divider />
 
-      <TextInput
+      <DebouncedTextInput
         label="Label"
         description="Shown on the group chip in simplified view."
         value={group.label}
-        onChange={(e) => setLabel(e.currentTarget.value)}
+        onCommit={setLabel}
         size="xs"
         withAsterisk
         data-testid="group-settings-label"
       />
 
-      <Textarea
-        label="Description"
-        description="Optional. Surfaced as a sub-line on the group chip."
+      <GroupDescriptionField
         value={group.description ?? ""}
-        onChange={(e) => setDescription(e.currentTarget.value)}
-        size="xs"
-        autosize
-        minRows={2}
-        data-testid="group-settings-description"
+        onCommit={setDescription}
       />
 
       <Select
@@ -368,9 +367,8 @@ export function GroupNodeSettings({
       <Divider />
 
       {/*
-        UX walkthrough 2026-07-29 — "Delete group" read as "delete
-        the nodes", and the only ungroup path he found was undo. Say what
-        it actually does: ungroup; the steps stay.
+        "Delete group" reads as "delete the steps". The button says what it
+        does: it ungroups, and the steps stay on the canvas.
       */}
       <Button
         color="red"
@@ -383,5 +381,28 @@ export function GroupNodeSettings({
         Ungroup (steps stay)
       </Button>
     </Stack>
+  );
+}
+
+function GroupDescriptionField({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+}) {
+  const { draft, setDraft, flush } = useDebouncedTextCommit(value, onCommit);
+  return (
+    <Textarea
+      label="Description"
+      description="Optional. Surfaced as a sub-line on the group chip."
+      value={draft}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={flush}
+      size="xs"
+      autosize
+      minRows={2}
+      data-testid="group-settings-description"
+    />
   );
 }

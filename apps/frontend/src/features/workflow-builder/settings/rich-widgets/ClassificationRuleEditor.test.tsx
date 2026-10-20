@@ -19,7 +19,14 @@ import "@testing-library/jest-dom";
 
 import type { ClassificationRule } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ClassificationRuleEditor } from "./ClassificationRuleEditor";
@@ -330,5 +337,63 @@ describe("ClassificationPatternRows — US-038 Scenario 4: edits propagate up", 
       resultType: "invoice",
       patterns: [{ scope: "title", operator: "startsWith", value: "Invoice" }],
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+describe("ClassificationRuleEditor — typing commits once per burst", () => {
+  const initial: ClassificationRule[] = [
+    {
+      name: "rule-1",
+      resultType: "invoice",
+      patterns: [{ scope: "title", operator: "contains", value: "Inv" }],
+    },
+  ];
+
+  it.each([
+    ["rule name", "classification-rule-editor-name-0"],
+    ["result type", "classification-rule-editor-result-type-0"],
+    ["pattern value", "classification-pattern-value-0-0"],
+  ])("a burst typed into the %s commits once, after typing pauses", async (_field, testId) => {
+    const { spy } = mountWithSpy(initial);
+    const input = screen.getByTestId(testId) as HTMLInputElement;
+    const start = input.value;
+
+    for (const suffix of ["-", "-x", "-x2"]) {
+      fireEvent.change(input, { target: { value: start + suffix } });
+    }
+    expect(input.value).toBe(`${start}-x2`);
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe(`${start}-x2`);
+  });
+
+  it("leaving the box commits straight away, keeping the rest of the rule", () => {
+    const { spy } = mountWithSpy(initial);
+    const value = screen.getByTestId(
+      "classification-pattern-value-0-0",
+    ) as HTMLInputElement;
+
+    fireEvent.change(value, { target: { value: "Invoice" } });
+    fireEvent.blur(value);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.lastCall?.[0]).toEqual([
+      {
+        name: "rule-1",
+        resultType: "invoice",
+        patterns: [{ scope: "title", operator: "contains", value: "Invoice" }],
+      },
+    ]);
   });
 });

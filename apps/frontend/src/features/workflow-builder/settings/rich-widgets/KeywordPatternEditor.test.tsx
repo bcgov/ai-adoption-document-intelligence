@@ -12,13 +12,21 @@
  * value — Zod remains the source of truth at save time).
  * `segmentType` is a free-form required string. The catalog schema
  * requires `min(1)` patterns so trash on the last remaining row is
- * disabled.
+ * disabled. Both text boxes commit once typing pauses or on blur, not on
+ * every keystroke.
  */
 
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { KeywordPatternEditor } from "./KeywordPatternEditor";
@@ -119,20 +127,18 @@ describe("KeywordPatternEditor — Scenario 2: invalid regex surfaces an inline 
     // Type an invalid regex.
     fireEvent.change(patternInput, { target: { value: "(unclosed" } });
 
-    // onChange propagated the invalid value.
-    expect(spy).toHaveBeenCalled();
-    const lastBeforeBlur = spy.mock.lastCall?.[0];
-    expect(lastBeforeBlur).toEqual([
-      { pattern: "(unclosed", segmentType: "a" },
-    ]);
-
     // No inline error yet — validation runs on blur, not on every keystroke.
     expect(
       screen.queryByTestId("keyword-pattern-editor-error-0"),
     ).not.toBeInTheDocument();
 
-    // Blur the input → validation runs.
+    // Blur the input → the text is committed and validation runs.
     fireEvent.blur(patternInput);
+
+    // onChange propagated the invalid value.
+    expect(spy.mock.lastCall?.[0]).toEqual([
+      { pattern: "(unclosed", segmentType: "a" },
+    ]);
 
     const error = screen.getByTestId("keyword-pattern-editor-error-0");
     expect(error).toBeInTheDocument();
@@ -214,10 +220,51 @@ describe("KeywordPatternEditor — Scenario 3: segmentType is a free-form requir
     ) as HTMLInputElement;
 
     fireEvent.change(segmentTypeInput, { target: { value: "pay-stub" } });
+    fireEvent.blur(segmentTypeInput);
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0];
     expect(next).toEqual([{ pattern: "alpha", segmentType: "pay-stub" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typing commits once per burst, not once per keystroke
+// ---------------------------------------------------------------------------
+
+/** Types `text` one character at a time, the way a keyboard does. */
+function typeInto(input: HTMLElement, from: string, text: string) {
+  for (let i = 1; i <= text.length; i++) {
+    fireEvent.change(input, { target: { value: from + text.slice(0, i) } });
+  }
+}
+
+async function waitPastDebounce() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+}
+
+describe("KeywordPatternEditor — typing commits once per burst", () => {
+  it.each([
+    ["pattern", "keyword-pattern-editor-pattern-0"],
+    ["segmentType", "keyword-pattern-editor-segment-type-0"],
+  ] as const)("a burst typed into %s commits once, after typing pauses", async (field, testId) => {
+    const { spy } = mountWithSpy([{ pattern: "Page", segmentType: "report" }]);
+    const input = screen.getByTestId(testId) as HTMLInputElement;
+    const start = input.value;
+
+    typeInto(input, start, "\\s+\\d");
+
+    expect(input.value).toBe(`${start}\\s+\\d`);
+    expect(spy).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+    expect(spy.mock.lastCall?.[0]?.[0]?.[field]).toBe(`${start}\\s+\\d`);
+    await waitPastDebounce();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 

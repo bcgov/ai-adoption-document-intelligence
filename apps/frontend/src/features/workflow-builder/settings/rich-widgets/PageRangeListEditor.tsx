@@ -7,21 +7,18 @@
  * `packages/graph-workflow/src/catalog/activities/document-split.ts` and
  * requires `start >= 1`, `end >= 1`, and `customRanges.min(1)`.
  *
+ * The number boxes keep what is typed locally and commit it once typing
+ * pauses, on blur, or when the row unmounts, so a keystroke does not rewrite
+ * the workflow. An emptied box commits nothing: both bounds are required.
+ *
  * Surface-only validation: an inline error is rendered below a row when
  * `start > end`, but `onChange` still fires with the new value — Zod
  * remains the source of truth at save time.
  */
 
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Group,
-  NumberInput,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Group, Stack, Text } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { DebouncedNumberInput } from "./DebouncedInputs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,31 +128,31 @@ function PageRangeRow({
     >
       <Group align="flex-end" gap="xs" wrap="nowrap">
         <Box style={{ flex: 1 }}>
-          <NumberInput
+          <DebouncedNumberInput
             label="Start"
             min={1}
             clampBehavior="strict"
             allowDecimal={false}
             withAsterisk
             value={value.start}
-            onChange={(v) => {
-              if (typeof v !== "number") return;
-              onChange({ ...value, start: v });
+            onCommit={(next) => {
+              if (next === undefined) return;
+              onChange({ ...value, start: next });
             }}
             data-testid={`page-range-list-editor-start-${index}`}
           />
         </Box>
         <Box style={{ flex: 1 }}>
-          <NumberInput
+          <DebouncedNumberInput
             label="End"
             min={1}
             clampBehavior="strict"
             allowDecimal={false}
             withAsterisk
             value={value.end}
-            onChange={(v) => {
-              if (typeof v !== "number") return;
-              onChange({ ...value, end: v });
+            onCommit={(next) => {
+              if (next === undefined) return;
+              onChange({ ...value, end: next });
             }}
             data-testid={`page-range-list-editor-end-${index}`}
           />
