@@ -292,7 +292,9 @@ export default function DynamicNodesListPage() {
               Delete <code>{confirmTarget.slug}</code>? Used in{" "}
               {confirmTarget.usedInWorkflowCount} workflow
               {confirmTarget.usedInWorkflowCount === 1 ? "" : "s"}. Workflows
-              using this node will stop working until restored.
+              using this node will stop working until a new dynamic node named{" "}
+              <code>{confirmTarget.slug}</code> is published, which restores it
+              with its version history continued.
             </Text>
             <Group justify="flex-end" gap="xs">
               <Button
