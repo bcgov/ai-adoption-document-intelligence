@@ -1,7 +1,7 @@
 # Workflow designer — your review, answered
 
-**Branch `feature/visual-workflow-builder` · reviews received 2026-08-14 · work
-done 2026-08-14 → 15**
+**[Pull request #271](https://github.com/bcgov/ai-adoption-document-intelligence/pull/271)
+(branch `feature/workflow-builder-cumulative`) · reviews received 2026-08-14**
 
 Two reviews arrived the same day and they are kept apart on purpose.
 **[Part 1](#part-1--inderdeepsinghgill) is inderdeepsinghgill's five items. [Part 2](#part-2--dbarkowsky)
@@ -20,30 +20,38 @@ polish.
 
 ### Running it yourself
 
-Every "how to see it" below assumes the local stack is up. That is one command
-after the usual setup, and it starts seven processes — Postgres, MinIO, Temporal
-(a workflow engine that actually executes the steps), the deno-runner (a sandbox
-container that type-checks custom steps), plus the backend, the frontend and the
-Temporal worker:
+Every "how to see it" below assumes the local stack is up. After the usual
+setup that takes a few commands from the repo root, and it runs seven processes —
+Postgres, MinIO, Temporal (a workflow engine that actually executes the steps),
+the deno-runner (a sandbox container that type-checks custom steps), plus the
+backend, the frontend and the Temporal worker:
 
 ```bash
 docker compose --profile infra --profile temporal up -d
 docker compose -f deployments/local/docker-compose.deno.yml up -d
-cd apps/backend-services && npm run db:generate    # see D5 — this one bites
-npm run dev
-npm run seed:demos && npm run seed:demo-runs       # the 🎯 Demo — … workflows
+npm run db:generate      # see D5 — this one bites
+npm run dev              # backend, frontend and worker; leave it running
 ```
 
-The full, verified version of that is now the **Before you start** section of
+Then, from a second terminal once the backend answers, seed the
+**🎯 Demo — …** workflows and their runs:
+
+```bash
+npm run seed:demos && npm run seed:demo-runs
+```
+
+The full, verified version of that is the **Before you start** section of
 [`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md) — which is
 dbarkowsky's item D5, and it did not exist when he walked the tour.
 
 ### Where the pictures came from
 
 Every image is a screenshot of that stack, taken by
-[`capture-screenshots.mjs`](capture-screenshots.mjs) at 1920×1080, same route,
-same crop and same canvas zoom in both phases, so a before/after pair differs by
-the fix and not by the framing. Nothing is a mock-up and nothing is composited.
+[`capture-screenshots.mjs`](capture-screenshots.mjs) at 1920×1080, with the same
+route, the same crop and the same canvas zoom rule in both phases, so a
+before/after pair differs by the fix and not by the framing. Where a pair
+differs in anything else, the item says so. Nothing is a mock-up and nothing is
+composited.
 
 **Four frames are not straight photographs, and each one says so where it is
 used:** `I1` and both `D12` frames need one API route intercepted to reach a
@@ -58,8 +66,6 @@ in [`screenshots/before/MANIFEST.md`](screenshots/before/MANIFEST.md) and
 - **Answered** — the app was already right; what was missing was the answer, the
   documentation, or the words on screen. Where nothing changed at all, it says
   so.
-- **Open** — a proposal that needs Alex's ruling. Two of those, both at the end
-  of Part 2. They are not decided and are not presented as done.
 
 ---
 
@@ -79,8 +85,7 @@ from screenshots rather than from using the thing.
 1. **The build.** The error-surfacing you asked for last round shipped on
    2026-08-08 **on this branch only**. `origin/develop` contains no agent-chat
    code at all — `git ls-tree origin/develop -- apps/frontend/src/features/agent-chat/`
-   is empty — so anything built from `develop` still fails silently. This is also
-   the whole of I2.
+   is empty — so anything built from `develop` still fails silently.
 2. **A genuinely silent state, and this was ours.** The drawer collapsed two
    opposite facts into one branch. `if (isError || options.length === 0)` both
    rendered the reassuring label *"Server default model"* with the composer left
@@ -96,11 +101,15 @@ from screenshots rather than from using the thing.
 *unknown* (the request failed — composer stays live, the backend can still pick)
 · **unconfigured** · *ready*. The unconfigured state names the environment
 variables that are missing, points at a new setup page
-(`docs-md/workflows/AGENT_SETUP.md`), and disables send with the reason on a
-focusable tooltip wrapper. That wrapper is not decoration: a disabled Mantine
-button fires neither pointer nor focus events, so a tooltip on the button itself
-is unreachable by mouse *and* by keyboard — and jsdom cannot see the difference,
-which is why it was verified in a real browser on both hover and focus.
+(`docs-md/workflows/AGENT_SETUP.md`), and disables send. The reason is on a
+tooltip that opens when the send button is hovered **or reached with the
+keyboard**, and the same sentence is the button's accessible description. A
+disabled Mantine button fires neither pointer nor focus events, so a tooltip on
+the button itself is unreachable by mouse *and* by keyboard; the tooltip sits on
+a wrapper round it instead. Pressing **Enter** in the message box sends nothing
+while sending is disabled, and keeps what you typed. jsdom cannot see any of
+this, so all of it was checked in a real browser: two presses of Tab reach the
+button and open the reason.
 
 Only variable **names** ever reach that response. The backend never puts a value
 in it and the test suite asserts that.
@@ -121,13 +130,10 @@ not in the tree to photograph.
 in the header opens the drawer. To reach the unconfigured state for real, unset
 the Azure and OpenAI variables on the backend and restart it.
 
-**Still not solved, and you should know:** the four `AZURE_OPENAI_*` variables
-are wired into the Temporal worker only, never into the backend-services
-container. The backend no longer *dies* without them (the constructor throw is
-gone, so an unconfigured environment boots with a visibly disabled assistant
-instead of a dead app), but **the assistant will not work on any deployed
-instance** until those variables reach that container. That is a deployment
-decision, deliberately out of scope here.
+**Deployed instances:** the four `AZURE_OPENAI_*` variables reach the
+backend-services container on every deployment path, each optional, so an
+instance with no key boots with the assistant visibly disabled rather than
+failing to start. The details are under *Residuals* at the end.
 
 ---
 
@@ -147,8 +153,9 @@ not per-node), posts a new try, and the backend starts a brand-new Temporal
 execution from the entry node. There is no re-execute-one-step endpoint anywhere
 in the workflow controller. So **"Try again" would have been the untrue label**
 and "Re-run workflow" stays. What was wrong is that a card sitting on one failed
-step left you to infer that, so the card now states the scope in a dimmed line:
-*"Runs the whole workflow again from the start, with the same input."*
+step left you to infer that, so the card now states the scope in a line of grey
+text under the reason, at 5.4:1 contrast: *"Runs the whole workflow again from
+the start, with the same input."*
 
 **On the colour, you were right.** Filled red is this UI's destructive treatment
 — it is what the Delete, Remove and Ungroup buttons use — and re-running deletes
@@ -159,8 +166,9 @@ place of the triangle (the triangle is BC's *warning* icon, not its danger one),
 and the button changed from filled red to outlined.
 
 **One sibling swept.** The cache-evicted alert repeated the same filled-red
-Re-run when a re-run itself failed; it is outlined now, and its variant type no
-longer permits `filled` at all. Everything else red in the preview and run panels
+Re-run when a re-run itself failed; it is outlined now, its variant type no
+longer permits `filled` at all, and its Re-run button carries the same scope
+line. Everything else red in the preview and run panels
 was checked and left alone — they are alerts with no CTA, status badges, or
 genuinely destructive Delete/Remove/Ungroup buttons. Those are what make filled
 red mean something.
@@ -186,9 +194,12 @@ a live failed run: this is a *preview* surface and renders nothing without one.
 
 Rebuilt to [`source/inderdeep-mockup-composer.png`](source/inderdeep-mockup-composer.png):
 the message box on its own line, then one footer strip — attach `+` hard left
-(was a paperclip), the model name and tier as a menu trigger with a chevron
-beside it, send/stop hard right. The open menu lists each model with its
-one-line descriptor underneath and a check on the selected one.
+(was a paperclip), the model name and tier beside it, send/stop hard right.
+When the server offers more than one model, the name is a menu with a chevron,
+and the open menu lists each model with its one-line descriptor underneath and
+a check on the selected one. When it offers one, the name is a plain label,
+with a tooltip saying it is the only model this server is configured for. The
+tier is grey text at 6.5:1 contrast.
 
 **Nothing from the mock-up is hardcoded, and that is the part worth knowing.**
 Your "Sonnet 4.5 / Haiku 4.5 / Opus 4.6" are not in the code. The picker renders
@@ -197,12 +208,16 @@ name and the tier from the model *family* using each vendor's own published
 positioning. An Azure deployment name is shown verbatim, because renaming
 somebody's deployment in the UI would hide the one string they have to match
 against their portal — and a deployment whose id names no recognised family gets
-**no tier at all** rather than an invented one. On this machine that resolves to
-one entry: `gpt-5.4`, `Balanced`.
+**no tier at all** rather than an invented one. On the machine the after frame
+was taken on, that is one entry, `gpt-4o` · `Balanced`, so the frame shows the
+plain label.
 
 | Before | After |
 |---|---|
-| ![Composer: paperclip, textarea, send arrow, with "Azure OpenAI — gpt-5.4" as a dimmed caption below the row](screenshots/before/I3-chat-composer-footer.png) | ![Composer: message on its own line, then one footer strip — plus, "gpt-5.4 Balanced" menu trigger, send hard right](screenshots/after/I3-chat-composer-footer.png) |
+| ![Composer: paperclip, textarea, send arrow, with "Azure OpenAI — gpt-5.4" as a dimmed caption below the row](screenshots/before/I3-chat-composer-footer.png) | ![Composer: message on its own line, then one footer strip — plus, "gpt-4o Balanced" as a plain label, send hard right](screenshots/after/I3-chat-composer-footer.png) |
+
+The two frames name different models because each shows the deployment its
+server was configured with when it was taken.
 
 Measured from real bounding boxes in a browser rather than from the DOM order:
 attach x=968 → picker x=1000 → send x=1458, all on one row.
@@ -212,12 +227,12 @@ header → look at the bottom strip.
 
 ---
 
-## I2 · Send-becomes-stop — **Already correct on this branch. No change made.**
+## I2 · Send-becomes-stop — **Already correct in the app. The walkthrough's picture is re-shot.**
 
 > *"From the snapshots it seems like the stop icon is still at the top. I believe
 > we discussed the send button transitioning to stop when inflight."*
 
-**It already does, and nothing was changed for this item.** Four independent
+**It already does, and no code was changed for this item.** Four independent
 checks agree:
 
 - There is exactly **one** stop affordance in the whole agent-chat surface, and
@@ -226,15 +241,16 @@ checks agree:
 - The drawer header renders exactly three buttons — history, new conversation,
   close. There is no abort control up there and no test id for one anywhere in
   the tree.
-- Git dates it: one commit, `5903a414`, **2026-08-08**, *"stop lives in the
-  composer"*. `git merge-base --is-ancestor 5903a414 origin/develop` answers
-  **no**, and `develop` has no agent-chat directory at all.
+- `develop` has no agent-chat directory at all, so the composer's stop button,
+  like the rest of the assistant, exists only on this branch.
 - Four tests assert the behaviour and still pass, and it was driven in a real
   browser as well.
 
-**So your snapshot came from a build that is not this branch** — the same reason
-the assistant didn't answer for you (I1). You need a build from
-`feature/visual-workflow-builder`.
+**Where the snapshot most likely came from: the walkthrough's own stop 16
+picture.** It showed an older version of the panel, with a square icon at the
+top and an older model menu, and that square reads as a stop button. The
+picture is re-shot from the current panel. To use the assistant itself you need
+a build of this branch, for the reason in I1.
 
 | Idle | In flight |
 |---|---|
@@ -258,16 +274,19 @@ watch the bottom-right button.
 
 > *"Nitpicking but in the error chip, the icon and the text aren't aligned."*
 
-You were right, and the cause is a typographic one worth a sentence. Mantine's
-Badge centres the icon's *box* against the label's *line box*. A line box is
-symmetric about the font's ascent and descent — but the ink of an all-caps word
-is not: `ERROR` has cap height above the baseline and nothing below it, so the
-empty descender space drags the visible ink down relative to the box it lives in.
+You were right: the × sat low. Mantine's Badge centres the icon's *box* and the
+label's *line box* on one row, but neither one paints where its box says, and
+the cause is worth a sentence. In the chip's 14px row, Chromium rounds BC Sans
+Bold's ascent and descent to whole pixels and puts the odd pixel of leading
+below the text, so the capitals of `ERROR` centre 7.79px from the chip's top
+edge. The icon's 11px box is centred in the row, so its top falls on a half
+pixel, and the svg is painted from the next whole pixel down, which centres the
+× at 8.5px. The × sat **0.71px low**.
 
-Measured live in the browser at 2× canvas zoom: the glyph sat **0.5px above** the
-text's optical centre. The fix is a derived nudge —
-`(ascent − descent − capHeight) / 2 = (10 − 3 − 6) / 2 = 0.5px` — not a value
-tuned by eye. Measured again after: delta **0.00px**.
+The fix moves it up by exactly that, computed from the font's own metrics
+(`hhea` and `OS/2`) and that whole-pixel painting rather than tuned by eye.
+Measured on the rendered chip in BC Sans at 1×, 2× and 4×: the two centres are
+within **0.01px**.
 
 **The nudge is on the glyph, not on the label, and that was the decision.**
 Moving the label would have aligned this chip and desynchronised its text from
@@ -277,17 +296,19 @@ correctly box-centred today.
 
 | Before | After |
 |---|---|
-| ![The red × ERROR chip at 2× zoom, glyph sitting slightly high](screenshots/before/I4-node-error-chip.png) | ![The same chip at the same 2× zoom, glyph on the label's optical centre](screenshots/after/I4-node-error-chip.png) |
+| ![The red × ERROR chip at 2× zoom, glyph sitting slightly low](screenshots/before/I4-node-error-chip.png) | ![The same chip at the same 2× zoom, glyph on the label's optical centre](screenshots/after/I4-node-error-chip.png) |
 
 **This difference is sub-pixel by design.** At this zoom it reads; it is not a
 frame that will survive being looked at on a phone.
 
-**See it yourself.** `http://localhost:3000/workflows/by-slug/probe-clean-failure/edit`
-→ **Run…** → **Try** with the ctx left as `{}`. That workflow's `file.prepare`
-step points at a blob that does not exist, so it fails within seconds. Zoom in on
-the failed card's title row. It has to be a live run — the chip renders nothing
-without an active run id, because a design-time canvas deliberately shows no
-statuses.
+**See it yourself.**
+`http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit`
+→ **Run…** → **Try** with the ctx left as `{}`. Its **Prepare** step needs a file
+the empty ctx does not give it, so it fails within seconds. Zoom in on the failed
+card's title row. It has to be a live run — the chip renders nothing without an
+active run id, because a design-time canvas deliberately shows no statuses. The
+before frame was taken on a probe workflow whose `file.prepare` step failed the
+same way; a seeded database does not have it.
 
 ---
 
@@ -311,33 +332,40 @@ edge**, a **kind**, a **ctx key**, **auto-wire**, a **lineage**, a **pin**.
 > What has changed since the develop branch that would affect this?"* — and, for
 > stop 10, *"Same issue as #9"*.
 
-**The workflow runs green end to end on this branch.** Verified with a live
-Temporal run against real Azure Document Intelligence: nine of nine nodes
-completed. What actually failed was **the diagnosis**, and that is the answer to
-"what has changed".
+**What failed was the model, on the path you took, and the error message hid
+it.** That is the answer to "what has changed". You ran Standard OCR Workflow
+from the Upload page, which starts the run with the model you pick there. In
+this branch's template, the Prepare step carried a typed-in model,
+`sdpr_synth_test`, which Submit OCR used, while Poll OCR read the model the
+upload chose. An upload naming any other model was submitted under one model and
+polled under another, and Azure answers a poll for the wrong model with 404. A
+run on the default model went green end to end, because there every step
+agreed. `develop` wires every OCR step to the run's model, so this was a
+regression on this branch, from the rework of the demos and templates into real
+working chains.
 
-Every failed step in the canvas, the run-history drawer and the node-status API
-reported the literal string **`"Activity task failed"`** — for every failure mode.
-That is the message Temporal puts on its own `ActivityFailure` envelope; the
-activity's real message hangs off `.cause`, and the runner was reading
+And every failed step in the canvas, the run-history drawer and the node-status
+API reported the literal string **`"Activity task failed"`** — for every failure
+mode. That is the message Temporal puts on its own `ActivityFailure` envelope;
+the activity's real message hangs off `.cause`, and the runner was reading
 `error.message`. A missing credential, a wrong model id, a code defect and a
-missing blob were indistinguishable. And this is genuinely new on this branch:
-the per-node status map *itself* is new here, so `develop` never surfaced a
-per-step message at all and the defect arrived with the surface that shows it.
+missing blob were indistinguishable. The per-node status map *itself* is new on
+this branch, so `develop` never surfaced a per-step message at all and the
+defect arrived with the surface that shows it. All three now show the
+activity's own message.
 
-Two supporting defects were found and fixed, both introduced by the
-demo-rework commit `fc255284e`:
+Two more defects were found and fixed, from the same rework:
 
 - **A phantom output port.** The catalog — the shared contract the builder, the
   validator and auto-wire all read — declared the poll activity's output as
   `ocrResponse`. The activity actually returned `response`. The runner binds
   outputs by reading `result[port]` and writes whatever it finds, **including
   `undefined`, without complaint**. So `ocrResponseRef` was never written, and
-  the Poll OCR step had no output to preview — which is precisely what GALLERY
-  stop 9 asks you to click, and stop 9 says in terms that a blank card is a bug.
-  The runtime was renamed to match the catalog (renaming the catalog instead
-  would have broken auto-wire's ability to connect poll → extract by name), and
-  five templates plus three docs were corrected.
+  nothing after Poll could read the OCR response. The runtime was renamed to
+  match the catalog (renaming the catalog instead would have broken auto-wire's
+  ability to connect poll → extract by name), and five templates plus three docs
+  were corrected. The Poll card itself shows no result line: it is drawn as a
+  waiting step, which stop 9 says.
 - **Poll's 404 said nothing.** It threw a bare `Status: 404` while its sibling
   Submit OCR had carried a full diagnostic hint for the identical status code
   since before this branch. Poll now names the request id and the model,
@@ -357,30 +385,37 @@ after:   Failed to poll OCR results. Status: 404 No analyze result
          24 hours.
 ```
 
-713 temporal tests pass, `tsc` clean. No before/after screenshot: the change is
-a string inside a run that has to fail, and the two strings above are the
-evidence.
+No before/after screenshot: the change is a string inside a run that has to
+fail, and the two strings above are the evidence.
 
-**See it yourself.** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`
-→ **Run…** → **Try**. If you have no Azure account, set `MOCK_AZURE_OCR=true` in
-`apps/temporal/.env` and restart the worker — Submit and Poll then short-circuit
-to canned responses and the whole thing runs green, which is enough to walk
-stops 8–10.
+**The model now reaches every OCR step by one route.** Prepare takes its model
+as an input, as Poll and Extract do, and all three read the run's `modelId`. The
+workflow declares `modelId` as a run input with `sdpr_synth_test` as its
+default, and the Upload page's **Processing model** is what fills it. Two tests
+guard this: every shipped template's Prepare, Poll and Extract must read one
+declared variable, none of them a typed-in value; and a real workflow run of the
+template, on a non-default model, against a fake Azure that answers a poll only
+for the model the document was submitted under. The local mock ignores the
+model, so it cannot catch this kind of mismatch; the fake can.
 
-**Two environment requirements you would have hit anyway**, both now in the
-walkthrough: regenerate the Prisma client (`npm run db:generate` from
-`apps/backend-services` — see D5), and the seeded workflow ships
-`modelId: "sdpr_synth_test"`, a **custom-trained** Azure model, not a prebuilt.
-An endpoint pointing at a different resource 404s at *Submit*, naming the model.
+Checked on your path: the Upload page, model `prebuilt-layout`, Standard OCR
+Workflow, against real Azure. Prepare, Submit, Poll and Extract all ran under
+`prebuilt-layout`, and the run completed in 11 seconds.
 
-**One residual, not fixed and recorded rather than smuggled in.** The model id
-now reaches Submit and Poll by two independent routes — Submit from a static node
-parameter, Poll from a ctx input — and nothing keeps them equal. On `develop`
-both read ctx, so they could not disagree; the split arrived with the same
-commit. Both seeded values are currently identical, so it is latent rather than
-live, and the new 404 message names the mismatch explicitly if anyone trips it.
-The proper fix is for Submit to *return* the model it used and Poll to bind from
-that, which is a larger change than this item warranted.
+**See it yourself.** `http://localhost:3000` → **Upload** in the left nav →
+choose a **Processing model**, pick **Standard OCR Workflow** under **Workflow
+(optional)**, add a PDF and press **Upload**, then follow the document on the
+**Documents** page. The editor's **Run history** lists only runs started from
+the editor, so an uploaded document's run is not there. If you have no Azure
+account, set `MOCK_AZURE_OCR=true` in the root `.env` and restart the worker —
+Submit and Poll then short-circuit to canned responses and the whole thing runs
+green, which is enough to walk stops 8–10.
+
+**One environment requirement you would have hit anyway**, now in the
+walkthrough: regenerate the Prisma client (`npm run db:generate` — see D5). And
+the workflow's default model, `sdpr_synth_test`, is a **custom-trained** Azure
+model, not a prebuilt: a run left on the default, against an endpoint whose
+resource does not have that model, 404s at *Submit*, naming the model.
 
 ### D3 · "Publish failed — Failed to reach deno-runner /check" — **Fixed** (stop 14)
 
@@ -415,11 +450,12 @@ residual on the checklist and is now closed. It had been wrong twice over: it
 appended `" — see error markers"` to **every** publish failure, and for an
 unreachable checker there are no markers at all (the script is perfectly valid;
 the *service* is what failed). It also discarded `details` entirely. The marker
-sentence is now appended only when markers actually exist, and the failure
-renders as a **persistent** alert — not a notification, because a notification is
-gone in four seconds and a failure whose remedy is "start this service and
-publish again" has to survive long enough to be acted on — with an expandable
-**Show technical details** carrying the endpoint diagnostic.
+sentence is now appended only when markers actually exist. The failure still
+raises a notification, and also renders as a **persistent** alert in the editor,
+because a notification is gone in a few seconds and a failure whose remedy is
+"start this service and publish again" has to survive long enough to be acted
+on. The alert stays until you close it, and its **Show technical details**
+expands the endpoint diagnostic.
 
 *And the walkthrough gained the prerequisite*, which is where D5 comes in.
 
@@ -439,8 +475,9 @@ minutes of terminal, once — and carries a four-part **Before you start** secti
 bring the stack up, seed the demos, read the demo names, and a table of which
 stop needs what.
 
-**Your API-key step is obsolete and that is worth knowing.** The seeder now loads
-`apps/backend-services/.env` itself and probes candidate keys until one
+**Your API-key step is obsolete and that is worth knowing.** The seeders read the
+root `.env` — the one env file the backend, the worker and the database seed
+read — and try the keys the database could have been seeded with until one
 authenticates. No key value is logged and none appears in the doc.
 
 **Two additions you did not report but would have hit.** First,
@@ -451,7 +488,7 @@ right, and what goes wrong looks unrelated (a run dies at its first step with
 `Cannot read properties of undefined (reading 'findUnique')`, and the
 dynamic-nodes endpoint 500s, which the palette renders as a calm *"No custom
 nodes yet"* — identical to genuinely having none). Second, `MOCK_AZURE_OCR=true`
-in `apps/temporal/.env` for anyone with no Azure account.
+in the root `.env` for anyone with no Azure account.
 
 **See it yourself.** [`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md),
 the **Before you start** section.
@@ -468,9 +505,8 @@ one.** Four environment variables gate it (`AZURE_OPENAI_ENDPOINT`,
 Anthropic is fully implemented as a second provider but is configured nowhere in
 this repo, so in practice there is one path.
 
-**There is no self-serve route.** The working key lives out of band, in
-`~/.config/bcgov-di/backend-services.env`, which the env loader reads *before*
-the repo `.env`. Alex hands it out. So this was not a gap in your setup — it was
+**There is no self-serve route.** Alex hands out the key, and it goes in the root
+`.env`, the only env file the backend reads. So this was not a gap in your setup — it was
 a gap in the repo, and two documentation silences produced it: `.env.sample`
 shipped **non-empty placeholder values**, so a copied sample reported itself
 configured and then died on a DNS lookup of a hostname that does not exist; and
@@ -518,7 +554,7 @@ there. The walkthrough now spells out that the management page deliberately
 hides it while the workflow's canvas is where it shows up — plus how to tell
 "working as designed" from "seeding actually failed" (if the canvas has no such
 step either, the deno-runner was down at seed time and the seeder printed
-`– deleted-dyn skipped (deno-runner unavailable)`).
+`– deleted-dyn    skipped (deno-runner unavailable)`).
 
 **Check it yourself, read-only:**
 
@@ -574,10 +610,17 @@ in the toast are the backend's own answer to a real `revert-head` call.
 Verified end to end: head moves to v3, and a save straight afterwards returns
 **200** where it used to 500.
 
+**Unsaved edits on the canvas are discarded by a restore, as its confirmation
+says.** After a successful restore the editor reloads onto the restored version:
+the canvas shows its steps, nothing is left unsaved, and the next save builds on
+the restored version instead of storing the discarded edits over it.
+
 **See it yourself.**
 `http://localhost:3000/workflows/by-slug/demo-versioning-history-revert-part-12/edit`
 → **More → Version history** → **Revert to this version** on the older row →
-confirm. Then save — that is the half that used to fail.
+confirm. Then save — that is the half that used to fail. To see unsaved edits
+discarded, move a card or rename a step first, without saving, and then
+restore.
 
 ### D7 · Typing in node config is very laggy — **Fixed** (stop 7)
 
@@ -606,43 +649,39 @@ the size of the graph:
 
 Three changes, cheapest first: the badge-sync guard; the validation result now
 carries its own node-id snapshot so the live config leaves the memo's
-dependencies; and free-text fields draft locally and commit on a quiet moment
-through a new `useDebouncedTextCommit` hook, wired into the two components that
-own them. Your exact field — *Item ctx key* on a map node — is one of them.
+dependencies; and **every free-text and number box in a step's settings keeps
+what you type locally and writes it into the workflow once typing pauses**, and
+when you leave the box, through one `useDebouncedTextCommit` hook. That covers
+your field, *Item ctx key*, and Node label, the variable boxes, a condition's
+typed value, keyword patterns, classification and validation rules, page ranges,
+a group's label and description, the poll step's interval and limits, the
+human-gate and sub-workflow settings, and the schema form's text and number
+fields. The canvas does not redraw while you type, and the problem badges on the
+cards stay on screen: they take their counts from the latest validation results.
+Selecting another step writes any pending text to the step it was typed for.
 
-**This cannot be photographed, so it was measured.** 30 characters typed with no
-delay between keys into a 22-card workflow, three rounds, medians. Dev build —
-Vite dev server and a development React, which is the build you were typing into.
+**This cannot be photographed, so it was measured**: the time from each key
+press to the next painted frame, with the browser's own event timing alongside.
+24 keys typed 60 ms apart, three rounds, before and after the change, on the
+11-step Standard OCR workflow unless the row says otherwise. Dev build — Vite dev
+server and a development React, which is the build you were typing into. The
+median per round:
 
-| | **Node label**<br>whole-config write per keystroke<br>*(not part of this change)* | **Map item ctx key**<br>*(the fixed path)* |
+| Field | Before | After |
 |---|---|---|
-| React commits for 30 keystrokes | **152** | **68** |
-| Wall time for the burst | **6752 ms** (225 ms/char) | **567 ms** (19 ms/char) |
-| Long tasks (>50 ms) during the burst | **37**, 5286 ms total, longest 447 ms | **1**, 234 ms total |
-| …of those, after the last keystroke | 1 (208 ms) | 1 (234 ms) — *the whole of it* |
+| Node label (Prepare File Data) | 74–160 ms, up to 0.96 s | 5–6 ms |
+| A poll step's stop condition, typed value | 52–66 ms | 7–14 ms |
+| A branch's case, typed value (16-step multi-page report) | 79–193 ms | 12–13 ms |
+| A group's label | 75–93 ms | 6–8 ms |
+| A poll step's interval | 54–96 ms | 6–8 ms |
+| A keyword pattern (multi-page report) | 47–56 ms | 6–9 ms |
 
-**Be clear what the left column is.** It is *not* a recording of the old build —
-the fix is in the tree and the tree is shared with other agents, so there is
-nothing to check out. It is the **Node label** field on the same panel of the
-same node in the same page load: a field this change did not touch, which still
-writes the whole config per keystroke. The right-hand column additionally
-re-expands its option list against the draft on every keystroke, work the left
-column does not do at all, so the comparison is loaded *against* the fix.
+A frame at 60 Hz is about 17 ms. Before, every key in these fields took longer
+than one; after, none does. *Item ctx key* measures 9–13 ms.
 
-**The shape matters more than the ratio.** The fixed field's only long task
-arrives *after* typing stops — that is the single debounced commit — while the
-per-keystroke field blocks the main thread 37 times *during* the burst. That is
-what "typing is very laggy" is.
-
-**Two honest gaps.** No test covers the canvas badge-sync guard directly; its
-correctness rests on reading it against its sibling. And the two widget test
-files are unmodified, so their passes establish compatibility rather than
-proving that typing no longer writes per character — the measurement above is
-what proves that.
-
-**See it yourself.** Open any workflow with a busy canvas, select a map node, and
-type into **Item ctx key** against **Node label** in the same panel. The
-difference is the point of the table.
+**See it yourself.** Open **Standard OCR Workflow**, click **Prepare File Data**
+and type into **Node label**: the box keeps up with you, and the card's title on
+the canvas changes once you pause.
 
 ### D8 · The custom-step editor jumps the caret to the end — **Fixed, both causes** (stop 14)
 
@@ -699,10 +738,18 @@ revert to an older version, a change of lineage — are pushed in imperatively.
 The unit-test stub was a controlled `<textarea>`, which cannot express that
 contract at all, so **the stub was rewritten rather than the assertions
 weakened**. The third browser test, which reproduced this case, is un-skipped and
-green: three of three pass, `tsc` clean, 67 unit tests pass.
+passes.
+
+**The editor mounts only once the step's script has loaded**, so **Edit script**
+opened from the canvas holds the step's own code, never the starter script. A
+browser test opens that window from the settings panel and from the right-click
+menu on a freshly loaded page, and checks the editor holds the step's latest
+published script.
 
 **See it yourself.** `http://localhost:3000/dynamic-nodes/new` — type a sentence,
-pause about a second mid-word, keep typing. Then select all and delete.
+pause about a second mid-word, keep typing. Then select all and delete. And in a
+workflow with a custom step, select the step and choose **Edit script** in its
+settings.
 
 ### D9 · A drag from the Segments output makes a run-order edge — **Fixed** (stop 7)
 
@@ -736,10 +783,12 @@ after toasts: []                                                    ← silently
 — the dots the card actually mounts, not the catalog — and returns one of three
 verdicts: exactly one compatible input → complete as the data edge you drew;
 several → refuse and name them; none → refuse, distinguishing *"this step has no
-data inputs at all"* from *"it has some and none accepts this kind"*. All three
-consumers ask that one function, so they cannot disagree, and the handler returns
-outright on a non-port verdict, so the invariant holds even if something reaches
-it directly. Your exact case now:
+data inputs at all"* from *"it has some and none accepts this kind"*. Every path
+that handles the drop asks that one function, so they cannot disagree, and the
+handler returns outright on a non-port verdict, so the invariant holds even if
+something reaches it directly. The answer is the same wherever you let go on the
+card, on its run-order dot or on its body; only on empty canvas does the drop
+open the "pick a step" list. Your exact case now:
 
 ```
 after edges: []
@@ -752,7 +801,7 @@ Drags that *start* on the node-level dot are untouched — that gesture is
 authoring run order, which is D10.
 
 **No screenshot: this is a gesture and its refusal, and the two readouts above
-are the evidence.** 2307 workflow-builder tests pass.
+are the evidence.**
 
 **See it yourself.** Any workflow with a Split Document and a Run-for-each-item
 step: drag from the violet **Segments** output onto the loop card.
@@ -790,24 +839,22 @@ and never by the identity of anything inside the component.
 
 | After — Simplified off | After — Simplified on |
 |---|---|
-| ![The same crop, Simplified off](screenshots/after/D13-simplified-off.png) | ![The same crop, Simplified on](screenshots/after/D13-simplified-on.png) |
+| ![The same crop, Simplified off](screenshots/after/D13-simplified-off.png) | ![The same crop, Simplified on, the two group chips filling the view](screenshots/after/D13-simplified-on.png) |
 
-**That first pair cannot show this fix, and saying so is the point.** The after
-"on" frame is pixel-identical to the before "on" frame, because what the toggle
-broke was never the simplified projection — it was the revert, and that is only
-observable on the way *back*. The before pass stopped at "on". Rather than crop
-the pair differently and imply the projection changed, two unpaired frames carry
-the evidence:
+**That first pair cannot show this fix, and saying so is the point.** What the
+toggle broke was never the simplified projection — it was the revert, and that
+is only observable on the way *back*. The before pass stopped at "on". The two
+"on" frames differ only in zoom: each switch of the view refits the camera to
+what is on screen. Two unpaired frames carry the evidence:
 
 | The round trip | The unsaved rename |
 |---|---|
 | ![Simplified switched back off — the five cards return at their measured positions inside their two group boxes](screenshots/after/D13-simplified-off-again.png) | ![The top bar after renaming without saving and toggling twice — the edited title is still there](screenshots/after/D13-unsaved-rename-survives.png) |
 
-**Read the first of those honestly.** The cards, wires and layout come back at
-the positions they had on arrival. The **Finalize** group box is drawn wider than
-on arrival — its right edge runs past the pane — so the round trip is not
-perfectly identity. That secondary group-box sizing question was diagnosed as a
-separate, unconfirmed guess about frame ordering and is **untouched**.
+**The round trip is identity.** The cards, the wires and both group boxes come
+back exactly as they were on arrival. The frame is zoomed slightly further out
+than the first one, because each switch refits the camera; the layout is the
+same.
 
 **See it yourself.**
 `http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit`
@@ -892,6 +939,10 @@ vocabulary:
 > *"Runs after — drag from here to another step's matching dot to make it run
 > after this one. Order only, no data."*
 
+The sentence opens beside the dot. It never shows while the "pick a step" list
+is open, so the two do not cover each other, and the list opened from a
+run-order dot repeats the sentence at its top.
+
 **No screenshot: the change is a tooltip that requires a hover, and a
 hover-held frame would cover the connectors it is about.** Confirmed after the
 change on both a control-flow card and an activity card, returning identical
@@ -940,28 +991,33 @@ The switch is the one remaining difference and it is **forced by geometry, not
 chosen**: the card is a rotated square whose left and right vertices *are* its
 vertical midpoint, so an 18px offset would float the dots off the shape.
 
-**(c) The size difference is real and meant something, and said so nowhere.** A
-port dot grows from 12px to 16px and gains a `+` exactly when the port is
-**required and nothing is attached**. Measured on your own node:
+**(c) The size difference is a real signal, and on the dot you asked about it
+was wrong.** A port dot is drawn at 16px instead of 12px, with a `+` on it, when
+the port is **required and nothing uses it yet**: no value arrives at the input,
+or nothing in the graph reads the output. Measured on your own node:
 
 ```
 pollOcrResults  out-ocrResponse  12x12  invites=false
-pollOcrResults  out-status       16x16  invites=true    <- "Poll status"
+pollOcrResults  out-status       16x16  invites=true    <- "Poll status", as you saw it
+pollOcrResults  out-status       12x12  invites=false   <- "Poll status" now
 ```
 
-So your instinct was right and the app was at fault for a different reason: the
-meaning was carried by 4px and a glyph that reads as a smudge at working zoom,
-and hovering the dot said nothing (deliberately — that hover is already spoken
-for by the extend picker). It is now on the row's tooltip:
-*"…Nothing reads this yet — the larger dot with a + is where to drag one from."*
+Poll status was drawn large because only wires counted as readers, and no wire
+leaves it: the poll step's own stop condition reads it. A condition, a loop's
+list, a sub-workflow's input mapping and a reference into one field of an output
+all read a value without a wire, and they all count now, so Poll status is an
+ordinary dot. Where the `+` does show, it is drawn in black or white, whichever
+stands out against the dot; on a hollow dot it was white on white. The meaning
+is also on the row's tooltip, since a 4px difference is easy to miss at working
+zoom and hovering the dot itself opens the extend picker: *"…Nothing reads this
+yet — the larger dot with a + is where to drag a wire from."*
 
 | Before | After |
 |---|---|
-| ![Poll OCR Results and Extract OCR Results at 1.1× — black run-order dots at visibly different heights and sizes](screenshots/before/D28-run-order-connectors.png) | ![The same pair at the same zoom — dots at the same height and size, in the dashed wire's grey](screenshots/after/D28-run-order-connectors.png) |
+| ![Poll OCR Results and Extract OCR Results at 1.1× — black run-order dots at visibly different heights and sizes](screenshots/before/D28-run-order-connectors.png) | ![The same pair at 1.04× — run-order dots at the same height and size, in the dashed wire's grey, and Poll status an ordinary port dot](screenshots/after/D28-run-order-connectors.png) |
 
-The 16px `+` variant is unchanged, because it is a real signal; what the fix
-added is the tooltip that says so, and that needs a hover, so it is not in this
-frame.
+The two frames are at 1.1× and 1.04×: the same zoom rule, applied to cards whose
+size has changed since.
 
 **See it yourself.** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`,
 pan to the Poll → Extract pair, and hover a port's *label*.
@@ -977,19 +1033,21 @@ each kind belongs to one of five colour families. Split Document emits
 `DocumentSegment[]`, so one item off that list is a `DocumentSegment`, which is
 registered **violet**. The doc's claim that segments are green was simply false,
 and it was false in two places: stop 4's colour list and stop 7's "green wire".
-Both are corrected, along with the image alt text, which carried the same false
-claim and is what a screen-reader user gets instead of the picture.
+Both are corrected, and so is stop 7's picture with its alt text, which is what a
+screen-reader user gets instead of the picture.
 
 **Your aside is the more interesting half, and it resolves too.** The wire is
 `#6741D9` — the violet *data* family, saying what is travelling it. The
 Run-for-each-item card is `#6B21A8` — the `fan` *node accent*, saying what sort
-of step it is ("fans out or back in"). Two independent registries, two
+of step it is (*"Repeats over a list, or gathers results"*, in the legend's
+words). Two independent registries, two
 vocabularies, one hue family. **The resemblance is coincidence, not shared
 meaning**, and the walkthrough now says so rather than leaving the next reader to
 re-discover it.
 
-**No code changed. No screenshot.** The change is text in
-[`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md), stops 4 and 7.
+**No code changed.** The change is in
+[`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md): the text of
+stops 4 and 7, and stop 7's picture.
 
 ### D26 · The validation tick is below, not beside — and never turns red — **Answered and fixed** (stop 14)
 
@@ -1015,8 +1073,11 @@ it red. The compile check and the network allowlist run server-side at Publish
 and arrive as gutter markers instead. None of that was stated anywhere.
 
 The strip now carries the clarifier and a **What is checked?** popover listing
-both sets — checked-as-you-type and checked-at-Publish — derived from the two
-stage lists rather than hand-written prose, so it cannot drift.
+both sets — checked as you type, and checked at Publish. The as-you-type list
+has a line for every error the header parser can report (a non-boolean
+`@deterministic` or a non-numeric `@timeoutMs` turns the strip red too), and a
+test reads the parser's messages and fails if one of them has no line in the
+list.
 
 | Before | After |
 |---|---|
@@ -1049,11 +1110,12 @@ own.** Both parameter schemas are empty objects, which is why both panels read
 loop machinery, not OCR configuration.** Nothing is inconsistent.
 
 The panel now leads with that sentence, and the three optional limits (max
-attempts, initial delay, timeout — the three with engine defaults, set least
-often) fold behind a disclosure. **Nothing is removed:** interval stays visible
-because it is required, the toggle names anything already set so a configured
-limit can never hide behind a collapsed section, and a node that arrives with a
-limit set opens the section rather than making you find it.
+attempts, initial delay, timeout — the three the engine has defaults for) start
+folded behind a toggle. **Nothing is hidden:** interval stays visible because it
+is required, and the toggle names every limit that is set, with its value. On
+your panel it reads *"Show limits — max 20 attempts, starts after 5s, gives up
+after 10m"*. The boxes behind it keep what you type and write it once you
+pause, like every other box in the panel (see D7).
 
 | Before — Poll OCR Results | After — Poll OCR Results |
 |---|---|
@@ -1064,7 +1126,9 @@ limit set opens the section rather than making you find it.
 | ![The extract panel: Node label, Parameters "No additional fields", Error handling, five pinned Inputs](screenshots/before/D30-extract-ocr-fields.png) | ![The same panel, unchanged](screenshots/after/D30-extract-ocr-fields.png) |
 
 Two frames because the item is a comparison; one panel on its own answers
-nothing. Extract is unchanged and is here as the control.
+nothing. Extract is here as the control. Its after frame also shows, under each
+input, where the input's value comes from; that line is on every step's inputs
+and is not part of this item.
 
 **See it yourself.** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`,
 click **Poll OCR Results**, read the right panel, then click **Extract OCR
@@ -1100,8 +1164,13 @@ old two-word tooltip did not:
 > *"Pinned — someone editing this workflow chose this source by hand, so
 > automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu."*
 
-Corrected in three places so they cannot contradict each other: the settings
-panel badge, the canvas wire tooltip, and the connect-summary popover.
+All three places that show a pin say what it does and name the undo. The
+settings panel's badge carries the sentence above. The canvas wire's tooltip
+says the same and adds where that ⋯ menu is — on the input, in the settings of
+the step it feeds — and that right-clicking the wire also hands it back
+(**Revert to automatic**). The connect-summary popover's line reads *"Automatic
+wiring leaves it alone. Change it or hand it back with the ⋯ menu on this input
+in this step's settings."*
 
 **No screenshot: the change is a tooltip.** The strings above are verbatim, and
 each was read back from the running app.
@@ -1124,9 +1193,11 @@ derived from the runtime types rather than hand-written, so they cannot drift.
 
 Rendering "no fields" for `Document` would read as *we don't know*, when the
 truth is *it deliberately accepts anything in this family, and here are the
-members that are pinned down*. So the popover has three variants — fields,
-wildcard, unregistered — and nothing is hardcoded per kind; every string comes
-from the live registry. `Document` reads:
+members that are pinned down*. So the popover has four variants — fields; a
+family, such as `Document`; a kind no other kind extends, such as Document ID,
+which says the registry names it without describing its contents and that it has
+no members; and unregistered — and nothing is hardcoded per kind; every string
+comes from the live registry. `Document` reads:
 
 > **Document** · A kind of Artifact.
 > Document has no fixed shape on purpose — it stands for a whole family, so a
@@ -1148,8 +1219,7 @@ preview panel on the right → click the kind on the row reading
 **No, it is not always this — but there is a real reason it looks that way, and
 the field never mentioned it.** The field is a loop's *item ctx key*: **ctx** is
 the bag of named values a run carries, and this names the variable each iteration
-puts one item into. Its type is a bare string, there is no default, a
-freshly-dropped node creates it **empty**, and one seeded workflow uses
+puts one item into. Its type is a bare string, and one seeded workflow uses
 `currentDoc`. So it is genuinely free.
 
 What makes `currentSegment` look mandatory is a coupling somewhere else entirely:
@@ -1170,7 +1240,10 @@ Both halves are now in the field's help text:
 started with the key empty, which is a guaranteed validation error on every new
 loop. Alex approved the change: the field is now pre-filled with
 `currentSegment` at creation time — creation only, so no saved workflow is
-rewritten and the seeded one using `currentDoc` is untouched. The risk a default
+rewritten and the seeded one using `currentDoc` is untouched. The new loop also
+declares `currentSegment` as a workflow variable in the same change, so a step
+wired inside the loop can read it straight away, and one Undo removes both. The
+risk a default
 introduces is two loops silently sharing one item variable, so that now raises a
 **warning, not an error** — it tells you and lets you save:
 
@@ -1225,11 +1298,19 @@ step that runs before this one — step name, then the output it produces."* **T
 rows themselves are untouched**, because you asked for it to be clearer, not for
 the upstream-distance detail to be hidden.
 
+**On the panel you photographed, the value being checked was not in the list at
+all.** A poll step's stop condition is checked after every attempt, against
+what that attempt returned, so it reads the poll step's own output — here Poll
+status — and the list held only earlier steps. A poll step's condition now
+lists the step's own outputs first, under **This step's result**, and the row
+the condition reads is marked.
+
 | Before | After |
 |---|---|
-| ![The Ref side of the condition: a "Ref" mode control, then four upstream-output rows](screenshots/before/D22-ref-picker.png) | ![The same panel with a "From a step / Typed value" control, the heading "Outputs of earlier steps" and its explanatory line above the same four rows](screenshots/after/D22-ref-picker.png) |
+| ![The Ref side of the condition: a "Ref" mode control, then four upstream-output rows](screenshots/before/D22-ref-picker.png) | ![The same panel with a "From a step / Typed value" control, then "This step's result" with Poll status marked, then the heading "Outputs of earlier steps" and its explanatory line above the earlier steps' rows](screenshots/after/D22-ref-picker.png) |
 
-41px taller; that is the heading and its line.
+The after frame ends at the bottom of the window; the earlier steps' rows
+continue below it.
 
 **See it yourself.** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`
 → click **Poll OCR Results** → scroll the right-hand panel to **Termination
@@ -1243,17 +1324,16 @@ condition**. That is the exact panel you photographed.
 
 **You are right, and the app had already been disagreeing with itself about it.**
 The canvas edge chips have drawn **≥** since the edge-label work; the dropdown
-you pick from said `gte`. Same operator, two vocabularies, one screen apart. A
-third existed in the legacy read-only viewer, which hand-rolled `=` and `!=` and
-let everything else fall through raw — so a `gte` branch drew the chip
-`pages gte 5`. Worth recording: the node catalog **already specified** plain
-English labels. The catalog is the spec; the dropdown never implemented it.
+you pick from said `gte`. Same operator, two vocabularies, one screen apart.
+Worth recording: the node catalog **already specified** plain English labels.
+The catalog is the spec; the dropdown never implemented it.
 
 Every operator now has a human label with the symbol after it — `is greater than
-or equal to (≥)` — and all three surfaces read from one shared module, so they
-cannot drift again. **The stored value is unchanged** (`gte` is still `gte` in
-the config); the tests deliberately pin the stored value while reading the label
-off the same map the UI uses.
+or equal to (≥)` — in the dropdown, and the canvas chips and a condition group's
+summary take their words from the same labels: the symbol for a comparison
+(`≥`), and the words otherwise (`is empty`). **The stored value is unchanged**
+(`gte` is still `gte` in the config); the tests deliberately pin the stored
+value while reading the label off the same map the UI uses.
 
 | Before | After |
 |---|---|
@@ -1311,8 +1391,11 @@ Built, with **no new dependency added** — and that was a decision, not a
 constraint. The frontend's tree has no diff library, and a *text* diff would be
 the wrong tool anyway: config objects have no meaningful key order, so a line
 diff reports a move as a change. A new structural config-diff walks both versions
-to their leaves and compares leaf by leaf. Array elements are indexed
-(`edges[1].to`) so a new edge is attributable; a subtree present on only one side
+to their leaves and compares leaf by leaf. List items are matched by identity —
+a wire by its `id`, a step's input or output by its `port` — so deleting a step
+reports that step and its own wires, not every wire listed after them, and a
+path names the item it is about (`edges[id=a-b].source`). A list whose items
+carry no identity is compared by position. A subtree present on only one side
 expands into its own leaves, so "this node only exists in head" lists the fields
 it adds.
 
@@ -1386,9 +1469,10 @@ had a purple of its own while the canvas paints a custom node with the ordinary
 activity accent. So "Branch by condition" and "Run for each item" looked
 identical in the list and different on the canvas.
 
-Both now read from the same module the canvas card borders read. **No hex was
-copied**, and the tests assert against the registry rather than against colour
-values — which is what stops the two surfaces drifting apart again.
+Both now read from the same module the canvas card borders read, and so does the
+canvas's other list of steps, the "pick a step" list that opens from a card's
+dot. **No hex was copied**, and the tests assert against the registry rather
+than against colour values.
 
 | Palette row | Before | After | Canvas accent |
 |---|---|---|---|
@@ -1423,16 +1507,18 @@ were merged into one button labelled **`Run…`** (with an ellipsis, not a bare
 canvas** tab. The doc also claimed the button "refuses" when clicked; it does
 not, because a disabled button fires no click. It is grey before you touch it and
 the reason is in a hover tooltip, which the doc now quotes verbatim. The same
-correction was swept into stop 15, and the stop-8 screenshot — which predates the
-merge and shows both buttons — is annotated with a dated note.
+correction was swept into stop 15, and the stop 8 and stop 15 pictures are
+re-shot.
 
 **D15 · *"The first actual instruction here is just Do this."*** Not a
 truncation: that line has read the same since the file was created. The real
 defect is that the stop is titled *"Try it, and watch"* and its only instruction
 was to *replay an old run* — and on a clean checkout the Standard OCR Workflow
-has no runs to replay. It is now two instructions, one per half of the title,
-pointing at the Try-in-place demo whose three seeded runs (one green, one from
-cache, one genuinely failed) touch no Azure and need no credential.
+has no runs to replay. It is now two instructions, one per half of the title, on
+the Try-in-place demo, whose steps touch no Azure and need no credential: start
+a run by giving the **Run…** drawer a PDF, then open **Run history** and replay
+a run with a green dot. `npm run seed:demo-runs` adds three finished runs to
+look at: one green, one from cache, one genuinely failed.
 
 **D16 · *"Is it meant to be stop, not step?"*** **Deliberately not renamed.**
 "Stop" is the page's own word for a section of the tour — its opening line is *"a
@@ -1446,13 +1532,16 @@ and a sweep confirmed no "stop N" in the file ever meant a workflow node.
 **D17 · *"There aren't any instructions on what it wants from a user in the Run
 sidebar… when it's just an unpopulated `{}`."*** The box is headed **Initial
 ctx** — the bag of starting values a run begins with — and it is **prefilled**
-from the inputs the workflow *declares*, not blank by design. `{}` therefore
-means *this workflow declares no inputs*, which is true of Standard OCR Workflow:
-no API-source step, no ctx variable ticked **Input**. Documented, along with what
-the first step actually needs (`documentId` and `blobKey`, both naming a document
-already in the database and blob storage) — and why nobody types this workflow's
-input in practice, which is exactly what you did: you start it by uploading a
-file. The doc now gives a contrasting example from the Workflow-as-API demo,
+from the inputs the workflow *declares*, not blank by design. `{}` means *this
+workflow declares no inputs*. Standard OCR Workflow declares one, `modelId` (the
+model its OCR steps use), with a default, so its box opens as
+`{"modelId": "sdpr_synth_test"}`. Documented, along with what the first step
+actually needs (`documentId` and `blobKey`, both naming a document already in
+the database and blob storage) — and why nobody types this workflow's input in
+practice, which is exactly what you did: you start it by uploading a file, and
+follow it on the **Documents** page, since the editor's Run history lists only
+runs started from the editor. The doc now gives a contrasting example from the
+Workflow-as-API demo,
 whose box arrives already written as `{"documentUrl": "", "priority": 0}` — that
 is not illustrative, it is what the prefill produces for that workflow, key for
 key.
@@ -1481,42 +1570,20 @@ the five real ones.
 
 ---
 
-## Still open
-
-One thing is a **proposal, not a decision**, and it is waiting on Alex. It is
-listed here so you know it exists and know it is not done. (The other proposal
-that stood here — defaulting the loop's item key — was approved on 2026-08-15
-and is described under D24 above.)
-
-**2 · Delete the now-unused handle-style module (from D28).**
-`computeHandleStyle` / `HandleStyle` in `canvas/handle-style.ts` were the
-node-level dot's kind colouring, which D28's fix removed. Confirmed: **no
-production caller remains.** But they are still covered by 23 tests and still
-described by `TYPED_IO_DESIGN.md` §4, so deleting them is a decision about a
-documented design surface rather than a cleanup. Flagged rather than taken.
-
----
-
 ## Residuals worth knowing about
 
-Not open questions — things that are true, recorded, and not fixed here.
+Not open questions — things that are true and worth knowing.
 
-- **The deployed assistant is now wired** as of 2026-08-15: the four
-  `AZURE_OPENAI_*` variables reach backend-services in compose, the kustomize
-  base, the instance overlay, the deploy workflow and the rotation script. All
-  four env refs are `optional: true`, so a missing key disables the assistant
-  rather than putting pods into `CreateContainerConfigError`. Existing instances
-  need only a redeploy — nothing breaks if one is left alone. (I1 / D4.)
-- **The caret jump is fully closed as of 2026-08-15** — both causes, each with a
-  passing browser test. The second fix changes how the editor holds its text
+- **The deployed assistant is wired**: the four `AZURE_OPENAI_*` variables
+  reach backend-services in compose, the kustomize base, the instance overlay,
+  the deploy workflow and the rotation script. All four env refs are
+  `optional: true`, so a missing key disables the assistant rather than putting
+  pods into `CreateContainerConfigError`. Existing instances need only a
+  redeploy — nothing breaks if one is left alone. (I1 / D4.)
+- **The caret jump is closed** — both causes, each with a passing browser
+  test. The second fix changes how the editor holds its text
   (`defaultValue`, not `value`), so if anything about typing in a custom step
   feels different, that is where to look first. (D8.)
-- **Submit OCR and Poll OCR read the model id by two independent routes** and
-  nothing keeps them equal. Latent today — both seeded values are identical — and
-  the new 404 message names the mismatch if anyone trips it. (D1.)
-- **The Simplified-view round trip is not perfectly identity**: the Finalize
-  group box comes back wider than it went. Separate, unconfirmed, untouched.
-  (D13.)
 - **The request logger recorded 500s as 201**, which is why the stale-Prisma
   failures went unnoticed for a morning. Filed as its own defect, not fixed here.
   (I1.)

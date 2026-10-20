@@ -88,6 +88,19 @@ async function api(path, init = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/**
+ * Every permission the frontend knows, by name, read from its own enum. The
+ * mock user is an ADMIN of the seed group holding all of them, as
+ * `tests/e2e/helpers/auth.ts` signs in; without them the permission-gated
+ * pages and controls stay hidden.
+ */
+const PERMISSIONS = [
+  ...readFileSync(
+    join(REPO, "apps", "frontend", "src", "auth", "permissions.ts"),
+    "utf8",
+  ).matchAll(/= "([A-Z_]+)"/g),
+].map((m) => m[1]);
+
 const MOCK_USER = {
   sub: "test-user",
   name: "Test User",
@@ -96,7 +109,14 @@ const MOCK_USER = {
   roles: ["user"],
   isAdmin: false,
   expires_in: 3600,
-  groups: [{ id: "seeddefaultgroup", name: "Default" }],
+  groups: [
+    {
+      id: "seeddefaultgroup",
+      name: "Default",
+      role: "ADMIN",
+      permissions: PERMISSIONS,
+    },
+  ],
 };
 
 /**
@@ -434,7 +454,7 @@ const SHOTS = {
    * Restoring writes: it appends the old config as a new version and moves
    * the head. Doing that to `demo-versioning-history-revert-part-12` would
    * leave the seeded demo on a v3 nobody seeded, so instead the script
-   * builds its own lineage from a copy of the `probe-clean-failure` config,
+   * builds its own lineage from a copy of the Part 7 demo's config,
    * saves once to reach v2, restores v1 through the real UI — and deletes
    * the lineage again in a `finally`. No seeded row is read or written, and
    * the workflow list is back to its seeded count before the process exits.
@@ -446,7 +466,7 @@ const SHOTS = {
     // `by-slug` answers `{ workflow }`; the create endpoint wants the config
     // itself.
     const { workflow: source } = await api(
-      "/api/workflows/by-slug/probe-clean-failure",
+      "/api/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7?groupId=seeddefaultgroup",
     );
     const created = await api("/api/workflows", {
       method: "POST",
@@ -590,14 +610,14 @@ const SHOTS = {
    * I4 — the node failure chip's icon/text alignment.
    *
    * `NodeFailureChip` renders only for a node whose status is `failed` during
-   * a live run, so the frame is taken from a real failing run of the seeded
-   * `probe-clean-failure` workflow (a `file.prepare` pointed at a blob that
-   * does not exist). Zoomed hard, because the chip is ~16px tall and an
-   * alignment complaint is unreadable at canvas scale.
+   * a live run, so the frame is taken from a real failing run: the Part 7
+   * demo's `prep` step (`file.prepare`) fails on an empty ctx, as in I5.
+   * Zoomed hard, because the chip is ~16px tall and an alignment complaint is
+   * unreadable at canvas scale.
    */
   I4: async (browser) => {
     const page = await newPage(browser);
-    await openEditor(page, "probe-clean-failure");
+    await openEditor(page, "demo-typed-i-o-coloured-handles-type-pills-part-7");
     await runViaTry(page, { expect: "failed" });
     const chip = '[data-testid^="node-failure-chip-"]';
     await page.waitForSelector(chip, { timeout: 20000 });
@@ -618,12 +638,10 @@ const SHOTS = {
    */
   I5: async (browser) => {
     const page = await newPage(browser);
-    // A DIFFERENT failing workflow from I4's, and the difference is the point:
     // `NoOutputNotice` is a preview surface, so it renders only for a step
-    // that DECLARES an output — `probe-clean-failure`'s nodes declare none, so
-    // its failed step draws "this step doesn't produce a previewable output"
-    // instead of the error card. Part 7's `prep` declares `preparedData`, and
-    // fails the same way on an empty ctx.
+    // that DECLARES an output; a failed step that declares none draws "this
+    // step doesn't produce a previewable output" instead of the error card.
+    // Part 7's `prep` declares `preparedData`, and fails on an empty ctx.
     await openEditor(page, "demo-typed-i-o-coloured-handles-type-pills-part-7");
     await runViaTry(page, { expect: "failed" });
     // The notice lives in the result strip's EXPANDED detail, not on the card

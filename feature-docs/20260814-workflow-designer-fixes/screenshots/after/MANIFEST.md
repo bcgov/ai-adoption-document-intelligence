@@ -1,10 +1,9 @@
-# AFTER frames — workflow-designer review fixes, 2026-08-15
+# AFTER frames — workflow-designer review fixes
 
 Every image here is a screenshot of the running dev stack (frontend :3000,
 backend :3002, temporal worker) taken by
 [`../../capture-screenshots.mjs`](../../capture-screenshots.mjs) with
-`--phase after`, after the fix batch landed (`tsc` clean, 2381 frontend tests
-passing). Nothing is a mock-up and nothing is composited.
+`--phase after`. Nothing is a mock-up and nothing is composited.
 
 ```
 node feature-docs/20260814-workflow-designer-fixes/capture-screenshots.mjs --phase after
@@ -12,9 +11,11 @@ node feature-docs/20260814-workflow-designer-fixes/capture-screenshots.mjs --pha
 ```
 
 Same viewport as the before pass — **1920×1080** on every frame — and the same
-routes, the same crops and the same canvas zooms, so a before frame and its
-after frame differ by the fix and not by the framing. Auth is the mock-user
-route interception from `.claude/skills/app-browser-auth`.
+routes, the same crops and the same canvas zoom rule, so a before frame and its
+after frame differ by the fix and not by the framing; where a pair differs in
+anything else, its entry says so. Auth is the mock-user route interception from
+`.claude/skills/app-browser-auth`: an ADMIN of the seed group holding every
+permission.
 
 Item ids are `CHECKLIST.md`'s. `I…` are inderdeepsinghgill's, `D…` are dbarkowsky's.
 
@@ -67,7 +68,7 @@ and imply a change that was never made. Read the before pair as the after pair.
 
 | | |
 |---|---|
-| **`I3-chat-composer-footer.png`** | The composer rebuilt to inderdeepsinghgill's mock-up: the message box on its own line, then one footer strip — attach **`+`** hard left (was a paperclip), **`gpt-5.4` `Balanced`** as the model menu trigger beside it, send hard right. |
+| **`I3-chat-composer-footer.png`** | The composer rebuilt to inderdeepsinghgill's mock-up: the message box on its own line, then one footer strip — attach **`+`** hard left (was a paperclip), **`gpt-4o` `Balanced`** beside it, send hard right. The model is a plain label because this server offers one; with more than one it is a menu with a chevron. |
 
 - **Route / by hand:** unchanged from the before frame — `/workflows`, chat
   bubble, look at the bottom strip.
@@ -75,28 +76,34 @@ and imply a change that was never made. Read the before pair as the after pair.
   (paperclip left, model name as a dimmed caption *below* the row).
 - Frame is 18px taller than the before frame because the strip itself is: the
   crop is the same element with the same padding.
+- The two frames name different models, `gpt-5.4` and `gpt-4o`: each shows the
+  deployment its server was configured with when it was taken.
 
 ### I4 — the node error chip
 
 | | |
 |---|---|
-| **`I4-node-error-chip.png`** | The red `× ERROR` chip on the failed node's title row, canvas at **2.00×** — the same zoom the before frame was shot at — with the glyph now on the label's optical centre. |
+| **`I4-node-error-chip.png`** | The red `× ERROR` chip on the failed node's title row, canvas at **2.00×** — the same zoom the before frame was shot at — with the glyph on the optical centre of the capitals. |
 
-- **Route:** `http://localhost:3000/workflows/by-slug/probe-clean-failure/edit`
-- **By hand:** open `🧪 Probe — clean failure`, **Run…** → **Try** with the ctx
-  left as `{}`; `file.prepare` points at a blob that does not exist, so it
-  fails within seconds. Zoom in on the failed card's title row.
+- **Route:** `http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit`
+- **By hand:** open Part 7, **Run…** → **Try** with the ctx left as `{}`; its
+  `prep` step (`file.prepare`) has no file to read, so it fails within seconds.
+  Zoom in on the failed card's title row.
+- The before frame was taken on a probe workflow whose `file.prepare` step
+  failed the same way; a seeded database does not have it, so this frame uses
+  the Part 7 demo.
 - Still a live run, for the same reason as before: `NodeFailureChip` renders
   nothing without an `activeRunId`.
-- The difference is sub-pixel by design (a derived
-  `(ascent − descent − capHeight)/2` nudge). At this zoom it is visible; it is
-  not a frame that will read on a phone.
+- The difference is sub-pixel by design: the × moves up 0.71px, a nudge
+  derived from BC Sans Bold's metrics and Chromium's whole-pixel painting of
+  the icon. At this zoom it is visible; it is not a frame that will read on a
+  phone.
 
 ### I5 — the failed-step notice and its CTA
 
 | | |
 |---|---|
-| **`I5-no-output-error-card.png`** | The same notice restyled to the BC DS inline-alert pattern: 1px danger border, the **alert-circle** icon in place of the warning triangle, a new dimmed scope line — *"Runs the whole workflow again from the start, with the same input."* — and **Re-run workflow** as an **outlined** button instead of filled red. |
+| **`I5-no-output-error-card.png`** | The same notice restyled to the BC DS inline-alert pattern: 1px danger border, the **alert-circle** icon in place of the warning triangle, a new scope line in grey at 5.4:1 contrast — *"Runs the whole workflow again from the start, with the same input."* — and **Re-run workflow** as an **outlined** button instead of filled red. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit`
 - **By hand:** open Part 7, **Run… → Try** with ctx `{}`, wait for **Prepare**
@@ -124,7 +131,7 @@ and imply a change that was never made. Read the before pair as the after pair.
   whole of what that means.** Restoring *writes*: it appends the old config as
   a new version and moves the head. Doing that to the Part 12 demo would leave
   it sitting on a v3 nobody seeded. So the script creates its own lineage from
-  a copy of the `probe-clean-failure` config, saves an edited second version to
+  a copy of a seeded workflow's config, saves an edited second version to
   reach v2, restores v1 through the real UI, and **deletes the lineage in a
   `finally`**. Verified after the run: the workflows list is back to its 35
   seeded rows and no scratch row survives. The version numbers in the toast are
@@ -172,33 +179,32 @@ and imply a change that was never made. Read the before pair as the after pair.
 | | |
 |---|---|
 | **`D13-simplified-off.png`** | Fit-view, Simplified **off** — five cards inside two group containers. Identical crop to the before frame. |
-| **`D13-simplified-on.png`** | Immediately after switching Simplified **on** — two group chips at the same zoom. Identical crop to the before frame. |
-| **`D13-simplified-off-again.png`** | *(no before counterpart)* Simplified switched back **off**: the five cards return at their measured positions inside their two group boxes. |
+| **`D13-simplified-on.png`** | Immediately after switching Simplified **on** — two group chips, with the view refitted to them. Identical crop to the before frame. |
+| **`D13-simplified-off-again.png`** | *(no before counterpart)* Simplified switched back **off**: the five cards return at their measured positions inside their two group boxes, each box the size it was on arrival. |
 | **`D13-unsaved-rename-survives.png`** | *(no before counterpart)* The top bar after renaming the workflow to "🎯 Demo — renamed but not saved" **without saving** and then toggling Simplified on and off — the edited title is still there. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit`
 - **By hand:** open Part 6, **Fit view** (⛶), flick **Simplified** on, flick it
   off again. For the fourth frame: rename the workflow in the top bar, press
   Enter, do not save, then flick Simplified on and off and read the title.
-- **The first pair cannot show this fix, and saying so is the point.** The
-  after `on` frame is pixel-identical to the before `on` frame, because what
+- **The first pair cannot show this fix, and saying so is the point.** What
   the toggle broke was never the simplified projection: flipping the switch
   re-ran the server-hydration effect, which **reverted the workflow to the raw
   server copy** — replacing the measured layout with the loose pre-mount
   fallback and discarding an unsaved rename. Both of those are only observable
-  on the way *back*, and the before pass stopped at "on". Rather than crop the
-  pair differently and imply the projection changed, the pair is kept as-is and
-  two unpaired frames carry the evidence.
-- **Read `D13-simplified-off-again.png` honestly:** the five cards come back at
-  the positions they had on arrival. The **Finalize** group box is drawn wider
-  than on arrival — its right edge runs past the pane — so the round trip is
-  not perfectly identity; the cards, the wires and the layout are.
+  on the way *back*, and the before pass stopped at "on", so two unpaired
+  frames carry the evidence. The two `on` frames differ only in zoom: each
+  switch of the view refits the camera to what is on screen.
+- **`D13-simplified-off-again.png`:** the cards, the wires and both group boxes
+  come back exactly as they were on arrival. The frame is zoomed slightly
+  further out than `D13-simplified-off.png`, because each switch refits the
+  camera; the layout is the same.
 
 ### D22 / D23 — the condition editor
 
 | | |
 |---|---|
-| **`D22-ref-picker.png`** | The Ref side of the condition, reframed: a **From a step / Typed value** segmented control, then the heading **"Outputs of earlier steps"** and the sentence *"Each row is one output of a step that runs before this one — step name, then the output it produces"*, then the same four rows (`Submit to Azure OCR → Request ID`, …) with their ctx key, kind and upstream distance kept as the dimmed caption. |
+| **`D22-ref-picker.png`** | The Ref side of the condition, reframed: a **From a step / Typed value** segmented control; then **"This step's result"**, the poll step's own two outputs, with **Poll status** — the value this condition checks — marked; then the heading **"Outputs of earlier steps"** and the sentence *"Each row is one output of a step that runs before this one — step name, then the output it produces"*, then the earlier steps' rows (`Submit to Azure OCR → Request ID`, …) with their ctx key, kind and upstream distance kept as the dimmed caption. |
 | **`D23-operator-dropdown.png`** | The Operator select open, every entry now in words with the symbol after it: `is equal to (=)`, `is not equal to (≠)`, `is greater than (>)`, `is greater than or equal to (≥)`, `is less than (<)`, `is less than or equal to (≤)`, `contains`. The closed trigger reads `is not equal to (≠)` where it read `not-equals`. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`, then
@@ -206,8 +212,9 @@ and imply a change that was never made. Read the before pair as the after pair.
 - **By hand:** open `Standard OCR Workflow`, click **Poll OCR Results**, scroll
   the settings panel to **Termination condition**; for D23, open the Operator
   select.
-- Same panel, same node, same crops as the before frames. D22's frame is 41px
-  taller — the heading and its explanatory line are what was added.
+- Same panel, same node, same crops as the before frames. D22's frame runs to
+  the bottom of the window, where the earlier steps' rows continue: the step's
+  own outputs, the heading and its explanatory line are what was added.
 - The stored values are unchanged (`gte` is still `gte` in the config); this is
   a label module, and the tests pin that.
 
@@ -231,17 +238,18 @@ and imply a change that was never made. Read the before pair as the after pair.
 
 | | |
 |---|---|
-| **`D28-run-order-connectors.png`** | Poll OCR Results and Extract OCR Results side by side at **1.10×** — the same zoom as the before frame — with the run-order dots now at the same height and the same size on both cards, drawn in the dashed wire's own grey. |
+| **`D28-run-order-connectors.png`** | Poll OCR Results and Extract OCR Results side by side at **1.04×**, by the same zoom rule as the before frame's 1.10×, with the run-order dots now at the same height and the same size on both cards, drawn in the dashed wire's own grey. Poll status is an ordinary 12px port dot: the step's own stop condition reads it. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`
 - **By hand:** open `Standard OCR Workflow` and pan to the Poll → Extract pair.
-- Identical crop and identical zoom to
+- The same crop rule as
   [`../before/D28-run-order-connectors.png`](../before/D28-run-order-connectors.png),
-  where the pair sat at different heights with different fills.
-- The 16px `+` variant (required and unconnected) is unchanged — it is a real
-  signal, and what the fix added is a row tooltip that says so. That tooltip is
-  not in this frame; it needs a hover, and a hover-held frame would have hidden
-  the connectors this pair is about.
+  where the pair sat at different heights with different fills. The zoom rule
+  lands on 1.04× here because the cards are a different size.
+- A port dot is 16px with a `+` when the port is required and unused — for an
+  output, when nothing in the graph reads it, by a wire or otherwise. Neither
+  of Poll's outputs qualifies. The row tooltip that explains the larger dot
+  needs a hover, so it is not in this frame.
 
 ### D29 — the legend
 
@@ -259,8 +267,8 @@ and imply a change that was never made. Read the before pair as the after pair.
 
 | | |
 |---|---|
-| **`D30-poll-ocr-fields.png`** | Poll OCR Results' panel, now led by the answer: *"This is a loop, not a single step. It runs the activity below over and over until the condition is met, so the sections underneath are the loop's own settings — the activity itself has only the fields it would have on its own card."* Then Activity (**Parameters: No additional fields**), Termination condition, and — below the fold of this crop — the three defaulted limits folded behind a toggle. |
-| **`D30-extract-ocr-fields.png`** | Extract OCR Results' panel at the same width, unchanged: Node label, Parameters, Error handling, five pinned Inputs. |
+| **`D30-poll-ocr-fields.png`** | Poll OCR Results' panel, now led by the answer: *"This is a loop, not a single step. It runs the activity below over and over until the condition is met, so the sections underneath are the loop's own settings — the activity itself has only the fields it would have on its own card."* Then Activity (**Parameters: No additional fields**), Termination condition, and — below the fold of this crop — the three defaulted limits folded behind a toggle that names their values (*"Show limits — max 20 attempts, starts after 5s, gives up after 10m"*). |
+| **`D30-extract-ocr-fields.png`** | Extract OCR Results' panel at the same width: Node label, Parameters, Error handling, five pinned Inputs. Under each input is a line saying where its value comes from; that line is on every step's inputs and is not part of D30. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`, then
   each node in turn.
@@ -325,35 +333,46 @@ and imply a change that was never made. Read the before pair as the after pair.
 | `D13-simplified-off-again.png`, `D13-unsaved-rename-survives.png` | The before pass stopped at "on", and what the fix changed is only observable on the way back. |
 | `D33-search-in-use.png` | There was no search field to use before. |
 | `D31-compare-to-head.png` | Pairs by name, but the crop is 592px shorter: the modal itself is. |
-| `D22`, `D26`, `D29`, `I3`, `I5` | Pair by name, crop and route; 18–41px taller each, which is the copy those fixes added. |
+| `D26`, `D29`, `I3`, `I5` | Pair by name, crop and route; taller each by the copy those fixes added. |
+| `D22-ref-picker.png` | Pairs by name, crop and route, and runs to the bottom of the window: the list it frames is longer. |
+| `I4-node-error-chip.png` | Taken on the Part 7 demo; the before frame on a probe workflow a seeded database does not have. |
+| `D28-run-order-connectors.png` | 1.04× against 1.10×: the same zoom rule on cards of a different size. |
+| `D30-extract-ocr-fields.png` | Shows each input's value-source line, which is not part of D30. |
 
 ---
 
 ## D7 — the typing measurement, which has no frame
 
 D7 (typing lag) produces no photograph — a frame of a text field cannot show a
-re-render — so it was measured instead, by
-[`../../measure-typing.mjs`](../../measure-typing.mjs), against
-`multi-page-report` (22 cards on the canvas) with the `processSegments` map
-node selected. 30 characters typed with no delay between keys, three rounds,
-alternating, medians below. **Dev build** — Vite dev server and a development
-React, which is the build dbarkowsky was typing into.
+re-render — so it was measured instead, the way
+[`../../measure-typing.mjs`](../../measure-typing.mjs) measures it: the time from
+each key press to the next painted frame, with the browser's Event Timing
+alongside. 24
+keys typed 60 ms apart, three rounds, once on the stack before the change and
+once after it, on the 11-step Standard OCR workflow unless the row says
+otherwise. **Dev build** — Vite dev server and a development React, which is
+the build dbarkowsky was typing into. The median per round:
 
-| | **A — Node label**<br>writes the whole config per keystroke<br>*(not part of the D7 change)* | **B — Map item ctx key**<br>local draft, one commit per burst<br>*(the D7 path)* |
+| Field | Before | After |
 |---|---|---|
-| React commits for 30 keystrokes | **152** | **68** |
-| Wall time for the burst | **6752 ms** (225 ms/char) | **567 ms** (19 ms/char) |
-| Long tasks (>50ms) during the burst | **37**, 5286 ms total, longest 447 ms | **1**, 234 ms total |
-| …of those, after the last keystroke | 1 (208 ms) | 1 (234 ms) — *the whole of it* |
+| Node label (Prepare File Data) | 74–160 ms, up to 0.96 s | 5–6 ms |
+| A poll step's stop condition, typed value | 52–66 ms | 7–14 ms |
+| A branch's case, typed value (16-step multi-page report) | 79–193 ms | 12–13 ms |
+| A group's label | 75–93 ms | 6–8 ms |
+| A poll step's interval | 54–96 ms | 6–8 ms |
+| A keyword pattern (multi-page report) | 47–56 ms | 6–9 ms |
 
-**What A is, exactly.** Not a recording of the old build: the fix is in the
-tree and cannot be stashed. A is the **Node label** field on the same panel of
-the same node in the same page load, which was *not* part of the D7 change and
-still calls `updateNode` on every keystroke — one whole-config write per
-character, the pre-fix path, still live in the shipped build. B additionally
-re-expands its option list against the draft on every keystroke, work A does
-not do at all, so the comparison is loaded against the fix.
+A frame at 60 Hz is about 17 ms. Before, every key in these fields took longer
+than one; after, none does, and the canvas cards do not change while typing.
 
-The shape is the point: **B's only long task arrives after the typing stops** —
-that is the single debounced commit — while A blocks the main thread 37 times
-*during* the burst, which is what "typing is very laggy" is.
+Each row with the script:
+
+```bash
+S=feature-docs/20260814-workflow-designer-fixes/measure-typing.mjs
+node $S seed-workflow-standard-ocr prepareFileData node-settings-label
+node $S seed-workflow-standard-ocr pollOcrResults poll-until-node-settings-condition-right-literal-input
+node $S seed-workflow-multi-page-report segmentRouter switch-node-settings-case-0-condition-right-literal-input
+node $S seed-workflow-standard-ocr group:ocr-extraction group-settings-label
+node $S seed-workflow-standard-ocr pollOcrResults poll-until-node-settings-interval 3 beforeLast
+node $S seed-workflow-multi-page-report splitAndClassify keyword-pattern-editor-segment-type-0
+```
