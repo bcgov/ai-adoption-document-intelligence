@@ -327,8 +327,8 @@ export class AgentService {
   /**
    * The caller's own conversations in this group, plus the group's seeded
    * demo replays. Without the demo half, "Show past conversations" on a
-   * demo link was empty for everyone except the identity that ran the seed
-   * (Inderdeep, 2026-08-06 — item 24).
+   * demo link would be empty for everyone except the identity that ran the
+   * seed.
    */
   async listConversationsForCaller(input: {
     actorId: string;

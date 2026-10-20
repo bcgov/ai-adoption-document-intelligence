@@ -41,13 +41,10 @@ export interface DenoHealthResponse {
 }
 
 /**
- * Human-facing headline for an unreachable runner (D3).
- *
- * What the reviewer saw was `Failed to reach deno-runner /check at
- * http://localhost:9099` — an internal service name and an internal URL, with
- * no statement of what the reader should do. The URL is not the message; it is
- * the evidence, and it now travels on `DenoRunnerUnavailableError.details`
- * (surfaced as the response's `details` field and written to the server log).
+ * Human-facing headline for an unreachable runner. It says what is down and
+ * what to do about it. The endpoint and URL are the evidence, not the message:
+ * they travel on `DenoRunnerUnavailableError.details` (surfaced as the
+ * response's `details` field and written to the server log).
  *
  * The instruction differs by deployment, so it is derived rather than fixed:
  * a loopback `baseUrl` means a developer's own machine, where the fix is a

@@ -121,9 +121,9 @@ describe("DenoRunnerClient", () => {
     });
   });
 
-  // D3 — the message a person reads must name the thing that is down and the
+  // The message a person reads must name the thing that is down and the
   // action to take; the URL is evidence, not the headline.
-  describe("unavailable message (D3)", () => {
+  describe("unavailable message", () => {
     it("gives the local start command when the runner is on loopback", () => {
       const msg = denoRunnerUnavailableMessage("http://localhost:9099");
       expect(msg).toContain("custom-node checker is not running");

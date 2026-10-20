@@ -80,7 +80,7 @@ import {
  *  - `DynamicNodeNotFoundError`      → 404
  *  - `DynamicNodeDeletedError`       → 404 (matches list / detail's "invisible" semantics)
  *  - `DenoRunnerUnavailableError`    → 503 `{ code: 'DENO_RUNNER_UNAVAILABLE', message, details }`
- *    where `message` is the human instruction and `details` the diagnostic (D3).
+ *    where `message` is the human instruction and `details` the diagnostic.
  */
 @ApiTags("dynamic-nodes")
 @Controller("api/dynamic-nodes")
@@ -509,8 +509,8 @@ function mapPublishError(err: unknown): Error {
     return new NotFoundException(err.message);
   }
   if (err instanceof DenoRunnerUnavailableError) {
-    // D3 — `message` is what the editor shows the user; `details` carries the
-    // endpoint/URL/status that used to be the headline.
+    // `message` is what the editor shows the user; `details` carries the
+    // endpoint, URL and status for diagnosis.
     const body: DenoRunnerUnavailableResponseDto = {
       code: "DENO_RUNNER_UNAVAILABLE",
       message: err.message,

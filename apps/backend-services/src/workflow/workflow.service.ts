@@ -1399,16 +1399,14 @@ export class WorkflowService {
    * Restores an older version by **appending its config as a new version** and
    * pointing head at that new row (does not change benchmark definition pins).
    *
-   * D11 — this used to move `head_version_id` back onto the old row and write
-   * nothing else, which contradicted the walkthrough ("brings an old one back
-   * as a *new* version") and, more seriously, left the lineage unsaveable: the
-   * append path numbers a new version `head.version_number + 1`, so with head
-   * parked on v1 while v2 existed, the next save asked Postgres for a second
-   * `(lineage_id, version_number) = (…, 2)` and lost to
-   * `workflow_versions_lineage_id_version_number_key` on all three attempts —
-   * a 500 to the user, reproduced against the dev stack on 2026-08-14.
-   * Appending keeps head on the highest version number, which is the invariant
-   * the rest of the versioning code already assumes.
+   * This is what the gallery tour promises ("brings an old one back as a *new*
+   * version"), and it keeps the lineage saveable. Moving `head_version_id` back
+   * onto the old row would not: the append path numbers a new version
+   * `head.version_number + 1`, so with head parked on v1 while v2 exists, the
+   * next save asks Postgres for a second `(lineage_id, version_number) = (…, 2)`
+   * and loses to `workflow_versions_lineage_id_version_number_key` on all three
+   * attempts — a 500 to the user. Appending keeps head on the highest version
+   * number, which is the invariant the rest of the versioning code assumes.
    *
    * The restored config is copied verbatim (re-stamped, so the persisted hash
    * matches the bytes we store); the source version row is left untouched, so

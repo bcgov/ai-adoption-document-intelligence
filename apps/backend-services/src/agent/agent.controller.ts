@@ -138,8 +138,7 @@ export class AgentController {
       // Without this the AI SDK masks every mid-stream failure as the
       // string "An error occurred." — the response headers are already on
       // the wire by then, so this is the only channel a provider rejection
-      // (bad key, missing deployment, rate limit) can reach the user
-      // (Inderdeep, 2026-08-06 — item 22).
+      // (bad key, missing deployment, rate limit) can reach the user.
       onError: describeAgentStreamError,
     });
   }

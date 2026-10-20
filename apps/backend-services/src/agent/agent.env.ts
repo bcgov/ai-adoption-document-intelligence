@@ -41,13 +41,12 @@ export class AgentEnv {
    *
    * `null` rather than a constructor throw. `AgentEnv` is a plain Nest
    * provider inside `AgentModule`, which `AppModule` imports unconditionally,
-   * so a throw here was a DI failure at startup: a developer with no API key
-   * got a backend that would not boot, and the error named the agent module
-   * so it read as "the agent broke the build" (Dylan, 2026-08-14 — D4). An
-   * unconfigured environment must yield a working app with a disabled
-   * assistant, which is what `null` produces: `listConfiguredModels` returns
-   * `[]`, `GET /api/agent/models` reports which variables are missing, and
-   * `ProviderResolver` refuses a turn with a typed 503.
+   * so a throw here would be a DI failure at startup: a developer with no API
+   * key would get a backend that does not boot. An unconfigured environment
+   * must yield a working app with a disabled assistant, which is what `null`
+   * produces: `listConfiguredModels` returns `[]`, `GET /api/agent/models`
+   * reports which variables are missing, and `ProviderResolver` refuses a turn
+   * with a typed 503.
    */
   readonly defaultProvider: AgentProvider | null;
   readonly anthropicApiKey: string | null;

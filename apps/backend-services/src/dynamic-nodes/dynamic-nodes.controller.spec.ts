@@ -146,8 +146,8 @@ describe("DynamicNodesController", () => {
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
 
-    // D3 — the 503 body's headline must be the human instruction, with the
-    // endpoint/URL demoted to `details`.
+    // The 503 body's headline is the human instruction; the endpoint and URL
+    // go in `details`.
     it("puts the human instruction in `message` and the URL in `details`", async () => {
       service.publish.mockRejectedValue(
         new DenoRunnerUnavailableError({

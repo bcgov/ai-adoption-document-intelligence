@@ -1,10 +1,9 @@
 import { describeModel } from "./model-descriptors";
 
 /**
- * I3, 2026-08-14 — Inderdeep's composer mock-up puts a short model name and a
- * one-line tier ("Sonnet 4.5 · Balanced") in the composer footer. The names in
- * the mock-up are illustrative, so the real ones have to come from whatever
- * model this backend is actually configured for. The rule under test is that
+ * The composer footer shows a short model name and a one-line tier
+ * ("Sonnet 4.5 · Balanced"). Both have to come from whatever model this
+ * backend is actually configured for. The rule under test is that
  * a tier is only ever produced for a model FAMILY the vendor itself
  * positions — never guessed from an arbitrary deployment name.
  */

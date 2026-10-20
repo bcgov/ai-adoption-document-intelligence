@@ -1323,10 +1323,10 @@ describe("WorkflowService", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // D11 — restoring an older version APPENDS it as a new version. The old
-  // behaviour parked head on the old row, which broke the very next save:
-  // `updateWorkflow` numbers a new version `head.version_number + 1`, so head
-  // on v1 with a v2 present collided on `@@unique([lineage_id, version_number])`.
+  // Restoring an older version APPENDS it as a new version. Parking head on the
+  // old row would break the very next save: `updateWorkflow` numbers a new
+  // version `head.version_number + 1`, so head on v1 with a v2 present would
+  // collide on `@@unique([lineage_id, version_number])`.
   // ---------------------------------------------------------------------------
   describe("revertHeadToVersion", () => {
     const v1 = {

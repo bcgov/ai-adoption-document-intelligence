@@ -43,7 +43,7 @@ export class ProviderResolver {
     if (!this.env.hasProvider(provider)) {
       // A structured HTTP refusal, not a bare Error: a bare Error leaves
       // Nest with nothing to say but "Internal server error", and the chat
-      // drawer then had no cause to name (Inderdeep, 2026-08-06 — item 22).
+      // drawer would have no cause to name.
       throw new AgentProviderNotConfiguredException(
         provider,
         REQUIRED_CONFIG[provider],

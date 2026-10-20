@@ -35,8 +35,8 @@ export interface AgentErrorBody {
 
 /**
  * The model provider the caller asked for has no usable configuration on
- * this backend (the case Inderdeep hit on 2026-08-06: an Azure deployment
- * with no key behind it). 503 rather than 500 — the request was fine, the
+ * this backend, for example an Azure deployment with no key behind it. 503
+ * rather than 500 — the request was fine, the
  * server simply cannot serve it until someone configures the provider.
  */
 export class AgentProviderNotConfiguredException extends ServiceUnavailableException {
@@ -58,7 +58,7 @@ export class AgentProviderNotConfiguredException extends ServiceUnavailableExcep
  * is missing" but "the assistant cannot answer anybody". A separate code from
  * `provider-not-configured` because it is a separate thing to say: the client
  * cannot fix it by picking a different model, and the drawer disables the
- * composer rather than inviting another attempt (Inderdeep 2026-08-14 — I1).
+ * composer rather than inviting another attempt.
  *
  * Reached only if a client posts a turn anyway; `GET /api/agent/models`
  * already reports the same `missingConfig` up front.

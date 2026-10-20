@@ -4,9 +4,9 @@ import { ApiProperty } from "@nestjs/swagger";
  * 503-response body for `POST` / `PUT` when the `deno-runner` sidecar cannot
  * type-check the submitted script.
  *
- * Two fields on purpose (D3): `message` is the sentence a person reads and
- * acts on, `details` is the diagnostic that used to BE the message — endpoint,
- * URL and underlying failure. Clients render `message` as the headline and
+ * Two fields on purpose: `message` is the sentence a person reads and acts
+ * on, `details` is the diagnostic — endpoint, URL and underlying failure.
+ * Clients render `message` as the headline and
  * `details` as secondary text; the same diagnostic is also written to the
  * server log by `DenoRunnerClient`.
  */

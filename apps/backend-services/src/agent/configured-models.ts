@@ -71,8 +71,7 @@ export function listConfiguredModels(env: AgentEnv): ConfiguredAgentModel[] {
  * The providers this backend could serve but cannot, and the variable NAMES
  * that would make each usable. When every provider appears here, the
  * assistant is not configured at all and the chat drawer says so by name
- * instead of showing a live composer over a server that cannot answer
- * (Inderdeep 2026-08-14 — I1; Dylan — D4).
+ * instead of showing a live composer over a server that cannot answer.
  */
 export function listMissingProviderConfig(
   env: AgentEnv,
