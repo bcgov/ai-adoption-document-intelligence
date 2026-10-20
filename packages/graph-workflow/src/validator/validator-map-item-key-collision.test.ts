@@ -2,8 +2,8 @@ import type { GraphValidationError, GraphWorkflowConfig } from "../types";
 import { validateGraphConfig } from "./validator";
 
 /**
- * D24 — the palette now seeds a new map's `itemCtxKey` with "currentSegment",
- * so a second dropped loop starts life sharing the first one's item variable.
+ * The palette seeds a new map's `itemCtxKey` with "currentSegment", so a
+ * second dropped loop starts life sharing the first one's item variable.
  * That is legal (each iteration gets its own branch ctx) but ambiguous for
  * anything that reads the key, and destructive when one loop is nested inside
  * the other — so it must be VISIBLE and must never block Save.
@@ -59,7 +59,7 @@ const collisionIssues = (cfg: GraphWorkflowConfig) =>
     e.message.includes("reuses the item variable"),
   );
 
-describe("map item ctx key collisions (D24)", () => {
+describe("map item ctx key collisions", () => {
   it("is silent when two maps use different item variables", () => {
     const issues = collisionIssues(
       configWithMaps([

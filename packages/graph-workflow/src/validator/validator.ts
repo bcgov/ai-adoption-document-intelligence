@@ -927,11 +927,11 @@ function validateMapJoinNodes(
 }
 
 /**
- * D24 — two map nodes writing the SAME item variable.
+ * Two map nodes writing the SAME item variable.
  *
- * The palette now creates a map with `itemCtxKey: "currentSegment"` already
- * filled in, because an empty required field made every freshly dropped loop a
- * validation error and because `currentSegment` is the only name the
+ * The palette creates a map with `itemCtxKey: "currentSegment"` already
+ * filled in, because an empty required field would make every freshly dropped
+ * loop a validation error, and because `currentSegment` is the only name the
  * `segment.<field>` condition shorthand reads. The cost of that default is
  * this: drop a second loop and it starts life sharing the first one's key.
  *
@@ -949,9 +949,8 @@ function validateMapJoinNodes(
  * A WARNING, not an error, on purpose. Sharing the key is legal and often
  * inconsequential — two independent sibling loops whose bodies each read their
  * own item and nothing outside either body reads the key. Making it an error
- * would block Save on a graph that runs correctly, and would make the new
- * default worse than the empty field it replaced. The author needs to SEE it,
- * not be stopped by it.
+ * would block Save on a graph that runs correctly, and would make the default
+ * worse than an empty field. The author needs to SEE it, not be stopped by it.
  *
  * Anchored on the SECOND and later map in node-record order, so the first
  * definition keeps a clean node and the warning lands on the one the author

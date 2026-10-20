@@ -72,7 +72,7 @@ export const documentClassifyParametersSchema = z.object({
  * Catalog entry for `document.classify`.
  *
  * This is the SINGLE multi-typed-port exemplar in Phase 3
- * (REQUIREMENTS.md §3.2 D9). Two typed inputs of distinct kinds
+ * (REQUIREMENTS.md §3.2). Two typed inputs of distinct kinds
  * (`OcrResult` + `Segment`) and three typed outputs drive the
  * gray multi-port handle rendering (US-095) and the expanded
  * per-row selection type pill (US-096).
@@ -85,7 +85,7 @@ export const documentClassifyParametersSchema = z.object({
  *   - `confidence: Artifact` + `matchedRule: Artifact` — scalar /
  *     structural metadata that doesn't belong to the artifact
  *     taxonomy. Using the `Artifact` wildcard per the all-or-nothing
- *     rule (REQUIREMENTS.md §3.2 D15) is more honest than inventing
+ *     rule (REQUIREMENTS.md §3.2) is more honest than inventing
  *     kind names like `ConfidenceScore` that would force the
  *     taxonomy to grow without a real use case.
  */
