@@ -66,13 +66,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // API-key resolution, identical to seed-feature-demos.mjs: the backend
 // validates `x-api-key` against whatever value the DB was seeded with, which
-// may be the shell env, the backend `.env`, or the documented default. Gather
+// may be the shell env, the repo-root `.env`, or the documented default. Gather
 // all three and probe which one authenticates. A key value is never logged.
 const DEFAULT_KEY = "69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY";
 const SHELL_KEY = process.env.TEST_API_KEY; // captured before loading .env
-const BACKEND_ENV = resolve(__dirname, "../apps/backend-services/.env");
+// The repo-root `.env` is the one the database seed, the backend, the worker
+// and playwright.config.ts read.
+const ROOT_ENV = resolve(__dirname, "../.env");
 try {
-  if (existsSync(BACKEND_ENV)) process.loadEnvFile(BACKEND_ENV);
+  if (existsSync(ROOT_ENV)) process.loadEnvFile(ROOT_ENV);
 } catch {
   // Older Node without loadEnvFile, or unreadable — rely on the other sources.
 }
@@ -84,6 +86,9 @@ const CANDIDATE_KEYS = [
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3002";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+// The group `seed-feature-demos.mjs` seeds the demos into. Listing workflows
+// requires naming the group.
+const GROUP_ID = "seeddefaultgroup";
 
 /**
  * The file every upload sends. Small (668 bytes), committed, and already the
@@ -133,9 +138,12 @@ async function api(method, path, body) {
  */
 async function resolveApiKey() {
   for (const candidate of CANDIDATE_KEYS) {
-    const res = await fetch(`${BACKEND_URL}/api/workflows?limit=1`, {
-      headers: { "x-api-key": candidate },
-    }).catch(() => null);
+    const res = await fetch(
+      `${BACKEND_URL}/api/workflows?limit=1&groupId=${GROUP_ID}`,
+      {
+        headers: { "x-api-key": candidate },
+      },
+    ).catch(() => null);
     if (res && res.status !== 401 && res.status !== 403) return candidate;
   }
   return null;
@@ -151,7 +159,7 @@ function listItems(list) {
 /** Map every seeded demo by its full name, so a demo can be found by title. */
 async function loadSeededDemos() {
   const byName = new Map();
-  const list = await api("GET", "/api/workflows?limit=200");
+  const list = await api("GET", `/api/workflows?limit=200&groupId=${GROUP_ID}`);
   for (const w of listItems(list)) {
     if ((w.name || "").startsWith(NAME_PREFIX)) byName.set(w.name, w);
   }
@@ -534,7 +542,7 @@ main().catch((err) => {
   } else if (/\b401\b|Invalid API key|Unauthorized/i.test(err.message)) {
     console.error(
       "\nThe backend accepted none of the API keys it tried (shell" +
-        " TEST_API_KEY, apps/backend-services/.env TEST_API_KEY, and the" +
+        " TEST_API_KEY, the repo-root .env TEST_API_KEY, and the" +
         " documented default). Pass the seeded key explicitly:\n" +
         "  TEST_API_KEY=<your-seeded-key> npm run seed:demo-runs",
     );

@@ -40,21 +40,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // the seeded configs identical to what an editor "Save" would persist.
 const { resolveBindings, normaliseLocks } = await import("@ai-di/graph-workflow");
 
-// Load the backend .env so we authenticate with the SAME key the DB was seeded
-// with: `seed.ts` (`prisma db seed`) reads `TEST_API_KEY` from this file via
-// `dotenv/config`, and the backend validates `x-api-key` against that seeded
-// value. Without this the hardcoded fallback only works when the DB happened to
-// be seeded with the default key. Mirrors playwright.config.ts. (`loadEnvFile`
-// does not overwrite an already-set shell var, matching dotenv semantics.)
-// The backend validates `x-api-key` against the value the DB was seeded with,
-// which — depending on how `prisma db seed` ran — may be the shell env, the
-// backend .env's `TEST_API_KEY`, or the documented default. Rather than guess,
-// we gather all three and probe which one the running backend accepts.
+// Load the repo-root .env, the file `seed.ts` (`prisma db seed`) reads
+// `TEST_API_KEY` and `DATABASE_URL` from, as do the backend, the worker and
+// playwright.config.ts. The backend validates `x-api-key` against the value the
+// DB was seeded with, which may be the shell env, the root .env's
+// `TEST_API_KEY`, or the documented default. Rather than guess, gather all
+// three and probe which one the running backend accepts. (`loadEnvFile` does
+// not overwrite an already-set shell var, matching dotenv semantics.)
 const DEFAULT_KEY = "69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY";
 const SHELL_KEY = process.env.TEST_API_KEY; // captured before loading .env
-const BACKEND_ENV = resolve(__dirname, "../apps/backend-services/.env");
+const ROOT_ENV = resolve(__dirname, "../.env");
 try {
-  if (existsSync(BACKEND_ENV)) process.loadEnvFile(BACKEND_ENV);
+  if (existsSync(ROOT_ENV)) process.loadEnvFile(ROOT_ENV);
 } catch {
   // Older Node without loadEnvFile, or unreadable — rely on the other sources.
 }
@@ -1866,8 +1863,8 @@ function dynamicNodeConfig(name, slugName) {
 }
 
 /**
- * D2 (14.8) — a workflow that references a dynamic node whose lineage has been
- * SOFT-DELETED, seeded already in that end state.
+ * A workflow that references a dynamic node whose lineage has been
+ * SOFT-DELETED, seeded already in that end state (manual test plan 14.8).
  *
  * The plan asks the reader to go and delete a lineage themselves. That is
  * destructive, it consumes the Part-14 demo for whoever walks next, and it
@@ -1946,7 +1943,7 @@ const DYN_DEMO_STEPS = [
   "**+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).",
   "**Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).",
   "**Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node shows a real **preview** after a run — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so it has no preview to show.",
-  "⚠️ *Executing* this node in a run additionally needs the deno-runner service up (`docker compose -f deployments/local/docker-compose.deno.yml up -d`) — the worker mints the script's platform-API token itself, so no extra key is needed (14.9).",
+  "⚠️ *Executing* this node in a run additionally needs the deno-runner up alongside the Temporal worker (14.9) — the script's platform credential is a per-invocation internal token the worker mints itself, so there is nothing to configure.",
 ];
 
 // ---------------------------------------------------------------------------
@@ -2013,10 +2010,10 @@ async function createDemo(demo) {
  * published.
  */
 /**
- * D2 — publish a lineage, build a workflow on it, then soft-delete the
- * lineage so the demo ships already broken. Best-effort like its sibling: no
- * deno-runner means no publish, so the demo is skipped rather than failing the
- * whole seeder.
+ * Publish a lineage, build a workflow on it, then soft-delete the lineage so
+ * the demo ships already broken. Best-effort like its sibling: no deno-runner
+ * means no publish, so the demo is skipped rather than failing the whole
+ * seeder.
  */
 async function createDeletedDynDemo() {
   let published;
@@ -2305,7 +2302,7 @@ async function seedAgentDemos() {
   } = require("../apps/backend-services/src/generated/client");
   const { PrismaPg } = require("@prisma/adapter-pg");
   // The generated client is configured for a driver adapter (matching
-  // seed.ts). Build the pg adapter from DATABASE_URL (loaded from the backend
+  // seed.ts). Build the pg adapter from DATABASE_URL (loaded from the root
   // .env above); honour PGSSLMODE if set, otherwise a plain connection string.
   let connectionString = process.env.DATABASE_URL ?? "";
   const sslMode = process.env.PGSSLMODE;
@@ -2473,7 +2470,7 @@ main().catch((err) => {
   if (/\b401\b|Invalid API key|Unauthorized/i.test(err.message)) {
     console.error(
       "\nThe backend accepted none of the API keys it tried (shell" +
-        " TEST_API_KEY, apps/backend-services/.env TEST_API_KEY, and the" +
+        " TEST_API_KEY, the repo-root .env TEST_API_KEY, and the" +
         " documented default). The backend validates x-api-key against the" +
         " value the DB was seeded with. Fix by re-seeding so they line up" +
         " (`npm run test:db:reset`) or pass the seeded key explicitly:\n" +

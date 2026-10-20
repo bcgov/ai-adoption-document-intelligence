@@ -68,12 +68,17 @@ test('renders the dev preview page', async ({ page }) => {
 
 ```bash
 node --input-type=module -e "
+import { readFileSync } from 'fs';
 import { chromium } from 'playwright';
 
 const FRONTEND = 'http://localhost:3000';
 const BACKEND  = 'http://localhost:3002';
 const TARGET   = FRONTEND + '/workflows/dev-form-preview';
 const API_KEY  = '69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY';
+// Every permission name the frontend knows, read from its enum. The mock user is
+// an ADMIN of the default group holding all of them, as in tests/e2e/helpers/auth.ts;
+// without them the routes and nav items gated by a permission stay hidden.
+const PERMISSIONS = [...readFileSync('apps/frontend/src/auth/permissions.ts', 'utf8').matchAll(/= \x22([A-Z_]+)\x22/g)].map((m) => m[1]);
 
 const browser = await chromium.launch({ headless: true });
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
@@ -90,8 +95,8 @@ await page.route(BACKEND + '/api/auth/me', async (route) => {
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       sub: 'test-user', name: 'Test User', preferred_username: 'testuser',
-      email: 'test@example.com', roles: ['user'], isAdmin: false,
-      expires_in: 3600, groups: [{ id: 'seeddefaultgroup', name: 'Default' }],
+      email: 'test@example.com', roles: ['user'], isAdmin: false, expires_in: 3600,
+      groups: [{ id: 'seeddefaultgroup', name: 'Default', role: 'ADMIN', permissions: PERMISSIONS }],
     }),
   });
 });
@@ -144,10 +149,14 @@ Verified-working init script (used successfully on 2026-05-22 to reach `/workflo
 ```js
 (function () {
   const API_KEY = '69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY';
+  // PERMISSIONS: every value of the Permission enum in
+  // apps/frontend/src/auth/permissions.ts, pasted in as a JSON array. Print it with:
+  //   node -e "console.log(JSON.stringify([...require('fs').readFileSync('apps/frontend/src/auth/permissions.ts','utf8').matchAll(/= \x22([A-Z_]+)\x22/g)].map(m=>m[1])))"
+  const PERMISSIONS = [/* paste the printed array here */];
   const mockUser = {
     sub: 'test-user', name: 'Test User', preferred_username: 'testuser',
-    email: 'test@example.com', roles: ['user'], isAdmin: false,
-    expires_in: 3600, groups: [{ id: 'seeddefaultgroup', name: 'Default' }],
+    email: 'test@example.com', roles: ['user'], isAdmin: false, expires_in: 3600,
+    groups: [{ id: 'seeddefaultgroup', name: 'Default', role: 'ADMIN', permissions: PERMISSIONS }],
   };
   function pickMock(url) {
     if (!url) return null;
