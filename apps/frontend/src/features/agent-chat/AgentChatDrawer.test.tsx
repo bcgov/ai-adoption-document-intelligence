@@ -1,15 +1,16 @@
 /**
- * Regression tests for the agent chat drawer's chrome, from Inderdeep Singh's
- * 2026-08-06 UX walkthrough:
+ * Tests for the agent chat drawer's chrome:
  *
- *  - item 26: the stop control belongs to the conversation, not the panel —
- *    the composer's send button becomes stop while a turn streams and reverts
- *    when it ends, and the header-level abort button is gone.
- *  - item 30: the model picker sits at the composer (where the user is
- *    looking while typing) and "past conversations" is opened from the header
- *    group, beside new-conversation and close.
- *  - item 22: a failed turn renders a visible error in the conversation,
- *    naming the cause the backend gave.
+ *  - the stop control belongs to the conversation, not the panel — the
+ *    composer's send button becomes stop while a turn streams and reverts
+ *    when it ends, and the header has no abort button;
+ *  - the model picker sits at the composer (where the user is looking while
+ *    typing) and "past conversations" is opened from the header group, beside
+ *    new-conversation and close;
+ *  - a failed turn renders a visible error in the conversation, naming the
+ *    cause the backend gave;
+ *  - a server with no model provider says so, and its send is disabled with
+ *    the reason reachable by mouse, keyboard and screen reader.
  *
  * assistant-ui's runtime is stubbed: these are questions about which control
  * renders in which container, and the real runtime would only add a network
@@ -185,7 +186,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("item 26 — the composer's button is the stop control while streaming", () => {
+describe("the composer's button is the stop control while streaming", () => {
   it("shows send, not stop, when no turn is running", () => {
     renderDrawer();
     const composer = within(screen.getByTestId("agent-chat-composer"));
@@ -222,7 +223,7 @@ describe("item 26 — the composer's button is the stop control while streaming"
   });
 });
 
-describe("item 30 — panel layout", () => {
+describe("panel layout", () => {
   it("renders the model picker inside the composer, not the header", () => {
     renderDrawer();
     const composer = within(screen.getByTestId("agent-chat-composer"));
@@ -273,13 +274,13 @@ const TWO_MODELS: AgentModelOption[] = [
   },
 ];
 
-describe("item 23 — the picker offers only what the backend can serve", () => {
+describe("the picker offers only what the backend can serve", () => {
   it("starts on the entry the backend flags as default, not the first one", () => {
     setModels({ data: serving(TWO_MODELS) });
     renderDrawer();
 
-    // The old code took AGENT_MODEL_OPTIONS[0] — which is why gpt-5.4 went
-    // out on every turn regardless of what the server had configured.
+    // The backend's flag decides, not list order: the first entry is not
+    // necessarily the model the server is configured to use.
     const picker = screen.getByTestId("agent-chat-model-picker");
     expect(picker).toHaveTextContent("Haiku 4.5");
     expect(picker).toHaveAttribute(
@@ -348,12 +349,12 @@ describe("item 23 — the picker offers only what the backend can serve", () => 
 });
 
 /**
- * I3 — Inderdeep's composer mock-up: attach `+` at the far left, the model
- * name and its tier immediately after it as a dropdown trigger, send at the
- * right, and an open menu listing each model with a one-line descriptor and a
- * check on the selected one.
+ * The composer's footer: attach `+` at the far left, the model name and its
+ * tier immediately after it as a dropdown trigger, send at the right, and an
+ * open menu listing each model with a one-line descriptor and a check on the
+ * selected one.
  */
-describe("I3 — the composer footer", () => {
+describe("the composer footer", () => {
   it("puts attach, then the model, then send in one strip", () => {
     setModels({ data: serving(TWO_MODELS) });
     renderDrawer();
@@ -411,6 +412,17 @@ describe("I3 — the composer footer", () => {
     expect(useAgentChatStore.getState().selectedModel?.model).toBe("gpt-4o");
   });
 
+  it("draws the tier in gray.7, which reads at 6.5:1 on the composer's white", () => {
+    // jsdom computes no colours, so this pins the token; the ratio itself was
+    // measured in Chromium. `dimmed` (gray.6) measured 2.7:1 there.
+    setModels({ data: serving(TWO_MODELS) });
+    renderDrawer();
+
+    expect(
+      screen.getByTestId("agent-chat-model-tier").getAttribute("style"),
+    ).toContain("color: var(--mantine-color-gray-7)");
+  });
+
   it("shows the name alone for a model the backend gave no tier for", () => {
     // A privately-named Azure deployment: the backend refuses to invent a
     // tier for it, and the picker must not invent one either.
@@ -435,12 +447,11 @@ describe("I3 — the composer footer", () => {
 });
 
 /**
- * I1 / D4 — an empty model list means the server told us, successfully, that
- * it has no provider at all. That used to render as "Server default model"
- * with a live composer, so a message typed there went nowhere and nothing
- * ever said the assistant was unconfigured.
+ * An empty model list means the server told us, successfully, that it has no
+ * provider at all. A message typed there would go nowhere, so the drawer has
+ * to say the assistant is unconfigured, and send nothing.
  */
-describe("I1 — the assistant isn't configured on this server", () => {
+describe("the assistant isn't configured on this server", () => {
   const MISSING = [
     { provider: "anthropic" as const, variables: ["ANTHROPIC_API_KEY"] },
     {
@@ -490,6 +501,30 @@ describe("I1 — the assistant isn't configured on this server", () => {
     expect(wrapper).toHaveAttribute("tabindex", "0");
   });
 
+  it("shows the reason when the disabled send takes keyboard focus", async () => {
+    renderUnconfigured();
+
+    const wrapper = screen.getByTestId("agent-chat-send-disabled-wrapper");
+    act(() => {
+      wrapper.focus();
+    });
+    expect(wrapper).toHaveFocus();
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "The assistant isn't configured on this server",
+    );
+  });
+
+  it("describes the disabled send with the reason, for screen readers", () => {
+    renderUnconfigured();
+
+    expect(
+      screen.getByTestId("agent-chat-send-disabled-wrapper"),
+    ).toHaveAccessibleDescription(
+      "The assistant isn't configured on this server — no model provider has credentials here. Set ANTHROPIC_API_KEY, or AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT and restart the backend. See docs-md/workflows/AGENT_SETUP.md.",
+    );
+  });
+
   it("still shows stop while a turn is running, so a stream can be ended", () => {
     threadState.isRunning = true;
     renderUnconfigured();
@@ -499,7 +534,7 @@ describe("I1 — the assistant isn't configured on this server", () => {
   });
 });
 
-describe("item 22 — a failed turn says what went wrong", () => {
+describe("a failed turn says what went wrong", () => {
   /** Fire the failure the AI SDK reports for a non-2xx `POST /agent/chat`: */
   function failTurn(body: string) {
     act(() => {

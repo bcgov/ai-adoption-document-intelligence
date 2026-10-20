@@ -21,6 +21,7 @@ import {
   Text,
   Tooltip,
   UnstyledButton,
+  VisuallyHidden,
 } from "@mantine/core";
 import {
   IconAlertTriangle,
@@ -40,6 +41,7 @@ import {
   type MutableRefObject,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useReducer,
   useRef,
@@ -97,8 +99,8 @@ export function AgentChatDrawer() {
   // Messages the thread seeds from when it (re)mounts. Populated on an
   // explicit conversation switch so a past chat visually replays.
   const [seedMessages, setSeedMessages] = useState<UIMessage[]>([]);
-  // The past-conversations panel is opened from the header (item 30), so its
-  // open state lives here rather than inside ConversationSwitcher.
+  // The past-conversations panel is opened from the header, so its open
+  // state lives here rather than inside ConversationSwitcher.
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const currentWorkflowId = useCurrentWorkflowId();
@@ -155,7 +157,7 @@ export function AgentChatDrawer() {
 
   // The model a turn is actually sent with: the user's pick when the backend
   // still offers it, otherwise the backend's own default, and `null` until
-  // the list arrives — never a frontend guess (item 23).
+  // the list arrives — never a frontend guess.
   const { data: models } = useAgentModels();
   const effectiveModel = resolveEffectiveModel(models?.items, selectedModel);
 
@@ -250,9 +252,8 @@ function ChatThread({
   onAbort: () => void | Promise<void>;
 }) {
   const queryClient = useQueryClient();
-  // The last turn's failure, shown inside the conversation. Before this the
-  // runtime swallowed every rejection and the drawer just sat there
-  // (Inderdeep, 2026-08-06 — item 22: "No error message, no feedback").
+  // The last turn's failure, shown inside the conversation, so a rejected
+  // turn is never met with silence.
   const [turnError, setTurnError] = useState<AgentChatError | null>(null);
   const clearTurnError = useCallback(() => {
     setTurnError((current) => (current === null ? current : null));
@@ -330,11 +331,9 @@ function useResetKey() {
 
 /**
  * Drawer header: identity, workflow binding, and the three panel-level
- * controls — past conversations, new conversation, close. The model picker
- * used to sit here and now lives beside the composer, and the abort button
- * used to sit here and is now the composer's send/stop toggle (Inderdeep,
- * 2026-08-06 — "the show past conversations should be somewhere here, next to
- * the plus, along with the close").
+ * controls — past conversations, new conversation, close — side by side. The
+ * model picker and the stop control belong to the conversation, so they live
+ * in the composer, not here.
  */
 function ChatHeader({
   onClose,
@@ -389,8 +388,7 @@ function ChatHeader({
             data-testid="agent-chat-reset"
           >
             {/* A plus, not a refresh arrow: this starts a new conversation,
-                it does not reload the current one (Inderdeep, 2026-08-06 —
-                "this says new conversation, while the icon says a refresh"). */}
+                it does not reload the current one. */}
             <IconPlus size={18} />
           </ActionIcon>
         </Tooltip>
@@ -413,19 +411,22 @@ function ChatHeader({
 }
 
 /**
- * The model in use, shown where the user is actually looking — in the
- * composer's footer strip, immediately after the attach `+` (Inderdeep,
- * 2026-08-14 — I3, mock-up `source/inderdeep-mockup-composer.png`; and
- * 2026-08-06, "the model selector should be at the bottom, because this is
- * where I'm generally typing").
+ * Colour of the model picker's secondary text: a model's tier, and the label
+ * the picker shows when there is no model to pick. The theme's `gray.7`
+ * (#605E5C) is 6.5:1 on the composer's white; `dimmed` resolves to `gray.6`
+ * (#9F9D9C), 2.7:1, below the 4.5:1 that text this small needs.
+ */
+const PICKER_SECONDARY_TEXT = "gray.7";
+
+/**
+ * The model in use, shown where the user is looking while typing: in the
+ * composer's footer strip, immediately after the attach `+`.
  *
- * The mock-up's shape: the model's short name in bold, its tier in muted
- * text beside it, a small chevron, and an open menu that lists each model
- * with its one-line descriptor underneath and a check against the selected
- * one. The mock-up's *names* ("Sonnet 4.5", "Opus 4.6") are illustrative —
- * this renders the backend's list and nothing else (item 23), and a model the
- * backend gave no descriptor for shows its name alone rather than a guessed
- * tier.
+ * The model's short name in bold, its tier beside it, a small chevron, and an
+ * open menu that lists each model with its one-line descriptor underneath and
+ * a check against the selected one. It renders the backend's list and nothing
+ * else, and a model the backend gave no descriptor for shows its name alone
+ * rather than a guessed tier.
  *
  * Four shapes, all carrying the same `agent-chat-model-picker` test id:
  *
@@ -439,7 +440,7 @@ function ChatHeader({
  *    override and the backend uses its own default, so a failed list request
  *    costs the user a label, not the ability to send.
  *  - **No model at all** — the server answered and has no provider. Says so;
- *    the composer's send is disabled alongside it (see {@link
+ *    the composer sends nothing alongside it (see {@link
  *    UnconfiguredNotice}).
  */
 function ModelPicker({
@@ -527,7 +528,7 @@ function ModelPicker({
                   deployment has no published positioning, and an invented one
                   would read as fact. */}
               {option.tier !== null && (
-                <Text size="xs" c="dimmed">
+                <Text size="xs" c={PICKER_SECONDARY_TEXT}>
                   {option.tier}
                 </Text>
               )}
@@ -539,7 +540,7 @@ function ModelPicker({
   );
 }
 
-/** Name in bold, tier muted beside it — the mock-up's "Sonnet 4.5 Balanced". */
+/** Name in bold, tier in a lighter grey beside it: "gpt-4o Balanced". */
 function ModelSummary({ option }: { option: AgentModelOption }) {
   return (
     <>
@@ -547,7 +548,12 @@ function ModelSummary({ option }: { option: AgentModelOption }) {
         {option.name}
       </Text>
       {option.tier !== null && (
-        <Text size="sm" c="dimmed" lh={1.2}>
+        <Text
+          size="sm"
+          c={PICKER_SECONDARY_TEXT}
+          lh={1.2}
+          data-testid="agent-chat-model-tier"
+        >
           {option.tier}
         </Text>
       )}
@@ -564,7 +570,11 @@ function StaticModelLabel({
   tooltip?: string;
 }) {
   const label = (
-    <Text size="sm" c="dimmed" data-testid="agent-chat-model-picker">
+    <Text
+      size="sm"
+      c={PICKER_SECONDARY_TEXT}
+      data-testid="agent-chat-model-picker"
+    >
       {text}
     </Text>
   );
@@ -579,12 +589,11 @@ function StaticModelLabel({
 
 /**
  * The composer's primary action. While a turn is streaming it IS the stop
- * button and reverts to send when the turn ends, so the control that stops a
- * response sits inside the conversation that produced it (Inderdeep,
- * 2026-08-06 — "generally what happens with other AI agents is this send
- * button changes to stop when it's working"). Stopping does two things: the
- * client-side cancel (`ComposerPrimitive.Cancel`, which tears down the stream)
- * and `onAbort`, which tells the backend to end the run.
+ * button and reverts to send when the turn ends, as in other chat assistants,
+ * so the control that stops a response sits inside the conversation that
+ * produced it. Stopping does two things: the client-side cancel
+ * (`ComposerPrimitive.Cancel`, which tears down the stream) and `onAbort`,
+ * which tells the backend to end the run.
  */
 function SendOrStopButton({
   onAbort,
@@ -595,34 +604,47 @@ function SendOrStopButton({
   disabledReason: string | null;
 }) {
   const isRunning = useAuiState((s) => s.thread.isRunning);
+  const disabledReasonId = useId();
 
   if (disabledReason !== null && !isRunning) {
     return (
-      <Tooltip label={disabledReason} multiline w={280}>
-        {/* The tooltip hangs off a focusable wrapper, not off the button. A
-            disabled Mantine ActionIcon fires no pointer or focus events, so a
-            tooltip on the button itself is unreachable by mouse AND by
-            keyboard — and jsdom cannot see the difference, which is how this
-            class of bug ships. */}
-        <Box
-          component="span"
-          tabIndex={0}
-          aria-describedby="agent-chat-send-disabled-reason"
-          style={{ display: "inline-flex" }}
-          data-testid="agent-chat-send-disabled-wrapper"
+      <>
+        {/* Mantine's Tooltip opens on hover only unless told otherwise; the
+            reason has to reach a keyboard user too. */}
+        <Tooltip
+          label={disabledReason}
+          multiline
+          w={280}
+          events={{ hover: true, focus: true, touch: false }}
         >
-          <ActionIcon
-            size="lg"
-            variant="filled"
-            color="blue"
-            disabled
-            aria-label="Send"
-            data-testid="agent-chat-send"
+          {/* The tooltip hangs off a focusable wrapper, not off the button. A
+              disabled Mantine ActionIcon fires no pointer or focus events, so
+              a tooltip on the button itself is unreachable by mouse AND by
+              keyboard — and jsdom cannot see the difference. */}
+          <Box
+            component="span"
+            tabIndex={0}
+            aria-describedby={disabledReasonId}
+            style={{ display: "inline-flex" }}
+            data-testid="agent-chat-send-disabled-wrapper"
           >
-            <IconSend2 size={18} />
-          </ActionIcon>
-        </Box>
-      </Tooltip>
+            <ActionIcon
+              size="lg"
+              variant="filled"
+              color="blue"
+              disabled
+              aria-label="Send"
+              data-testid="agent-chat-send"
+            >
+              <IconSend2 size={18} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+        {/* The description a screen reader announces on focus. The tooltip
+            exists only while it is open, so it cannot be the target of
+            `aria-describedby`; this copy of its text always is. */}
+        <VisuallyHidden id={disabledReasonId}>{disabledReason}</VisuallyHidden>
+      </>
     );
   }
 
@@ -651,10 +673,8 @@ function SendOrStopButton({
 
   return (
     <ComposerPrimitive.Send asChild>
-      {/* The theme's primary colour, not violet. The composer was the one
-          place in the app painting its main action off-palette (Inderdeep,
-          2026-08-06 — "I'm not sure where the purple comes from, because
-          this is not the basic colour"). `appTheme.primaryColor` is blue. */}
+      {/* The theme's primary colour (`appTheme.primaryColor` is blue), so the
+          composer's main action looks like every other primary action. */}
       <ActionIcon
         size="lg"
         variant="filled"
@@ -721,9 +741,9 @@ function MessageList({
 }
 
 /**
- * The visible half of item 22. Renders whatever cause the backend named
- * — an unconfigured provider, a spent budget, a provider rejection — and
- * clears itself the moment the next turn starts.
+ * A failed turn, inside the conversation. Renders whatever cause the backend
+ * named — an unconfigured provider, a spent budget, a provider rejection —
+ * and clears itself the moment the next turn starts.
  */
 function TurnErrorAlert({
   error,
@@ -1179,12 +1199,17 @@ function Composer({
         data-testid="agent-chat-file-input"
       />
       <UnconfiguredNotice availability={availability} />
-      {/* I3 — the mock-up's two rows: the message on its own line, and one
-          footer strip under it carrying attach `+` at the far left, the model
-          and its tier immediately after it, and send/stop hard right. Before
-          this the attach button and send sat either side of a one-line input
-          with the model name orphaned on a third row below the whole thing. */}
+      {/* Two rows: the message on its own line, and one footer strip under it
+          carrying attach `+` at the far left, the model and its tier
+          immediately after it, and send/stop hard right. */}
       <ComposerPrimitive.Root
+        // While the server has no model, nothing may be sent. Enter in the
+        // message box submits this form itself (`requestSubmit()`), without
+        // going through the disabled send button, so the submission is
+        // cancelled here; assistant-ui sends only when it is not.
+        onSubmit={(event) => {
+          if (disabledReason !== null) event.preventDefault();
+        }}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -1233,13 +1258,12 @@ function Composer({
 const AGENT_SETUP_DOC = "docs-md/workflows/AGENT_SETUP.md";
 
 /**
- * I1 / D4 — the state that was missing.
+ * The server has no model provider.
  *
  * `GET /api/agent/models` returning an empty list means the server told us,
- * successfully, that it has **no model provider at all**. That used to render
- * as the label "Server default model" with a tooltip promising an answer and
- * a live send button, so the user typed a question into a wall and got
- * nothing back. It now says so, by name, and send is inert beside it.
+ * successfully, that it has **no model provider at all**. A message typed
+ * then would get no answer, so this says so, naming what is missing, and the
+ * composer sends nothing beside it.
  *
  * The variable names come from the backend's own `REQUIRED_CONFIG` table via
  * `missingConfig` — NAMES only, never values, and never a second copy of that
