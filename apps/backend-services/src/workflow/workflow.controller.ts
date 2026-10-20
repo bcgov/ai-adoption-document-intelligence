@@ -47,7 +47,10 @@ import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
-import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
+import {
+  type ActivityOutputCacheNodeKey,
+  ActivityOutputCacheRepository,
+} from "@/cache/activity-output-cache.repository";
 import { LruTtlCache } from "@/cache/lru-ttl-cache";
 import { DocumentDbService } from "@/document/document-db.service";
 import { DocumentStatus } from "@/generated";
@@ -77,7 +80,7 @@ import {
 } from "./dto/list-runs.dto";
 import {
   applyAbortedRunStatus,
-  CacheHitDto,
+  CacheKeyDto,
   hasUnfinishedNodes,
   NODE_STATUSES_RESPONSE_SCHEMA,
   NodeRunStatusDto,
@@ -204,6 +207,11 @@ export const WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB = (() => {
 const WORKFLOW_UPLOAD_MAX_FILE_SIZE_BYTES =
   WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024;
 
+/** A run's decoded start args, as `TemporalClientService.getRunInput` returns them. */
+type RunStartArgs = NonNullable<
+  Awaited<ReturnType<TemporalClientService["getRunInput"]>>
+>;
+
 function buildVersionRunCountCacheKey(
   workflowId: string,
   versionId: string,
@@ -226,7 +234,7 @@ function parseWorkflowKindFilter(
 }
 
 @ApiTags("Workflow")
-@ApiExtraModels(NodeRunStatusDto, CacheHitDto)
+@ApiExtraModels(NodeRunStatusDto, CacheKeyDto)
 @Controller("api/workflows")
 export class WorkflowController {
   /**
@@ -966,7 +974,7 @@ export class WorkflowController {
   })
   @ApiNotFoundResponse({
     description:
-      "Workflow not found, OR the Temporal `runId` does not resolve to a known execution (never existed / typo), OR the run is not an editor Try run — production (`api`-triggered) runs are monitored in the Processing queue and are refused here with the same 404 shape (fail closed).",
+      "Workflow not found, OR the Temporal `runId` does not resolve to a known execution (never existed / typo), OR the run is not an editor Try run, OR its start args cannot be decoded so its workflow cannot be confirmed. Production (`api`-triggered) runs are refused with the same 404 shape (fail closed); a document submitted for processing is followed on the Documents page instead.",
   })
   @ApiGoneResponse({
     description:
@@ -975,7 +983,7 @@ export class WorkflowController {
   @ApiUnauthorizedResponse({ description: "Authentication required" })
   @ApiForbiddenResponse({
     description:
-      "Access denied: not a group member, OR the `runId` exists but belongs to a different workflow lineage.",
+      "Access denied: not a group member, OR the `runId` is a Try run of a different workflow lineage (or records none).",
   })
   async getNodeStatuses(
     @Param("id") id: string,
@@ -987,45 +995,17 @@ export class WorkflowController {
       Permission.WORKFLOW_RETRIEVE,
     ]);
 
+    const notFound = () => new NotFoundException({ message: "Run not found" });
     try {
-      // Ownership scoping: authorizing the *workflow* is not enough — the
-      // model-/URL-supplied `runId` is unbounded, so a group member could
-      // pair their own workflow id with a victim `runId` (leaked via
-      // logs/URLs) and read another tenant's per-node status map (node ids,
-      // error strings, cache hashes). Confirm the run actually belongs to
-      // THIS lineage before returning its statuses. Mirrors the getInputCtx
-      // cross-lineage guard.
-      const runInput = await this.temporalClient.getRunInput(runId);
+      const runInput = await this.resolveTryRunOfLineage(id, runId, notFound);
       if (runInput === null) {
         // The run's start args can't be decoded, so ownership can't be
         // confirmed — fail closed rather than leak another tenant's statuses.
-        throw new NotFoundException({ message: "Run not found" });
-      }
-      // Fail closed (§3.9): the run must positively prove it belongs to this
-      // lineage. A null `workflowLineageId` (pre-Phase-4 / foreign run) can't
-      // be attributed here, so reject rather than return its status map.
-      if (runInput.workflowLineageId !== id) {
-        throw new ForbiddenException({
-          message: "Run does not belong to this workflow",
-        });
+        throw notFound();
       }
 
-      // Editor scope (G-021 follow-up): this endpoint answers for Try runs
-      // only. The `RunTrigger` search attribute is read via `describe()` —
-      // it is stamped on every run since G-021, which is exactly the
-      // population that can carry per-node state worth replaying here. Fail
-      // closed when the attribute is absent or not `"try"` (a production
-      // run, a pre-G-021 run, or a foreign writer): 404 in the same shape
-      // as the undecodable-run refusal above, revealing nothing about
-      // whether a production run with this id exists.
-      const trigger = await this.temporalClient.getRunTrigger(runId);
-      if (trigger !== "try") {
-        throw new NotFoundException({ message: "Run not found" });
-      }
-
-      const statuses = (await this.temporalClient.queryNodeStatuses(
-        runId,
-      )) as NodeStatusesResponseDto;
+      const statuses =
+        await this.temporalClient.queryNodeStatuses<NodeRunStatusDto>(runId);
 
       // G-047: a cancelled run's nodes stay `running` in the query result —
       // cancellation stops the execution before the workflow can write a
@@ -1077,7 +1057,7 @@ export class WorkflowController {
     summary:
       "Get the cached `ActivityOutputCache` row for a node within a workflow lineage (Phase 4 preview-cache read endpoint).",
     description:
-      "Without `runId`, returns the most recent fresh (`expiresAt > now`) cache row for `(workflowLineageId, nodeId)`. With `runId`, returns the row whose `createdAt` falls within the run's execution window (with a 5s slack on the upper bound). 404 when no fresh row matches.",
+      "Without `runId`, returns the most recent fresh (`expiresAt > now`) cache row for `(workflowLineageId, nodeId)`. With `runId`, returns the row the run's own node status names: the run records, for each node a cache row holds the output of, that row's `cacheKey` (`configHash` + `inputHash`), and the row is read by that exact key. So a replay shows the run's own result even when other runs of the workflow ran at the same time, and a step the run was served from cache shows the row it was served. 404 when no fresh row matches.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiQuery({
@@ -1089,7 +1069,7 @@ export class WorkflowController {
     name: "runId",
     required: false,
     description:
-      "Optional Temporal workflow execution id. When supplied, scopes the lookup to the row written during that run's execution window.",
+      "Optional Temporal workflow execution id of an editor Try run of this workflow. When supplied, returns the row whose key the run's status for `nodeId` records.",
   })
   @ApiOkResponse({
     description:
@@ -1098,10 +1078,13 @@ export class WorkflowController {
   })
   @ApiNotFoundResponse({
     description:
-      "No fresh cache row matches. Body: `{ message: 'No cached output for this node' }`. Also returned when `runId` points to a non-existent Temporal execution, or to a run that is not an editor Try run (production runs never resolve cache rows — fail closed).",
+      "No fresh cache row matches. Body: `{ message: 'No cached output for this node' }`. With `runId`, also returned when the run's status for the node records no cache key (the step did not run, failed, is never cached, or its cache write failed), when the run does not exist, when it is not an editor Try run, or when its start args cannot be decoded so its workflow cannot be confirmed (production runs never resolve cache rows — fail closed).",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a group member, OR the `runId` is a Try run of a different workflow lineage (or records none). Body: `{ message: 'Run does not belong to this workflow' }`.",
+  })
   async getPreviewCache(
     @Param("id") id: string,
     @Query("nodeId") nodeId: string,
@@ -1129,36 +1112,33 @@ export class WorkflowController {
         nodeId,
       });
     } else {
-      let window: Awaited<ReturnType<TemporalClientService["getRunWindow"]>>;
+      // Same 404 shape as a cache miss for every refusal, so it reveals
+      // nothing about the run.
+      const notFound = () =>
+        new NotFoundException({ message: "No cached output for this node" });
+      let keys: ActivityOutputCacheNodeKey[];
       try {
-        window = await this.temporalClient.getRunWindow(runId);
+        const runInput = await this.resolveTryRunOfLineage(id, runId, notFound);
+        if (runInput === null) {
+          // Ownership can't be confirmed from undecodable start args.
+          throw notFound();
+        }
+        keys = await this.readRunCacheKeys(runId);
       } catch (error) {
         if (error instanceof WorkflowNotFoundError) {
-          throw new NotFoundException({
-            message: "No cached output for this node",
-          });
+          throw notFound();
         }
         throw error;
       }
 
-      // Editor scope (G-021 follow-up): a `runId` that is not an editor
-      // Try run must not resolve cache rows. Only Try runs write cache
-      // rows in the first place, but a production run's execution window
-      // could still overlap a concurrent Try's rows — refuse rather than
-      // attribute them. Fail closed on an absent attribute; same 404
-      // shape as a cache miss.
-      if (window.trigger !== "try") {
-        throw new NotFoundException({
-          message: "No cached output for this node",
-        });
-      }
-
-      row = await this.activityOutputCache.findInRunWindow({
-        workflowLineageId: id,
-        nodeId,
-        startedAt: window.startedAt,
-        endedAt: window.endedAt ?? new Date(),
-      });
+      const key = keys.find((candidate) => candidate.nodeId === nodeId);
+      row =
+        key === undefined
+          ? null
+          : await this.activityOutputCache.findFresh({
+              workflowLineageId: id,
+              ...key,
+            });
     }
 
     if (row === null) {
@@ -1190,21 +1170,28 @@ export class WorkflowController {
     summary:
       "Batch-read every node's cached `ActivityOutputCache` row for a workflow lineage in one request.",
     description:
-      "The batch twin of `GET /:id/preview-cache`. Returns a `nodeId → preview` map for **all** nodes with a fresh cache row, so the editor loads all node previews with one round-trip instead of one request per node (the O(nodes) request storm that tripped the rate limiter). Without `runId`, uses each node's most-recent fresh row; with `runId`, scopes to that run's execution window (5s upper-bound slack). Nodes with no fresh row are simply absent from the map — treated by the consumer like the per-node endpoint's 404. An unknown `runId` yields an empty map rather than a 404.",
+      "The batch twin of `GET /:id/preview-cache`. Returns a `nodeId → preview` map for **all** nodes with a fresh cache row, so the editor loads all node previews with one round-trip instead of one request per node (the O(nodes) request storm that tripped the rate limiter). Without `runId`, uses each node's most-recent fresh row. With `runId`, returns the rows the run's own node statuses name: each node a cache row holds the output of records that row's `cacheKey` (`configHash` + `inputHash`), and every row is read by its exact key, so a replay shows the run's own results even when other runs of the workflow ran at the same time, including the rows it was served from cache. Nodes with no fresh row, and nodes whose status records no key, are simply absent from the map — treated by the consumer like the per-node endpoint's 404.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiQuery({
     name: "runId",
     required: false,
     description:
-      "Optional Temporal workflow execution id. When supplied, scopes the batch to rows written during that run's execution window.",
+      "Optional Temporal workflow execution id of an editor Try run of this workflow. When supplied, returns the rows the run's node statuses record keys for.",
   })
   @ApiOkResponse({
     description: "Map of nodeId → the node's cached preview row.",
     type: ActivityOutputPreviewBatchDto,
   })
+  @ApiNotFoundResponse({
+    description:
+      "Workflow not found, OR (with `runId`) the run does not exist, is not an editor Try run, or has start args that cannot be decoded so its workflow cannot be confirmed (fail closed). Body for a refused run: `{ message: 'Run not found' }`.",
+  })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a group member, OR the `runId` is a Try run of a different workflow lineage (or records none). Body: `{ message: 'Run does not belong to this workflow' }`.",
+  })
   async getPreviewCacheBatch(
     @Param("id") id: string,
     @Query("runId") runId: string | undefined,
@@ -1224,32 +1211,26 @@ export class WorkflowController {
         workflowLineageId: id,
       });
     } else {
-      let window: Awaited<ReturnType<TemporalClientService["getRunWindow"]>>;
+      const notFound = () =>
+        new NotFoundException({ message: "Run not found" });
+      let keys: ActivityOutputCacheNodeKey[];
       try {
-        window = await this.temporalClient.getRunWindow(runId);
+        const runInput = await this.resolveTryRunOfLineage(id, runId, notFound);
+        if (runInput === null) {
+          // Ownership can't be confirmed from undecodable start args.
+          throw notFound();
+        }
+        keys = await this.readRunCacheKeys(runId);
       } catch (error) {
         if (error instanceof WorkflowNotFoundError) {
-          // Unknown run — no previews to surface. Return an empty map
-          // rather than a 404 so the batch endpoint degrades gracefully
-          // (the per-node endpoint 404s a single node; the batch has
-          // nothing meaningful to 404 on).
-          return { previews: {} };
+          throw notFound();
         }
         throw error;
       }
 
-      // Editor scope (G-021 follow-up): mirrors the per-node endpoint's
-      // Try-only refusal, in this endpoint's graceful shape — a run that
-      // is not positively a Try run yields the empty map, exactly like an
-      // unknown run (fail closed on an absent attribute).
-      if (window.trigger !== "try") {
-        return { previews: {} };
-      }
-
-      rows = await this.activityOutputCache.findManyInRunWindow({
+      rows = await this.activityOutputCache.findManyFresh({
         workflowLineageId: id,
-        startedAt: window.startedAt,
-        endedAt: window.endedAt ?? new Date(),
+        keys,
       });
     }
 
@@ -1286,12 +1267,13 @@ export class WorkflowController {
     description:
       "Resolves the run's input in two passes: (1) decode the " +
       "`WorkflowExecutionStarted` event's payload (the start args " +
-      "carrying `initialCtx`); (2) when Temporal's history is " +
-      "retention-cleaned or the payload is missing, fall back to the " +
-      "source-node's cache row from the run's execution window " +
-      "(source nodes write `outputCtx === initialCtx`, so the cache " +
-      "row preserves the original input). Cross-lineage `runId`s " +
-      "return 403; unknown / fully-evicted `runId`s return 404.",
+      "carrying `initialCtx`); (2) when the run exists but its start " +
+      "args cannot be decoded, read the source node's cache row by the " +
+      "exact `cacheKey` the run's node status records for it (source " +
+      "nodes write `outputCtx === initialCtx`, so the cache row " +
+      "preserves the original input). Only editor Try runs of this " +
+      "workflow answer: cross-lineage `runId`s return 403; unknown, " +
+      "retention-cleaned or production `runId`s return 404.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiParam({
@@ -1308,11 +1290,12 @@ export class WorkflowController {
   @ApiNotFoundResponse({
     description:
       "Workflow not found, OR the run's input can't be reconstructed — the " +
-      "run is unknown, its history is retention-cleaned, or no source-node " +
-      "cache row falls inside the run's window — OR the run is not an " +
-      "editor Try run (production `api`-triggered runs are refused with " +
-      'the same shape, fail closed). Body: `{ message: "Input ' +
-      'not available — run too old or never captured" }`.',
+      "run is unknown, its history is retention-cleaned, or its start args " +
+      "can't be decoded and no fresh source-node cache row matches the key " +
+      "its node status records — OR the run is not an editor Try run " +
+      "(production `api`-triggered runs are refused with the same shape, " +
+      'fail closed). Body: `{ message: "Input not available — run too ' +
+      'old or never captured" }`.',
   })
   @ApiForbiddenResponse({
     description:
@@ -1331,119 +1314,142 @@ export class WorkflowController {
       Permission.WORKFLOW_RETRIEVE,
     ]);
 
-    // -------------------------------------------------------------------
-    // Editor scope (G-021 follow-up): Try runs only. A production run's
-    // `initialCtx` carries document identifiers and filenames that must
-    // not surface on an editor endpoint. The `RunTrigger` search
-    // attribute (via `describe()`) is stamped on every run since G-021;
-    // when it is absent or not `"try"` we fail CLOSED with the endpoint's
-    // existing 404 "not available" shape — an unattributable run is
-    // treated as production, and the 404 reveals nothing about whether a
-    // production run with this id exists.
-    // -------------------------------------------------------------------
-    let trigger: Awaited<ReturnType<TemporalClientService["getRunTrigger"]>>;
-    try {
-      trigger = await this.temporalClient.getRunTrigger(runId);
-    } catch (error) {
-      if (error instanceof WorkflowNotFoundError) {
-        throw new NotFoundException({
-          message: "Input not available — run too old or never captured",
-        });
-      }
-      throw error;
-    }
-    if (trigger !== "try") {
-      throw new NotFoundException({
+    const notAvailable = () =>
+      new NotFoundException({
         message: "Input not available — run too old or never captured",
       });
-    }
 
     // -------------------------------------------------------------------
-    // Primary path: pull the start args from the run's Temporal history.
+    // Primary path: the start args from the run's Temporal history, once
+    // the run is confirmed to be a Try run of this lineage.
     // -------------------------------------------------------------------
-    let runInput: Awaited<ReturnType<TemporalClientService["getRunInput"]>> =
-      null;
+    let runInput: RunStartArgs | null;
     try {
-      runInput = await this.temporalClient.getRunInput(runId);
+      runInput = await this.resolveTryRunOfLineage(id, runId, notAvailable);
     } catch (error) {
       // `WorkflowNotFoundError` covers both "no such run" and "history past
       // retention". §3.8: in EITHER case we can't reconstruct THIS run's
-      // input — the cache-row fallback below needs the run's execution window
-      // from Temporal, which is gone. Falling back to the lineage's
-      // most-recent cache row could replay a DIFFERENT (newer) run's document
-      // on "Re-run", so we fail safe with 404 ("input not available") rather
-      // than return the wrong input.
+      // input — the cache-row fallback below needs the run's node statuses,
+      // which Temporal can only answer while it holds the run. Falling back
+      // to the lineage's most-recent cache row could replay a DIFFERENT
+      // (newer) run's document on "Re-run", so we fail safe with 404
+      // ("input not available") rather than return the wrong input.
       if (error instanceof WorkflowNotFoundError) {
-        throw new NotFoundException({
-          message: "Input not available — run too old or never captured",
-        });
+        throw notAvailable();
       }
       throw error;
     }
 
     if (runInput !== null) {
-      // Cross-lineage check — the runId resolved but the start args must
-      // positively prove they belong to THIS lineage. §3.9: fail closed —
-      // a run whose start args carry no `workflowLineageId` (pre-Phase-4
-      // runs, or a foreign writer to the namespace) can't be attributed to
-      // this lineage, so we must not return its `initialCtx`.
-      // `startGraphWorkflow` always records the attribute today, so current
-      // runs pass; only unverifiable/foreign runs are rejected.
-      if (runInput.workflowLineageId !== id) {
-        throw new ForbiddenException({
-          message: "Run does not belong to this workflow",
-        });
-      }
       return { initialCtx: runInput.initialCtx };
     }
 
     // -------------------------------------------------------------------
-    // Fallback path: source-node cache row inside the run's window.
-    //
-    // Source nodes write `outputCtx === initialCtx` (see
-    // `apps/temporal/src/cache/source-node-cache.ts`), so the cache row
-    // is a faithful reconstruction of the start args even when Temporal
-    // no longer has them.
+    // Fallback path: Temporal has the run but its start args can't be
+    // decoded. The source node's cache row holds `outputCtx === initialCtx`
+    // (see `apps/temporal/src/cache/source-node-cache.ts`), and the run's
+    // node status for the source node records that row's exact key, so the
+    // row read back is this run's input and no other run's.
     // -------------------------------------------------------------------
     const sourceNode = Object.values(wf.config.nodes).find(
       (node) => node.type === "source",
     );
-
-    let row: Awaited<
-      ReturnType<ActivityOutputCacheRepository["findInRunWindow"]>
-    > = null;
-
-    if (sourceNode !== undefined) {
-      // Reached only when Temporal HAS the run but its start args weren't
-      // decodable (getRunInput returned null) — the run's execution window is
-      // still available, so we can scope the cache lookup to exactly this run.
-      let window: { startedAt: Date; endedAt: Date | null };
-      try {
-        window = await this.temporalClient.getRunWindow(runId);
-      } catch (error) {
-        if (error instanceof WorkflowNotFoundError) {
-          throw new NotFoundException({
-            message: "Input not available — run too old or never captured",
-          });
-        }
-        throw error;
-      }
-
-      row = await this.activityOutputCache.findInRunWindow({
-        workflowLineageId: id,
-        nodeId: sourceNode.id,
-        startedAt: window.startedAt,
-        endedAt: window.endedAt ?? new Date(),
-      });
+    if (sourceNode === undefined) {
+      throw notAvailable();
     }
 
+    let keys: ActivityOutputCacheNodeKey[];
+    try {
+      keys = await this.readRunCacheKeys(runId);
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        throw notAvailable();
+      }
+      throw error;
+    }
+
+    const key = keys.find((candidate) => candidate.nodeId === sourceNode.id);
+    const row =
+      key === undefined
+        ? null
+        : await this.activityOutputCache.findFresh({
+            workflowLineageId: id,
+            ...key,
+          });
     if (row === null) {
-      throw new NotFoundException({
-        message: "Input not available — run too old or never captured",
-      });
+      throw notAvailable();
     }
 
     return { initialCtx: row.outputCtx as Record<string, unknown> };
+  }
+
+  /**
+   * The guard every per-run editor endpoint applies before answering for a
+   * `runId`: node statuses, both preview-cache reads, and input-ctx. The
+   * `runId` comes from the caller and is unbounded, so these endpoints
+   * answer for an editor Try run of THIS lineage only.
+   *
+   * 1. Try runs only. A production run's start args carry document ids and
+   *    file names that must not surface in the editor, so the `RunTrigger`
+   *    search attribute is read first, from `describe()`, before the start
+   *    args are fetched. Anything other than `"try"`, including an absent
+   *    attribute, gets `notFound()`: the endpoint's own 404 shape, which
+   *    reveals nothing about whether such a run exists.
+   * 2. This lineage only. Otherwise a group member could pair their own
+   *    workflow id with another tenant's run id. Start args that decode must
+   *    name this lineage; anything else (another lineage, or none recorded)
+   *    is a 403.
+   *
+   * Returns the decoded start args, or `null` when the run exists but its
+   * start args cannot be decoded. The run's lineage is then unproven: the
+   * status and preview endpoints refuse it, and input-ctx falls back to the
+   * source node's cache row.
+   *
+   * Temporal errors (notably `WorkflowNotFoundError`, for an unknown or
+   * retention-cleaned run) propagate unchanged, so each endpoint maps them
+   * onto its own response.
+   */
+  private async resolveTryRunOfLineage(
+    lineageId: string,
+    runId: string,
+    notFound: () => NotFoundException,
+  ): Promise<RunStartArgs | null> {
+    const trigger = await this.temporalClient.getRunTrigger(runId);
+    if (trigger !== "try") {
+      throw notFound();
+    }
+    const runInput = await this.temporalClient.getRunInput(runId);
+    if (runInput !== null && runInput.workflowLineageId !== lineageId) {
+      throw new ForbiddenException({
+        message: "Run does not belong to this workflow",
+      });
+    }
+    return runInput;
+  }
+
+  /**
+   * The cache keys a run's node statuses record: for every node a cache row
+   * holds the output of in this run, the key that row was written or served
+   * under (`NodeRunStatus.cacheKey`). Reading rows by these exact keys is
+   * what ties a preview to its run; the cache table itself has no run
+   * column. Temporal errors propagate unchanged.
+   */
+  private async readRunCacheKeys(
+    runId: string,
+  ): Promise<ActivityOutputCacheNodeKey[]> {
+    const statuses =
+      await this.temporalClient.queryNodeStatuses<NodeRunStatusDto>(runId);
+    return Object.entries(statuses).flatMap(([nodeId, status]) =>
+      status.cacheKey
+        ? [
+            {
+              nodeId,
+              configHash: status.cacheKey.configHash,
+              inputHash: status.cacheKey.inputHash,
+            },
+          ]
+        : [],
+    );
   }
 
   @Get(":id/runs")
@@ -1461,7 +1467,9 @@ export class WorkflowController {
       "consumer can fetch the full ctx on demand via " +
       "`GET /:id/runs/:runId/input-ctx`). Run history is an editor " +
       'surface: only editor Try runs (`RunTrigger = "try"`) are listed. ' +
-      "Production runs are monitored in the Processing queue instead.",
+      "Production runs, such as a document uploaded for processing or a " +
+      "run started through the API, are not listed; a document's " +
+      "processing progress is shown on the Documents page.",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiOkResponse({

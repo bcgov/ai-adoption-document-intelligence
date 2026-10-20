@@ -4,8 +4,8 @@
  * Surfaces a single `ActivityOutputCache` row (post-TTL filter) to the
  * frontend preview widget. The endpoint returns the most recent fresh row
  * for `(workflowLineageId, nodeId)` by default, or — when `runId` is
- * supplied — the row whose `createdAt` falls within that Temporal run's
- * execution window.
+ * supplied — the row whose exact key that run's node status records
+ * (`NodeRunStatus.cacheKey`).
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L20
@@ -47,7 +47,9 @@ export class ActivityOutputPreviewDto {
 
   @ApiProperty({
     description:
-      "ISO-8601 timestamp of when the worker decorator wrote this cache row.",
+      "ISO-8601 timestamp of when this cache row was first written. A later " +
+      "run that is served the row, or writes the same output again, leaves " +
+      "it unchanged, so it can be earlier than the run being replayed.",
     example: "2026-05-24T12:00:00.000Z",
   })
   createdAt!: string;

@@ -2,11 +2,12 @@
  * Response DTO for `GET /api/workflows/:id/preview-cache-batch`.
  *
  * The batch twin of `ActivityOutputPreviewDto` / the per-node
- * `preview-cache` endpoint: returns the most-recent fresh cache row for
- * **every** node in the lineage (optionally scoped to a run window) in a
- * single response, keyed by `nodeId`. Nodes with no fresh cache row are
- * simply absent from the map — the consumer treats an absent key exactly
- * like the per-node endpoint's 404 (no preview yet / evicted).
+ * `preview-cache` endpoint: returns, in a single response keyed by
+ * `nodeId`, the most-recent fresh cache row for **every** node in the
+ * lineage, or — with a `runId` — the rows that run's node statuses name by
+ * their exact keys. Nodes with no fresh cache row are simply absent from
+ * the map — the consumer treats an absent key exactly like the per-node
+ * endpoint's 404 (no preview yet / evicted).
  *
  * Motivation: the editor mounts a preview widget on every node, so the
  * per-node endpoint fired one request per node on every load — an

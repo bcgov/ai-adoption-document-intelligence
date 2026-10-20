@@ -1078,7 +1078,7 @@ describe("TemporalClientService", () => {
   // Change C support — RunTrigger resolution off describe() for the per-run
   // editor endpoints' fail-closed Try gate.
   // ---------------------------------------------------------------------------
-  describe("getRunTrigger + getRunWindow trigger (Change C)", () => {
+  describe("getRunTrigger (Change C)", () => {
     it("getRunTrigger reads the RunTrigger search attribute from describe()", async () => {
       mockWorkflowHandle.describe.mockResolvedValue({
         startTime: new Date("2026-08-01T00:00:00Z"),
@@ -1095,21 +1095,6 @@ describe("TemporalClientService", () => {
         searchAttributes: {},
       });
       await expect(service.getRunTrigger("run-legacy")).resolves.toBeNull();
-    });
-
-    it("getRunWindow carries the trigger alongside the execution window", async () => {
-      const startTime = new Date("2026-08-01T00:00:00Z");
-      const closeTime = new Date("2026-08-01T00:05:00Z");
-      mockWorkflowHandle.describe.mockResolvedValue({
-        startTime,
-        closeTime,
-        searchAttributes: { RunTrigger: ["api"] },
-      });
-      await expect(service.getRunWindow("run-2")).resolves.toEqual({
-        startedAt: startTime,
-        endedAt: closeTime,
-        trigger: "api",
-      });
     });
   });
 });

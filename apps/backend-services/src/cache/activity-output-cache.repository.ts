@@ -28,16 +28,13 @@ export interface ActivityOutputCacheLineageNodeKey {
 }
 
 /**
- * Lookup shape for `findInRunWindow` (US-140). The run window is
- * supplied by the controller after a `WorkflowHandle.describe()` call;
- * for in-flight runs, `endedAt` should be the current time. The repo
- * applies a small slack on the upper bound — see method docs.
+ * One node's exact cache key within a lineage, for `findManyFresh`: the
+ * node id plus the two hashes a run's node status records for it.
  */
-export interface ActivityOutputCacheRunWindowKey
-  extends ActivityOutputCacheLineageNodeKey {
-  startedAt: Date;
-  endedAt: Date;
-}
+export type ActivityOutputCacheNodeKey = Omit<
+  ActivityOutputCacheKey,
+  "workflowLineageId"
+>;
 
 /**
  * Input for `upsert`. The unique-key columns plus the payload columns. When
@@ -54,17 +51,21 @@ export interface ActivityOutputCacheUpsertInput extends ActivityOutputCacheKey {
 /**
  * Prisma-backed repository for the `ActivityOutputCache` table.
  *
- * Exposes three operations:
- *   - `findFresh`: unique-key lookup filtered to `expiresAt > now()` so TTL-
- *     expired rows are invisible to consumers even before GC sweeps them.
+ * Main operations:
+ *   - `findFresh` / `findManyFresh`: exact unique-key lookups filtered to
+ *     `expiresAt > now()` so TTL-expired rows are invisible to consumers even
+ *     before GC sweeps them. A run's node statuses record each node's key, so
+ *     these read back exactly the rows a run produced or was served.
+ *   - `findMostRecentFresh` / `findManyMostRecentFresh`: each node's newest
+ *     fresh row, whichever run wrote it.
  *   - `upsert`: insert-or-overwrite on the unique key; on overwrite, mutable
  *     payload columns (`outputCtx`, `outputKind`, `expiresAt`) are refreshed.
  *   - `deleteExpired`: GC helper that removes all rows whose `expiresAt`
  *     is in the past. Uses the `(expiresAt)` index from US-126.
  *
- * The worker decorator (US-132) and the preview-cache endpoint (US-140)
- * are the primary consumers. See
- * `docs-md/workflows/TRY_IN_PLACE_DESIGN.md` §2.2 + §2.6.
+ * The preview-cache endpoints (US-140) are the consumers in this app; the
+ * worker reads and writes the same table through its own cache activities.
+ * See `docs-md/workflows/TRY_IN_PLACE_DESIGN.md` §2.2 + §2.5.
  */
 @Injectable()
 export class ActivityOutputCacheRepository {
@@ -170,36 +171,33 @@ export class ActivityOutputCacheRepository {
   }
 
   /**
-   * Return the most recent fresh cache row for `(workflowLineageId,
-   * nodeId)` whose `createdAt` falls within the supplied run window, or
-   * `null` when no row matches.
+   * Batch twin of {@link findFresh}: the fresh (`expiresAt > now()`) rows
+   * matching any of `keys` within one lineage, in a single query. A key
+   * with no fresh row is simply absent from the result; the unique key
+   * means a key matches at most one row.
    *
-   * The upper bound is widened by 5 seconds to absorb the race where the
-   * worker decorator writes the cache row after the activity completes
-   * but before Temporal marks the workflow execution as ended.
-   *
-   * Used by the preview-cache read endpoint (US-140) when a `runId` is
-   * supplied to scope the read to a specific historical run.
+   * Backs the run-scoped batch preview endpoint, which takes the keys from
+   * the run's node statuses. An empty `keys` list returns `[]` without a
+   * query.
    */
-  async findInRunWindow(
-    key: ActivityOutputCacheRunWindowKey,
-  ): Promise<ActivityOutputCache | null> {
-    const slackMs = 5_000;
-    const upperBound = new Date(key.endedAt.getTime() + slackMs);
-
-    const row = await this.prismaService.prisma.activityOutputCache.findFirst({
+  async findManyFresh(params: {
+    workflowLineageId: string;
+    keys: readonly ActivityOutputCacheNodeKey[];
+  }): Promise<ActivityOutputCache[]> {
+    if (params.keys.length === 0) {
+      return [];
+    }
+    return this.prismaService.prisma.activityOutputCache.findMany({
       where: {
-        workflowLineageId: key.workflowLineageId,
-        nodeId: key.nodeId,
+        workflowLineageId: params.workflowLineageId,
         expiresAt: { gt: new Date() },
-        createdAt: {
-          gte: key.startedAt,
-          lte: upperBound,
-        },
+        OR: params.keys.map((key) => ({
+          nodeId: key.nodeId,
+          configHash: key.configHash,
+          inputHash: key.inputHash,
+        })),
       },
-      orderBy: { createdAt: "desc" },
     });
-    return row;
   }
 
   /**
@@ -220,33 +218,6 @@ export class ActivityOutputCacheRepository {
       where: {
         workflowLineageId: key.workflowLineageId,
         expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    return this.pickMostRecentPerNode(rows);
-  }
-
-  /**
-   * Batch twin of {@link findInRunWindow}: return the most recent fresh
-   * cache row per node whose `createdAt` falls within the supplied run
-   * window (with the same 5s upper-bound slack), in a single query.
-   */
-  async findManyInRunWindow(key: {
-    workflowLineageId: string;
-    startedAt: Date;
-    endedAt: Date;
-  }): Promise<ActivityOutputCache[]> {
-    const slackMs = 5_000;
-    const upperBound = new Date(key.endedAt.getTime() + slackMs);
-
-    const rows = await this.prismaService.prisma.activityOutputCache.findMany({
-      where: {
-        workflowLineageId: key.workflowLineageId,
-        expiresAt: { gt: new Date() },
-        createdAt: {
-          gte: key.startedAt,
-          lte: upperBound,
-        },
       },
       orderBy: { createdAt: "desc" },
     });

@@ -92,16 +92,20 @@ export function applyAbortedRunStatus<T extends { status: NodeRunStatusValue }>(
   return changed ? out : statuses;
 }
 
-export class CacheHitDto {
+/**
+ * The two hashes that, with the run's workflow lineage and the node id, make
+ * up the unique key of an `ActivityOutputCache` row.
+ */
+export class CacheKeyDto {
   @ApiProperty({
     description:
-      "Hash of the workflow config used as the cache key's first component.",
+      "sha256 of the node's identity of computation: its type, its activity or source subtype, and its parameters.",
   })
   configHash!: string;
 
   @ApiProperty({
     description:
-      "Hash of the node's resolved inputs used as the cache key's second component.",
+      "sha256 of what the node consumed: its input ports' values for an activity, the run's initial input for a source node.",
   })
   inputHash!: string;
 }
@@ -137,11 +141,11 @@ export class NodeRunStatusDto {
 
   @ApiProperty({
     description:
-      'Populated on `status === "skipped"`. Names the cache row the Phase 4 decorator served the output from.',
+      "The key of the cache row that holds this node's output for this run. Present whenever such a row exists: a cache hit (`skipped`), a cacheable step whose row was written (`succeeded`), and a source node, whose row is written when the run starts. Absent for steps that are never cached, for runs that do not use the cache (anything but an editor Try), and when the cache write failed. The preview-cache endpoints read a run's rows by these exact keys, so a replay shows the run's own results.",
     required: false,
-    type: CacheHitDto,
+    type: CacheKeyDto,
   })
-  cacheHit?: CacheHitDto;
+  cacheKey?: CacheKeyDto;
 
   @ApiProperty({
     description:

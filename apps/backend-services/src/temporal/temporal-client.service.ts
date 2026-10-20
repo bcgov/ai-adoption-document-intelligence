@@ -566,7 +566,8 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       startedAt?: string;
       endedAt?: string;
       errorMessage?: string;
-      cacheHit?: { configHash: string; inputHash: string };
+      cacheKey?: { configHash: string; inputHash: string };
+      selectedEdgeId?: string;
     },
   >(workflowId: string): Promise<Record<string, NodeRunStatus>> {
     this.ensureClientInitialized();
@@ -575,52 +576,18 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Resolve the `startedAt + endedAt` execution window for a Temporal
-   * workflow run by calling `WorkflowHandle.describe()`.
-   *
-   * For in-flight runs, `endedAt` is `null` — callers must substitute the
-   * current time as the upper bound when querying the cache.
-   *
-   * Errors are propagated unmodified (notably `WorkflowNotFoundError`
-   * from `@temporalio/client`) so the controller can map them to HTTP
-   * semantics in the same way `queryNodeStatuses` does.
-   *
-   * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L20,
-   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.5.
-   *
-   * @param workflowId Temporal workflow execution id (runId in the canvas)
-   * @returns `{ startedAt, endedAt, trigger }` where `endedAt` is `null`
-   *          for runs that have not yet closed and `trigger` is the run's
-   *          decoded `RunTrigger` search attribute (`null` when absent —
-   *          see {@link getRunTrigger} for what callers must do with that).
-   */
-  async getRunWindow(workflowId: string): Promise<{
-    startedAt: Date;
-    endedAt: Date | null;
-    trigger: RunTrigger | null;
-  }> {
-    this.ensureClientInitialized();
-    const handle = this.client!.workflow.getHandle(workflowId);
-    const description = await handle.describe();
-    return {
-      startedAt: description.startTime,
-      endedAt: description.closeTime ?? null,
-      trigger: extractRunTrigger(description.searchAttributes),
-    };
-  }
-
-  /**
    * Resolve a run's `RunTrigger` search attribute via `describe()`.
    *
-   * Backs the per-run editor endpoints' Try-only scoping (G-021 follow-up):
-   * `GET /:id/runs/:runId/node-statuses` and `GET /:id/runs/:runId/input-ctx`
-   * must refuse production (`"api"`) runs, and the search attribute is the
-   * cheapest reliable source — it is stamped by `startGraphWorkflow` on
-   * every run since G-021, including runs that predate `trigger` travelling
-   * in the workflow input, and reading it does not fetch history.
+   * Backs the per-run editor endpoints' Try-only scoping:
+   * `GET /:id/runs/:runId/node-statuses`, `GET /:id/runs/:runId/input-ctx`
+   * and the run-scoped `GET /:id/preview-cache[-batch]?runId=` reads must
+   * refuse production (`"api"`) runs, and the search attribute is the
+   * cheapest reliable source — `startGraphWorkflow` stamps it on every run
+   * it starts, and reading it does not fetch history.
    *
    * Returns `null` when the attribute is absent or carries an unknown value
-   * (a run started before G-021, or a foreign writer to the namespace).
+   * (a run started before the attribute was stamped, or a foreign writer to
+   * the namespace).
    * Callers MUST fail closed on `null` — an unattributable run is treated as
    * production, the same direction `cancelInFlightTriesForLineage` takes.
    *
@@ -649,9 +616,11 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * Returns `null` when the run's history is unavailable (retention-
    * cleaned), when the first event is not a `WorkflowExecutionStarted`,
    * when no input payload is present, or when the decoded payload does
-   * not carry an `initialCtx`. Callers MUST treat `null` as a signal to
-   * fall back to alternate sources of the input ctx (e.g. the cache row
-   * for the run's source node — see US-151 §6.4 in TRY_IN_PLACE_DESIGN.md).
+   * not carry an `initialCtx`. A `null` proves nothing about the run's
+   * lineage: callers that need ownership MUST refuse it, and a caller that
+   * only needs the input ctx falls back to another source of it (the
+   * input-ctx endpoint reads the run's source-node cache row — see US-151
+   * §6.4 in TRY_IN_PLACE_DESIGN.md).
    *
    * Errors from the underlying `fetchHistory()` call are propagated
    * unmodified (notably `WorkflowNotFoundError` from `@temporalio/client`)
@@ -858,8 +827,8 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * Editor Try runs only: every query carries `RunTrigger = "try"`. Run
    * history is an editor surface — a production run's `initialCtx` carries
    * document identifiers and filenames that must not surface in the
-   * designer's drawer. Production runs are monitored in the Processing
-   * queue instead. Runs that predate the `RunTrigger` attribute (G-021)
+   * designer's drawer. A document's processing progress is shown on the
+   * Documents page instead. Runs that predate the `RunTrigger` attribute
    * carry no value and therefore do not match, the safe direction.
    *
    * Uses the raw `WorkflowService.listWorkflowExecutions` gRPC method
