@@ -1,12 +1,11 @@
 /**
- * D27 — "How can a user know what the `Document` type contains?"
- *
- * The answer the popover renders has to come from the registry, so these tests
- * are written against the registry's real content rather than against a
- * fixture: if `PreparedFile` gains a field, the popover gains it too and
- * nothing here needs editing.
+ * What the kind popover says a kind contains. The answer has to come from the
+ * registry, so these tests are written against the registry's real content
+ * rather than against a fixture: if `PreparedFile` gains a field, the popover
+ * gains it too and nothing here needs editing.
  */
 
+import { ARTIFACT_REGISTRY } from "@ai-di/graph-workflow";
 import { describe, expect, it } from "vitest";
 import { describeKind } from "./kind-shape";
 
@@ -59,5 +58,49 @@ describe("describeKind", () => {
     expect(shape.variant.kind).toBe("unregistered");
     expect(shape.displayName).toBe("NotAKindAtAll");
     expect(shape.ancestry).toEqual([]);
+  });
+
+  it("calls a schema-free kind with no members a single kind, not a family", () => {
+    for (const kind of [
+      "DocumentId",
+      "GroupId",
+      "ClassificationLabel",
+      "SinglePageDocument",
+      "Segment<Text>",
+      "Reference",
+      "ValidationResult",
+    ]) {
+      expect(describeKind(kind).variant.kind, kind).toBe("leaf");
+    }
+  });
+
+  it("keeps the family reading for schema-free kinds that other kinds descend from", () => {
+    for (const kind of [
+      "Artifact",
+      "Document",
+      "DocumentRef",
+      "Identifier",
+      "Classification",
+      "Segment",
+    ]) {
+      expect(describeKind(kind).variant.kind, kind).toBe("wildcard");
+    }
+  });
+
+  it("is a family exactly when some registered kind names it as its base", () => {
+    const bases = new Set<string | undefined>(
+      Object.values(ARTIFACT_REGISTRY).map((meta) => meta.baseKind),
+    );
+    for (const kind of Object.keys(ARTIFACT_REGISTRY)) {
+      const variant = describeKind(kind).variant.kind;
+      if (variant === "fields") continue;
+      expect(variant, kind).toBe(bases.has(kind) ? "wildcard" : "leaf");
+    }
+  });
+
+  it("describes a list of a leaf kind as a list of that one kind", () => {
+    const shape = describeKind("DocumentId[]");
+    expect(shape.isList).toBe(true);
+    expect(shape.variant.kind).toBe("leaf");
   });
 });

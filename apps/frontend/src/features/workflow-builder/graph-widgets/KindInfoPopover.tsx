@@ -1,10 +1,9 @@
 /**
- * `KindInfoPopover` — an inspectable kind chip (D27).
+ * `KindInfoPopover` — an inspectable kind chip.
  *
- * *"How can a user know what the `Document` type contains?"* Until now they
- * could not: a kind was a bare word on a dot, a tooltip and a `<Select>`
- * option. This turns the word itself into the affordance — click it and the
- * shape opens.
+ * A kind is otherwise a bare word on a dot, a tooltip and a `<Select>` option,
+ * with nothing saying what a value of that kind contains. This turns the word
+ * itself into the affordance — click it and the shape opens.
  *
  * Everything shown comes from {@link describeKind}, i.e. from the artifact
  * registry and the Zod-derived field schemas. Nothing here is a per-kind
@@ -103,6 +102,14 @@ export function KindInfoPopover({
                 </>
               )}
             </Stack>
+          )}
+
+          {shape.variant.kind === "leaf" && (
+            <Text size="xs" data-testid={`${testId}-leaf`}>
+              {shape.displayName} has no fields listed: the kind registry names
+              it but does not describe its contents. It has no members either —
+              no other kind is a kind of {shape.displayName}.
+            </Text>
           )}
 
           {shape.variant.kind === "unregistered" && (

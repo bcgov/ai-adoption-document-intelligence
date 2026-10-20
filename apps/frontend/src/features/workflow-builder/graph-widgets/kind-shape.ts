@@ -1,21 +1,20 @@
 /**
- * What a kind such as `Document` actually contains (D27).
+ * What a kind such as `Document` actually contains, for the kind popover.
  *
- * The reviewer asked it from the custom-step editor, looking at
- * `document: Document`, and the app had no answer anywhere: the kind was a
- * bare string on a dot, a tooltip and a `<Select>` option, and nothing told
- * you its shape. This derives the answer from the live registry — never a
- * hand-written description per kind, which would drift the first time a Zod
- * schema changed.
+ * The answer is derived from the live registry, never from a hand-written
+ * description per kind, which would drift the first time a Zod schema changed.
  *
- * The honest complication, and the reason this returns a `variant` rather than
- * just a field list: **`Document` has no fields on purpose.** It is a
- * schema-free ANCESTOR — a wildcard for its family — and the shape-honest
- * subkinds (`PreparedFile`, `DocumentSegment`, …) carry the schemas instead
- * (`packages/graph-workflow/src/types/kind-schemas.ts`). Rendering "no fields"
- * for it would read as "we don't know", when the truth is "it deliberately
- * accepts anything in this family, and here are the members that ARE pinned
- * down".
+ * It is returned as a `variant` rather than just a field list because a kind
+ * with no fields is one of two different things, and "no fields" alone would
+ * read as "we don't know":
+ *
+ *   - a family wildcard, such as `Document`: a schema-free ANCESTOR that
+ *     deliberately accepts anything in its family, while the shape-honest
+ *     subkinds (`PreparedFile`, `DocumentSegment`, …) carry the schemas
+ *     (`packages/graph-workflow/src/types/kind-schemas.ts`);
+ *   - a single kind that nothing descends from and whose contents the
+ *     registry does not describe, such as `DocumentId`. Calling that a family
+ *     would be false, because it has no members.
  */
 
 import {
@@ -48,11 +47,19 @@ export interface KindShape {
       }
     | {
         /**
-         * Registered, but deliberately schema-free: a family wildcard.
-         * `describedSubkinds` are the descendants that do have a shape.
+         * Registered, schema-free, and the base of other kinds: a family
+         * wildcard. `describedSubkinds` are the descendants that do have a
+         * shape.
          */
         kind: "wildcard";
         describedSubkinds: string[];
+      }
+    | {
+        /**
+         * Registered and schema-free, and no kind descends from it: one kind
+         * whose contents the registry does not describe.
+         */
+        kind: "leaf";
       }
     | {
         /** Not in the registry at all — a dynamic node can name one. */
@@ -89,6 +96,17 @@ function describedSubkindsOf(kind: string): string[] {
 }
 
 /**
+ * Whether any kind names `kind` as its base, which is what makes `kind` a
+ * family. Read off `ARTIFACT_REGISTRY` for the same reason as
+ * `describedSubkindsOf`.
+ */
+function hasSubkinds(kind: string): boolean {
+  return Object.values(ARTIFACT_REGISTRY).some(
+    (meta) => meta.baseKind === kind,
+  );
+}
+
+/**
  * Describe a kind reference for display. Never throws: an unknown kind is a
  * legitimate state (a dynamic node's `@inputs` can name one before it is
  * registered) and gets the `unregistered` variant.
@@ -120,6 +138,10 @@ export function describeKind(ref: string): KindShape {
   const fields = resolveKindFields(elementKind);
   if (fields.length > 0) {
     return { ...base, variant: { kind: "fields", fields } };
+  }
+
+  if (!hasSubkinds(elementKind)) {
+    return { ...base, variant: { kind: "leaf" } };
   }
 
   return {
