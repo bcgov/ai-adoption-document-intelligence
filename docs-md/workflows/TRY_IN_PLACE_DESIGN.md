@@ -1,7 +1,7 @@
 # Try-in-Place + Caching + Per-Node Previews — Design
 
 **Status:** Decided. Phase 4 of the post-1A plan. Analog of [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) (Phase 3) and [DOCUMENT_SOURCES_DESIGN.md](DOCUMENT_SOURCES_DESIGN.md) (Phase 8) for the "ComfyUI for documents" experience.
-**Last updated:** 2026-08-08 (§4 — the node-card preview became a fixed-height result strip plus a popover; see §4.7).
+**Last updated:** 2026-10-20 (§2.5, §3.1 — a run's previews are read by the cache key its node statuses record).
 **Why now:** Phase 3 (typed I/O) supplies the artifact kinds that the per-node preview widgets render against; Phase 2 Track 2 (workflow-as-API) supplies the run-spec + run-start surface that Try-in-place builds on; Phase 8 (source nodes — `source.upload` in particular) supplies the canvas-side upload affordance that the Try-flow plugs into. With all three closed, Phase 4 is the next sequenced milestone in the dependency DAG ([IMPLEMENTATION_PLAN.md §4](IMPLEMENTATION_PLAN.md)).
 
 This document commits to concrete decisions for the try-in-place, cached re-execution, per-node preview-widget, and run-history features. Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A — single in / single out + blackboard ctx). Phase 4 is layered as: a worker-side cache decorator (transparent to workflow code), a Temporal query handler (point-in-time status from the canvas), a small set of new read endpoints, and a redesigned canvas-side experience.
@@ -26,7 +26,7 @@ This design covers two implementation tiers:
 - **Phase 4.x (deferred):**
   - Preview widgets for `OcrTable`, `ValidationResult`, and Switch-active-case
   - WebSocket / SSE push-based status (today: polling)
-  - Cross-link between `/queue` (Processing monitor) and `RunHistoryDrawer` (both directions)
+  - Cross-link between the Documents page (`/documents`) and `RunHistoryDrawer` (both directions)
   - Cache-eviction beyond TTL (manual "Clear cache" UI, per-node "Invalidate" affordance)
   - Production-scope caching (multi-tenant sharing, GDPR review)
 
@@ -101,7 +101,7 @@ model ActivityOutputCache {
   @@unique([workflowLineageId, nodeId, configHash, inputHash])
   @@index([workflowLineageId, nodeId])          // for the preview-cache read endpoint
   @@index([expiresAt])                          // for the GC sweep
-  @@index([workflowLineageId, createdAt])       // for run-history reconstruction
+  @@index([workflowLineageId, createdAt])       // for the newest-row reads (no runId)
   @@map("activity_output_cache")
 }
 ```
@@ -197,8 +197,12 @@ GET /api/workflows/:id/preview-cache?nodeId=<nodeId>[&runId=<runId>]
 ```
 
 - **No `runId` (default)** — returns the most recent cache row for `(workflowLineageId, nodeId)`. Drives the canvas's "what was this node's last output?" view across Trys.
-- **With `runId`** — returns the cache row that corresponds to the specified historical run (via the `workflowLineageId + createdAt` index, picking the row whose `createdAt` falls within the run's execution window). Drives the run-replay flow (§6.3).
-- **404** when no fresh (`expiresAt > now`) row matches.
+- **With `runId`** — returns the cache row that holds this node's output for that run. The run's node statuses (§3.1) record, for every node a cache row holds the output of, that row's `cacheKey: { configHash, inputHash }`. The endpoint queries the run's statuses and reads the row by its exact unique key `(workflowLineageId, nodeId, configHash, inputHash)`. Drives the run-replay flow (§6.3).
+- **404** when no fresh (`expiresAt > now`) row matches, and, with `runId`, when the node's status records no key (the step did not run, failed, is never cached, or its cache write failed).
+
+**Why the key and not the time a row was written.** The table has no run column, and a row's `createdAt` is set when the row is first written: a later run that is served the row from cache, or computes the same output again, leaves it unchanged. So the time a row was written does not say which run it belongs to. Two Try runs of one workflow that run close together would each match the other's rows, and a step served from cache would match no row of its own. The key a run records for each step names the row exactly, needs no schema change, and costs nothing extra: the worker computes it on every cached path anyway (§2.4).
+
+**Which runs answer.** The run-scoped reads answer for an editor Try run of this workflow only, through the guard they share with `GET /:id/runs/:runId/node-statuses` and `GET /:id/runs/:runId/input-ctx` (§3.2): the run's `RunTrigger` must be `"try"`, checked first from `describe()` so a production run's start args are never fetched, and its decoded start args must name this workflow's lineage. A run that is not a Try run, does not exist, or has start args that cannot be decoded gets the endpoint's 404; a Try run of another workflow gets 403 `Run does not belong to this workflow`.
 
 Response DTO:
 
@@ -227,7 +231,7 @@ GET /api/workflows/:id/preview-cache-batch[?runId=<runId>]
 → { previews: { [nodeId]: ActivityOutputPreviewDto } }
 ```
 
-Same `runId` semantics (default = each node's most-recent fresh row; with `runId` = rows in that run's execution window, 5s slack). Nodes with no fresh row are simply **absent** from the map — the consumer treats an absent key exactly like the per-node endpoint's 404, so there's no 404-for-missing-rows here (an unknown `runId` returns an empty map rather than erroring). Backed by `ActivityOutputCacheRepository.findManyMostRecentFresh` / `findManyInRunWindow`, which fetch all fresh rows for the lineage ordered `createdAt DESC` and keep one (newest) per node. Frontend: `useActivityOutputPreview(nodeId)` reads a single shared TanStack query keyed by `(workflowId, runId)` and selects its node's row via a per-observer `select` — N surfaces → one fetch, one refetch-on-transition. Since §4.7 there are two observers per node (the card's strip, and the widget in its popover once opened), which is why the query carries a `staleTime` — a later-mounting observer must not refetch data the strip already has. The per-node endpoint stays for the cache-evicted single-node Re-run flow (§6.3).
+Same `runId` semantics (default = each node's most-recent fresh row; with `runId` = the rows the run's node statuses name, each read by its exact key, in one query). Nodes with no fresh row, and nodes whose status records no key, are simply **absent** from the map — the consumer treats an absent key exactly like the per-node endpoint's 404, so there's no 404-for-missing-rows here. A refused run is a 404 `Run not found` (not a Try run of this workflow, unknown, or start args that cannot be decoded) or a 403 (a Try run of another workflow), as above. Backed by `ActivityOutputCacheRepository.findManyMostRecentFresh`, which fetches all fresh rows for the lineage ordered `createdAt DESC` and keeps one (newest) per node, and `findManyFresh`, which matches the run's exact keys. Frontend: `useActivityOutputPreview(nodeId)` reads a single shared TanStack query keyed by `(workflowId, runId)` and selects its node's row via a per-observer `select` — N surfaces → one fetch, one refetch-on-transition. Since §4.7 there are two observers per node (the card's strip, and the widget in its popover once opened), which is why the query carries a `staleTime` — a later-mounting observer must not refetch data the strip already has. The per-node endpoint stays for the cache-evicted single-node Re-run flow (§6.3).
 
 ### 2.6 Opt-out via `nonCacheable?`
 
@@ -281,8 +285,12 @@ export interface NodeRunStatus {
   startedAt?: string;  // ISO
   endedAt?: string;
   errorMessage?: string;
-  /** When status === "skipped", names the cache row that supplied the output. */
-  cacheHit?: { configHash: string; inputHash: string };
+  /**
+   * The key of the cache row that holds this node's output for this run:
+   * present on a cache hit ("skipped"), on a cacheable node whose row was
+   * written ("succeeded") and on a source node; absent otherwise.
+   */
+  cacheKey?: { configHash: string; inputHash: string };
 }
 
 export const getNodeStatusesQuery = defineQuery<Record<string, NodeRunStatus>>("getNodeStatuses");
@@ -295,16 +303,20 @@ setHandler(getNodeStatusesQuery, () => nodeStatuses);
 nodeStatuses[node.id] = { status: "running", startedAt: new Date().toISOString() };
 
 // On cache hit:
-nodeStatuses[node.id] = { status: "skipped", startedAt: ..., endedAt: ..., cacheHit: { ... } };
+nodeStatuses[node.id] = { status: "skipped", startedAt: ..., endedAt: ..., cacheKey: { ... } };
 
-// On success:
-nodeStatuses[node.id] = { status: "succeeded", startedAt: ..., endedAt: new Date().toISOString() };
+// On success (cacheKey only when a cache row now holds the output):
+nodeStatuses[node.id] = { status: "succeeded", startedAt: ..., endedAt: new Date().toISOString(), cacheKey: { ... } };
 
 // On failure:
 nodeStatuses[node.id] = { status: "failed", startedAt: ..., endedAt: ..., errorMessage: e.message };
 ```
 
 **Pending vs running.** Nodes start in `"pending"` only if the workflow walks them (touched but not yet executed). Nodes the graph never reaches stay absent from the map; the canvas treats absent ≡ pending. This avoids the worker having to know the full DAG upfront.
+
+**Where `cacheKey` comes from.** The cache decorator (`executeCachedActivity`, §2.4) reports `{ cacheHit, cacheKey }`. `cacheKey` is the row's key whenever a row holds the node's output — a hit, a miss whose write landed, or a lost write race where the other worker's row now holds it — and `null` for a non-cacheable activity or a failed write that left no row. The source-node writer (`writeSourceNodeCache`) returns its row's key once the write lands. Both runners — the top-level loop in `graph-runner.ts` and the map-branch runner in `node-executors.ts` — copy the key onto the node's status. For a node inside a map, whose id repeats across iterations, the status (and so the key) is the iteration that finished last. Runs that do not use the cache (anything but an editor Try) record no keys.
+
+The key lives only in the in-memory status map; recording it adds no activity call and no workflow command. A query on a closed run replays the run's history with the worker's current code, so every run Temporal still holds reports keys, whenever it ran.
 
 ### 3.2 Backend proxy endpoint
 
@@ -325,7 +337,7 @@ async getNodeStatuses(@Param("id") id, @Param("runId") runId) {
 }
 ```
 
-The endpoint (like its sibling `GET /:id/runs/:runId/input-ctx`) answers **editor Try runs only**: the run's `RunTrigger` search attribute is read via `describe()`, and anything other than `"try"` — including an absent attribute — gets the same 404 as an unknown run, fail closed, so a production run's inputs and statuses never surface through the editor endpoints. Returns 404 if the Temporal handle can't be found (run is too old / never existed); 410 Gone if the run has been retention-cleaned by Temporal. The canvas treats 410 as "use the cache row's `outputCtx.endedAt`" — the run is finished, statuses are frozen.
+The endpoint answers for an **editor Try run of this workflow** only, through the guard it shares with `GET /:id/runs/:runId/input-ctx` and the run-scoped preview-cache reads (§2.5). First the run's `RunTrigger` search attribute is read via `describe()`, and anything other than `"try"` — including an absent attribute — gets the same 404 as an unknown run, fail closed, so a production run's inputs and statuses never surface through the editor endpoints. Then the run's start args are decoded, and they must name this workflow's lineage: a Try run of another workflow gets 403, and start args that cannot be decoded get the 404 (input-ctx instead falls back to the source node's cache row, read by the key the run's status records). Returns 404 if the Temporal handle can't be found (run is too old / never existed); 410 Gone if the run has been retention-cleaned by Temporal. The canvas treats 410 as "use the cache row's `outputCtx.endedAt`" — the run is finished, statuses are frozen.
 
 ### 3.3 Frontend polling cadence + lifecycle
 
@@ -572,7 +584,7 @@ The split is intentional: Try is a canvas-iteration affordance; Run is an API-va
 GET /api/workflows/:id/runs
 ```
 
-The Temporal visibility query is scoped to `RunTrigger = "try"`: the drawer lists editor Try runs only, so a production run's `initialCtx` (document ids, filenames) never renders as a run-history chip. Production runs are monitored in the Processing queue. The same scope applies to the per-version run counts (§6.5).
+The Temporal visibility query is scoped to `RunTrigger = "try"`: the drawer lists editor Try runs only, so a production run's `initialCtx` (document ids, filenames) never renders as a run-history chip. Production runs, such as a document uploaded for processing or a run started through the API, are not listed; a document's processing progress is shown on the Documents page. The same scope applies to the per-version run counts (§6.5).
 
 Query parameters:
 
@@ -643,7 +655,7 @@ Clicking a row's "Replay" button:
 
 1. Sets `activeRunId = runId` in canvas state.
 2. Triggers `useNodeStatuses(workflowId, runId, { active: false })` — pulls the historical status map once (not polled, since the run is terminal).
-3. Triggers `useActivityOutputPreview(workflowId, nodeId, runId)` for each node — loads cached outputs from the new `?runId` parameter on the preview-cache endpoint (§2.5).
+3. Triggers `useActivityOutputPreview(workflowId, nodeId, runId)` for each node — loads the run's own cached outputs through the `?runId` parameter of the batch preview endpoint, which reads each row by the key the run's node status records (§2.5).
 4. Renders status badges + active-edge "frozen at" the final state + per-node preview widgets from the historical cache.
 
 The canvas treats replay mode as read-only-for-runs-only: the user can still edit node parameters (which would invalidate cached previews for the replay), but the "Replay" indicator stays in the top bar until the user clears it or starts a new Try.
@@ -668,12 +680,12 @@ This mirrors what the preview surfaces read for a live Try: the mounting rendere
 
 `VersionHistoryDrawer` (Phase 2 Track 3) grows a small gray `<Badge>` per row showing the run count for that version. Data sourced from a new `GET /api/workflows/:id/versions/:versionId/run-count` endpoint (or piggy-backed onto the existing per-version endpoint as a `runCount` field — TBD by implementer; both have low cost).
 
-### 6.6 Cross-link with `/queue` (deferred to 4.x)
+### 6.6 Cross-link with the Documents page (deferred to 4.x)
 
-The existing `/queue` Processing monitor surfaces documents, not workflow runs. Future cross-links:
+The Documents page (`/documents`) lists documents, not workflow runs. Future cross-links:
 
-- On `/queue` rows, add a "View workflow run" action that opens the relevant workflow's `RunHistoryDrawer` filtered to runs that processed that document.
-- On `RunHistoryDrawer` rows, add a "Documents processed" chip linking back to `/queue` filtered to docs from that run.
+- On Documents page rows, add a "View workflow run" action that opens the relevant workflow's `RunHistoryDrawer` filtered to runs that processed that document.
+- On `RunHistoryDrawer` rows, add a "Documents processed" chip linking back to the Documents page filtered to docs from that run.
 
 This requires correlating documents and runs, which today goes through `document.workflowRunId` (already set when source.upload creates a document). The correlation is straightforward but the UI work is non-trivial; **deferred to Phase 4.x** so 4.0 ships the Try-in-place loop without expanding into ops-monitoring scope.
 
@@ -693,7 +705,7 @@ Phase 4 needs minimal validator changes (the cache is a runtime concern; status 
 
 - **Preview widgets for `OcrTable`, `ValidationResult`, Switch-active-case.** Filed for Phase 4.x. Dispatch shell (§4.1) is open in a way that adding cases later is mechanical.
 - **WebSocket / SSE push.** Polling at 1.5s scales to single-digit concurrent editor sessions; push is filed for Phase 4.x when concurrency rises.
-- **Cross-link between `/queue` and `RunHistoryDrawer`.** Deferred (§6.6).
+- **Cross-link between the Documents page and `RunHistoryDrawer`.** Deferred (§6.6).
 - **Manual cache invalidation UI** (per-node "Clear cache" / global "Reset cache" buttons). Filed for Phase 4.x once user feedback identifies the need.
 - **Cache sharing across workflow lineages** (e.g., two libraries with the same activity config sharing cache). Requires GDPR review on cross-lineage data flow. Deferred.
 - **Replay of failed runs with partial output.** A failed run's downstream nodes have status `"pending"` but no cache rows; replay shows the failure point correctly but the user can't drill into "what would the next node have produced." This is OK for 4.0; "predictive preview" is a Phase 5+ idea.
@@ -729,7 +741,7 @@ Phase 4 needs minimal validator changes (the cache is a runtime concern; status 
 
 - **Phase 4.x — full widget coverage.** `OcrTable`, `ValidationResult`, Switch-active-case previews.
 - **Phase 4.x — push-based status transport.** Replace polling with WebSocket/SSE when concurrent editor sessions exceed ~10.
-- **Phase 4.x — `/queue` ↔ `RunHistoryDrawer` cross-link.** Per-document run lookup; per-run document lookup.
+- **Phase 4.x — Documents page ↔ `RunHistoryDrawer` cross-link.** Per-document run lookup; per-run document lookup.
 - **Phase 4.x — manual cache invalidation UI.** Per-node + global.
 - **Phase 4.x — Live source.api intake.** Real POST to the workflow's source.api endpoint routes into the in-flight Try.
 - **Phase 5 — segmentation node pack.** Phase 5's segmentation activities will produce richer `Segment` artifacts that the `SegmentArrayPreview` already renders. No Phase 4 work to anticipate; just declare the new activities' output kinds correctly.
