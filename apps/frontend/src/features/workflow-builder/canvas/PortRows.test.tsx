@@ -16,7 +16,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { portDotColor } from "./artifact-kind-colour";
-import { BASE_HANDLE_SIZE } from "./handle-style";
+import { BASE_HANDLE_SIZE, plusGlyphColor } from "./handle-style";
 import type { PortRowModel } from "./port-rows";
 import { PORT_ROW_HEIGHT } from "./port-rows";
 
@@ -55,9 +55,9 @@ vi.mock("@mantine/core", async (importOriginal) => {
       position?: string;
       label?: React.ReactNode;
     }) => (
-      // The label is stamped as well as the position (D28c asserts the copy
-      // that explains the enlarged dot); every label this component passes
-      // is a plain string.
+      // The label is stamped as well as the position (the tests below assert
+      // the copy that explains the enlarged dot); every label this component
+      // passes is a plain string.
       <div
         data-tooltip-position={position}
         data-tooltip-label={typeof label === "string" ? label : undefined}
@@ -106,7 +106,12 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { PortDragContext, PortRows } from "./PortRows";
+import {
+  INVITATION_HINT_INPUT,
+  INVITATION_HINT_OUTPUT,
+  PortDragContext,
+  PortRows,
+} from "./PortRows";
 
 function makeRow(overrides: Partial<PortRowModel>): PortRowModel {
   return {
@@ -625,13 +630,13 @@ describe("PortRows — tooltip trigger is scoped off the handle", () => {
   });
 });
 
-describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3)", () => {
+describe("PortRows — the '+' invitation on unused ports", () => {
   /**
    * A bare circle carries no invitation, so the hover-to-extend popover —
-   * the main way a graph gets built — was undiscoverable to anyone handed
-   * the tool cold. Unconnected, non-optional ports now draw a "+" inside
-   * the dot: two knockout bars in the body colour, so the port's family
-   * colour (which encodes what can connect to what) is untouched.
+   * the main way a graph gets built — is undiscoverable to anyone handed the
+   * tool cold. Unused, non-optional ports draw a "+" inside the dot, in a
+   * neutral ink, so the port's family colour (which encodes what can connect
+   * to what) is untouched.
    */
   function handleOf(container: HTMLElement, handleId: string): HTMLElement {
     const el = container.querySelector(`[data-handleid='${handleId}']`);
@@ -658,7 +663,12 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
       ],
     );
 
-    for (const handleId of ["in-source", "out-segments"]) {
+    // The blue circle takes the black ink, the violet square the white one:
+    // each the ink that stands out more against its family colour.
+    for (const [handleId, family] of [
+      ["in-source", "blue"],
+      ["out-segments", "violet"],
+    ] as const) {
       const handle = handleOf(container, handleId);
       const bars = plusBars(handle);
       expect(bars).toHaveLength(2);
@@ -667,7 +677,7 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
         bars.map((bar) => `${bar.style.width}/${bar.style.height}`),
       ).toEqual(["8px/2px", "2px/8px"]);
       for (const bar of bars) {
-        expect(bar.style.background).toContain("--mantine-color-body");
+        expect(bar.style.background).toBe(rgbOf(plusGlyphColor(family)));
         expect(bar.style.transform).toBe("translate(-50%, -50%)");
         // Decoration inside a drag target must not eat the pointer.
         expect(bar.style.pointerEvents).toBe("none");
@@ -684,6 +694,30 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
         .getByTestId("port-row-node_1-out-segments")
         .getAttribute("data-invites-connection"),
     ).toBe("true");
+  });
+
+  it("draws a visible plus on the hollow untyped dot, not one in its own fill", () => {
+    const { container } = renderRows(
+      [],
+      [
+        makeRow({
+          name: "status",
+          label: "Poll status",
+          kind: "Artifact",
+          direction: "output",
+          handleId: "out-status",
+          connected: false,
+        }),
+      ],
+    );
+    const handle = handleOf(container, "out-status");
+    // The untyped dot is hollow: filled with the canvas body, white.
+    expect(handle.style.background).toContain("--mantine-color-body");
+    const bars = plusBars(handle);
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) {
+      expect(bar.style.background).toBe("rgb(0, 0, 0)");
+    }
   });
 
   it("grows the inviting dot to 16px so the glyph survives at working zoom", () => {
@@ -779,13 +813,11 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
   });
 });
 
-describe("PortRows — the enlarged dot explains itself (D28c)", () => {
+describe("PortRows — the enlarged dot explains itself", () => {
   /**
-   * *"Is there meaning behind the difference in the size of the Poll status
-   * connector?"* — yes, and until now nothing said so anywhere: the dot grew
-   * 4px and gained a glyph that reads as a smudge at working zoom. The row's
-   * own tooltip now carries the sentence, because the dot's hover is already
-   * spoken for by the extend picker.
+   * The dot grows 4px and gains a glyph, which is easy to miss at working
+   * zoom, so the row's own tooltip says what it means. It is the row's
+   * tooltip because the dot's hover is spoken for by the extend picker.
    */
   function labelTooltip(handleId: string): string | null {
     const row = screen.getByTestId(`port-row-node_1-${handleId}`);
@@ -802,7 +834,8 @@ describe("PortRows — the enlarged dot explains itself (D28c)", () => {
 
   it("tells an unconnected required INPUT what the bigger dot is for", () => {
     renderRows([makeRow({ connected: false, needsSource: true })], []);
-    expect(labelTooltip("in-source")).toContain(
+    expect(labelTooltip("in-source")).toContain(INVITATION_HINT_INPUT);
+    expect(INVITATION_HINT_INPUT).toBe(
       "Nothing is connected here yet — the larger dot with a + is where to drop a wire.",
     );
   });
@@ -821,9 +854,11 @@ describe("PortRows — the enlarged dot explains itself (D28c)", () => {
         }),
       ],
     );
-    // Dylan's own port, from `azureOcr.poll`.
-    expect(labelTooltip("out-status")).toContain(
-      "Nothing reads this yet — the larger dot with a + is where to drag one from.",
+    // The poll step's status output, from `azureOcr.poll`, when nothing
+    // reads it.
+    expect(labelTooltip("out-status")).toContain(INVITATION_HINT_OUTPUT);
+    expect(INVITATION_HINT_OUTPUT).toBe(
+      "Nothing reads this yet — the larger dot with a + is where to drag a wire from.",
     );
   });
 
@@ -843,7 +878,7 @@ describe("PortRows — the enlarged dot explains itself (D28c)", () => {
       ],
     );
     expect(labelTooltip("out-segments")).toBe(
-      "segments: Segment[] — List of produced segments. Nothing reads this yet — the larger dot with a + is where to drag one from.",
+      `segments: Segment[] — List of produced segments. ${INVITATION_HINT_OUTPUT}`,
     );
   });
 

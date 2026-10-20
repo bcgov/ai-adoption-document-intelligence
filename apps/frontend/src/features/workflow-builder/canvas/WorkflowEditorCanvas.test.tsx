@@ -41,6 +41,7 @@ import type {
 } from "../../../types/workflow";
 import { getControlFlowVisualHints } from "../control-flow-visual-hints";
 import { ORPHANED_DELETE_TOAST_ID } from "../delete-orphan-toast";
+import { DEFAULT_MAP_ITEM_CTX_KEY } from "../palette/control-flow-skeletons";
 import { layoutGraphWithMapBodies } from "./auto-layout";
 import { projectGroupedConfig } from "./group-projection";
 import { mergeNodeGroups, synthesizeMapBodyGroups } from "./map-body-groups";
@@ -988,6 +989,231 @@ describe("WorkflowEditorCanvas — Scenario 5: validation badges on control-flow
     expect(screen.getByTestId("fan-indicator-map")).toHaveStyle({
       left: "18px",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An output read without a wire stops inviting one, as soon as the reference
+// that reads it is made
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — an output's '+' follows what reads it", () => {
+  function invites(rowTestId: string): string | null {
+    return screen
+      .getByTestId(rowTestId)
+      .getAttribute("data-invites-connection");
+  }
+
+  function pollConfig(conditionRef: string): GraphWorkflowConfig {
+    const poll: PollUntilNode = {
+      id: "poll",
+      type: "pollUntil",
+      label: "Poll OCR Results",
+      activityType: "azureOcr.poll",
+      outputs: [{ port: "status", ctxKey: "ocrStatus" }],
+      condition: {
+        operator: "not-equals",
+        left: { ref: conditionRef },
+        right: { literal: "running" },
+      },
+      interval: "10s",
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "poll", version: "1.0.0" },
+      ctx: {},
+      nodes: { poll },
+      edges: [],
+      entryNodeId: "poll",
+    };
+  }
+
+  it("stops inviting a wire on a poll status its own stop condition reads", async () => {
+    const { rerenderWithConfig } = renderCanvas(
+      pollConfig("ctx.somethingElse"),
+    );
+    await flushAnimationFrame();
+    expect(invites("port-row-poll-out-status")).toBe("true");
+
+    // Only the condition changes: no binding, label or edge does.
+    rerenderWithConfig(pollConfig("ctx.ocrStatus"));
+    await flushAnimationFrame();
+    expect(invites("port-row-poll-out-status")).toBe("false");
+  });
+
+  it("stops inviting a wire on a list once a loop's collection reads it", async () => {
+    const split: ActivityNode = {
+      id: "split",
+      type: "activity",
+      label: "Split Document",
+      activityType: "document.split",
+      parameters: { strategy: "per-page" },
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const loop = (collectionCtxKey: string): MapNode => ({
+      id: "loop",
+      type: "map",
+      label: "Run for each item",
+      collectionCtxKey,
+      itemCtxKey: "currentSegment",
+      bodyEntryNodeId: "",
+      bodyExitNodeId: "",
+      metadata: { position: { x: 400, y: 0 } },
+    });
+    const withCollection = (key: string): GraphWorkflowConfig => ({
+      schemaVersion: "1.0",
+      metadata: { name: "loop", version: "1.0.0" },
+      ctx: {},
+      nodes: { split, loop: loop(key) },
+      edges: [{ id: "e1", source: "split", target: "loop", type: "normal" }],
+      entryNodeId: "split",
+    });
+
+    const { rerenderWithConfig } = renderCanvas(withCollection(""));
+    await flushAnimationFrame();
+    expect(invites("port-row-split-out-segments")).toBe("true");
+
+    rerenderWithConfig(withCollection("__auto.split.segments"));
+    await flushAnimationFrame();
+    expect(invites("port-row-split-out-segments")).toBe("false");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Problem badges stay on the cards when the canvas re-projects
+//
+// Validation runs on a delay after an edit, so a structural edit (a label, a
+// binding) re-projects the cards before the next result arrives. The badges
+// must come through that re-projection with the counts in hand.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — problem badges survive a re-projection", () => {
+  function issue(path: string, severity: "error" | "warning") {
+    return { path, message: "Problem", severity } as GraphValidationError;
+  }
+
+  function relabelled(config: GraphWorkflowConfig): GraphWorkflowConfig {
+    return {
+      ...config,
+      nodes: Object.fromEntries(
+        Object.entries(config.nodes).map(([id, n]) => [
+          id,
+          { ...n, label: `${n.label} renamed` },
+        ]),
+      ),
+    };
+  }
+
+  it("keeps every card's badge when a label edit re-projects the canvas", async () => {
+    const config = makeAllNodeTypesConfig();
+    // The same results object throughout: no new validation run has landed.
+    const errorsByNode = new Map<string, GraphValidationError[]>([
+      ["activity_1", [issue("nodes.activity_1.x", "error")]],
+      ["switch_1", [issue("nodes.switch_1.cases", "error")]],
+      [
+        "map_1",
+        [
+          issue("nodes.map_1.a", "error"),
+          issue("nodes.map_1.b", "error"),
+          issue("nodes.map_1.c", "warning"),
+        ],
+      ],
+      ["poll_1", [issue("nodes.poll_1.d", "warning")]],
+    ]);
+    const { rerenderWithConfig } = renderCanvas(config, { errorsByNode });
+    await flushAnimationFrame();
+    expect(screen.getByTestId("node-badge-map_1")).toHaveTextContent("2");
+
+    rerenderWithConfig(relabelled(config));
+    await flushAnimationFrame();
+
+    // The re-projection really happened: the cards carry the new labels.
+    expect(screen.getByTestId("canvas-node-map_1")).toHaveTextContent(
+      "Map renamed",
+    );
+    expect(screen.getByTestId("node-badge-activity_1")).toHaveTextContent("1");
+    expect(screen.getByTestId("node-badge-switch_1")).toHaveTextContent("1");
+    expect(screen.getByTestId("node-badge-map_1")).toHaveTextContent("2");
+    expect(screen.getByTestId("node-badge-poll_1")).toHaveTextContent("1");
+  });
+
+  it("keeps a source card's badge and a collapsed group's chip badge too", async () => {
+    const config = {
+      schemaVersion: "1.0",
+      metadata: { name: "src" },
+      ctx: {},
+      entryNodeId: "intake",
+      nodes: {
+        intake: {
+          id: "intake",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+          parameters: {},
+        },
+        a: {
+          id: "a",
+          type: "activity",
+          label: "A",
+          activityType: "file.prepare",
+        },
+      },
+      edges: [],
+      nodeGroups: { g1: { label: "Stage one", nodeIds: ["a"] } },
+    } as GraphWorkflowConfig;
+    const errorsByNode = new Map<string, GraphValidationError[]>([
+      ["intake", [issue("nodes.intake.sourceType", "error")]],
+      ["a", [issue("nodes.a.parameters.x", "error")]],
+    ]);
+
+    const expanded = renderCanvas(config, { errorsByNode });
+    await flushAnimationFrame();
+    expanded.rerenderWithConfig(relabelled(config));
+    await flushAnimationFrame();
+    expect(screen.getByTestId("node-badge-intake")).toHaveTextContent("1");
+    expanded.unmount();
+
+    const collapsed = renderCanvas(config, {
+      errorsByNode,
+      simplifiedView: true,
+    });
+    await flushAnimationFrame();
+    expect(screen.getByTestId("node-badge-group-chip-g1")).toHaveTextContent(
+      "1",
+    );
+    collapsed.rerenderWithConfig({
+      ...config,
+      nodeGroups: { g1: { label: "Stage one, renamed", nodeIds: ["a"] } },
+    });
+    await flushAnimationFrame();
+    expect(screen.getByTestId("node-badge-group-chip-g1")).toHaveTextContent(
+      "1",
+    );
+  });
+
+  it("leaves the cards untouched when a new result changes no count", async () => {
+    const config = makeAllNodeTypesConfig();
+    const options: { errorsByNode: Map<string, GraphValidationError[]> } = {
+      errorsByNode: new Map([
+        ["switch_1", [issue("nodes.switch_1.cases", "error")]],
+      ]),
+    };
+    const { rerenderWithConfig } = renderCanvas(config, options);
+    await flushAnimationFrame();
+    const before = latestReactFlowProps.current?.nodes;
+
+    // A fresh results object with the same counts, as each validator run
+    // produces.
+    options.errorsByNode = new Map([
+      ["switch_1", [issue("nodes.switch_1.cases", "error")]],
+    ]);
+    rerenderWithConfig(config);
+    await flushAnimationFrame();
+
+    // A new card array would re-render every card for nothing.
+    expect(latestReactFlowProps.current?.nodes).toBe(before);
+    expect(screen.getByTestId("node-badge-switch_1")).toHaveTextContent("1");
   });
 });
 
@@ -4002,6 +4228,89 @@ describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
       vi.useRealTimers();
     }
   });
+
+  /** One step, `seed`, to extend from, with the given declared variables. */
+  function makeSeedConfig(
+    ctx: GraphWorkflowConfig["ctx"] = {},
+  ): GraphWorkflowConfig {
+    const seed: ActivityNode = {
+      id: "seed",
+      type: "activity",
+      label: "Seed",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 100, y: 50 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "T", version: "1.0.0" },
+      ctx,
+      nodes: { [seed.id]: seed },
+      edges: [],
+      entryNodeId: seed.id,
+    };
+  }
+
+  /** Opens the picker on `seed`'s outgoing dot and picks a flow-control row. */
+  async function pickControlFlowFromSeed(type: string) {
+    vi.useFakeTimers();
+    try {
+      hoverSourceHandle("seed");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    fireEvent.click(screen.getByTestId(`hover-extend-control-flow-${type}`));
+  }
+
+  it("picking Run for each item declares its item variable in the same change as the node", async () => {
+    const { onConfigChange } = renderCanvas(makeSeedConfig());
+    await pickControlFlowFromSeed("map");
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    // One change, so one Undo takes the node, its edge and the declaration.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    const loop = Object.values(next.nodes).find((n) => n.type === "map");
+    if (!loop || loop.type !== "map") throw new Error("expected a new loop");
+    expect(loop.itemCtxKey).toBe(DEFAULT_MAP_ITEM_CTX_KEY);
+    expect(next.ctx[DEFAULT_MAP_ITEM_CTX_KEY]).toEqual({ type: "object" });
+    expect(next.edges).toEqual([
+      expect.objectContaining({ source: "seed", target: loop.id }),
+    ]);
+  });
+
+  it("picking Run for each item leaves an existing declaration of its item variable as it is", async () => {
+    const existing = {
+      type: "object" as const,
+      description: "The segment the first loop is on",
+    };
+    const { onConfigChange } = renderCanvas(
+      makeSeedConfig({ [DEFAULT_MAP_ITEM_CTX_KEY]: existing }),
+    );
+    await pickControlFlowFromSeed("map");
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.ctx[DEFAULT_MAP_ITEM_CTX_KEY]).toEqual(existing);
+  });
+
+  it("picking any other flow-control step declares no variable", async () => {
+    const { onConfigChange } = renderCanvas(makeSeedConfig());
+    await pickControlFlowFromSeed("switch");
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.ctx).toEqual({});
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -6773,6 +7082,34 @@ describe("WorkflowEditorCanvas — P-4: empty-canvas context menu", () => {
     // arrival — the palette-add path adopts it, so this one does too.
     expect(next.entryNodeId).toBe(ids[0]);
   });
+
+  it("'Add node here' declares a new loop's item variable in the same change as the node", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    await flushAnimationFrame();
+    openPaneMenu(300, 200);
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-add-node")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-add-node"));
+    await waitFor(() => {
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("hover-extend-control-flow-map"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    // One change, so one Undo takes the node and the declaration together.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    const newIds = Object.keys(next.nodes).filter(
+      (id) => !(id in makeAllNodeTypesConfig().nodes),
+    );
+    expect(newIds).toHaveLength(1);
+    const loop = next.nodes[newIds[0]];
+    if (!loop || loop.type !== "map") throw new Error("expected a new loop");
+    expect(loop.itemCtxKey).toBe(DEFAULT_MAP_ITEM_CTX_KEY);
+    expect(next.ctx[DEFAULT_MAP_ITEM_CTX_KEY]).toEqual({ type: "object" });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -7269,11 +7606,12 @@ describe("WorkflowEditorCanvas — item 7: failure is visible at the title", () 
     expect(screen.queryByTestId("node-failure-chip-ok")).toBeNull();
   });
 
-  it("nudges the chip's glyph onto the label's optical centre (I4)", () => {
-    // Mantine centres the icon's box and the label's LINE box; an all-caps
-    // label's ink sits half a pixel below its line box, so a box-centred
-    // glyph reads high. jsdom cannot see the misalignment — it can only
-    // hold the correction in place, which is what this asserts.
+  it("moves the chip's glyph up onto the capitals' optical centre", () => {
+    // Mantine centres the icon's box and the label's LINE box. In BC Sans
+    // Bold the capitals' centre is 7.79px below the chip's top, while the
+    // 11px icon, painted from a whole pixel, is centred at 8.5px, so the glyph
+    // moves up by the difference. jsdom cannot see the alignment; the value
+    // was checked on the rendered chip, and this holds it in place.
     mockRunState.current = {
       activeRunId: "run_1",
       nodeStatuses: {
@@ -7285,7 +7623,7 @@ describe("WorkflowEditorCanvas — item 7: failure is visible at the title", () 
     const glyph = screen
       .getByTestId("node-failure-chip-boom")
       .querySelector("svg");
-    expect(glyph?.getAttribute("style")).toContain("translateY(0.5px)");
+    expect(glyph?.getAttribute("style")).toContain("translateY(-0.71px)");
   });
 
   it("never marks a cache hit or a succeeded step as failed", () => {

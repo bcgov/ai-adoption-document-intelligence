@@ -26,6 +26,7 @@ import "@xyflow/react/dist/style.css";
 import "./workflow-editor-canvas.css";
 
 import {
+  collectCtxReaders,
   getActivityCatalogEntry,
   getLockedInputPorts,
   isAssignable,
@@ -63,7 +64,16 @@ import {
   useUpdateNodeInternals,
   type XYPosition,
 } from "@xyflow/react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
   ActivityNode,
   ErrorPolicy,
@@ -85,6 +95,7 @@ import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
 import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
+  declareSkeletonCtxKeys,
 } from "../palette/control-flow-skeletons";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import type { PreviewOutputBinding } from "../preview/preview.types";
@@ -582,26 +593,69 @@ const FAILURE_CHIP_GLYPH_SIZE = 11;
 const FAILURE_CHIP_GLYPH_STROKE = 2.6;
 
 /**
- * I4 (Inderdeep, 2026-08-14) — *"in the error chip, the icon and the text
- * aren't aligned."* He is right, by half a pixel, and here is where it comes
- * from.
- *
- * Mantine's Badge is an `inline-grid` with `align-items: center`, so it
- * centres the icon's BOX and the label's LINE BOX. A line box is symmetric
- * about the font's ascent and descent; the ink of an all-caps label is not.
- * Measured on the live chip (`ERROR`, 9px, line-height 14px): font ascent 10,
- * font descent 3, cap height 6, no descender ink. The label's box centre lands
- * at 8.0px from the chip's top while the caps' optical centre lands at 8.5 —
- * the empty descender space below the caps drags the ink down relative to the
- * box, so a box-centred icon reads high against the text.
- *
- * The correction is that difference, `(ascent - descent - capHeight) / 2 =
- * (10 - 3 - 6) / 2 = 0.5px`, applied to the GLYPH rather than to the label.
- * Nudging the label instead would fix this chip and desynchronise it from
- * every other chip on the card (`DYN`, `Deleted`, `ENTRY`, the validation
- * count), which are text-only and therefore correctly box-centred today.
+ * The face the chip's label is set in, BC Sans Bold, in its own units (1000 to
+ * the em), as the font file's `hhea` and `OS/2` tables give them.
  */
-const FAILURE_CHIP_GLYPH_OPTICAL_NUDGE = "translateY(0.5px)";
+const FAILURE_CHIP_LABEL_FACE = {
+  unitsPerEm: 1000,
+  ascent: 1069,
+  descent: 293,
+  capHeight: 714,
+} as const;
+/**
+ * The chip is Mantine's `xs` Badge: a 1px border round one 14px line of 9px
+ * text, with the icon in a section beside it.
+ */
+const FAILURE_CHIP_BORDER_PX = 1;
+const FAILURE_CHIP_LINE_HEIGHT_PX = 14;
+const FAILURE_CHIP_FONT_SIZE_PX = 9;
+
+/**
+ * How far the chip's × moves, in px (negative is up), to sit on the optical
+ * centre of the capitals beside it.
+ *
+ * Mantine's Badge is a grid with `align-items: center`, so it centres the
+ * icon's BOX and the label's LINE BOX on one row. The capitals do not sit in
+ * the middle of their line box, and the icon does not paint where its box
+ * says, so the two centres differ. Measured from the chip's top edge, in
+ * Chromium:
+ *
+ *   - Baseline. The font's ascent and descent are rounded to whole pixels
+ *     (9.62 → 10, 2.64 → 3), and the leftover leading, 14 − 13 = 1, goes below
+ *     the text because an odd pixel cannot be split. The baseline is at
+ *     border 1 + leading 0 + ascent 10 = 11.
+ *   - Capitals. Their centre is half a cap height (6.43) above the baseline:
+ *     11 − 3.21 = 7.79.
+ *   - Icon. Its 11px box is centred in the 14px row, so its top falls on a
+ *     half pixel, 1 + 1.5 = 2.5. The svg is painted at whole-pixel offsets,
+ *     from 3, so the × is centred at 3 + 5.5 = 8.5.
+ *
+ * The × therefore sits 8.5 − 7.79 = 0.71px low and moves up by that. On the
+ * rendered chip in BC Sans at 1×, 2× and 4× this leaves the two centres within
+ * 0.01px. The glyph moves, not the label, because the card's other chips
+ * (`DYN`, `Deleted`, `ENTRY`, the validation count) are text-only and already
+ * box-centred; moving the label would put this one out of line with them.
+ */
+function failureChipGlyphNudgePx(): number {
+  const face = FAILURE_CHIP_LABEL_FACE;
+  const toPx = (units: number) =>
+    (FAILURE_CHIP_FONT_SIZE_PX * units) / face.unitsPerEm;
+  const ascent = Math.round(toPx(face.ascent));
+  const descent = Math.round(toPx(face.descent));
+  const leadingAbove = Math.floor(
+    (FAILURE_CHIP_LINE_HEIGHT_PX - ascent - descent) / 2,
+  );
+  const baseline = FAILURE_CHIP_BORDER_PX + leadingAbove + ascent;
+  const capsCentre = baseline - toPx(face.capHeight) / 2;
+  const iconTop = Math.round(
+    FAILURE_CHIP_BORDER_PX +
+      (FAILURE_CHIP_LINE_HEIGHT_PX - FAILURE_CHIP_GLYPH_SIZE) / 2,
+  );
+  const iconCentre = iconTop + FAILURE_CHIP_GLYPH_SIZE / 2;
+  return Math.round((capsCentre - iconCentre) * 100) / 100;
+}
+
+const FAILURE_CHIP_GLYPH_OPTICAL_NUDGE = `translateY(${failureChipGlyphNudgePx()}px)`;
 
 function NodeFailureChip({ nodeId }: { nodeId: string }) {
   const ctx = useOptionalRunState();
@@ -698,6 +752,98 @@ export function releaseAnchorFromEvent(event: MouseEvent | TouchEvent): {
   return { x: touch.clientX, y: touch.clientY };
 }
 
+/**
+ * True while an extend picker — the "pick a step" list — is open anywhere on
+ * the canvas. A card's own dots hide their hover sentence while it is, so the
+ * two are never on screen together: the picker opens 200 ms after an outgoing
+ * dot is hovered, right where that dot's sentence sits, the same collision
+ * `PortRows` avoids for the data-port dots.
+ */
+const ExtendPickerOpenContext = createContext(false);
+
+interface CardDotProps {
+  /** What the dot is for, shown on hover. */
+  sentence: string;
+  /** Which side of the dot the sentence opens on. */
+  sentenceSide: "left" | "right" | "bottom";
+  /** Test id of the wrapper that carries the dot and its sentence as data. */
+  testId: string;
+  /** `data-port-direction` on the wrapper, where the dot has one. */
+  direction?: "input" | "output";
+  /** The xyflow handle id; the left run-order dot has none. */
+  handleId?: string;
+  type: "source" | "target";
+  position: Position;
+  style: React.CSSProperties;
+  onMouseEnter?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseLeave?: () => void;
+}
+
+/**
+ * One of a card's own dots — run order in, run order out, or the error path —
+ * with its hover sentence anchored on the dot itself.
+ *
+ * The sentence is a tooltip TARGETED at the dot's element. A tooltip wrapped
+ * around the dot would anchor on the wrapper instead, and the wrapper has no
+ * box of its own (its only child is absolutely positioned), so the sentence
+ * would open at the card's content corner, up to a few hundred px from the
+ * dot. The wrapper carries the dot's test id and its sentence as data.
+ *
+ * The sentence closes while an extend picker is open (`ExtendPickerOpenContext`)
+ * and closes without a fade, so the two are never painted together. It wraps
+ * at a fixed width to stay beside the dot rather than run across the cards
+ * around it.
+ */
+const CardDot = memo(function CardDot({
+  sentence,
+  sentenceSide,
+  testId,
+  direction,
+  handleId,
+  type,
+  position,
+  style,
+  onMouseEnter,
+  onMouseLeave,
+}: CardDotProps) {
+  const dotRef = useRef<HTMLDivElement>(null);
+  const pickerOpen = useContext(ExtendPickerOpenContext);
+  return (
+    <>
+      <span
+        data-testid={testId}
+        data-port-direction={direction}
+        data-port-tooltip={sentence}
+      >
+        <Handle
+          ref={dotRef}
+          id={handleId}
+          type={type}
+          position={position}
+          style={style}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        />
+      </span>
+      <Tooltip
+        label={sentence}
+        target={dotRef}
+        position={sentenceSide}
+        withArrow
+        multiline
+        w={260}
+        disabled={pickerOpen}
+        transitionProps={{ duration: 0 }}
+      />
+    </>
+  );
+});
+
+/** The error dot's fill, as one object so the memoised dot is not re-rendered for a new one. */
+const ERROR_HANDLE_STYLE: React.CSSProperties = {
+  background: ERROR_HANDLE_BACKGROUND,
+};
+
 const NodeHandles = memo(function NodeHandles({
   nodeId,
   errorPolicy,
@@ -726,57 +872,45 @@ const NodeHandles = memo(function NodeHandles({
     <>
       {/*
        * The run-order pair. Identical geometry, fill and copy to the pair
-       * `ActivityNodeRenderer` mounts — see `flow-handle.ts` for the three
-       * ways these two used to differ and why a reviewer read the
-       * differences as meaning (D28). `flowAnchor` is the ONE difference
-       * left, and geometry forces it: the switch is a rotated square whose
-       * left/right vertices are at its vertical midpoint.
+       * `ActivityNodeRenderer` mounts, from `flow-handle.ts`, so the
+       * connector cannot look different from one card to the next.
+       * `flowAnchor` is the ONE difference, and geometry forces it: the
+       * switch is a rotated square whose left/right vertices are at its
+       * vertical midpoint.
        */}
-      <Tooltip label={FLOW_HANDLE_TOOLTIP_IN} withArrow position="left">
-        <span
-          data-testid={`flow-handle-tooltip-in-${nodeId}`}
-          data-port-direction="input"
-          data-port-tooltip={FLOW_HANDLE_TOOLTIP_IN}
-        >
-          <Handle
-            type="target"
-            position={Position.Left}
-            style={flowHandleStyle(flowAnchor)}
-          />
-        </span>
-      </Tooltip>
-      <Tooltip label={FLOW_HANDLE_TOOLTIP_OUT} withArrow position="right">
-        <span
-          data-testid={`flow-handle-tooltip-out-${nodeId}`}
-          data-port-direction="output"
-          data-port-tooltip={FLOW_HANDLE_TOOLTIP_OUT}
-        >
-          <Handle
-            id="out"
-            type="source"
-            position={Position.Right}
-            style={flowHandleStyle(flowAnchor)}
-            onMouseEnter={handleEnter}
-            onMouseLeave={handleLeave}
-          />
-        </span>
-      </Tooltip>
+      <CardDot
+        sentence={FLOW_HANDLE_TOOLTIP_IN}
+        sentenceSide="left"
+        testId={`flow-handle-tooltip-in-${nodeId}`}
+        direction="input"
+        type="target"
+        position={Position.Left}
+        style={flowHandleStyle(flowAnchor)}
+      />
+      <CardDot
+        sentence={FLOW_HANDLE_TOOLTIP_OUT}
+        sentenceSide="right"
+        testId={`flow-handle-tooltip-out-${nodeId}`}
+        direction="output"
+        handleId="out"
+        type="source"
+        position={Position.Right}
+        style={flowHandleStyle(flowAnchor)}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+      />
       {showErrorHandle && (
-        <Tooltip label={ERROR_HANDLE_TOOLTIP} withArrow position="bottom">
-          <span
-            data-testid={`error-handle-tooltip-${nodeId}`}
-            data-port-tooltip={ERROR_HANDLE_TOOLTIP}
-          >
-            <Handle
-              id="error"
-              type="source"
-              position={Position.Bottom}
-              style={{ background: ERROR_HANDLE_BACKGROUND }}
-              onMouseEnter={errorHoverHandlers.onMouseEnter}
-              onMouseLeave={errorHoverHandlers.onMouseLeave}
-            />
-          </span>
-        </Tooltip>
+        <CardDot
+          sentence={ERROR_HANDLE_TOOLTIP}
+          sentenceSide="bottom"
+          testId={`error-handle-tooltip-${nodeId}`}
+          handleId="error"
+          type="source"
+          position={Position.Bottom}
+          style={ERROR_HANDLE_STYLE}
+          onMouseEnter={errorHoverHandlers.onMouseEnter}
+          onMouseLeave={errorHoverHandlers.onMouseLeave}
+        />
       )}
       {selected ? (
         <NodeTypePillRow
@@ -971,50 +1105,38 @@ const ActivityNodeRenderer = memo(
         {/* Node-level handles FIRST in DOM order for their type — see the
             default-resolution comment above `hoverHandlers`. Geometry, fill
             and copy come from `flow-handle.ts` so this pair is identical to
-            the one every other card renders (D28). */}
-        <Tooltip label={FLOW_HANDLE_TOOLTIP_IN} withArrow position="left">
-          <span
-            data-testid={`flow-handle-tooltip-in-${id}`}
-            data-port-tooltip={FLOW_HANDLE_TOOLTIP_IN}
-          >
-            <Handle
-              type="target"
-              position={Position.Left}
-              style={flowHandleStyle("card-top")}
-            />
-          </span>
-        </Tooltip>
-        <Tooltip label={FLOW_HANDLE_TOOLTIP_OUT} withArrow position="right">
-          <span
-            data-testid={`flow-handle-tooltip-out-${id}`}
-            data-port-tooltip={FLOW_HANDLE_TOOLTIP_OUT}
-          >
-            <Handle
-              id="out"
-              type="source"
-              position={Position.Right}
-              style={flowHandleStyle("card-top")}
-              onMouseEnter={hoverHandlers.onMouseEnter}
-              onMouseLeave={hoverHandlers.onMouseLeave}
-            />
-          </span>
-        </Tooltip>
+            the one every other card renders. */}
+        <CardDot
+          sentence={FLOW_HANDLE_TOOLTIP_IN}
+          sentenceSide="left"
+          testId={`flow-handle-tooltip-in-${id}`}
+          type="target"
+          position={Position.Left}
+          style={flowHandleStyle("card-top")}
+        />
+        <CardDot
+          sentence={FLOW_HANDLE_TOOLTIP_OUT}
+          sentenceSide="right"
+          testId={`flow-handle-tooltip-out-${id}`}
+          handleId="out"
+          type="source"
+          position={Position.Right}
+          style={flowHandleStyle("card-top")}
+          onMouseEnter={hoverHandlers.onMouseEnter}
+          onMouseLeave={hoverHandlers.onMouseLeave}
+        />
         {data.errorPolicy?.onError === "fallback" && (
-          <Tooltip label={ERROR_HANDLE_TOOLTIP} withArrow position="bottom">
-            <span
-              data-testid={`error-handle-tooltip-${id}`}
-              data-port-tooltip={ERROR_HANDLE_TOOLTIP}
-            >
-              <Handle
-                id="error"
-                type="source"
-                position={Position.Bottom}
-                style={{ background: ERROR_HANDLE_BACKGROUND }}
-                onMouseEnter={errorHoverHandlers.onMouseEnter}
-                onMouseLeave={errorHoverHandlers.onMouseLeave}
-              />
-            </span>
-          </Tooltip>
+          <CardDot
+            sentence={ERROR_HANDLE_TOOLTIP}
+            sentenceSide="bottom"
+            testId={`error-handle-tooltip-${id}`}
+            handleId="error"
+            type="source"
+            position={Position.Bottom}
+            style={ERROR_HANDLE_STYLE}
+            onMouseEnter={errorHoverHandlers.onMouseEnter}
+            onMouseLeave={errorHoverHandlers.onMouseLeave}
+          />
         )}
         <PortRows
           nodeId={id}
@@ -1596,17 +1718,49 @@ function controlFlowNodeSides(): {
   };
 }
 
+/**
+ * Error and warning totals for the cards `nodeIds`, from the latest validation
+ * results. A card passes its own id; a group chip passes its members' ids,
+ * because collapsing them takes their badges off the canvas.
+ */
+function issueCounts(
+  errorsByNode:
+    | ReadonlyMap<string, readonly GraphValidationError[]>
+    | undefined,
+  nodeIds: readonly string[],
+): { errorCount: number; warningCount: number } {
+  let errorCount = 0;
+  let warningCount = 0;
+  for (const id of nodeIds) {
+    for (const err of errorsByNode?.get(id) ?? []) {
+      if (err.severity === "error") errorCount += 1;
+      else warningCount += 1;
+    }
+  }
+  return { errorCount, warningCount };
+}
+
+/**
+ * Builds every card from the config. Each card's badge counts come from the
+ * validation results in hand, so a re-projection keeps the badges on screen:
+ * validation runs on a delay after an edit, and a card rebuilt with zero
+ * counts would show no badge until it finished.
+ */
 function projectFlowNodes(
   config: GraphWorkflowConfig,
   selectedNodeId: string | null,
   callbacks: ProjectionCallbacks,
   wires: readonly DerivedWire[],
   dynamicEntries: readonly DynamicNodeCatalogEntry[],
+  errorsByNode:
+    | ReadonlyMap<string, readonly GraphValidationError[]>
+    | undefined,
 ): FlowNode[] {
   const all = Object.values(config.nodes);
   return all.map((node, idx) => {
     const position = readPosition(node, idx);
     const isEntry = node.id === config.entryNodeId;
+    const counts = issueCounts(errorsByNode, [node.id]);
     if (node.type === "activity") {
       const flowNode: ActivityFlowNode = {
         id: node.id,
@@ -1617,8 +1771,8 @@ function projectFlowNodes(
           label: node.label,
           activityType: node.activityType,
           isEntry,
-          errorCount: 0,
-          warningCount: 0,
+          errorCount: counts.errorCount,
+          warningCount: counts.warningCount,
           onBadgeClick: callbacks.onBadgeClick,
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
@@ -1648,8 +1802,8 @@ function projectFlowNodes(
           controlFlowType: "pollUntil",
           activityType: node.activityType,
           isEntry,
-          errorCount: 0,
-          warningCount: 0,
+          errorCount: counts.errorCount,
+          warningCount: counts.warningCount,
           onBadgeClick: callbacks.onBadgeClick,
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
@@ -1677,8 +1831,8 @@ function projectFlowNodes(
           label: node.label,
           controlFlowType: node.type,
           isEntry,
-          errorCount: 0,
-          warningCount: 0,
+          errorCount: counts.errorCount,
+          warningCount: counts.warningCount,
           onBadgeClick: callbacks.onBadgeClick,
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
@@ -1701,12 +1855,14 @@ function projectFlowNodes(
         type: "source",
         position,
         selected: node.id === selectedNodeId,
-        // G-031 — the badge needs the same deep-link callback every other
-        // node type gets, or a source's issues would be visible but not
-        // clickable.
+        // The badge needs the same counts and deep-link callback every other
+        // node type gets, or a source's issues would be missing from its card
+        // or visible but not clickable.
         data: {
           ...(node as SourceNodeData),
           onBadgeClick: callbacks.onBadgeClick,
+          errorCount: counts.errorCount,
+          warningCount: counts.warningCount,
         },
       };
       return flowNode;
@@ -1933,6 +2089,9 @@ function projectSimplifiedFlowEdges(
 function projectChipFlowNodes(
   chips: readonly GroupChip[],
   selectedNodeId: string | null,
+  errorsByNode:
+    | ReadonlyMap<string, readonly GraphValidationError[]>
+    | undefined,
 ): GroupChipFlowNode[] {
   return chips.map((chip) => ({
     id: chip.id,
@@ -1947,6 +2106,7 @@ function projectChipFlowNodes(
       color: chip.color,
       nodeCount: chip.nodeCount,
       memberNodeIds: chip.memberNodeIds,
+      ...issueCounts(errorsByNode, chip.memberNodeIds),
     },
   }));
 }
@@ -2244,6 +2404,16 @@ function buildStructuralFingerprint(
     // Revisit if rows ever read ctx VALUES (defaults, types): a value
     // edit under an unchanged key would then need to re-project too.
     ctxKeys: Object.keys(config.ctx).sort(),
+    // The references that read a value without a wire — a condition, a
+    // loop's collection, a sub-workflow's input mapping — decide whether an
+    // output's dot still invites one (`computePortRows`), so editing one of
+    // them re-projects the cards. Input bindings are in `bindings` above.
+    ctxReaders: collectCtxReaders(config)
+      .filter((reader) => reader.via !== "input")
+      .map(
+        (reader) =>
+          `${reader.nodeId}|${reader.via}|${reader.port}|${reader.ref}`,
+      ),
     simplifiedView,
     groups: groupsFingerprint,
     dynSignatures,
@@ -2613,8 +2783,13 @@ function WorkflowEditorCanvasInner({
         projectionCallbacks,
         wires,
         dynamicCatalogEntries,
+        errorsByNode,
       );
-      const chipNodes = projectChipFlowNodes(projected.chips, selectedNodeId);
+      const chipNodes = projectChipFlowNodes(
+        projected.chips,
+        selectedNodeId,
+        errorsByNode,
+      );
       setInternalNodes([...normalNodes, ...chipNodes]);
     } else {
       // G-1 — every group gets a container box, authored or synthetic. This
@@ -2633,6 +2808,7 @@ function WorkflowEditorCanvasInner({
         projectionCallbacks,
         wires,
         dynamicCatalogEntries,
+        errorsByNode,
       );
       setInternalNodes([...containerNodes, ...normalNodes]);
       // D-1 — on the first paint xyflow has measured nothing, so the boxes
@@ -2650,6 +2826,10 @@ function WorkflowEditorCanvasInner({
     // node via its onSelectionChange handler — we don't sync external
     // selection updates back into internal nodes, which avoids a
     // setState loop with xyflow's StoreUpdater.
+    //
+    // `errorsByNode` is read for the badge counts only. A new validation
+    // result alone never passes the fingerprint gate above; the badge sync
+    // below patches the counts on the cards already there.
   }, [
     dataFingerprint,
     config,
@@ -2662,6 +2842,7 @@ function WorkflowEditorCanvasInner({
     onSelectMapBodyNode,
     readMeasuredSizes,
     dynamicCatalogEntries,
+    errorsByNode,
   ]);
 
   /**
@@ -2747,14 +2928,14 @@ function WorkflowEditorCanvasInner({
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
   // Kept separate from the structural projection above so that the
-  // 300ms-debounced validator doesn't trigger a full re-projection.
+  // 300ms-debounced validator doesn't trigger a full re-projection. The
+  // projection reads the same results, so a card it rebuilds already
+  // carries its counts and this effect finds nothing to patch.
   //
-  // D7 — `Array.prototype.map` ALWAYS allocates, so this effect used to
-  // replace the whole xyflow node array every time `errorsByNode` changed
-  // identity, even when not one count moved. That is once per keystroke in a
-  // settings field (see the matching fix in `useGraphValidation`), and a new
-  // array defeats xyflow's `checkEquality` reuse, re-rendering every card.
-  // The hover-highlight effect immediately below already had this guard.
+  // `Array.prototype.map` ALWAYS allocates, so the setter hands back `prev`
+  // when not one count moved: a new array defeats xyflow's `checkEquality`
+  // reuse and re-renders every card, and the results change identity on
+  // every validator run whether or not any count did.
   useEffect(() => {
     if (!errorsByNode) return;
     setInternalNodes((prev) => {
@@ -2765,23 +2946,18 @@ function WorkflowEditorCanvasInner({
         // screen, so there is nothing to roll up.
         if (n.type === "group-container") return n;
 
-        // G-031 — a chip COLLAPSES its members, so the members' badges leave
-        // the canvas with them. Rolling their counts onto the chip is what
-        // stops the top bar reading "N issues" while simplified view shows
-        // nothing marked anywhere. (The chip already aggregates run status
-        // this way; validation was the missing axis.)
+        // A chip COLLAPSES its members, so the members' badges leave the
+        // canvas with them. Rolling their counts onto the chip is what stops
+        // the top bar reading "N issues" while simplified view shows nothing
+        // marked anywhere.
         const countedIds =
           n.type === "group-chip"
             ? ((n.data as GroupChipNodeData).memberNodeIds ?? [])
             : [n.id];
-        let errorCount = 0;
-        let warningCount = 0;
-        for (const id of countedIds) {
-          for (const err of errorsByNode.get(id) ?? []) {
-            if (err.severity === "error") errorCount += 1;
-            else warningCount += 1;
-          }
-        }
+        const { errorCount, warningCount } = issueCounts(
+          errorsByNode,
+          countedIds,
+        );
         if (
           n.data.errorCount === errorCount &&
           n.data.warningCount === warningCount
@@ -2806,9 +2982,9 @@ function WorkflowEditorCanvasInner({
           };
           return updated;
         }
-        // G-031 — source nodes carry ERROR-severity rules
-        // (`nodes.<id>.sourceType`, `nodes.<id>.parameters<suffix>`) that
-        // reached the drawer and the top-bar count with nothing on the card.
+        // Source nodes carry ERROR-severity rules (`nodes.<id>.sourceType`,
+        // `nodes.<id>.parameters<suffix>`) that belong on the card as well as
+        // in the drawer and the top-bar count.
         if (n.type === "source") {
           const updated: SourceFlowNode = {
             ...n,
@@ -3934,11 +4110,16 @@ function WorkflowEditorCanvasInner({
   const closeAddNodePicker = useCallback(() => setAddNodeAt(null), []);
 
   /**
-   * P-4 — lands a picked node at the right-clicked point. Unlike
+   * Lands a picked node at the right-clicked point. Unlike
    * `extendFromSource` there is no source to wire to and no position to
    * derive: the author chose the spot. Adopting the node as `entryNodeId`
    * when the graph has none mirrors the palette-add path — a first node that
    * is not the entry point makes the workflow invalid on arrival.
+   *
+   * A new loop's item variable is declared in the same config change
+   * (`declareSkeletonCtxKeys`), as the palette does, so a step wired inside
+   * the loop does not start with an undeclared-variable error, and one Undo
+   * removes the node and its declaration together.
    */
   const addNodeAtPoint = useCallback(
     (newNode: GraphNode, position: { x: number; y: number }) => {
@@ -3946,11 +4127,17 @@ function WorkflowEditorCanvasInner({
         ...newNode,
         metadata: { ...(newNode.metadata ?? {}), position },
       };
-      onConfigChange({
-        ...config,
-        nodes: { ...config.nodes, [placed.id]: placed },
-        entryNodeId: config.entryNodeId === "" ? placed.id : config.entryNodeId,
-      });
+      onConfigChange(
+        declareSkeletonCtxKeys(
+          {
+            ...config,
+            nodes: { ...config.nodes, [placed.id]: placed },
+            entryNodeId:
+              config.entryNodeId === "" ? placed.id : config.entryNodeId,
+          },
+          placed,
+        ),
+      );
       onSelectNode(placed.id);
     },
     [config, onConfigChange, onSelectNode],
@@ -4539,17 +4726,22 @@ function WorkflowEditorCanvasInner({
    * Adds the new graph node + connecting edge to the outer config in a
    * single `onConfigChange`. Used by both the activity-picker and the
    * control-flow-picker branches of the hover popover.
+   *
+   * A new loop's item variable is declared in that same change
+   * (`declareSkeletonCtxKeys`), as the palette does: the step the author
+   * wires inside the loop reads it straight away, and one Undo removes the
+   * node and its declaration together.
    */
   const extendFromSource = useCallback(
     (
       sourceNodeId: string,
       newNode: GraphNode,
       /**
-       * Item 5 — the extend launched from the bottom `error` handle lands an
-       * `error` edge, not an ordinary one. Same shape as drawing the wire by
-       * hand: the edge is typed AND `recordErrorEdge` names it on the source's
-       * policy, or the validator reports a missing `fallbackEdgeId` the author
-       * has no way to clear (G-001).
+       * The extend launched from the bottom `error` handle lands an `error`
+       * edge, not an ordinary one. Same shape as drawing the wire by hand:
+       * the edge is typed AND `recordErrorEdge` names it on the source's
+       * policy, or the validator reports a missing `fallbackEdgeId` the
+       * author has no way to clear.
        */
       edgeType?: GraphEdge["type"],
     ) => {
@@ -4573,7 +4765,12 @@ function WorkflowEditorCanvasInner({
         nodes: { ...config.nodes, [newNode.id]: newNodeWithPosition },
         edges: [...config.edges, newEdge],
       };
-      onConfigChange(recordErrorEdge(withNewNode, newEdge));
+      onConfigChange(
+        declareSkeletonCtxKeys(
+          recordErrorEdge(withNewNode, newEdge),
+          newNodeWithPosition,
+        ),
+      );
       onSelectNode(newNode.id);
       openConnectSummary(newNode.id);
     },
@@ -4788,75 +4985,88 @@ function WorkflowEditorCanvasInner({
     ],
   );
 
+  // Either picker — the hover one, or "Add node here" — hides the cards' dot
+  // sentences while it is open.
+  const extendPickerOpen = hoverExtend !== null || addNodeAt !== null;
+  // A hover picker with no port and no error-path intent was opened from a
+  // card's outgoing run-order dot: every port hover names its port, and the
+  // only other node-level dot is the error dot.
+  const extendFromRunOrderDot =
+    hoverExtend !== null &&
+    hoverExtend.sourcePort === undefined &&
+    errorExtendNodeId !== hoverExtend.nodeId;
+
   return (
     <div style={{ height: "100%", width: "100%" }}>
       <PortDragContext.Provider value={portDragValue}>
-        <ReactFlow
-          className="wb-editor-canvas"
-          nodes={internalNodes}
-          edges={internalEdges}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={onInternalEdgesChange}
-          onNodeDragStart={handleNodeDragStart}
-          onNodeDrag={handleNodeDrag}
-          onNodeDragStop={handleNodeDragStop}
-          onSelectionChange={handleSelectionChange}
-          onBeforeDelete={handleBeforeDelete}
-          onDelete={handleDelete}
-          onConnect={handleConnect}
-          isValidConnection={isValidConnection}
-          onConnectStart={handleConnectStart}
-          onConnectEnd={handleConnectEnd}
-          onNodeContextMenu={handleNodeContextMenu}
-          onEdgeContextMenu={handleEdgeContextMenu}
-          onPaneContextMenu={handlePaneContextMenu}
-          // B-3 — the three gestures Mantine's click-away never sees.
-          onPaneClick={closeCanvasMenus}
-          onNodeClick={closeCanvasMenus}
-          onMove={closeCanvasMenus}
-          onInit={(instance) =>
-            // Cast away the typed-generic narrowing on the inner instance —
-            // the host only needs the generic `ReactFlowInstance` surface
-            // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
-            // (US-049 Scenario 3).
-            onReactFlowReady?.(instance as unknown as ReactFlowInstance)
-          }
-          nodesDraggable
-          nodesConnectable
-          elementsSelectable
-          fitView
-          fitViewOptions={{ padding: 0.15 }}
-          /*
-           * xyflow's default minZoom is 0.5, and `fitView` CLAMPS to it rather
-           * than reporting that it could not fit. A real workflow is wide —
-           * standard-ocr lays out ~4500 flow-units across, and the pane is
-           * ~720px once the palette and the settings rail take their share, so
-           * fitting needs ~0.16. At the default the viewport stopped at 0.5,
-           * left the graph overflowing off both edges, and every later Fit was
-           * a silent no-op because it was already at the limit.
-           *
-           * 0.1 is chosen to fit the widest seeded graph with headroom, not as
-           * a round number: below ~0.2 the cards stop being legible anyway, so
-           * this buys "you can see the shape of the whole thing", which is what
-           * Fit is for. Panning and the minimap remain how you read detail.
-           */
-          minZoom={0.1}
-          deleteKeyCode={["Delete", "Backspace"]}
-        >
-          <Background gap={18} size={1} />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable />
-          {/*
+        <ExtendPickerOpenContext.Provider value={extendPickerOpen}>
+          <ReactFlow
+            className="wb-editor-canvas"
+            nodes={internalNodes}
+            edges={internalEdges}
+            nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={onInternalEdgesChange}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDrag={handleNodeDrag}
+            onNodeDragStop={handleNodeDragStop}
+            onSelectionChange={handleSelectionChange}
+            onBeforeDelete={handleBeforeDelete}
+            onDelete={handleDelete}
+            onConnect={handleConnect}
+            isValidConnection={isValidConnection}
+            onConnectStart={handleConnectStart}
+            onConnectEnd={handleConnectEnd}
+            onNodeContextMenu={handleNodeContextMenu}
+            onEdgeContextMenu={handleEdgeContextMenu}
+            onPaneContextMenu={handlePaneContextMenu}
+            // B-3 — the three gestures Mantine's click-away never sees.
+            onPaneClick={closeCanvasMenus}
+            onNodeClick={closeCanvasMenus}
+            onMove={closeCanvasMenus}
+            onInit={(instance) =>
+              // Cast away the typed-generic narrowing on the inner instance —
+              // the host only needs the generic `ReactFlowInstance` surface
+              // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
+              // (US-049 Scenario 3).
+              onReactFlowReady?.(instance as unknown as ReactFlowInstance)
+            }
+            nodesDraggable
+            nodesConnectable
+            elementsSelectable
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            /*
+             * xyflow's default minZoom is 0.5, and `fitView` CLAMPS to it rather
+             * than reporting that it could not fit. A real workflow is wide —
+             * standard-ocr lays out ~4500 flow-units across, and the pane is
+             * ~720px once the palette and the settings rail take their share, so
+             * fitting needs ~0.16. At the default the viewport stopped at 0.5,
+             * left the graph overflowing off both edges, and every later Fit was
+             * a silent no-op because it was already at the limit.
+             *
+             * 0.1 is chosen to fit the widest seeded graph with headroom, not as
+             * a round number: below ~0.2 the cards stop being legible anyway, so
+             * this buys "you can see the shape of the whole thing", which is what
+             * Fit is for. Panning and the minimap remain how you read detail.
+             */
+            minZoom={0.1}
+            deleteKeyCode={["Delete", "Backspace"]}
+          >
+            <Background gap={18} size={1} />
+            <Controls showInteractive={false} />
+            <MiniMap pannable zoomable />
+            {/*
             UX walkthrough 2026-07-29 — the colour scheme existed
             (one colour per data family) but nothing explained it. The
             legend teaches it in place.
           */}
-          <Panel position="bottom-center">
-            <CanvasLegend />
-          </Panel>
-        </ReactFlow>
+            <Panel position="bottom-center">
+              <CanvasLegend />
+            </Panel>
+          </ReactFlow>
+        </ExtendPickerOpenContext.Provider>
       </PortDragContext.Provider>
       {contextMenu?.target === "node" && (
         <NodeContextMenu
@@ -4986,6 +5196,7 @@ function WorkflowEditorCanvasInner({
           intent={
             errorExtendNodeId === hoverExtend.nodeId ? "error-path" : "extend"
           }
+          fromRunOrderDot={extendFromRunOrderDot}
           gestureKey={`${hoverExtend.nodeId}:${hoverExtend.direction ?? "downstream"}:${hoverExtend.sourcePort ?? ""}`}
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handlePopoverLeave}

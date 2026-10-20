@@ -10,7 +10,12 @@
  * with an empty wire list rather than requiring a caller-supplied
  * `DerivedWire[]`.
  */
-import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
+import {
+  findCtxKeyReferences,
+  getActivityCatalogEntry,
+  type KindRef,
+  synthesiseCtxKey,
+} from "@ai-di/graph-workflow";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
 import { PREVIEW_STRIP_TOTAL_HEIGHT_PX } from "../preview/strip-metrics";
 import type { DataWire, DerivedWire } from "./derive-wires";
@@ -179,17 +184,17 @@ export interface PortRowModel {
   /** Input only: satisfied by a wire, a ctx variable, or any persisted binding. Outputs: always true. */
   bound: boolean;
   /**
-   * Whether anything is attached to this port on the canvas — the test the
-   * "+" invitation reads (Inderdeep UX walkthrough 2026-08-06, item 3).
+   * Whether this port already takes part in the graph — the test the "+"
+   * invitation and its hover hint read.
    *
    * The two directions have genuinely different tests, which is why this is
    * not just `bound`:
    *   - INPUT: same as `bound` — a wire, a ctx variable, or a persisted
    *     binding all mean a value already arrives here, so there is nothing
    *     to invite.
-   *   - OUTPUT: at least one derived data wire LEAVES this port. `bound` is
-   *     hard-coded `true` for outputs (an output is never waiting on a
-   *     source), so it cannot answer this question at all.
+   *   - OUTPUT: something in the graph reads the value it writes (see
+   *     `outputIsRead`). `bound` is hard-coded `true` for outputs (an output
+   *     is never waiting on a source), so it cannot answer this question.
    */
   connected: boolean;
   /** Set when the binding reads a declared workflow variable (renders a chip). */
@@ -200,6 +205,65 @@ export interface PortRowModel {
 
 function isDataWire(wire: DerivedWire): wire is DataWire {
   return wire.variant === "data";
+}
+
+/**
+ * The ctx keys output `port` of `node` writes: the key its `outputs[]` row
+ * names, and the `__auto.<node>.<port>` key, which names this port wherever a
+ * reference uses it, row or no row (`resolveCtxKeySource` decodes it the same
+ * way).
+ */
+function outputCtxKeys(node: GraphNode, port: string): string[] {
+  const bound = (node.outputs ?? [])
+    .filter((binding) => binding.port === port && binding.ctxKey !== "")
+    .map((binding) => binding.ctxKey);
+  return [...new Set([...bound, synthesiseCtxKey(node.id, port)])];
+}
+
+/**
+ * Whether anything in the graph reads the value output `port` of `node`
+ * writes.
+ *
+ * A data wire leaving the port is the visible case. The others draw no wire
+ * and still read the value, so an output read only by them is not waiting for
+ * one:
+ *   - a condition: a poll step's stop condition reading its own status, or a
+ *     switch case;
+ *   - a loop's collection, which is how "Run for each item" takes a list;
+ *   - a sub-workflow's input mapping;
+ *   - an input binding no wire represents, such as a drilled field
+ *     (`ocrResult.status`).
+ *
+ * Readers come from `findCtxKeyReferences`, the graph-workflow lookup the
+ * workflow settings' variable list uses to show what reads a variable. An
+ * input binding that IS drawn as a wire counts only through that wire: where
+ * two steps write one variable, the wire says which of them the binding
+ * actually reads.
+ */
+function outputIsRead(
+  config: GraphWorkflowConfig,
+  node: GraphNode,
+  port: string,
+  dataWires: readonly DataWire[],
+): boolean {
+  if (
+    dataWires.some(
+      (wire) => wire.source === node.id && wire.sourcePort === port,
+    )
+  ) {
+    return true;
+  }
+  return outputCtxKeys(node, port).some((key) =>
+    findCtxKeyReferences(config, key).readers.some(
+      (reader) =>
+        reader.via !== "input" ||
+        (reader.nodeId !== node.id &&
+          !dataWires.some(
+            (wire) =>
+              wire.target === reader.nodeId && wire.targetPort === reader.port,
+          )),
+    ),
+  );
 }
 
 /**
@@ -283,9 +347,7 @@ export function computePortRows(
     required: descriptor.required === true,
     handleId: outputHandleId(descriptor.name),
     bound: true,
-    connected: dataWires.some(
-      (wire) => wire.source === nodeId && wire.sourcePort === descriptor.name,
-    ),
+    connected: outputIsRead(config, node, descriptor.name, dataWires),
     fromCtx: undefined,
     needsSource: false,
   }));

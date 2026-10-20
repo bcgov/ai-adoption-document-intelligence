@@ -13,16 +13,6 @@
  *
  * Dynamically-registered kinds (Phase 6) resolve their colour through the same
  * registry, and an unknown kind falls back to gray.
- *
- * WHAT USED TO LIVE HERE. `computeHandleStyle` coloured ONE handle standing for
- * a whole side of a node, collapsing to gray whenever the side had zero or many
- * typed ports. Per-port rows replaced that model, and PORT_WIRING_DESIGN.md §42
- * had already recorded that this branch goes with it. It was removed on
- * 2026-08-15 with its last caller — and it was not harmless while it sat there:
- * its zero-typed-ports branch is where the tooltips "No typed inputs" and "No
- * typed outputs" came from, the sentences about DATA ports that appeared on a
- * control-flow card's run-order connector and stopped a reviewer drawing
- * run-order edges at all (item D10).
  */
 
 import type { CSSProperties } from "react";
@@ -31,6 +21,7 @@ import {
   type PortShape,
   portDotColor,
   portRingColor,
+  shapeForColor,
 } from "./artifact-kind-colour";
 
 /**
@@ -150,28 +141,30 @@ export function portShapeStyle(
 }
 
 // ---------------------------------------------------------------------------
-// The "+" invitation on an unconnected port handle
-// (Inderdeep UX walkthrough 2026-08-06, item 3).
+// The "+" invitation on an unconnected port handle.
 //
 // A bare dot says nothing, so the hover-to-extend popover — the main way a
 // graph gets built — is invisible to anyone handed the tool cold. A "+"
 // says "there is something to add here".
 //
-// Two constraints shaped the drawing:
+// Three constraints shaped the drawing:
 //
 //   1. It must not fight the port's family colour, which encodes what can
-//      connect to what. So the glyph is a KNOCKOUT: two bars in the canvas
-//      body colour cut across the coloured disc, exactly like the 2px body
-//      ring the dot already wears (`workflow-editor-canvas.css`). The hue is
-//      untouched; only the shape inside it changes.
-//   2. It must survive the zoom levels people work at. The batch-1 status
-//      badge finding was that a glyph INSIDE a ring loses at 16px, because
-//      the ring eats the pixel budget. So the plus is not drawn inside the
-//      existing 12px dot: an inviting handle grows to
-//      `UNCONNECTED_HANDLE_SIZE`, which leaves a 12px coloured disc inside
-//      the 2px body ring, and the bars span 8 of those 12px at 2px thick.
-//      Two thirds of the disc is glyph — the plus is the shape you read,
-//      not a detail inside a circle.
+//      connect to what. So the glyph is drawn in a neutral ink, black or
+//      white, never in a hue of its own; only the shape inside the dot
+//      changes.
+//   2. It must be legible on every family. One ink cannot be: white on the
+//      yellow diamond is 1.9:1, and on the untyped dot, which is hollow and
+//      filled with the canvas white, it is invisible. So the glyph takes
+//      whichever ink contrasts more with the surface it is drawn on (see
+//      `plusGlyphColor`).
+//   3. It must survive the zoom levels people work at. A glyph INSIDE a ring
+//      loses at 16px, because the ring eats the pixel budget. So the plus is
+//      not drawn inside the existing 12px dot: an inviting handle grows to
+//      `UNCONNECTED_HANDLE_SIZE`, which leaves a 12px disc inside the 2px
+//      ring, and the bars span 8 of those 12px at 2px thick. Two thirds of
+//      the disc is glyph — the plus is the shape you read, not a detail
+//      inside a circle.
 //
 // Growing the dot via width/height (not `transform: scale()`) is deliberate
 // and matches the drop-target highlight in `PortRows` — xyflow's own
@@ -190,16 +183,71 @@ export const UNCONNECTED_HANDLE_SIZE = 16;
 export const PLUS_GLYPH_ARM = 8;
 /** Thickness of each arm of the "+", in px. */
 export const PLUS_GLYPH_STROKE = 2;
-/** Knockout colour — the canvas body, same tone as the dot's own ring. */
-export const PLUS_GLYPH_COLOR = "var(--mantine-color-body, #fff)";
+/**
+ * The two inks the "+" can be drawn in. Literal hexes for the same reason the
+ * family palette uses them: the contrast worked out here is the contrast on
+ * screen.
+ */
+export const PLUS_GLYPH_INKS = ["#FFFFFF", "#000000"] as const;
+/**
+ * What a hollow dot is filled with: the canvas body (`portShapeStyle`), which
+ * is white in the app's light colour scheme.
+ */
+const HOLLOW_DOT_FILL = "#FFFFFF";
 /** How much of the dot's usable width the "+" spans. */
 const PLUS_ARM_RATIO = 0.67;
+
+/** WCAG 2 relative luminance of one 0–255 sRGB channel. */
+function linearChannel(value: number): number {
+  const c = value / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/** WCAG 2 relative luminance of a `#RRGGBB` colour. */
+function relativeLuminance(hex: string): number {
+  const digits = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((at) =>
+    linearChannel(Number.parseInt(digits.slice(at, at + 2), 16)),
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2 contrast ratio between two `#RRGGBB` colours, from 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The surface a family's "+" is drawn on: the family colour inside a filled
+ * dot, the canvas body inside the hollow one.
+ */
+export function plusGlyphSurface(color: string): string {
+  return shapeForColor(color) === "hollow"
+    ? HOLLOW_DOT_FILL
+    : portDotColor(color);
+}
+
+/**
+ * The ink for a family's "+": whichever of white and black contrasts more with
+ * the surface it is drawn on, the rule `colorForFieldKey` also applies to
+ * field highlights. That puts white on the violet square (6.3:1) and black on
+ * the blue circle (6.7:1), the yellow diamond (11.3:1), the teal bar (6.7:1)
+ * and the hollow dot (21:1), so every family's glyph clears 6:1.
+ */
+export function plusGlyphColor(color: string): string {
+  const surface = plusGlyphSurface(color);
+  const [light, dark] = PLUS_GLYPH_INKS;
+  return contrastRatio(light, surface) >= contrastRatio(dark, surface)
+    ? light
+    : dark;
+}
 
 const PLUS_BAR_BASE: CSSProperties = {
   position: "absolute",
   left: "50%",
   top: "50%",
-  background: PLUS_GLYPH_COLOR,
   borderRadius: 1,
   // The bars are decoration sitting inside a drag target; they must never
   // intercept the pointer events the handle itself needs.
@@ -207,29 +255,31 @@ const PLUS_BAR_BASE: CSSProperties = {
 };
 
 /**
- * Inline styles for the two bars that draw the "+" inside a handle dot.
- * Rendered as children of the xyflow `<Handle>` (which forwards `children`
- * into the dot element) rather than as a background image, so the glyph is
- * a real, assertable DOM shape at any zoom.
+ * Inline styles for the two bars that draw the "+" inside one family's handle
+ * dot. Rendered as children of the xyflow `<Handle>` (which forwards
+ * `children` into the dot element) rather than as a background image, so the
+ * glyph is a real, assertable DOM shape at any zoom.
  *
- * Shape-aware since item 20, in two ways that both had to be handled or the
- * "+" stopped being a "+":
+ * The family decides three things, each of which would otherwise stop the
+ * "+" being a legible "+":
  *
- *   - **The arm is sized to the shape.** A `bar` is two thirds the width of a
- *     circle, so a fixed 8px arm would have poked out of both sides of it. The
- *     arm is derived from whichever inner dimension is smaller.
+ *   - **The ink**, from `plusGlyphColor`.
+ *   - **The arm length.** A `bar` is two thirds the width of a circle, so a
+ *     fixed 8px arm would poke out of both sides of it. The arm is derived
+ *     from whichever inner dimension is smaller.
  *   - **A diamond counter-rotates its glyph.** The diamond is a rotated
  *     square, and a rotated element rotates its children — so an untouched
  *     plus would render as a ×, which means "remove", the opposite of what
  *     this glyph is for.
  */
 export function plusGlyphBarStyles(
-  shape: PortShape = "circle",
+  color: string,
   size: number = UNCONNECTED_HANDLE_SIZE,
 ): {
   horizontal: CSSProperties;
   vertical: CSSProperties;
 } {
+  const shape = shapeForColor(color);
   const ratio = SHAPE_RATIO[shape];
   // A diamond's usable area is the square inscribed in it, which is 1/√2 of
   // the side it is drawn at.
@@ -240,16 +290,19 @@ export function plusGlyphBarStyles(
     shape === "diamond"
       ? "translate(-50%, -50%) rotate(-45deg)"
       : "translate(-50%, -50%)";
+  const background = plusGlyphColor(color);
 
   return {
     horizontal: {
       ...PLUS_BAR_BASE,
+      background,
       transform,
       width: arm,
       height: PLUS_GLYPH_STROKE,
     },
     vertical: {
       ...PLUS_BAR_BASE,
+      background,
       transform,
       width: PLUS_GLYPH_STROKE,
       height: arm,

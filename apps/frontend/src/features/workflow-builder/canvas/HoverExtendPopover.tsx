@@ -53,6 +53,7 @@ import {
   getActivityVisualHints,
   getCatalogByCategory,
 } from "../catalog-utils";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
 import {
   CONTROL_FLOW_PALETTE_ENTRIES,
   type ControlFlowPaletteEntry,
@@ -64,6 +65,7 @@ import {
   rankActivityTypesForKind,
   rankActivityTypesProducingKind,
 } from "./extend-filter";
+import { FLOW_HANDLE_COLOR, FLOW_HANDLE_TOOLTIP_OUT } from "./flow-handle";
 
 interface TablerIconProps {
   size?: number | string;
@@ -119,7 +121,7 @@ export interface HoverExtendPopoverProps {
    */
   gestureKey?: string;
   /**
-   * Item 5 (Inderdeep 2026-08-06) — WHAT the pick is for.
+   * WHAT the pick is for.
    *
    * `"extend"` (default) is ordinary wiring: the picked node runs next.
    * `"error-path"` is the extend launched from the node's bottom red `error`
@@ -129,6 +131,14 @@ export interface HoverExtendPopoverProps {
    * dot they happened to hover.
    */
   intent?: "extend" | "error-path";
+  /**
+   * True when hovering a card's outgoing run-order dot opened the picker.
+   * That dot's hover sentence hides while any picker is open, because the two
+   * must never share the screen, so the picker shows the same sentence at its
+   * top: the dot can also be dragged to another step's run-order dot, which no
+   * row in the list offers.
+   */
+  fromRunOrderDot?: boolean;
   /**
    * Optional hover-bridge callbacks — the host uses these to cancel /
    * re-arm its 200ms close timer when the cursor crosses from the handle
@@ -148,6 +158,7 @@ export function HoverExtendPopover({
   direction = "downstream",
   gestureKey,
   intent = "extend",
+  fromRunOrderDot = false,
   onMouseEnter,
   onMouseLeave,
 }: HoverExtendPopoverProps) {
@@ -333,6 +344,21 @@ export function HoverExtendPopover({
               </Text>
             </Box>
           )}
+          {fromRunOrderDot && (
+            <Box
+              data-testid="hover-extend-run-order-banner"
+              style={{
+                borderRadius: 6,
+                padding: "6px 8px",
+                borderLeft: `3px solid ${FLOW_HANDLE_COLOR}`,
+                background: "var(--mantine-color-gray-light, #f1f3f5)",
+              }}
+            >
+              <Text size="xs" c="gray.7">
+                {FLOW_HANDLE_TOOLTIP_OUT}
+              </Text>
+            </Box>
+          )}
           <TextInput
             placeholder="Search nodes..."
             leftSection={<IconSearch size={14} />}
@@ -450,6 +476,9 @@ interface ControlFlowRowProps {
 
 function ControlFlowRow({ entry, onClick }: ControlFlowRowProps) {
   const Icon = CONTROL_FLOW_ICONS[entry.type];
+  // The accent of the role this step plays, from the registry the palette's
+  // rows and the canvas cards read, so a step wears one colour on all three.
+  const accent = getControlFlowVisualHints(entry.type).color;
   return (
     <Group
       gap="xs"
@@ -462,13 +491,13 @@ function ControlFlowRow({ entry, onClick }: ControlFlowRowProps) {
         borderRadius: 6,
         borderLeftWidth: 3,
         borderLeftStyle: "solid",
-        borderLeftColor: "#8b5cf6",
+        borderLeftColor: accent,
         background: "var(--mantine-color-default-hover, #25262b)",
       }}
     >
       <ActionIcon
         variant="transparent"
-        color="violet"
+        color={accent}
         size="sm"
         style={{ pointerEvents: "none" }}
         aria-hidden

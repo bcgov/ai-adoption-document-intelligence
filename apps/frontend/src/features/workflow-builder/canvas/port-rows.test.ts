@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
+  ChildWorkflowNode,
   JoinNode,
   MapNode,
   PollUntilNode,
@@ -500,16 +501,16 @@ describe("computePortRows — a ctxKey-less binding is not a source (G-072)", ()
   });
 });
 
-describe("computePortRows — `connected` (the '+' invitation's input, Inderdeep item 3)", () => {
+describe("computePortRows — `connected`, what the '+' invitation reads", () => {
   /**
    * A bare port dot invites nothing, so `PortRows` draws a "+" on ports that
-   * are BOTH unconnected and non-optional. `connected` is the "unconnected"
-   * half, and it is asymmetric: an input is connected when a value arrives
-   * (wire, ctx variable or persisted binding — i.e. `bound`), while an
-   * output is connected only when a derived data wire actually LEAVES that
-   * exact port. `bound` is hard-coded `true` for outputs and so cannot
-   * answer the output question at all — which is the reason this field
-   * exists rather than the glyph reading `bound` directly.
+   * are BOTH unused and non-optional. `connected` is the "unused" half, and it
+   * is asymmetric: an input is connected when a value arrives (wire, ctx
+   * variable or persisted binding — i.e. `bound`), while an output is
+   * connected when something in the graph reads its value. `bound` is
+   * hard-coded `true` for outputs and so cannot answer the output question
+   * at all — which is the reason this field exists rather than the glyph
+   * reading `bound` directly.
    */
   const wiredPair = () =>
     config({
@@ -530,7 +531,7 @@ describe("computePortRows — `connected` (the '+' invitation's input, Inderdeep
       edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
     });
 
-  it("marks an output connected only when a data wire leaves that exact port", () => {
+  it("marks an output connected when a data wire leaves that exact port", () => {
     const cfg = wiredPair();
     const wires = deriveWires(cfg);
 
@@ -573,6 +574,198 @@ describe("computePortRows — `connected` (the '+' invitation's input, Inderdeep
       required: false,
       connected: false,
       needsSource: false,
+    });
+  });
+});
+
+describe("computePortRows — an output read without a wire is not waiting for one", () => {
+  /** The output row `port` of `nodeId`, read with the wires the config draws. */
+  function outputRow(
+    cfg: ReturnType<typeof config>,
+    nodeId: string,
+    port: string,
+  ) {
+    const row = computePortRows(cfg, nodeId, deriveWires(cfg)).outputs.find(
+      (r) => r.name === port,
+    );
+    if (!row) throw new Error(`no output ${port} on ${nodeId}`);
+    return row;
+  }
+
+  it("counts a poll step's own stop condition as reading its status", () => {
+    const cfg = config({
+      nodes: {
+        poll: node<PollUntilNode>({
+          id: "poll",
+          type: "pollUntil",
+          activityType: "azureOcr.poll",
+          outputs: [
+            { port: "status", ctxKey: "ocrStatus" },
+            { port: "ocrResponse", ctxKey: "ocrResponseRef" },
+          ],
+          condition: {
+            operator: "not-equals",
+            left: { ref: "ctx.ocrStatus" },
+            right: { literal: "running" },
+          },
+          interval: "10s",
+        }),
+      },
+    });
+    expect(outputRow(cfg, "poll", "status")).toMatchObject({
+      required: true,
+      connected: true,
+    });
+    // Nothing reads the response, so that dot still invites a wire.
+    expect(outputRow(cfg, "poll", "ocrResponse")).toMatchObject({
+      required: true,
+      connected: false,
+    });
+  });
+
+  it("counts a loop's collection as reading the list it iterates", () => {
+    const cfg = config({
+      nodes: {
+        split: node<ActivityNode>({
+          id: "split",
+          type: "activity",
+          activityType: "document.split",
+        }),
+        loop: node<MapNode>({
+          id: "loop",
+          type: "map",
+          // The key the loop auto-fills, with no `outputs[]` row on the split.
+          collectionCtxKey: "__auto.split.segments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        }),
+      },
+      edges: [{ id: "e1", source: "split", target: "loop", type: "normal" }],
+    });
+    expect(outputRow(cfg, "split", "segments")).toMatchObject({
+      required: true,
+      connected: true,
+    });
+  });
+
+  it("counts a switch case and a sub-workflow input mapping as readers", () => {
+    const check = node<ActivityNode>({
+      id: "check",
+      type: "activity",
+      activityType: "ocr.checkConfidence",
+      outputs: [
+        { port: "averageConfidence", ctxKey: "averageConfidence" },
+        { port: "requiresReview", ctxKey: "requiresReview" },
+      ],
+    });
+    const byCase = config({
+      nodes: {
+        check,
+        route: node<SwitchNode>({
+          id: "route",
+          type: "switch",
+          cases: [
+            {
+              edgeId: "e2",
+              condition: {
+                operator: "gte",
+                left: { ref: "ctx.averageConfidence" },
+                right: { literal: 0.9 },
+              },
+            },
+          ],
+        }),
+      },
+    });
+    expect(outputRow(byCase, "check", "averageConfidence").connected).toBe(
+      true,
+    );
+    expect(outputRow(byCase, "check", "requiresReview").connected).toBe(false);
+
+    const byChild = config({
+      nodes: {
+        check,
+        child: node<ChildWorkflowNode>({
+          id: "child",
+          type: "childWorkflow",
+          workflowRef: { type: "library", workflowId: "w" },
+          inputMappings: [{ port: "flag", ctxKey: "requiresReview" }],
+        }),
+      },
+    });
+    expect(outputRow(byChild, "check", "requiresReview").connected).toBe(true);
+  });
+
+  it("counts a binding to a field of the output, which draws no wire", () => {
+    const cfg = config({
+      nodes: {
+        extract: node<ActivityNode>({
+          id: "extract",
+          type: "activity",
+          activityType: "azureOcr.extract",
+          outputs: [{ port: "ocrResult", ctxKey: "ocrResultRef" }],
+        }),
+        store: node<ActivityNode>({
+          id: "store",
+          type: "activity",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "documentId", ctxKey: "ocrResultRef.documentId" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "extract", target: "store", type: "normal" }],
+    });
+    expect(deriveWires(cfg).some((w) => w.variant === "data")).toBe(false);
+    expect(outputRow(cfg, "extract", "ocrResult").connected).toBe(true);
+  });
+
+  it("does not credit an output with a binding its wire says reads another step's write", () => {
+    // Two steps write `cleaned`; the consumer runs after the second one, so
+    // its wire comes from the second, and the first step's value is never
+    // read.
+    const cfg = config({
+      nodes: {
+        first: node<ActivityNode>({
+          id: "first",
+          type: "activity",
+          activityType: "ocr.cleanup",
+          outputs: [{ port: "cleanedResult", ctxKey: "cleaned" }],
+        }),
+        second: node<ActivityNode>({
+          id: "second",
+          type: "activity",
+          activityType: "ocr.cleanup",
+          outputs: [{ port: "cleanedResult", ctxKey: "cleaned" }],
+        }),
+        consumer: node<ActivityNode>({
+          id: "consumer",
+          type: "activity",
+          activityType: "ocr.storeResults",
+          inputs: [{ port: "ocrResult", ctxKey: "cleaned" }],
+        }),
+      },
+      edges: [
+        { id: "e1", source: "first", target: "second", type: "normal" },
+        { id: "e2", source: "second", target: "consumer", type: "normal" },
+      ],
+    });
+    expect(outputRow(cfg, "second", "cleanedResult").connected).toBe(true);
+    expect(outputRow(cfg, "first", "cleanedResult").connected).toBe(false);
+  });
+
+  it("leaves an output nothing reads waiting for a wire", () => {
+    const cfg = config({
+      nodes: {
+        split: node<ActivityNode>({
+          id: "split",
+          type: "activity",
+          activityType: "document.split",
+        }),
+      },
+    });
+    expect(outputRow(cfg, "split", "segments")).toMatchObject({
+      required: true,
+      connected: false,
     });
   });
 });

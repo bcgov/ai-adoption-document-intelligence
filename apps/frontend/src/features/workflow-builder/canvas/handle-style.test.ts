@@ -2,32 +2,29 @@
  * Tests for the per-handle styling helpers in `handle-style.ts` — the family
  * colour and its silhouette, the array-cardinality outline, and the "+"
  * invitation drawn on an unconnected port.
- *
- * The four `computeHandleStyle` suites that used to lead this file went with
- * that function on 2026-08-15: per-port rows replaced the one-handle-per-side
- * model it served, and PORT_WIRING_DESIGN.md §42 had already recorded that the
- * branch goes with it.
  */
 
 import { describe, expect, it } from "vitest";
 
 import { PORT_FAMILIES, shapeForColor } from "./artifact-kind-colour";
 import {
+  contrastRatio,
   handleArrayOutline,
   handleBackground,
   PLUS_GLYPH_ARM,
-  PLUS_GLYPH_COLOR,
+  PLUS_GLYPH_INKS,
   PLUS_GLYPH_STROKE,
   plusGlyphBarStyles,
+  plusGlyphColor,
+  plusGlyphSurface,
   portShapeStyle,
   UNCONNECTED_HANDLE_SIZE,
 } from "./handle-style";
 
 describe("plusGlyphBarStyles — the '+' drawn on an unconnected port", () => {
   /**
-   * Inderdeep UX walkthrough 2026-08-06, item 3. Two properties are
-   * load-bearing and neither is obvious from reading the styles, so they are
-   * pinned here rather than left to a visual check.
+   * Three properties are load-bearing and none is obvious from reading the
+   * styles, so they are pinned here rather than left to a visual check.
    */
 
   it("keeps the glyph big enough to survive a zoomed-out canvas", () => {
@@ -43,8 +40,8 @@ describe("plusGlyphBarStyles — the '+' drawn on an unconnected port", () => {
     expect(PLUS_GLYPH_STROKE).toBe(2);
   });
 
-  it("draws two centred bars in the body colour, so the port's family hue is untouched", () => {
-    const { horizontal, vertical } = plusGlyphBarStyles();
+  it("draws two centred bars that never take the pointer", () => {
+    const { horizontal, vertical } = plusGlyphBarStyles("blue");
 
     expect(horizontal.width).toBe(PLUS_GLYPH_ARM);
     expect(horizontal.height).toBe(PLUS_GLYPH_STROKE);
@@ -52,10 +49,7 @@ describe("plusGlyphBarStyles — the '+' drawn on an unconnected port", () => {
     expect(vertical.height).toBe(PLUS_GLYPH_ARM);
 
     for (const bar of [horizontal, vertical]) {
-      // A knockout, not a tint: the bars are the canvas body colour, the same
-      // tone as the dot's own ring, so the kind colour (which encodes what can
-      // connect to what) still reads as itself.
-      expect(bar.background).toBe(PLUS_GLYPH_COLOR);
+      expect(bar.background).toBe(plusGlyphColor("blue"));
       expect(bar.position).toBe("absolute");
       expect(bar.left).toBe("50%");
       expect(bar.top).toBe("50%");
@@ -63,6 +57,40 @@ describe("plusGlyphBarStyles — the '+' drawn on an unconnected port", () => {
       // Decoration sitting inside a drag target must never eat the pointer.
       expect(bar.pointerEvents).toBe("none");
     }
+  });
+  it("draws the '+' in whichever ink contrasts more with the dot, on every family", () => {
+    // One ink cannot serve all five families: white on the yellow diamond is
+    // 1.9:1, and on the hollow dot, which is filled with the canvas white, it
+    // does not show at all.
+    for (const family of PORT_FAMILIES) {
+      const surface = plusGlyphSurface(family.token);
+      const ink = plusGlyphColor(family.token);
+      const other = PLUS_GLYPH_INKS.find((candidate) => candidate !== ink);
+      if (!other) throw new Error("expected two inks");
+      expect(contrastRatio(ink, surface), family.token).toBeGreaterThanOrEqual(
+        contrastRatio(other, surface),
+      );
+      // Well clear of WCAG's 3:1 for a graphic that carries meaning.
+      expect(contrastRatio(ink, surface), family.token).toBeGreaterThan(6);
+      const { horizontal, vertical } = plusGlyphBarStyles(family.token);
+      expect(horizontal.background).toBe(ink);
+      expect(vertical.background).toBe(ink);
+    }
+  });
+
+  it("draws the '+' on the hollow dot in a colour other than its fill", () => {
+    const fill = portShapeStyle("hollow", { color: "gray" }).background;
+    expect(fill).toBe("var(--mantine-color-body, #fff)");
+    expect(plusGlyphSurface("gray")).toBe("#FFFFFF");
+    expect(plusGlyphColor("gray")).toBe("#000000");
+  });
+
+  it("measures contrast the WCAG way", () => {
+    expect(contrastRatio("#FFFFFF", "#000000")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#5595D9", "#5595D9")).toBeCloseTo(1, 5);
+    // The violet square is the one family dark enough for white.
+    expect(plusGlyphColor("violet")).toBe("#FFFFFF");
+    expect(contrastRatio("#FFFFFF", "#6741D9")).toBeCloseTo(6.3, 1);
   });
 });
 
@@ -145,15 +173,15 @@ describe("portShapeStyle", () => {
     // The diamond is a rotated square and a rotated element rotates its
     // children, so an untouched plus renders as ×  — which means "remove",
     // the opposite of what the invitation is for.
-    const { horizontal, vertical } = plusGlyphBarStyles("diamond");
+    const { horizontal, vertical } = plusGlyphBarStyles("yellow");
     for (const bar of [horizontal, vertical]) {
       expect(bar.transform).toBe("translate(-50%, -50%) rotate(-45deg)");
     }
   });
 
   it("shortens the '+' arms to fit the narrower shapes", () => {
-    const circle = plusGlyphBarStyles("circle");
-    const bar = plusGlyphBarStyles("bar");
+    const circle = plusGlyphBarStyles("blue");
+    const bar = plusGlyphBarStyles("teal");
     expect(circle.horizontal.width).toBe(PLUS_GLYPH_ARM);
     // A bar is two thirds the width of a circle; an 8px arm would poke out of
     // both of its sides.

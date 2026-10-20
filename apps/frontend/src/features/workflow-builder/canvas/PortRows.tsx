@@ -118,15 +118,13 @@ const NEEDS_SOURCE_RING_ARRAY =
   "0 0 0 7px var(--mantine-color-yellow-5, #fab005)";
 
 /**
- * D28(c) — *"Is there meaning behind the difference in the size of the Poll
- * status connector?"*
+ * What the larger dot with a "+" means, in words.
  *
- * Yes: a dot is drawn at `UNCONNECTED_HANDLE_SIZE` instead of
- * `BASE_HANDLE_SIZE` exactly when `invitesConnection` holds — the port is
- * required and nothing is attached to it — and it carries a "+" at that
- * size. The meaning was real and the only thing carrying it was 4px and a
- * glyph that reads as a smudge on a zoomed-out canvas, with no words
- * anywhere. This is the words.
+ * A dot is drawn at `UNCONNECTED_HANDLE_SIZE` instead of `BASE_HANDLE_SIZE`,
+ * with a "+" on it, exactly when `invitesConnection` holds: the port is
+ * required and nothing uses it yet — no value arrives at the input, or
+ * nothing in the graph reads the output (`PortRowModel.connected`). Size and
+ * glyph are easy to miss on a zoomed-out canvas, so the row says it too.
  *
  * It rides on the ROW LABEL's tooltip rather than on the dot itself,
  * deliberately: hovering the dot already opens the hover-extend picker, and
@@ -134,10 +132,10 @@ const NEEDS_SOURCE_RING_ARRAY =
  * the handle sits outside the tooltip target at all — see the render
  * below).
  */
-const INVITATION_HINT_INPUT =
+export const INVITATION_HINT_INPUT =
   "Nothing is connected here yet — the larger dot with a + is where to drop a wire.";
-const INVITATION_HINT_OUTPUT =
-  "Nothing reads this yet — the larger dot with a + is where to drag one from.";
+export const INVITATION_HINT_OUTPUT =
+  "Nothing reads this yet — the larger dot with a + is where to drag a wire from.";
 
 function rowTooltip(row: PortRowModel): string {
   const kindText = `${row.name}: ${row.kind ?? "Artifact"}`;
@@ -152,13 +150,12 @@ function rowTooltip(row: PortRowModel): string {
 }
 
 /**
- * Whether this port's dot should carry the "+" invitation (Inderdeep UX
- * walkthrough 2026-08-06, item 3).
+ * Whether this port's dot should carry the "+" invitation.
  *
  * Two conditions, both from the port model:
- *   - **unconnected** — `connected` is false: nothing arrives at this input,
- *     or nothing leaves this output. A port that already has something
- *     attached needs no invitation.
+ *   - **unused** — `connected` is false: nothing arrives at this input, or
+ *     nothing in the graph reads this output, by wire or otherwise. A port
+ *     that is already used needs no invitation.
  *   - **non-optional** — `required` is true, i.e. the catalog descriptor
  *     declares `required: true`. Optional ports (`document.classify`'s
  *     `confidence`, a `validation` output nobody has to consume) keep the
@@ -242,7 +239,7 @@ function PortRow({
       : invites
         ? UNCONNECTED_HANDLE_SIZE
         : BASE_HANDLE_SIZE;
-  const plusBars = plusGlyphBarStyles(shape, size);
+  const plusBars = plusGlyphBarStyles(color, size);
 
   const handleStyle: CSSProperties = {
     background: handleBackground(color),
@@ -343,12 +340,13 @@ function PortRow({
             })}
       >
         {/*
-         * The "+" invitation. Two knockout bars drawn as real children of
-         * the handle dot (xyflow forwards `children` straight into the dot
-         * element), so the glyph scales with the dot at every canvas zoom
-         * instead of depending on a background image the browser may
-         * resample. Decorative only — the port's meaning is already in the
-         * row label and the tooltip.
+         * The "+" invitation. Two bars drawn as real children of the handle
+         * dot (xyflow forwards `children` straight into the dot element), so
+         * the glyph scales with the dot at every canvas zoom instead of
+         * depending on a background image the browser may resample. Their ink
+         * is the one `plusGlyphColor` picks for this family's surface.
+         * Decorative only — the port's meaning is already in the row label
+         * and the tooltip.
          */}
         {invites && (
           <>

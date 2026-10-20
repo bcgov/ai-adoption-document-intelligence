@@ -10,6 +10,9 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
+import { CONTROL_FLOW_PALETTE_ENTRIES } from "../palette/control-flow-palette-entries";
+import { FLOW_HANDLE_TOOLTIP_OUT } from "./flow-handle";
 import { HoverExtendPopover } from "./HoverExtendPopover";
 
 function renderPopover(
@@ -25,6 +28,7 @@ function renderPopover(
     direction: overrides.direction,
     gestureKey: overrides.gestureKey,
     intent: overrides.intent,
+    fromRunOrderDot: overrides.fromRunOrderDot,
   };
   const utils = render(
     <MantineProvider>
@@ -273,5 +277,52 @@ describe("HoverExtendPopover — error-path intent", () => {
     expect(
       screen.getByTestId("hover-extend-control-flow-humanGate"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("HoverExtendPopover — flow-control rows wear their role's accent", () => {
+  it("borders each flow-control row in the accent its card and palette row use", () => {
+    renderPopover();
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const row = screen.getByTestId(`hover-extend-control-flow-${entry.type}`);
+      const accent = getControlFlowVisualHints(entry.type).color;
+      // jsdom reads a colour back as rgb().
+      const [r, g, b] = [1, 3, 5].map((at) =>
+        Number.parseInt(accent.slice(at, at + 2), 16),
+      );
+      expect(row.style.borderLeftColor, entry.type).toBe(
+        `rgb(${r}, ${g}, ${b})`,
+      );
+    }
+  });
+
+  it("does not paint routing and fan-out steps the same colour", () => {
+    renderPopover();
+    const colourOf = (type: string) =>
+      screen.getByTestId(`hover-extend-control-flow-${type}`).style
+        .borderLeftColor;
+    expect(colourOf("switch")).not.toBe(colourOf("map"));
+    expect(colourOf("switch")).toBe(colourOf("pollUntil"));
+    expect(colourOf("map")).toBe(colourOf("join"));
+  });
+});
+
+describe("HoverExtendPopover — opened from a run-order dot", () => {
+  it("repeats the dot's sentence at the top, since the dot's own tooltip has closed", () => {
+    renderPopover({ fromRunOrderDot: true });
+    expect(
+      screen.getByTestId("hover-extend-run-order-banner"),
+    ).toHaveTextContent(FLOW_HANDLE_TOOLTIP_OUT);
+    // The list below is unchanged.
+    expect(
+      screen.getByTestId("hover-extend-control-flow-map"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no such banner when another dot opened it", () => {
+    renderPopover();
+    expect(
+      screen.queryByTestId("hover-extend-run-order-banner"),
+    ).not.toBeInTheDocument();
   });
 });
