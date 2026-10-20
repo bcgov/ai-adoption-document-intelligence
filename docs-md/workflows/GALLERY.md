@@ -489,7 +489,17 @@ a diagram you aren't looking at.
 ---
 
 ## 9 · Reading the results ☁️
-**⏱ 4 min** · Whichever workflow you replayed at stop 8, still in replay
+**⏱ 4 min** · A finished Try of a workflow that does OCR, in replay
+
+> **This stop needs a finished Try of a workflow that does OCR**, such as
+> **Standard OCR Workflow**. The Try-in-place demo from stop 8 has no OCR step,
+> and no seeded run has OCR results to read (see the known gaps at the end).
+> Start one from **Run…** ▸ **Try on canvas** with a `documentId` and `blobKey`
+> that name a document already in the system, as stop 8 describes, then open
+> **More ▸ Run history** and **Replay** it. Its OCR steps call Azure. Under the
+> OCR mock from [Before you start](#1--bring-the-stack-up), Azure's answer is
+> three canned lines of text: enough for the table of values, too short for a
+> trimming note.
 
 ![The Extract OCR Results step in replay with its result opened below it: the end of a dimmed note saying what was trimmed, then a table of values starting with success, status and the request id](./gallery-images/09-reading-results.png)
 
@@ -751,6 +761,13 @@ worth separating when you write it up:
   product *does*; it can't tell you whether that was the right thing to do.
 
 Known gaps, so you don't re-report them:
+
+- **No seeded run has OCR results to read at stop 9.** The seeded runs are on
+  demos that touch no Azure. The one demo that runs OCR on a file you give it,
+  **🎯 Demo — Agent: Invoice OCR Pipeline**, checks for the OCR result once
+  instead of waiting for it, so against Azure its Extract step fails before
+  the result exists. For stop 9, make a Try of **Standard OCR Workflow**
+  yourself.
 
 - **⛶ can't fit a long workflow into a narrow window.** The canvas zooms out only
   so far. In a window 1280 px wide, where the canvas is about 400 px once the
