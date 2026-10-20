@@ -1,7 +1,7 @@
 /**
- * Tests for CompareToHeadModal (Phase 2 Track 3 — US-084; D31 diff tab).
+ * Tests for CompareToHeadModal (Phase 2 Track 3 — US-084).
  *
- * The D31 block at the bottom covers the default "Changes" tab — the diff
+ * The diff-tab block at the bottom covers the default "Changes" tab — the diff
  * itself is unit-tested in `config-diff.test.ts`, so these assert the wiring:
  * which tab opens first, what the headline says, and that unchanged fields
  * start collapsed.
@@ -257,10 +257,9 @@ describe("CompareToHeadModal", () => {
   });
 
   // -------------------------------------------------------------------------
-  // D31 — "Compare to Head could be clearer if it showed an actual diff, not
-  // just both versions in full."
+  // The default tab lists what differs between the two versions.
   // -------------------------------------------------------------------------
-  describe("D31 — diff tab", () => {
+  describe("diff tab", () => {
     it("opens on the Changes tab and summarises what differs", () => {
       mockVersionState({ data: olderVersion });
 

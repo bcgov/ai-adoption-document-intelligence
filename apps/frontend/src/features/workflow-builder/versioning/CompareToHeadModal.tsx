@@ -1,15 +1,13 @@
 /**
- * Compare-to-head modal (Phase 2 Track 3 — US-084; diff view added for D31).
+ * Compare-to-head modal (Phase 2 Track 3 — US-084).
  *
  * Opens from `VersionHistoryDrawer`'s per-row "Compare to head" button.
  *
  * The default tab is a **structural diff**: every leaf of the two configs
  * compared field by field, changed/added/removed called out, unchanged fields
- * collapsed behind a disclosure. The original two-full-JSON view is still
- * here as the second tab, because "show me the whole thing" is a real need —
- * it is just no longer the only thing on offer, which is what the reviewer
- * asked for ("could be clearer if it showed an actual diff, not just both
- * versions in full").
+ * collapsed behind a disclosure. The two configs in full are the second
+ * tab, because "show me the whole thing" is a real need; leading with the
+ * differences is what makes a comparison readable.
  *
  * Left = the selected (older) version's config (fetched via
  * `useWorkflowVersion`), right = the current head's config (passed in from
