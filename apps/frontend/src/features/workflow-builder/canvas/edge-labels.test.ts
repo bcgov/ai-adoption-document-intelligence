@@ -16,6 +16,10 @@ import type {
   NullCheckExpression,
 } from "../../../types/workflow";
 import {
+  COMPARISON_SYMBOLS,
+  OPERATOR_LABELS,
+} from "../graph-widgets/operator-labels";
+import {
   formatCaseLabel,
   formatConditionExpanded,
   formatConditionLabel,
@@ -28,7 +32,7 @@ describe("formatConditionLabel — Scenario 1: simple comparison", () => {
       left: { ref: "ctx.requiresReview" },
       right: { literal: true },
     };
-    expect(formatConditionLabel(expression)).toBe("ctx.requiresReview is true");
+    expect(formatConditionLabel(expression)).toBe("ctx.requiresReview = true");
   });
 
   it("renders string literal with quotes via JSON.stringify", () => {
@@ -37,7 +41,7 @@ describe("formatConditionLabel — Scenario 1: simple comparison", () => {
       left: { ref: "ctx.status" },
       right: { literal: "approved" },
     };
-    expect(formatConditionLabel(expression)).toBe('ctx.status is "approved"');
+    expect(formatConditionLabel(expression)).toBe('ctx.status = "approved"');
   });
 
   it("renders numeric literal bare", () => {
@@ -55,7 +59,7 @@ describe("formatConditionLabel — Scenario 1: simple comparison", () => {
       left: { ref: "ctx.field" },
       right: { literal: null },
     };
-    expect(formatConditionLabel(expression)).toBe("ctx.field is null");
+    expect(formatConditionLabel(expression)).toBe("ctx.field = null");
   });
 });
 
@@ -63,8 +67,8 @@ describe("formatConditionLabel — Scenario 2: operator vocabulary", () => {
   const cases: ReadonlyArray<
     readonly [ComparisonExpression["operator"], string]
   > = [
-    ["equals", "is"],
-    ["not-equals", "is not"],
+    ["equals", "="],
+    ["not-equals", "≠"],
     ["gt", ">"],
     ["gte", "≥"],
     ["lt", "<"],
@@ -79,6 +83,56 @@ describe("formatConditionLabel — Scenario 2: operator vocabulary", () => {
       right: { ref: "b" },
     };
     expect(formatConditionLabel(expression)).toBe(`a ${glyph} b`);
+  });
+});
+
+describe("formatConditionLabel — operator words match the operator dropdown", () => {
+  const comparisons: ReadonlyArray<ComparisonExpression["operator"]> = [
+    "equals",
+    "not-equals",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+    "contains",
+  ];
+
+  it.each(
+    comparisons,
+  )("shows %p as the symbol its dropdown label ends with", (operator) => {
+    const symbol = COMPARISON_SYMBOLS[operator];
+    expect(
+      formatConditionLabel({
+        operator,
+        left: { ref: "a" },
+        right: { ref: "b" },
+      }),
+    ).toBe(`a ${symbol} b`);
+    // `contains` has no symbol: it is the same word in both places.
+    const dropdown = OPERATOR_LABELS[operator];
+    expect(dropdown === symbol || dropdown.endsWith(`(${symbol})`)).toBe(true);
+  });
+
+  it.each([
+    "is-null",
+    "is-not-null",
+  ] as const)("words %p exactly as the dropdown does", (operator) => {
+    expect(formatConditionLabel({ operator, value: { ref: "a" } })).toBe(
+      `a ${OPERATOR_LABELS[operator]}`,
+    );
+  });
+
+  it.each([
+    "in",
+    "not-in",
+  ] as const)("words %p exactly as the dropdown does", (operator) => {
+    expect(
+      formatConditionLabel({
+        operator,
+        value: { ref: "a" },
+        list: { ref: "b" },
+      }),
+    ).toBe(`a ${OPERATOR_LABELS[operator]} b`);
   });
 });
 
@@ -116,44 +170,44 @@ describe("formatConditionLabel — Scenario 3: non-comparison fallbacks", () => 
       right: { literal: true },
     };
     const expression: NotExpression = { operator: "not", operand: inner };
-    expect(formatConditionLabel(expression)).toBe("not (x is true)");
+    expect(formatConditionLabel(expression)).toBe("not (x = true)");
   });
 
-  it("renders NullCheckExpression `is-null` as `<ref> is null`", () => {
+  it("renders NullCheckExpression `is-null` as `<ref> is empty`", () => {
     const expression: NullCheckExpression = {
       operator: "is-null",
       value: { ref: "ctx.field" },
     };
-    expect(formatConditionLabel(expression)).toBe("ctx.field is null");
+    expect(formatConditionLabel(expression)).toBe("ctx.field is empty");
   });
 
-  it("renders NullCheckExpression `is-not-null` as `<ref> is not null`", () => {
+  it("renders NullCheckExpression `is-not-null` as `<ref> is not empty`", () => {
     const expression: NullCheckExpression = {
       operator: "is-not-null",
       value: { ref: "ctx.field" },
     };
-    expect(formatConditionLabel(expression)).toBe("ctx.field is not null");
+    expect(formatConditionLabel(expression)).toBe("ctx.field is not empty");
   });
 
-  it("renders ListMembershipExpression `in` as `<ref> is one of [N items]`", () => {
+  it("renders ListMembershipExpression `in` as `<ref> is in the list [N items]`", () => {
     const expression: ListMembershipExpression = {
       operator: "in",
       value: { ref: "ctx.status" },
       list: { literal: ["a", "b", "c"] },
     };
     expect(formatConditionLabel(expression)).toBe(
-      "ctx.status is one of [3 items]",
+      "ctx.status is in the list [3 items]",
     );
   });
 
-  it("renders ListMembershipExpression `not-in` as `<ref> is not one of [N items]`", () => {
+  it("renders ListMembershipExpression `not-in` as `<ref> is not in the list [N items]`", () => {
     const expression: ListMembershipExpression = {
       operator: "not-in",
       value: { ref: "ctx.status" },
       list: { literal: ["a", "b"] },
     };
     expect(formatConditionLabel(expression)).toBe(
-      "ctx.status is not one of [2 items]",
+      "ctx.status is not in the list [2 items]",
     );
   });
 
@@ -164,7 +218,7 @@ describe("formatConditionLabel — Scenario 3: non-comparison fallbacks", () => 
       list: { ref: "ctx.allowedStatuses" },
     };
     expect(formatConditionLabel(expression)).toBe(
-      "ctx.status is one of ctx.allowedStatuses",
+      "ctx.status is in the list ctx.allowedStatuses",
     );
   });
 });
@@ -200,7 +254,7 @@ describe("formatConditionLabel — Scenario 4: truncation", () => {
       right: { literal: 1 },
     };
     const result = formatConditionLabel(expression, { maxLength: 40 });
-    expect(result).toBe("a is 1");
+    expect(result).toBe("a = 1");
     expect(result.endsWith("…")).toBe(false);
   });
 });
@@ -213,7 +267,7 @@ describe("formatCaseLabel — Scenario 5: case label composition", () => {
       right: { literal: true },
     };
     expect(formatCaseLabel({ caseIndex: 2, expression })).toBe(
-      "if ctx.requiresReview is true",
+      "if ctx.requiresReview = true",
     );
   });
 
@@ -233,7 +287,7 @@ describe("formatConditionExpanded — spells nested logical groups out", () => {
       left: { ref: "a" },
       right: { literal: 1 },
     };
-    expect(formatConditionExpanded(expression)).toBe("a is 1");
+    expect(formatConditionExpanded(expression)).toBe("a = 1");
   });
 
   it("joins `and` operands with ` and `", () => {
@@ -244,7 +298,7 @@ describe("formatConditionExpanded — spells nested logical groups out", () => {
         { operator: "equals", left: { ref: "b" }, right: { literal: 2 } },
       ],
     };
-    expect(formatConditionExpanded(expression)).toBe("a is 1 and b is 2");
+    expect(formatConditionExpanded(expression)).toBe("a = 1 and b = 2");
   });
 
   it("joins `or` operands with ` or `", () => {
@@ -288,7 +342,7 @@ describe("formatConditionExpanded — spells nested logical groups out", () => {
       ],
     };
     expect(formatConditionExpanded(expression)).toBe(
-      '(ctx.currentDoc.type is "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (ctx.currentDoc.blobKey is null)',
+      '(ctx.currentDoc.type = "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (ctx.currentDoc.blobKey is empty)',
     );
   });
 });

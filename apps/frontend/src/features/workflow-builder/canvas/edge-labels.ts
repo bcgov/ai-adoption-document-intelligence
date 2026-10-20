@@ -8,6 +8,13 @@
  * `case[i]: <label>` / `default` / `on error` strings that the custom
  * `WorkflowEdge` component renders.
  *
+ * Operator words come from `graph-widgets/operator-labels.ts`, the module the
+ * operator dropdowns and the condition sentence read, so a chip and the
+ * dropdown that set its operator use one vocabulary: a comparison shows its
+ * symbol (`=`, `≥`, the symbol the dropdown shows in brackets), and an
+ * operator with no symbol shows the dropdown's own words ("is empty", "is in
+ * the list").
+ *
  * See feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/
  * user_stories/US-021-edge-label-helper.md for the acceptance scenarios.
  */
@@ -21,6 +28,10 @@ import type {
   NullCheckExpression,
   ValueRef,
 } from "../../../types/workflow";
+import {
+  COMPARISON_SYMBOLS,
+  operatorPhrase,
+} from "../graph-widgets/operator-labels";
 
 export interface FormatConditionLabelOptions {
   /** Maximum character length of the rendered output. Defaults to 60. */
@@ -29,21 +40,6 @@ export interface FormatConditionLabelOptions {
 
 const DEFAULT_MAX_LENGTH = 60;
 const ELLIPSIS = "…";
-
-/**
- * Humanised comparison operators. Equality reads as "is" / "is not" and the
- * relational operators keep the compact unicode glyphs (`≥` / `≤`) so labels
- * stay short against the truncation budget. `contains` is already a word.
- */
-const COMPARISON_WORDS: Record<ComparisonExpression["operator"], string> = {
-  equals: "is",
-  "not-equals": "is not",
-  gt: ">",
-  gte: "≥",
-  lt: "<",
-  lte: "≤",
-  contains: "contains",
-};
 
 /**
  * Renders a `ValueRef` to its compact form: refs are emitted raw
@@ -57,9 +53,13 @@ function formatValueRef(value: ValueRef): string {
   return JSON.stringify(value.literal);
 }
 
+/**
+ * A comparison shows its symbol, which keeps a chip short against the
+ * truncation budget. `contains` has no symbol and is its own word.
+ */
 function formatComparison(expression: ComparisonExpression): string {
-  const word = COMPARISON_WORDS[expression.operator];
-  return `${formatValueRef(expression.left)} ${word} ${formatValueRef(expression.right)}`;
+  const symbol = COMPARISON_SYMBOLS[expression.operator];
+  return `${formatValueRef(expression.left)} ${symbol} ${formatValueRef(expression.right)}`;
 }
 
 /**
@@ -78,12 +78,11 @@ function formatNot(expression: NotExpression): string {
 }
 
 function formatNullCheck(expression: NullCheckExpression): string {
-  const suffix = expression.operator === "is-null" ? "is null" : "is not null";
-  return `${formatValueRef(expression.value)} ${suffix}`;
+  return `${formatValueRef(expression.value)} ${operatorPhrase(expression.operator)}`;
 }
 
 function formatListMembership(expression: ListMembershipExpression): string {
-  const verb = expression.operator === "in" ? "is one of" : "is not one of";
+  const verb = operatorPhrase(expression.operator);
   const list = expression.list;
   const listLabel =
     "literal" in list && Array.isArray(list.literal)
@@ -170,13 +169,14 @@ function needsGrouping(expression: ConditionExpression): boolean {
 
 /**
  * Fully-expanded, un-truncated rendering of a condition tree — spells logical
- * groups out (`a is "receipt" or b ≥ 0.8`) instead of collapsing them to
+ * groups out (`a = "receipt" or b ≥ 0.8`) instead of collapsing them to
  * `any of (2)`. Compound operands are parenthesised so grouping is preserved.
  *
- * Used by the condition editor's live preview (where space is not constrained)
- * so an author can read the whole boolean logic as a sentence while building
- * deeply-nested cases. Leaf rendering (comparisons, refs/literals, null checks,
- * membership) is shared with the compact edge-label path.
+ * Used for the summary under each AND/OR group in the condition editor (where
+ * space is not constrained) so an author can read the whole boolean logic
+ * while building deeply-nested cases. Leaf rendering (comparisons,
+ * refs/literals, null checks, membership) is shared with the compact
+ * edge-label path, so the summary and the chip use the same operator words.
  */
 export function formatConditionExpanded(
   expression: ConditionExpression,

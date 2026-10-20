@@ -1262,7 +1262,7 @@ describe("ConditionExpressionEditor — group summaries", () => {
     expect(
       screen.getByTestId("condition-expression-editor-group-summary"),
     ).toHaveTextContent(
-      '(ctx.currentDoc.type is "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (ctx.currentDoc.blobKey is null)',
+      '(ctx.currentDoc.type = "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (ctx.currentDoc.blobKey is empty)',
     );
   });
 
@@ -1298,13 +1298,13 @@ describe("ConditionExpressionEditor — group summaries", () => {
     // Top-level AND group has its summary shown inline (no collapse needed).
     expect(
       screen.getByTestId("condition-expression-editor-group-summary"),
-    ).toHaveTextContent("(ctx.a is 1 or ctx.b is 2) and ctx.c is 3");
+    ).toHaveTextContent("(ctx.a = 1 or ctx.b = 2) and ctx.c = 3");
     // Nested OR group has its own summary shown inline too.
     expect(
       screen.getByTestId(
         "condition-expression-editor-operand-0-editor-group-summary",
       ),
-    ).toHaveTextContent("ctx.a is 1 or ctx.b is 2");
+    ).toHaveTextContent("ctx.a = 1 or ctx.b = 2");
   });
 });
 
@@ -1375,7 +1375,7 @@ describe("ConditionExpressionEditor — logical group verbs + collapse", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("condition-expression-editor-group-summary"),
-    ).toHaveTextContent("ctx.a is 1 and ctx.b is 2");
+    ).toHaveTextContent("ctx.a = 1 and ctx.b = 2");
 
     // Expand again → operand rows return (summary stays visible throughout).
     fireEvent.click(
