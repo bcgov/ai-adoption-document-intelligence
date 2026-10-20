@@ -404,6 +404,8 @@ test.describe("control-flow authoring", () => {
   }) => {
     const editor = await openGraph(page, request);
     await editor.selectNode("pollOcr");
+    // The optional limits arrive folded; open them to reach max attempts.
+    await page.getByTestId("poll-until-node-settings-limits-toggle").click();
 
     const input = page.getByTestId("poll-until-node-settings-max-attempts");
     await expect(input).toHaveValue("20");
@@ -423,6 +425,7 @@ test.describe("control-flow authoring", () => {
     // And survives a reload into the form.
     await editor.openExisting(createdId as string, 9);
     await editor.selectNode("pollOcr");
+    await page.getByTestId("poll-until-node-settings-limits-toggle").click();
     await expect(
       page.getByTestId("poll-until-node-settings-max-attempts"),
     ).toHaveValue("8");
