@@ -4632,6 +4632,62 @@ function WorkflowEditorCanvasInner({
         }
       }
 
+      // A drag begun on a node-level dot and released over another step's
+      // card, away from its dots: xyflow names a target only when a dot is
+      // within `connectionRadius`, so this arrives with no `toNode`. The card
+      // under the pointer gets the verdict a drop on its run-order dot gets —
+      // the wire when it may be drawn, the reason when it may not. As on the
+      // dots, a drag that started on an incoming dot runs the wire from the
+      // card to the step it started on.
+      if (
+        fromPort === null &&
+        connectionState.toNode == null &&
+        connectionState.fromNode &&
+        connectionState.fromHandle
+      ) {
+        const startId = connectionState.fromNode.id;
+        const cardId = stepCardAtPoint(
+          releaseAnchorFromEvent(event),
+          (nodeId) => nodeId in config.nodes,
+          startId,
+        );
+        if (cardId !== null) {
+          const reversed = connectionState.fromHandle.type === "target";
+          const sourceId = reversed ? cardId : startId;
+          const targetId = reversed ? startId : cardId;
+          const sourceHandle = reversed
+            ? "out"
+            : (connectionState.fromHandle.id ?? null);
+          const edgeType = nodeLevelEdgeType(config, sourceId, sourceHandle);
+          const verdict = resolveRunOrderDrop(
+            config,
+            sourceId,
+            targetId,
+            edgeType,
+          );
+          if (verdict.kind === "ok") {
+            handleConnect({
+              source: sourceId,
+              sourceHandle,
+              target: targetId,
+              targetHandle: null,
+            });
+            return;
+          }
+          const message = runOrderRefusalMessage(
+            verdict,
+            config,
+            sourceId,
+            targetId,
+            edgeType,
+          );
+          if (message !== null) {
+            notifications.show({ color: "yellow", message, autoClose: 7000 });
+          }
+          return;
+        }
+      }
+
       // §6.2 — plain-language rejection notice on a genuine port-to-port
       // drop that failed validation. Independent of the §9 drag-release
       // path below (that path requires `toNode == null`, so the two are

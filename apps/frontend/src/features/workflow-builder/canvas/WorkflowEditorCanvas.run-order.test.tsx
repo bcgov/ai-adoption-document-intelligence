@@ -667,6 +667,87 @@ describe("a run-order wire that would close a loop", () => {
   });
 });
 
+describe("a run-order drag released over a card's body", () => {
+  let undoHitTest: () => void = () => undefined;
+  afterEach(() => undoHitTest());
+
+  function release(state: ConnectEndState): void {
+    act(() => {
+      reactFlowProp<ConnectEnd>("onConnectEnd")(
+        new MouseEvent("mouseup", { clientX: 420, clientY: 30 }),
+        state,
+      );
+    });
+  }
+
+  it("draws the run-order wire, as a drop on the card's dot does", () => {
+    const { onConfigChange } = renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds("loopNode");
+    release({
+      fromHandle: { id: "out", type: "source" },
+      toHandle: null,
+      fromNode: { id: "splitDoc" },
+      toNode: null,
+      isValid: false,
+    });
+    const next = onConfigChange.mock.calls[0]?.[0] as GraphWorkflowConfig;
+    expect(next.edges).toEqual([
+      expect.objectContaining({
+        source: "splitDoc",
+        target: "loopNode",
+        type: "normal",
+      }),
+    ]);
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("runs the wire from the card when the drag started on an incoming dot", () => {
+    const { onConfigChange } = renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds("splitDoc");
+    release({
+      fromHandle: { id: null, type: "target" },
+      toHandle: null,
+      fromNode: { id: "loopNode" },
+      toNode: null,
+      isValid: false,
+    });
+    const next = onConfigChange.mock.calls[0]?.[0] as GraphWorkflowConfig;
+    expect(next.edges).toEqual([
+      expect.objectContaining({ source: "splitDoc", target: "loopNode" }),
+    ]);
+  });
+
+  it("is refused with the dot's reason when the wire would change nothing", () => {
+    const { onConfigChange } = renderCanvas(withEdges([RUN_ORDER_EDGE]));
+    undoHitTest = hitTestFinds("loopNode");
+    release({
+      fromHandle: { id: "out", type: "source" },
+      toHandle: null,
+      fromNode: { id: "splitDoc" },
+      toNode: null,
+      isValid: false,
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+    expect(vi.mocked(notifications.show).mock.calls[0][0]?.message).toBe(
+      '"Run for each item" already runs after "Split Document": a run-order wire already joins them.',
+    );
+  });
+
+  it("does nothing on empty canvas", () => {
+    const { onConfigChange } = renderCanvas(makeConfig());
+    undoHitTest = hitTestFinds(null);
+    release({
+      fromHandle: { id: "out", type: "source" },
+      toHandle: null,
+      fromNode: { id: "splitDoc" },
+      toNode: null,
+      isValid: false,
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+});
+
 describe("a run-order wire's right-click menu", () => {
   it("replaces the browser's menu and removes the wire", async () => {
     const { onConfigChange } = renderCanvas(withEdges([RUN_ORDER_EDGE]));
