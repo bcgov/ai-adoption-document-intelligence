@@ -1,33 +1,30 @@
 /**
  * The node-level RUN-ORDER handles — one definition of the dot every card
- * hangs its "runs after" wire on (review item D28).
+ * hangs its "runs after" wire on.
  *
  * Every card renders two of these: an unnamed left target and the `id="out"`
  * right source. They are what a `normal`/`conditional` edge attaches to, and
- * dragging between two of them is how execution order is authored by hand
- * (review item D10 — that gesture works and always did; nothing said so).
+ * dragging between two of them is how execution order is authored by hand.
  *
- * Before this module the same dot was drawn three different ways, and a
- * reviewer read the differences as meaning:
+ * The dot is drawn one way on every card (`ActivityNodeRenderer` and
+ * `NodeHandles` alike), because any difference between cards reads as
+ * meaning:
  *
- *   - **Position.** `ActivityNodeRenderer` pinned its pair at `top: 18px`
- *     while `NodeHandles` (map / join / childWorkflow / humanGate /
- *     pollUntil / switch) left xyflow's default `top: 50%`. On a two-line
- *     map card that is 29px down; on a five-row activity card, 18px. Same
- *     concept, different height per card, for no reason anybody could name.
- *   - **Fill.** The activity pair was painted `handleBackground("gray")` —
- *     which is `portDotColor("gray")`, the **wildcard DATA port** colour —
- *     while `NodeHandles` ran it through `portShapeStyle`, whose `gray`
- *     family is the HOLLOW silhouette, so the same dot came out white with
- *     a grey ring. One of the two therefore always looked like a data port.
- *   - **Hover text.** The activity pair said "Flow — execution order"; the
- *     control-flow pair said "No typed inputs" / "No typed outputs" — a
- *     sentence about DATA ports, on the connector that carries no data.
+ *   - **Position.** `FLOW_HANDLE_TOP` on every rectangular card. xyflow's
+ *     default, `top: 50%`, would put the pair at a different height on every
+ *     card, since cards differ in height.
+ *   - **Fill.** Not a data-port colour: `portDotColor("gray")` is the
+ *     **wildcard DATA port** colour, and `portShapeStyle`'s `gray` family is
+ *     the HOLLOW silhouette, so either would make the dot look like a data
+ *     port.
+ *   - **Hover text.** One sentence, about order: the connector carries no
+ *     data, so a sentence about typed inputs or outputs would describe the
+ *     wrong thing.
  *
  * So: one geometry, one fill, one sentence. The fill is `SEQUENCE_STROKE`,
  * the exact grey of the dashed wire the dot emits, so the connector and the
  * line it draws are visibly the same thing — and it is a grey no port family
- * uses, so a run-order dot can no longer be mistaken for a wildcard port.
+ * uses, so a run-order dot cannot be mistaken for a wildcard port.
  */
 
 import type { CSSProperties } from "react";
@@ -51,8 +48,8 @@ export const FLOW_HANDLE_COLOR = SEQUENCE_STROKE;
 
 /**
  * Hover copy. Both sentences name the concept in the legend's words ("Runs
- * after — order only, no data") and then say the thing D10 asked about out
- * loud: the dot is draggable, and that is how run order is authored.
+ * after — order only, no data") and then say out loud that the dot is
+ * draggable, and that dragging it is how run order is authored.
  */
 export const FLOW_HANDLE_TOOLTIP_IN =
   "Runs after — drop a wire here to make this step run after another. Order only, no data.";

@@ -1,9 +1,9 @@
 /**
- * The run-order handles are ONE dot drawn one way (review item D28).
+ * The run-order handles are ONE dot drawn one way.
  *
- * These tests pin the three things the reviewer read as meaningful and that
- * were not: the vertical anchor, the fill, and the fact that the fill is the
- * wire's own grey rather than a second grey picked separately.
+ * These tests pin the three things that would otherwise differ by card and be
+ * read as meaningful: the vertical anchor, the fill, and the fact that the
+ * fill is the wire's own grey rather than a second grey picked separately.
  */
 
 import { describe, expect, it } from "vitest";
@@ -57,7 +57,7 @@ describe("the run-order dot says what it is and that it can be dragged", () => {
     expect(FLOW_HANDLE_TOOLTIP_OUT).toContain("Order only, no data");
   });
 
-  it("answers D10 out loud — the gesture exists, here is what it does", () => {
+  it("says the gesture exists, and what it does", () => {
     expect(FLOW_HANDLE_TOOLTIP_OUT).toContain("drag");
     expect(FLOW_HANDLE_TOOLTIP_IN).toContain("drop");
   });
