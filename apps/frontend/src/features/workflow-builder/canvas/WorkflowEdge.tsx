@@ -83,18 +83,27 @@ export interface WorkflowEdgeData {
 }
 
 /**
+ * What a pinned wire's tooltip says.
+ *
+ * A pin records which input was chosen by hand and nothing about who chose it:
+ * `metadata.lockedInputPorts` holds port names only, and `normaliseLocks`
+ * turns a seeded workflow's own bindings into pins at load. So the copy
+ * describes the act, not the actor, in the words of the settings panel's
+ * Pinned badge, and names the same undo. The wire is not next to that `⋯`
+ * menu, so the text says where it is, and adds the wire's own right-click
+ * menu, which offers the hand-back too.
+ */
+export const PINNED_WIRE_TOOLTIP =
+  "Pinned — someone editing this workflow chose this source by hand, so automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu on this input, in the settings of the step it feeds. Right-clicking the wire also hands it back (Revert to automatic).";
+
+/**
  * Plain-language provenance tooltip for a data wire (Task 3 vocabulary:
  * "Connected automatically…", "Pinned…"). Pure so it can be unit
  * tested without rendering.
- *
- * D21 — a pin carries no author: `metadata.lockedInputPorts` holds port names
- * and nothing else, and `normaliseLocks` mints pins from a seeded workflow's
- * own bindings at load. So "Pinned by you" was false on every demo workflow a
- * reader had never edited. The copy describes the act, not the actor.
  */
 export function wireTooltip(wire: DataWire): string {
   if (wire.pinned) {
-    return "Pinned — chosen by hand when this workflow was built, so automatic wiring leaves it alone";
+    return PINNED_WIRE_TOOLTIP;
   }
   if (wire.via === "name-match") {
     return `Connected automatically — matched by name "${wire.targetPort}"`;

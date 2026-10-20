@@ -32,6 +32,14 @@ import {
 
 const AUTO_DISMISS_MS = 8000;
 
+/**
+ * The line under a pinned input. It says what the pin does and names the undo
+ * in the words of the settings panel's Pinned badge, and says where that `⋯`
+ * menu is, because this popover is not the panel.
+ */
+export const PINNED_UNDO_HINT =
+  "Automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu on this input in this step's settings.";
+
 export interface ConnectSummaryPopoverProps {
   opened: boolean;
   anchorPosition: { x: number; y: number };
@@ -181,11 +189,14 @@ function SummaryRow({ row, config, nodeId, onFix, onClose }: SummaryRowProps) {
             ? `= ${source.value || "(empty)"}`
             : `— from ${source.ctxKey}`;
       return (
-        <Group gap={6} wrap="nowrap" data-testid={testId}>
+        <Stack gap={0} data-testid={testId}>
           <Text size="xs">
             ✓ {port.label} {sourceText} · pinned by hand
           </Text>
-        </Group>
+          <Text size="xs" c="gray.7" data-testid={`${testId}-undo`}>
+            {PINNED_UNDO_HINT}
+          </Text>
+        </Stack>
       );
     }
     case "ctx-bound":

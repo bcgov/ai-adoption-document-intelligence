@@ -30,6 +30,7 @@ import type { DataWire, StructuralWire } from "./derive-wires";
 import {
   ACTIVE_STROKE,
   ERROR_STROKE,
+  PINNED_WIRE_TOOLTIP,
   SEQUENCE_STROKE,
   TAKEN_STROKE,
   WorkflowEdge,
@@ -239,7 +240,7 @@ describe("WorkflowEdge — Scenario 2: conditional edge from switch with matchin
       }),
     );
     const label = screen.getByTestId("edge-label");
-    expect(label).toHaveTextContent("if ctx.requiresReview is true");
+    expect(label).toHaveTextContent("if ctx.requiresReview = true");
     // The switch accent is its own thing — a control-flow hint, not a port
     // family — so it is read from `getControlFlowVisualHints` and converted
     // the same way the family hexes are.
@@ -599,7 +600,21 @@ describe("WorkflowEdge — selection indicator", () => {
 describe("wireTooltip", () => {
   it("pinned wins over every other flag", () => {
     expect(wireTooltip(makeDataWire({ pinned: true, via: "name-match" }))).toBe(
-      "Pinned — chosen by hand when this workflow was built, so automatic wiring leaves it alone",
+      PINNED_WIRE_TOOLTIP,
+    );
+  });
+
+  it("says what a pin does and names the undo, where to find it, and the wire's own menu", () => {
+    expect(PINNED_WIRE_TOOLTIP).toBe(
+      "Pinned — someone editing this workflow chose this source by hand, so automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu on this input, in the settings of the step it feeds. Right-clicking the wire also hands it back (Revert to automatic).",
+    );
+    // The settings panel's Pinned badge describes the act and the undo in
+    // these same words.
+    expect(PINNED_WIRE_TOOLTIP).toContain(
+      "someone editing this workflow chose this source by hand, so automatic wiring leaves it alone",
+    );
+    expect(PINNED_WIRE_TOOLTIP).toContain(
+      "Change it or hand it back with the ⋯ menu",
     );
   });
 
@@ -736,7 +751,7 @@ describe("WorkflowEdge — Scenario 6: registered xyflow edge contract", () => {
     expect(baseEdge.getAttribute("data-edge-id")).toBe("e-routed");
     expect(screen.getByTestId("edge-label-renderer")).toBeInTheDocument();
     expect(screen.getByTestId("edge-label")).toHaveTextContent(
-      "if ctx.flag is true",
+      "if ctx.flag = true",
     );
   });
 });

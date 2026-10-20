@@ -17,7 +17,10 @@ import type {
   ActivityNode,
   GraphWorkflowConfig,
 } from "../../../types/workflow";
-import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
+import {
+  ConnectSummaryPopover,
+  PINNED_UNDO_HINT,
+} from "./ConnectSummaryPopover";
 
 function mount(ui: React.ReactNode) {
   return render(<MantineProvider>{ui}</MantineProvider>);
@@ -115,6 +118,16 @@ describe("ConnectSummaryPopover", () => {
     expect(row).toHaveTextContent("PrepStep");
     expect(row).not.toHaveTextContent("__auto.prep.preparedData");
     expect(row).toHaveTextContent(/pinned by hand/i);
+    // The pin names its undo, as the settings panel's Pinned badge does.
+    expect(
+      screen.getByTestId("connect-summary-row-fileData-undo"),
+    ).toHaveTextContent(PINNED_UNDO_HINT);
+  });
+
+  it("says what a pin does and where its undo is", () => {
+    expect(PINNED_UNDO_HINT).toBe(
+      "Automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu on this input in this step's settings.",
+    );
   });
 
   it("names a hand-authored ctx var as the source of a pinned NON-auto row", () => {
