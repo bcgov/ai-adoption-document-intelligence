@@ -140,8 +140,8 @@ export function RunHistoryDrawer({
           {Object.values(filters).some((value) => value !== undefined)
             ? "No runs match these filters."
             : "No editor runs yet — runs started from the editor appear " +
-              "here. Production API runs are monitored in the Processing " +
-              "queue."}
+              "here. Runs started by an upload or an API call are on the " +
+              "Documents page."}
         </Text>
       ) : (
         <Stack gap="xs" data-testid="run-history-drawer-list">

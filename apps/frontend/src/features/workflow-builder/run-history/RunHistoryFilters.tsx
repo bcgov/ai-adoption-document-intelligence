@@ -14,8 +14,9 @@
  *
  * Mantine v8's `<DateInput>` emits `DateStringValue | null` (a `YYYY-MM-DD`
  * string), so the From/To handlers normalise it into the ISO timestamp
- * the backend expects (start-of-day UTC for "From", end-of-day UTC for
- * "To").
+ * the backend expects: the start of that day for "From" and its last
+ * millisecond for "To", both in the viewer's own timezone, so a day means
+ * the day the viewer saw the runs start in.
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L39
@@ -58,40 +59,49 @@ export interface RunHistoryFiltersProps {
 
 /**
  * Converts a `YYYY-MM-DD` string from `<DateInput>` into the ISO
- * timestamp the backend expects.
+ * timestamp the backend expects, at the viewer's local day boundary.
  *
- * `endOfDay = true` snaps to 23:59:59.999 so the "To" filter is
- * inclusive of the entire selected day; "From" leaves it at 00:00:00.
- * Returns `undefined` for null / empty input so the URL builder omits
- * the query parameter.
+ * `endOfDay = true` snaps to 23:59:59.999 local time so the "To" filter is
+ * inclusive of the entire selected day; "From" uses 00:00:00 local time.
+ * Returns `undefined` for null / empty / malformed input so the URL builder
+ * omits the query parameter.
  */
-function dateStringToIso(
+export function dateStringToIso(
   value: string | null,
   opts: { endOfDay?: boolean } = {},
 ): string | undefined {
   if (!value) return undefined;
-  // `YYYY-MM-DD` parses as midnight UTC; `endOfDay` snaps to the last
-  // millisecond of the same UTC day so the inclusive-upper-bound
-  // semantics match the user's mental model.
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  if (opts.endOfDay) {
-    parsed.setUTCHours(23, 59, 59, 999);
-  }
-  return parsed.toISOString();
+  // `new Date("YYYY-MM-DD")` would parse as UTC midnight, which is the
+  // previous evening west of UTC; build the local day from its parts.
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+  const local = opts.endOfDay
+    ? new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        23,
+        59,
+        59,
+        999,
+      )
+    : new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(local.getTime())) return undefined;
+  return local.toISOString();
 }
 
 /**
  * Converts the ISO timestamp stored on `filters.startedAfter` /
- * `filters.startedBefore` back into a `YYYY-MM-DD` string for the
+ * `filters.startedBefore` back into the viewer's local `YYYY-MM-DD` for the
  * `<DateInput>`'s `value` prop. Invalid timestamps surface as `null`.
  */
-function isoToDateString(iso: string | undefined): string | null {
+export function isoToDateString(iso: string | undefined): string | null {
   if (!iso) return null;
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return null;
-  // ISO `YYYY-MM-DDTHH:mm:ss.sssZ` — slice the date portion only.
-  return parsed.toISOString().slice(0, 10);
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${parsed.getFullYear()}-${month}-${day}`;
 }
 
 export function RunHistoryFilters({

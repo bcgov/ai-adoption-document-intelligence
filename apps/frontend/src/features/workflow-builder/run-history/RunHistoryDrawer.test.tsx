@@ -191,10 +191,10 @@ describe("RunHistoryDrawer (US-153)", () => {
     const empty = screen.getByTestId("run-history-drawer-empty");
     // A workflow whose runs are all production API runs is EMPTY here (the
     // backend lists try-only) — the copy says why, rather than implying a
-    // filter did it.
+    // filter did it, and names the page those runs are on.
     expect(empty).toHaveTextContent("No editor runs yet");
     expect(empty).toHaveTextContent(
-      "Production API runs are monitored in the Processing queue.",
+      "Runs started by an upload or an API call are on the Documents page.",
     );
   });
 
