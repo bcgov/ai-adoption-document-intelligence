@@ -74,10 +74,11 @@ describe("resolveEffectiveModel", () => {
 });
 
 /**
- * I1 / D4, 2026-08-14. "The list request failed" and "the server has no model
- * at all" used to be one branch, and it was written for the first: it showed
- * "Server default model" and a tooltip promising an answer. On an
- * unconfigured server that promise was false and the composer stayed live.
+ * "The list request failed" and "the server has no model at all" are
+ * opposite situations and resolve to different states: a failed request
+ * leaves the composer live with no model override, while an empty list
+ * disables send and names the missing variables, rather than promising an
+ * answer from a server that has no model.
  */
 describe("resolveAgentAvailability", () => {
   const MISSING = [

@@ -1,16 +1,16 @@
 /**
- * D7 — the validation result must not change identity on every keystroke.
+ * The validation result must not change identity on every keystroke.
  *
- * `errorsByNode` is what the canvas's badge-sync effect depends on. The result
- * memo used to list the live `config` among its dependencies (so bucketing
- * could resolve anchors against the graph's real node ids, G-096), which meant
- * a brand-new `Map` on every config edit — once per character in a settings
- * field — 300 ms before the debounced validator that could have changed
- * anything actually ran. That new Map drove a full node-array replacement on
- * the canvas, which defeats xyflow's identity reuse and re-renders every card.
+ * `errorsByNode` is what the canvas's badge-sync effect depends on. If the
+ * result memo depended on the live `config` (so bucketing could resolve
+ * anchors against the graph's real node ids, G-096), every config edit — once
+ * per character in a settings field — would hand out a brand-new `Map`, 300 ms
+ * before the debounced validator that could change anything runs, and that
+ * new Map would replace the canvas's whole node array, defeating xyflow's
+ * identity reuse and re-rendering every card.
  *
- * The node-id snapshot now travels with the run that produced the errors, so
- * the result is stable between runs and G-096's bucketing is unchanged.
+ * The node-id snapshot travels with the run that produced the errors, so the
+ * result is stable between runs and G-096's bucketing is unchanged.
  */
 import type { GraphWorkflowConfig } from "@ai-di/graph-workflow";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -41,7 +41,7 @@ function configWithLabel(label: string): GraphWorkflowConfig {
   } as unknown as GraphWorkflowConfig;
 }
 
-describe("useGraphValidation — D7 result stability", () => {
+describe("useGraphValidation — result stability", () => {
   it("keeps errorsByNode reference-identical across config edits until the debounced validator re-runs", async () => {
     const { result, rerender } = renderHook(
       ({ config }: { config: GraphWorkflowConfig }) =>

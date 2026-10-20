@@ -46,13 +46,13 @@ const EMPTY_NODE_IDS: string[] = [];
  * One debounced validation run: the errors it produced, plus the node ids that
  * were in the graph when it produced them.
  *
- * D7 — these travel together deliberately. Bucketing errors resolves each
- * anchor against the graph's real node ids (G-096), and reading those ids from
- * the LIVE `config` made the result memo re-run — and hand out a brand-new
+ * These travel together deliberately. Bucketing errors resolves each anchor
+ * against the graph's real node ids (G-096). Reading those ids from the LIVE
+ * `config` would re-run the result memo — and hand out a brand-new
  * `errorsByNode` Map — on every keystroke, 300 ms before the validator that
- * could have changed anything actually ran. That new Map identity drove the
- * canvas's badge-sync effect, which replaced the whole xyflow node array and
- * re-rendered every card. Snapshotting the ids inside the run keeps G-096's
+ * could change anything runs; a new Map identity drives the canvas's
+ * badge-sync effect, which replaces the whole xyflow node array and
+ * re-renders every card. Snapshotting the ids inside the run keeps G-096's
  * behaviour exactly while making the result stable between runs.
  */
 interface ValidationRun {

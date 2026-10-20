@@ -52,13 +52,12 @@ export function useAgentModels() {
 /**
  * What this server can do for the assistant, as four distinct answers.
  *
- * The fourth used to be missing. `options.length === 0` and "the list request
- * failed" were collapsed into one branch that showed the label "Server default
- * model" with a tooltip promising an answer and a fully live composer — so a
- * server with **no model provider configured at all** never said so, and the
- * user typed into a wall (Inderdeep 2026-08-14 — I1; Dylan — D4). They are
- * opposite situations: a failed request means we do not know what the server
- * has, and an empty list means we know exactly what it has, which is nothing.
+ * `options.length === 0` and "the list request failed" are kept apart because
+ * they are opposite situations: a failed request means we do not know what
+ * the server has, and an empty list means we know exactly what it has, which
+ * is nothing. A server with **no model provider configured at all** has to
+ * say so, rather than show a default model over a composer that cannot get an
+ * answer.
  */
 export type AgentAvailability =
   | { kind: "loading" }

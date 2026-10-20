@@ -191,9 +191,8 @@ function PortsList({ title, ports, showRequired, testId }: PortsListProps) {
                   }}
                 />
                 {/*
-                  D27 — the kind is now the affordance. "How can a user know
-                  what the Document type contains?" was asked from this exact
-                  row, so the word itself opens its shape.
+                  The kind is the affordance: "what does a Document contain?"
+                  comes up on this row, so the word itself opens its shape.
                 */}
                 <Text size="xs">
                   <strong>{port.name}</strong> :{" "}
