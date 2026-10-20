@@ -22,10 +22,13 @@ const SAMPLE_PDF = path.join(
  *
  * Try-in-place caches each node's output keyed by (nodeId, configHash,
  * inputHash). Re-running with the SAME inputs serves an unchanged node from
- * cache — reported as `status: "skipped"` with a `cacheHit` hash pair, which
- * the canvas renders as the violet cache-hit badge (that rendering is
- * unit-covered by NodeStatusBadge.test.tsx). This asserts the backend
- * mechanism end-to-end through the real worker + cache.
+ * cache — reported as `status: "skipped"`, which the canvas renders as the
+ * violet cache-hit badge (that rendering is unit-covered by
+ * NodeStatusBadge.test.tsx). Every cached node's status also records the key
+ * of the row holding its output (`cacheKey`), which is how a replay reads
+ * back exactly that run's result, so the re-run records the key the first
+ * run wrote. This asserts the backend mechanism end-to-end through the real
+ * worker + cache.
  *
  * Pure-API (no browser): a same-input re-run isn't cleanly reachable through
  * the source.upload canvas UI (the Run drawer offers an upload box, not a ctx
@@ -94,9 +97,11 @@ test.describe("try-in-place cache-hit @infra", () => {
         "prep",
       ]);
       expect(s1.prep.status).toBe("succeeded");
+      expect(s1.prep.cacheKey).toBeTruthy();
 
       // Run 2 — same `documentUrl` (same blob key) ⇒ `prep`'s inputHash is
-      // unchanged ⇒ it is served from cache: `skipped` with a `cacheHit`.
+      // unchanged ⇒ it is served from cache: `skipped`, under the key run 1
+      // wrote.
       const run2 = await startRun(request, created.id, {
         documentUrl: blobKey,
       });
@@ -105,8 +110,7 @@ test.describe("try-in-place cache-hit @infra", () => {
         "prep",
       ]);
       expect(s2.prep.status).toBe("skipped");
-      expect(s2.prep.cacheHit).toBeTruthy();
-      expect(typeof s2.prep.cacheHit?.inputHash).toBe("string");
+      expect(s2.prep.cacheKey).toEqual(s1.prep.cacheKey);
     },
   );
 });

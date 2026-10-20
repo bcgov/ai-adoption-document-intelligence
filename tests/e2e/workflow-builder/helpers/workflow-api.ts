@@ -207,7 +207,8 @@ export interface NodeRunStatus {
   startedAt?: string;
   endedAt?: string;
   errorMessage?: string;
-  cacheHit?: { configHash: string; inputHash: string };
+  /** The key of the cache row holding this node's output for this run. */
+  cacheKey?: { configHash: string; inputHash: string };
 }
 
 /**
