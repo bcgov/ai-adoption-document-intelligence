@@ -122,10 +122,10 @@ and imply a change that was never made. Read the before pair as the after pair.
 |---|---|
 | **`D11-restore-toast.png`** | The green notification restore now raises: **"Restored v1 as v3"**, and under it *"The editor is on v3, a new version holding v1's steps. v1 is still in the history."* |
 
-- **Route:** any workflow editor → **More → Version history → Revert to this
+- **Route:** any workflow editor → **More → History → Revert to this
   version** on a non-head row.
 - **By hand:** open `🎯 Demo — Versioning — history & revert (Part 12)`,
-  **More → Version history**, **Revert to this version** on the older row,
+  **More → History**, **Revert to this version** on the older row,
   confirm. The toast is top-right.
 - **⚠ Shot against a scratch lineage, not the seeded demo, and here is the
   whole of what that means.** Restoring *writes*: it appends the old config as
@@ -286,9 +286,9 @@ and imply a change that was never made. Read the before pair as the after pair.
 | **`D31-compare-to-head.png`** | The modal on its new **Changes** tab: *"1 changed field of 77"*, the footnote that `metadata.configHash` is excluded because it is derived, and one row — `CHANGED nodes.submit.label`, `v1: Submit to Azure OCR` against `head (v2): Submit to Azure OCR (v2 — edited)` — with **Show 76 unchanged fields** collapsed beneath. The **Both versions in full** tab still holds the old side-by-side JSON. |
 
 - **Route:** `http://localhost:3000/workflows/by-slug/demo-versioning-history-revert-part-12/edit`
-  → **More → Version history → Compare to head** on the older row.
+  → **More → History → Compare to head** on the older row.
 - **By hand:** open `🎯 Demo — Versioning — history & revert (Part 12)`,
-  **More → Version history**, **Compare to head** on the older row. The head
+  **More → History**, **Compare to head** on the older row. The head
   row's own button stays disabled — comparing head to head has nothing to show.
 - **Crop deliberately changed, per the item.** The before frame is 877px tall
   because it had to hold two full JSON dumps; this one is 285px because the

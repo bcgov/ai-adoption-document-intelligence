@@ -617,7 +617,7 @@ the restored version instead of storing the discarded edits over it.
 
 **See it yourself.**
 `http://localhost:3000/workflows/by-slug/demo-versioning-history-revert-part-12/edit`
-→ **More → Version history** → **Revert to this version** on the older row →
+→ **More → History** → **Revert to this version** on the older row →
 confirm. Then save — that is the half that used to fail. To see unsaved edits
 discarded, move a card or rename a step first, without saving, and then
 restore.
@@ -1426,7 +1426,7 @@ the old side-by-side would have hidden the entire fix.
 
 **See it yourself.**
 `http://localhost:3000/workflows/by-slug/demo-versioning-history-revert-part-12/edit`
-→ **More → Version history** → **Compare to head** on the *older* row. The head
+→ **More → History** → **Compare to head** on the *older* row. The head
 row's own button stays disabled, correctly — comparing head to head has nothing
 to show.
 
