@@ -84,8 +84,7 @@ export function WorkflowListPage() {
     .join("\n\n");
 
   /**
-   * D33 — "Even with this number of workflows, it can be hard to find the one
-   * you want."
+   * Search, so a person can find the workflow they want in a long list.
    *
    * Filtered in the browser, not on the server: `useWorkflows` already fetches
    * the group's whole list in one request (there is no page/limit parameter on

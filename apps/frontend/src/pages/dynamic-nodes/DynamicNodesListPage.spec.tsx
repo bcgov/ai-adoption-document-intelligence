@@ -190,9 +190,9 @@ describe("DynamicNodesListPage", () => {
         screen.getByTestId("dynamic-nodes-list-empty"),
       ).toBeInTheDocument();
     });
-    // D12: the button carried a literal "+ " in its label on top of the
-    // `leftSection` IconPlus, so it read "+ + Create your first" — and the
-    // bare phrase names no object for a screen reader.
+    // No literal "+ " in the label (the `leftSection` IconPlus draws one, so
+    // it would read "+ + Create your first"), and the label names its object,
+    // which the bare phrase does not for a screen reader.
     expect(
       screen.getByTestId("dynamic-nodes-list-empty-cta"),
     ).toHaveAccessibleName("Create your first custom node");

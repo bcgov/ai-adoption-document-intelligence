@@ -27,19 +27,19 @@ import { ErrorBoundary } from "./components";
 /**
  * How far down the viewport a toast starts, in px.
  *
- * Mantine pins a `top-right` toast 16px from the top, which put it ON TOP of
- * the chrome it was reporting on. Found in the workflow editor (Inderdeep UX
- * review batch four): the orphaned-delete toast covered the top bar's Save /
- * Try / Run / More group for its whole 8-second life, and the e2e caught it as
- * `topbar-more-button` being intercepted. Because this component is global, the
- * same toast also sat over the app header's user menu on EVERY page.
+ * Mantine pins a `top-right` toast 16px from the top, which puts it ON TOP of
+ * the chrome it is reporting on. In the workflow editor the orphaned-delete
+ * toast would cover the top bar's Save / Try / Run / More group for its whole
+ * 8-second life, which an e2e sees as `topbar-more-button` being intercepted.
+ * Because this component is global, the same toast would also sit over the app
+ * header's user menu on EVERY page.
  *
  * Measured in Chromium at 1280x720 and 1280x800 — identical at both, because
  * all of this chrome is fixed-height:
  *
  *   app header (`.mantine-AppShell-header`)   0 →  65
  *   workflow editor top bar                  65 → 112
- *   toast, before this change                16 → 110   ← covers both
+ *   toast at Mantine's default offset        16 → 110   ← covers both
  *
  * So 112 + an 8px gap. On pages with no action bar of their own the toast just
  * starts a little lower, which costs nothing; a toast that hides a live control

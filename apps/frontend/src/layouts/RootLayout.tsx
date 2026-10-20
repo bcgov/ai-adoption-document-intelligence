@@ -101,9 +101,8 @@ export function isEditorRoute(pathname: string): boolean {
  * than the global header: `/workflows` (list), `/workflows/create`,
  * `/workflows/:id/edit`, `/workflows/by-slug/:slug/edit` and the dev-only
  * form preview — i.e. `/workflows` itself plus anything under it, and nothing
- * else. Before this, the icon rendered on every route and silently did nothing
- * off the editor (Inderdeep, 2026-08-06 — "nothing is telling me that I need to
- * be on that screen").
+ * else. An icon on every route would silently do nothing off the editor, with
+ * nothing telling the user which screen it needs.
  */
 export function isAgentChatRoute(pathname: string): boolean {
   return /^\/workflows(\/|$)/.test(pathname);

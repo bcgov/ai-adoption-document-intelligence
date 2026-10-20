@@ -149,13 +149,13 @@ describe("WorkflowListPage — workflow name link", () => {
 });
 
 /**
- * D33 — "Even with this number of workflows, it can be hard to find the one
- * you want." The list is fetched whole, so the filter is client-side; these
- * tests pin the three things that make it usable — it matches the columns
- * people scan, the caption says how many of how many, and a zero-result search
- * explains itself and offers a way back.
+ * Search, so a person can find the workflow they want in a long list. The
+ * list is fetched whole, so the filter is client-side; these tests pin the
+ * three things that make it usable — it matches the columns people scan, the
+ * caption says how many of how many, and a zero-result search explains itself
+ * and offers a way back.
  */
-describe("WorkflowListPage — D33 search", () => {
+describe("WorkflowListPage — search", () => {
   let apiMock: ApiServiceMock;
 
   const rows = [
@@ -292,10 +292,10 @@ describe("WorkflowListPage — D33 search", () => {
 });
 
 /**
- * P-2 (Alex review 2026-08-02) — Name was squeezed into a narrow column
- * while Description ran as one long truncated line. Name and Description
- * now carry explicit widths and the description wraps to two lines, which
- * keeps rows short without hiding half the sentence.
+ * Name must not be squeezed into a narrow column, and Description must not
+ * run as one long truncated line. The column widths are explicit and the
+ * description wraps to two lines, which keeps rows short without hiding half
+ * the sentence.
  */
 describe("WorkflowListPage — column widths", () => {
   let apiMock: ApiServiceMock;
@@ -355,23 +355,22 @@ describe("WorkflowListPage — column widths", () => {
   });
 
   /**
-   * Item 18, Inderdeep UX review 2026-08-06 — *"the delete icon is outside of
-   * this row and it's truncated … I'm at full view, I'm not zoomed in or
-   * zoomed out."*
+   * The delete button must sit inside its row, untruncated, at full view with
+   * no zoom involved.
    *
-   * Cause, measured in Chromium at a 1280px viewport: the actions column was
-   * `4%`, i.e. 39px, while its contents are two 52px BC DS icon buttons with a
-   * 4px gap inside 16px of cell padding either side — 140px that does not
-   * shrink. The delete button ended 85px past the row and the table wrapper
-   * grew a horizontal scrollbar (scrollWidth 1056 against clientWidth 972).
+   * Measured in Chromium at a 1280px viewport: the actions column holds two
+   * 52px BC DS icon buttons with a 4px gap inside 16px of cell padding either
+   * side — 140px that does not shrink. Sized at `4%`, i.e. 39px, the delete
+   * button ends 85px past the row and the table wrapper grows a horizontal
+   * scrollbar (scrollWidth 1056 against clientWidth 972).
    *
    * jsdom performs no table layout, so it cannot see the overflow itself. What
-   * it CAN hold is the rule the overflow broke: the actions column is sized in
+   * it CAN hold is the rule that prevents it: the actions column is sized in
    * pixels, not in a percentage of a width nobody controls, and the sized
    * columns leave room for Name. The browser measurements are the real
    * evidence and are recorded in the batch-nine worklog.
    */
-  it("item 18: the actions column is pixel-sized, not a percentage", async () => {
+  it("the actions column is pixel-sized, not a percentage", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     const headers = screen.getAllByRole("columnheader");
@@ -384,7 +383,7 @@ describe("WorkflowListPage — column widths", () => {
     expect(actionsHeader.style.width).not.toContain("%");
   });
 
-  it("item 18: the percentage columns leave room for Name", async () => {
+  it("the percentage columns leave room for Name", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     const percentTotal = screen
@@ -398,7 +397,7 @@ describe("WorkflowListPage — column widths", () => {
     expect(percentTotal).toBeLessThan(50);
   });
 
-  it("item 18: the table has a floor so Name cannot collapse", async () => {
+  it("the table has a floor so Name cannot collapse", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     // A `min-width` on a CELL is ignored under fixed layout — only `width`
