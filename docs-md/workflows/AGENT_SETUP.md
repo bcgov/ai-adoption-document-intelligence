@@ -25,9 +25,11 @@ Anthropic is implemented as a second provider and works, but **nothing in this
 repo is configured for it**, so Azure is the only working path today.
 
 `AZURE_OPENAI_*` is **shared configuration**, not agent-specific: the same four
-variables are read by `enrich-results`, `format-suggestion.service.ts` and
-`ai-recommendation.service.ts`. Repointing the endpoint moves all four features
-at once.
+variables are read by the OCR enrichment step (`enrich-results`), field-format
+suggestions (`format-suggestion.service.ts`), benchmark recommendations
+(`ai-recommendation.service.ts`) and the two vision-model OCR providers
+(`vlm-direct-extract.ts` and `vlm-hybrid-extract.ts`). Repointing the endpoint
+moves all six features at once.
 
 The agent runs inside **backend-services**, so the variables must be present
 for that process — not only for the Temporal worker.
@@ -36,19 +38,27 @@ for that process — not only for the Temporal worker.
 
 Read once at startup by
 [`apps/backend-services/src/agent/agent.env.ts`](../../apps/backend-services/src/agent/agent.env.ts).
-A variable that is **present but blank counts as absent**, deliberately: a blank
-key used to be handed to the SDK and produced a mid-stream HTTP 401 instead of a
-clean refusal.
+A variable that is **present but blank counts as absent**, deliberately: handed
+to the SDK, a blank key produces a mid-stream HTTP 401 instead of a clean
+refusal.
 
 | Variable | Required? | What it is |
 |---|---|---|
 | `AZURE_OPENAI_API_KEY` | **yes**, for Azure | The APIM subscription key |
 | `AZURE_OPENAI_ENDPOINT` | **yes**, for Azure | The APIM / Azure OpenAI base URL |
 | `AZURE_OPENAI_DEPLOYMENT` | no (defaults to `gpt-4o`) | Deployment name, used verbatim as the model id |
-| `AZURE_OPENAI_API_VERSION` | no (defaults to `2024-10-21`) | Azure API version |
+| `AZURE_OPENAI_API_VERSION` | no; the default depends on where the code runs, see below | Azure API version |
 | `ANTHROPIC_API_KEY` | **yes**, for Anthropic | Alternative provider; not configured anywhere in this repo |
 | `AGENT_ANTHROPIC_MODEL` | no | Anthropic model id |
 | `AGENT_DEFAULT_PROVIDER` | no | `azure` or `anthropic`; falls back to whichever is configured |
+
+**`AZURE_OPENAI_API_VERSION` when it isn't set.** Each environment supplies its
+own value. `docker-compose.yml` passes `2024-12-01-preview` to backend-services
+and to the Temporal worker. On OpenShift the `backend-services-config` and
+`temporal-worker-config` ConfigMaps set `2024-02-15-preview`, which is also what
+the deploy workflow and `scripts/oc-deploy-instance.sh` fall back to. Running
+locally from the root `.env` without it, each feature uses its own code default:
+`2024-10-21` for the agent, and `2024-12-01-preview` for the other five.
 
 Cost and loop bounds, none of them load-bearing for setup: `AGENT_MAX_STEPS`,
 `AGENT_MAX_OUTPUT_TOKENS`, `AGENT_MAX_CONVERSATION_TOKENS`,
@@ -56,23 +66,20 @@ Cost and loop bounds, none of them load-bearing for setup: `AGENT_MAX_STEPS`,
 
 ### Where to put them locally
 
-**`~/.config/bcgov-di/backend-services.env`**, not the repo `.env`.
-[`env-loader.ts`](../../apps/backend-services/src/env-loader.ts) loads that file
-**before** the repo `.env`, so it wins — and the key never enters the checkout,
-which is the point. Override the directory with `DI_SECRETS_DIR`.
+In the **root `.env`**, the one file the backend reads
+([`env-loader.ts`](../../apps/backend-services/src/env-loader.ts)). It is
+gitignored, so the key stays out of commits. Restart backend-services after
+changing it; the variables are read once, at startup.
 
-`.env.sample` ships these four variables with **empty** values on purpose. A
-non-empty placeholder made a copied sample report itself as configured: the
-model picker offered "Azure OpenAI — gpt-4o" and the turn then died on a DNS
-lookup of a hostname that does not exist.
+`.env.sample` ships these four variables with **empty** values on purpose: a
+placeholder value would make a copied sample report the assistant as
+configured, and the first question would then fail on a DNS lookup of a host
+that does not exist.
 
 ### Where they come from on a deployed instance
 
-Wired into `backend-services` in every target as of 2026-08-15. Before that the
-four variables reached the **temporal worker only**, so the assistant was
-permanently "not configured" on anything deployed — it worked on a developer
-machine purely because `~/.config/bcgov-di/backend-services.env` is loaded
-first.
+Every target passes the four variables to backend-services, as well as to the
+Temporal worker:
 
 | Target | Endpoint / deployment / api-version | API key |
 |---|---|---|
@@ -81,8 +88,8 @@ first.
 
 All four `env` entries on the backend-services container are `optional: true`.
 That is deliberate: a missing key **disables the assistant**, it does not put
-the pod in `CreateContainerConfigError`. An instance whose Secret predates this
-change keeps serving everything else.
+the pod in `CreateContainerConfigError`. An instance whose Secret has no
+`AZURE_OPENAI_API_KEY` entry keeps serving everything else.
 
 The worker keeps its own copy in `temporal-worker-secrets` /
 `temporal-worker-config`. The two Secrets are per-deployment by convention here
@@ -105,8 +112,9 @@ the backend does not refuse to boot. Concretely:
 - The chat drawer shows a notice reading *"The assistant isn't configured on
   this server"*, names the missing variables, and points here.
 - The model picker reads **"No model configured"**.
-- The composer's **send button is disabled**, with the same reason on hover and
-  on keyboard focus. You are not able to type a question into a wall.
+- The composer **sends nothing**. Its send button is disabled, and hovering it,
+  or moving keyboard focus to it, shows the reason; pressing Enter in the
+  message box sends nothing either, and keeps what you typed.
 - If a turn is posted anyway (a script, a stale tab), the backend refuses with
   HTTP **503** and `code: "assistant-not-configured"`.
 
@@ -122,8 +130,8 @@ Two neighbouring states that are *not* this one, and say so differently:
 
 **There is no self-serve path.** The key is a shared team subscription and is
 handed out directly — **ask Alex Struk** (AI Technical Solutions Team,
-CITZ/OCIO/TDAC) and put what he gives you in
-`~/.config/bcgov-di/backend-services.env`, then restart backend-services.
+CITZ/OCIO/TDAC) and put what he gives you in the root `.env`, then restart
+backend-services.
 
 For deployed instances the same key is delivered as the `AZURE_OPENAI_API_KEY`
 entry of the `<instance>-backend-services-secrets` Kubernetes Secret; see

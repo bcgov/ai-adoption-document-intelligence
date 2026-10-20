@@ -119,9 +119,9 @@ each carrying a **colour AND a shape**, so colour is never the only signal:
 |---|---|---|---|
 | Documents & files | `Document`, `DocumentRef`, `Multi`/`SinglePageDocument`, `PreparedFile`, `DocumentContent` | `#5595D9` blue | filled circle |
 | Content taken out of a document | `Segment`, `Segment<...>`, `DocumentSegment`, `TypedSegment`, `ClassifiedPageSegment`, `LabeledSegment`, `OcrResult`, `OcrFields`, `OcrTable` | `#6741D9` violet | filled square |
-| Judgements about a document | `Classification`, `ClassificationLabel`, `LabeledDocumentMap`, `ValidationResult` | `#FAB005` yellow | diamond |
-| Pointers — IDs and lookups | `Identifier`, `DocumentId`, `GroupId`, `ModelId`, `RequestId`, `Reference` | `#0CA678` teal | vertical bar |
-| Untyped / wildcard | `Artifact`, unregistered kinds | `#605E5C` grey | hollow circle |
+| Labels and check results | `Classification`, `ClassificationLabel`, `LabeledDocumentMap`, `ValidationResult` | `#FAB005` yellow | diamond |
+| IDs that point at something stored elsewhere | `Identifier`, `DocumentId`, `GroupId`, `ModelId`, `RequestId`, `Reference` | `#0CA678` teal | vertical bar |
+| Untyped — takes anything | `Artifact`, unregistered kinds | `#605E5C` grey | hollow circle |
 | Array (`T[]`) | (same family as `T`) | (same) | doubled outline |
 
 **Why five, and why a shape.** The previous seven-colour scheme had pairs that

@@ -539,9 +539,9 @@ The single `dyn.run` activity is registered once at worker startup. Adding, upda
 
 ### 9.1 Shared `DynamicNodeEditor` component
 
-Lives in `apps/frontend/src/features/workflow-builder/dynamic-nodes/`. Three-pane layout, takes one prop `slug?: string` (undefined = create mode):
+Lives in `apps/frontend/src/features/workflow-builder/dynamic-nodes/`. Three panes in a grid. From the `lg` breakpoint up, the code pane is on the left and takes the width the right-hand column leaves; that column, 304 px wide, holds the signature preview with the version history under it. Below `lg` the three stack in that order. Props: `slug?: string` (undefined = create mode), `layout` (`"modal"`, the default, in the builder; `"full-page"` on the `/dynamic-nodes` routes), `onAfterPublish` and `onClose`.
 
-- **Code pane (~60% width).** TypeScript code editor. *Implementation note:* Milestone E shipped CodeMirror as a stand-in because Monaco was not installed; the pane now mounts Monaco (`@monaco-editor/react`) with TS highlighting, line-anchored gutter markers, debounced onChange, and programmatic cursor positioning. Monaco's own type checker is off — publish-time `deno check` is the source of truth for type errors. **D-13:** Monaco is bundled from `node_modules` via `loader.config({ monaco })` in `monaco-loader.ts`, NOT fetched from `cdn.jsdelivr.net` as the React wrapper does by default — the editor must work behind an egress proxy and on an air-gapped deploy. The bring-up is bounded (15s to reach `onMount`); on failure the pane says so and Publish refuses, because publishing a script the author was never shown is worse than not publishing. Boilerplate prefilled in create mode:
+- **Code pane (left).** TypeScript code editor. *Implementation note:* Milestone E shipped CodeMirror as a stand-in because Monaco was not installed; the pane now mounts Monaco (`@monaco-editor/react`) with TS highlighting, line-anchored gutter markers, debounced onChange, and programmatic cursor positioning. Monaco's own type checker is off — publish-time `deno check` is the source of truth for type errors. **D-13:** Monaco is bundled from `node_modules` via `loader.config({ monaco })` in `monaco-loader.ts`, NOT fetched from `cdn.jsdelivr.net` as the React wrapper does by default — the editor must work behind an egress proxy and on an air-gapped deploy. The bring-up is bounded (15s to reach `onMount`); on failure the pane says so and Publish refuses, because publishing a script the author was never shown is worse than not publishing. Boilerplate prefilled in create mode:
 
   ```ts
   import type { Document } from "@ai-di/graph-workflow/kinds";
@@ -553,6 +553,8 @@ Lives in `apps/frontend/src/features/workflow-builder/dynamic-nodes/`. Three-pan
    * @inputs { document: { kind: "Document", required: true } }
    * @outputs { result: { kind: "Artifact" } }
    */
+  // The document input above is an example. A node declares the inputs it
+  // needs, required or not, or none with `@inputs {}`.
   export default async function dynamicNode(
     ctx: { document: Document },
     params: {},
@@ -563,9 +565,9 @@ Lives in `apps/frontend/src/features/workflow-builder/dynamic-nodes/`. Three-pan
 
   Below the editor: a status strip showing the *live* `parseDynamicNodeSignature` result (client-side, from the shared package) — green checkmark if the JSDoc parses, red error list with line numbers if not.
 
-- **Signature preview pane (~25%).** Renders the parsed signature: name, description, category, deterministic flag, inputs (port name, kind with the Phase 3 color dot, required, description), outputs (same), parameters (rendered as the same `JsonSchemaForm` the canvas settings panel uses, in read-only mode), `@allowNet` chips. A "DYN" pill in the corner.
+- **Signature preview pane (right column, top).** Renders the parsed signature: name, description, a "DYN" pill, the deterministic flag, inputs (port name, kind with the Phase 3 color dot, required), outputs (port name and kind), parameters (rendered as the same `JsonSchemaForm` the canvas settings panel uses, in read-only mode), `@allowNet` chips.
 
-- **Version history pane (~15%).** Same shape as Phase 2 Track 3's `VersionHistoryDrawer`: list of versions newest-first with publish timestamps; click → diff modal (side-by-side script blocks via two `<JsonInput readOnly>` panels — no diff library, matches Track 3 D1 decision). Head badge on the latest. Revert ("PUT script of vN as new head version") is a single-click action with a confirm modal.
+- **Version history pane (right column, under the preview).** Same shape as Phase 2 Track 3's `VersionHistoryDrawer`: list of versions newest-first with publish timestamps; each row's **View** opens a modal with that version's script and head's side by side (two `<JsonInput readOnly>` panels — no diff library, matches Track 3 D1 decision). Head badge on the latest. Revert ("PUT script of vN as new head version") is a single-click action with a confirm modal.
 
 - **Top bar:**
   - **Publish** — `POST` (create mode) or `PUT` (edit mode). On 400, render structured `errors` inline with line anchors (Monaco markers via `editor.deltaDecorations`). On 200, green Mantine notification + version history refreshes + catalog invalidates.

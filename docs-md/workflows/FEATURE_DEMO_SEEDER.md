@@ -19,7 +19,7 @@ the whole [MANUAL_TEST_PLAN.md](MANUAL_TEST_PLAN.md) from scratch.
   validates `x-api-key` against a seeded key). If the DB was reset without a
   seed, every request 401s — run `npm run db:seed` (from `apps/backend-services`)
   first. The [try-in-place demo](#what-it-seeds) additionally needs the Temporal
-  **worker + deno-runner** live (the `dev: all` task) to actually run.
+  **worker** live (the **Dev: all** task) to actually run.
 
 ## Usage
 
@@ -42,12 +42,17 @@ it with `npm run seed:demo-runs` if you want them back.
 | `BACKEND_URL` | `http://localhost:3002` | API base URL |
 | `FRONTEND_URL` | `http://localhost:3000` | used to build the editor deep-links |
 | `TEST_API_KEY` | probed (see below) | `x-api-key` for the API |
+| `DATABASE_URL` | from the root `.env` | the [chat-log demos](#ai-agent-chat-log-demos) are written straight to Postgres; `PGSSLMODE` is honoured if set |
+| `SEED_USER_SUB` | unset: the group's API-key actor | whose actor a chat-log demo records as `createdBy` |
+
+The script loads the repo-root `.env` (the one `npm run db:seed`, the backend,
+the worker and `playwright.config.ts` read) before reading any of these; a
+variable already set in your shell wins.
 
 **API-key resolution.** The backend validates `x-api-key` against the value the
-DB was seeded with — which may be your shell `TEST_API_KEY`, the one in
-`apps/backend-services/.env`, or the documented default. The script gathers all
-three (loading the backend `.env` the way `playwright.config.ts` does) and
-**probes** which one the backend accepts, using the first that authenticates. It
+DB was seeded with — which may be your shell `TEST_API_KEY`, the one in the root
+`.env`, or the documented default. The script gathers all three and **probes**
+which one the backend accepts, using the first that authenticates. It
 never logs a key value. If none work you get a clear hint (usually: the DB isn't
 seeded, or you need to pass the seeded key: `TEST_API_KEY=<key> npm run seed:demos`).
 
@@ -112,14 +117,14 @@ For each fixture, `seedAgentDemos()`:
    with `isDemo: true`.
 
 `isDemo` is what makes the replay openable by whoever follows the link. Ordinary
-conversations are private to their `createdBy` actor, and a demo seeded under one
-identity was invisible to everyone else — the drawer's *Show past conversations*
-came up empty for anybody but the seeder. A demo row is instead visible to every
-member of its group and **read-only for all of them**: `POST /api/agent/chat`
-refuses a turn on one with `demo-conversation-read-only`, and the switcher badges
-it **demo replay** and withholds delete. `createdBy` still records who seeded it
-(`SEED_USER_SUB`'s actor, else the group's `ApiKey.actor_id`) but no longer
-decides who can see it.
+conversations are private to their `createdBy` actor, so without it a demo seeded
+under one identity would be invisible to everyone else: the drawer's *Show past
+conversations* would come up empty for anybody but the seeder. A demo row is
+visible to every member of its group and **read-only for all of them**:
+`POST /api/agent/chat` refuses a turn on one with `demo-conversation-read-only`,
+and the switcher badges it **demo replay** and withholds delete. `createdBy`
+still records who seeded it (`SEED_USER_SUB`'s actor, else the group's
+`ApiKey.actor_id`), but it doesn't decide who can see a demo.
 
 The guide then renders an **🤖 AI agent chat logs** section: each row has a
 **💬 Chat log** link (`?agentChat=<id>` — opens the drawer and replays the whole
@@ -153,8 +158,9 @@ npm run seed:demo-runs  # run them for real  (+ Temporal worker)
 
 ### Why it is a separate command
 
-`seed:demos` is HTTP-only against `:3002`: backend and DB up and it works, in a
-couple of seconds. Folding a run pass into it would quietly give it a **Temporal
+`seed:demos` needs only the backend on `:3002` and the database (it writes the
+chat-log demos to Postgres directly): with those up it works, in a couple of
+seconds. Folding a run pass into it would quietly give it a **Temporal
 worker** dependency and turn those seconds into a minute, on every unrelated
 reseed. The runs therefore get their own explicit, opt-in step.
 
@@ -169,8 +175,10 @@ which is exactly the half-real artifact
 [DEMO_FABRICATION_AUDIT_20260718.md](DEMO_FABRICATION_AUDIT_20260718.md) exists
 to prevent.
 
-Every run is started through `POST /:id/tries` — the editor's Try endpoint, the
-same one the canvas Run button calls. That matters because the editor surfaces
+Every run is a Try: started through `POST /:id/tries`, the editor's Try
+endpoint, or through `POST /:id/sources/:sourceNodeId/upload`, which uploads the
+sample file and starts a Try with it, as the Run drawer's upload box does. That
+matters because the editor surfaces
 are Try-scoped: only Try runs land in the Run history drawer, feed the
 activity-output cache and answer the per-run status/input endpoints, so seeding
 through the production `/runs` trigger would produce runs the demos could never
@@ -182,7 +190,7 @@ the next Try on the same lineage, since a new Try cancels the previous one.
 | State | Where it lands |
 |---|---|
 | **Succeeded** run | Try-in-place demo — the upload-and-Try over `file.prepare` |
-| **Cache hit** (`skipped` + `cacheHit`) | Try-in-place demo — the same graph re-run with the same inputs |
+| **Cache hit** (`skipped`, with the first run's `cacheKey`) | Try-in-place demo — the same graph re-run with the same inputs |
 | **Failed** run | Try-in-place demo — a blob key that resolves to nothing |
 | **Branch taken** (`selectedEdgeId`) | Branch/error demo — the switch compares `preparedData.fileType`, a value the prepare step really computed |
 | **Error path taken** (`selectedEdgeId`) | Branch/error demo — `errorPolicy: "fallback"` diverts a genuine failure down the red edge |
@@ -221,7 +229,7 @@ docker exec temporal temporal workflow terminate --address 127.0.0.1:7233 \
 ### Prerequisites
 
 Everything `seed:demos` needs, **plus the Temporal worker**
-(`npm run dev:temporal-worker`, or the `dev: all` task). The deno-runner is not
+(`npm run dev:temporal-worker`, or the **Dev: all** task). The deno-runner is not
 needed — none of these graphs contain a dynamic node. If the runs are accepted
 but nothing executes them, the script says so.
 
@@ -231,7 +239,7 @@ There is none, and that is deliberate: the demo seeder is a dev script with no
 harness today, and the run pass follows that precedent rather than inventing
 one. What it does instead is **assert before it prints** — every state is
 checked against the live API (the switch really took `to-pdf`, the re-run really
-came back `skipped` with a `cacheHit`, the first Try really reads `cancelled`)
+came back `skipped` with a `cacheKey`, the first Try really reads `cancelled`)
 and the script fails loudly rather than reporting a state it did not observe.
 
 ## Why it's generated
@@ -265,9 +273,9 @@ and guide section are produced from that single entry.
 ## Not covered (see the manual plan)
 
 Real OCR-output previews, **dynamic-node runs** (need the deno-runner up —
-the *editor surface* is now seeded as a demo; publish/security gates are
-covered by e2e), and the agent chat.
+the *editor surface* is seeded as a demo; publish/security gates are covered by
+e2e), and the agent chat.
 
-Cache-hit re-runs (9.6/9.9) used to be on this list; `npm run seed:demo-runs`
-now seeds one. **Expired run history** is the state nothing can seed on demand —
-it needs a run older than the namespace's 30-day retention.
+A cache-hit re-run (9.6/9.9) is seeded by `npm run seed:demo-runs`. **Expired
+run history** is the state nothing can seed on demand — it needs a run older
+than the namespace's 30-day retention.
