@@ -267,7 +267,7 @@ jobs:
           source scripts/lib/retry.sh
           AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
           DOCKER_API="https://${ARTIFACTORY_URL}/artifactory/api/docker/kfd3-fd34fb-local/v2"
-          SERVICES=(backend-services frontend temporal ches-adapter)
+          SERVICES=(backend-services frontend temporal ches-adapter deno-runner)
 
           # Returns 0 only on HTTP 200. A transient failure (curl error -> 000,
           # or a 5xx) is retried by with_retries so an intermittent registry
@@ -421,7 +421,7 @@ jobs:
             "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
 
           # Patch each deployment to use the instance pull secret.
-          for dep in backend-services frontend temporal temporal-ui temporal-worker; do
+          for dep in backend-services frontend temporal temporal-ui temporal-worker deno-runner; do
             DEPLOY="${INSTANCE_NAME}-${dep}"
             if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
               oc patch deployment "$DEPLOY" -n "$OC_NAMESPACE" --type=merge -p \
@@ -595,7 +595,7 @@ jobs:
           set -euo pipefail
           source scripts/lib/oc-retry.sh
           source scripts/lib/wait-for-rollouts.sh
-          SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
+          SERVICES=(backend-services frontend temporal temporal-ui temporal-worker deno-runner)
           wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"
 
       - name: Set up Docker Buildx
@@ -615,7 +615,7 @@ jobs:
           artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
 
           REGISTRY="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
-          SERVICES=(backend-services frontend temporal ches-adapter)
+          SERVICES=(backend-services frontend temporal ches-adapter deno-runner)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
             with_retries 6 15 docker buildx imagetools create \

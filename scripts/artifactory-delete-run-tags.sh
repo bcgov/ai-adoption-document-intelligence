@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/lib/config-loader.sh"
 source "${SCRIPT_DIR}/lib/retry.sh"
 
 ARTIFACTORY_REPO="kfd3-fd34fb-local"
-DEFAULT_SERVICES=(backend-services frontend temporal ches-adapter)
+DEFAULT_SERVICES=(backend-services frontend temporal ches-adapter deno-runner)
 CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
 log_info()  { echo -e "\033[0;36m[INFO]\033[0m  $*"; }
@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
     --tag|-t) RUN_TAG="$2"; shift 2 ;;
     --delete) DO_DELETE=true; shift ;;
     --help|-h) usage; exit 0 ;;
-    backend-services|frontend|temporal|ches-adapter) SERVICES+=("$1"); shift ;;
+    backend-services|frontend|temporal|ches-adapter|deno-runner) SERVICES+=("$1"); shift ;;
     *) log_error "Unknown option: $1"; usage; exit 1 ;;
   esac
 done

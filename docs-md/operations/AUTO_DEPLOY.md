@@ -26,7 +26,7 @@ Two guards keep production runs on `main`:
 
 1. **Trigger**: a push to `develop`, or a manual run (`workflow_dispatch`).
 2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment, and stops a `prod` run that is not on `main` or that sets an override.
-3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
+3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`, `deno-runner`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
 4. **Deploy job**:
    - Verifies all four staged images exist in Artifactory at the SHA tag.
    - Generates a Kustomize overlay from `deployments/openshift/kustomize/overlays/instance-template` using the **SHA tag** (not the floating tag), substituting instance/namespace/cluster-domain/image tags plus SSO and app-config values.
