@@ -338,7 +338,7 @@ The workflow processes a PDF that contains several different document types stit
 
 Node groups (just for visual organization): "Initial OCR", "Split & Classify", "Collect Results", "Validate Fields", "Store Results".
 
-The full JSON for this workflow lives at [`docs-md/workflows/templates/multi-page-report-workflow.json`](./templates/multi-page-report-workflow.json) — useful as a reference for what the design must be capable of representing.
+The full JSON for this workflow lives at [`packages/graph-workflow/templates/multi-page-report-workflow.json`](../../packages/graph-workflow/templates/multi-page-report-workflow.json) — useful as a reference for what the design must be capable of representing.
 
 ---
 
@@ -446,4 +446,4 @@ These are decisions that will shape the visual language. They are open questions
 - [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) — every node in the system, with its full configuration form layout, in plain language. Use this as the spec for the per-node settings panels.
 - [WORKFLOW_BUILDER_GUIDE.md](WORKFLOW_BUILDER_GUIDE.md) — earlier guide aimed at developers; still useful for understanding the underlying model.
 - [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) — the engineering decision behind "single input, single output" (the reason every node has one in-arrow and one out-arrow apart from the special cases). Not designer-facing but explains why §6 looks the way it does.
-- [`docs-md/workflows/templates/multi-page-report-workflow.json`](./templates/multi-page-report-workflow.json) — a real-world example of the kind of workflow the design must accommodate.
+- [`packages/graph-workflow/templates/multi-page-report-workflow.json`](../../packages/graph-workflow/templates/multi-page-report-workflow.json) — a real-world example of the kind of workflow the design must accommodate.

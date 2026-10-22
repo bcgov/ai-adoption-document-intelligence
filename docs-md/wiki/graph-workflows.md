@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-07-08
+updated: 2026-10-22
 canonical_sources:
   - docs-md/workflows/
   - docs-md/architecture/PATTERNS_NODE_AND_UI.md
@@ -26,7 +26,7 @@ Graph workflows are the durable execution substrate for document processing. The
 
 - Engine behavior lives under `docs-md/workflows/`, especially the DAG engine and adding-node guides.
 - Workflow builder authoring context lives under `docs-md/workflows/` and the [Workflow builder](workflow-builder.md) wiki topic.
-- Shared graph types and validators live in `packages/graph-workflow/`.
+- Shared graph types and validators live in `packages/graph-workflow/`, and so do the shipped workflow templates (`packages/graph-workflow/templates/`, described in `docs-md/workflows/WORKFLOW_TEMPLATES.md`).
 - Backend save-time validation and workflow APIs live in `apps/backend-services/src/workflow/`.
 - OCR starts workflow execution through `apps/backend-services/src/ocr/`.
 - Temporal runtime execution lives in `apps/temporal/src/graph-engine/` and activity registration files.

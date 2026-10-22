@@ -20,7 +20,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const TEMPLATE_DIR = path.join(REPO_ROOT, "docs-md/workflows/templates");
+const TEMPLATE_DIR = path.join(REPO_ROOT, "packages/graph-workflow/templates");
 
 /** The steps whose model has to match the one the file was submitted to. */
 const MODEL_STEPS = new Set([

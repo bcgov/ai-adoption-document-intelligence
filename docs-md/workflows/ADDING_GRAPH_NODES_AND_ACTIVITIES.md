@@ -107,7 +107,7 @@ Use in workflow JSON as:
 - map `inputs`/`outputs` ports to `ctx` keys
 
 Useful places for examples/templates:
-- `docs-md/templates/*.json` (if maintaining templates)
+- `packages/graph-workflow/templates/*.json` (if maintaining templates)
 - Workflow configs stored via API/UI
 
 ---

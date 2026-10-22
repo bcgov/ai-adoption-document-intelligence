@@ -37,7 +37,7 @@ import type { PreparedFileData } from "./types";
 const TASK_QUEUE = "standard-ocr-template-model-test";
 const TEMPLATE_PATH = path.resolve(
   __dirname,
-  "../../../docs-md/workflows/templates/standard-ocr-workflow.json",
+  "../../../packages/graph-workflow/templates/standard-ocr-workflow.json",
 );
 /** Any model other than the template's own default. */
 const RUN_MODEL = "custom-invoice-model-v2";

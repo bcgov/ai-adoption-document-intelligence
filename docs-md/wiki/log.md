@@ -172,3 +172,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/TEMPLATE_MODELS.md`: deleting a template answers `409` while one of its trainings is in progress or a benchmark definition names one of its versions; the owner records' migration also reads the training audit events.
 - `architecture/AUDIT.md`: the `template_model_deleted` payload lists the Azure model ids it deletes.
 - `auth/AUTHENTICATION.md`: the per-IP limits' `X-Forwarded-For` rule, stated for callers that come through the router.
+
+## [2026-10-22] maintenance | Workflow templates moved into graph-workflow
+
+- The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
+- `graph-workflows.md`: the source map names the templates' folder.

@@ -686,25 +686,25 @@ async function seedBenchmarkingData() {
   // Load workflow configs from template files
   const standardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/standard-ocr-workflow.json"),
       "utf-8",
     ),
   );
   const multiPageReportConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/multi-page-report-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/multi-page-report-workflow.json"),
       "utf-8",
     ),
   );
   const mistralStandardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/mistral-standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/mistral-standard-ocr-workflow.json"),
       "utf-8",
     ),
   );
   const standardOcrSdprConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow-sdpr.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json"),
       "utf-8",
     ),
   );
@@ -2110,7 +2110,7 @@ async function seedLocalDatasets() {
 
 /**
  * Auto-discover experiment workflows. Scans
- * `docs-md/workflows/templates/experiment-*-workflow.json` and for each
+ * `packages/graph-workflow/templates/experiment-*-workflow.json` and for each
  * file derives a slug from the filename, then idempotently seeds:
  *
  *   - WorkflowLineage `seed-experiment-{slug}-workflow`
@@ -2121,7 +2121,7 @@ async function seedLocalDatasets() {
  *     via `metadata.targetLocalDataset = "{folder}-{visibility}"`.
  *
  * This means each experiment branch only needs to drop a workflow JSON at
- * `docs-md/workflows/templates/experiment-{slug}-workflow.json` — no
+ * `packages/graph-workflow/templates/experiment-{slug}-workflow.json` — no
  * edits to seed.ts needed per experiment.
  *
  * Runs after `seedLocalDatasets()` so the dataset version row exists when we
@@ -2131,8 +2131,8 @@ async function seedExperimentWorkflows() {
   const repoRoot = path.resolve(__dirname, "../../..");
   const templatesDir = path.join(
     repoRoot,
-    "docs-md",
-    "workflows",
+    "packages",
+    "graph-workflow",
     "templates",
   );
 
@@ -2147,7 +2147,7 @@ async function seedExperimentWorkflows() {
 
   if (experimentFiles.length === 0) {
     console.log(
-      "🧪 No experiment workflow templates at docs-md/workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
+      "🧪 No experiment workflow templates at packages/graph-workflow/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
     );
     return;
   }

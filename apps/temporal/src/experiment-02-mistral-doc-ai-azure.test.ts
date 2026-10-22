@@ -2,7 +2,7 @@
  * Experiment 02 — Mistral Document AI on Azure AI Foundry
  *
  * Two-layer test suite for the
- * `docs-md/workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`
+ * `packages/graph-workflow/templates/experiment-02-mistral-doc-ai-azure-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (cheap, no
@@ -63,8 +63,8 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "..",
-  "docs-md",
-  "workflows",
+  "packages",
+  "graph-workflow",
   "templates",
   "experiment-02-mistral-doc-ai-azure-workflow.json",
 );
