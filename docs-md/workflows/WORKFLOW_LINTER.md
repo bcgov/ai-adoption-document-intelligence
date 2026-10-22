@@ -19,7 +19,8 @@ change: a catalog edit or a kind retag can silently invalidate a shipped templat
 test ever opens, which is exactly what the 2026-07-18 taxonomy wave did.
 
 This is why the linter runs in CI ([`backend-qa.yml`](../../.github/workflows/backend-qa.yml)),
-on changes to `packages/**`, `docs-md/workflows/templates/**`, or the script itself. It runs
+on changes to `packages/**` (the templates live in `packages/graph-workflow/templates/`) or to
+the script itself. It runs
 after `build:packages` because it loads the built validator.
 
 ## 2. Does the collection exercise every shape we support?

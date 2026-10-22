@@ -101,7 +101,7 @@ If any one is missing, workflows either fail validation or fail at runtime resol
 
 Add/update graph template JSON in:
 
-- `docs-md/workflows/templates/`
+- `packages/graph-workflow/templates/`
 
 Use one of the execution patterns in Section 2, then connect to existing generic nodes:
 
