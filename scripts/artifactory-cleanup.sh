@@ -11,9 +11,9 @@
 #      sha256__* folders) that are not referenced by any named tag and deletes
 #      them.
 #   3. Uploads cleanup — under <image>/_uploads/, delete blob files that are
-#      at least an hour old and either (a) duplicates of layers already stored
-#      in tag folders, or (b) older than 24 hours (stale upload sessions that
-#      didn't get GC'd).
+#      at least 20 minutes old and either (a) duplicates of layers already
+#      stored in tag folders, or (b) older than 24 hours (stale upload sessions
+#      that didn't get GC'd).
 #
 # Usage:
 #   ./scripts/artifactory-cleanup.sh --env dev                        # Orphan cleanup, dry run
@@ -62,7 +62,7 @@ Phases:
     named tag.
   - Uploads cleanup (always): delete leftover blobs under <image>/_uploads/
     that are duplicates of stored layers or older than 24 hours, leaving any
-    younger than an hour (a push may still own them).
+    younger than 20 minutes (a push may still own them).
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
@@ -149,13 +149,14 @@ BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
 DOCKER_API="${BASE_URL}/api/docker/${ARTIFACTORY_REPO}/v2"
 CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
-# Artifactory intermittently drops a request after ~15s with no HTTP response
-# (logged as HTTP 000), well inside --max-time, so a longer timeout does not
-# help; from GitHub runners a connection can also time out outright for a
-# while. af_request logs curl's exit code and error to show why. Every call
-# is retried, and a lookup that still fails is treated as a failure, never as
-# "this tag references nothing" — an empty answer would make the manifests a
-# running image depends on look unreferenced, and they would be deleted.
+# From GitHub runners, connections to Artifactory intermittently fail for
+# seconds to minutes at a time: after ~15s (curl exit 7) or when
+# --connect-timeout runs out (exit 28). A delete logs either as HTTP 000, and
+# a longer --max-time does not help. af_request logs curl's exit code and
+# error to show why. Every call is retried, and a lookup that still fails is
+# treated as a failure, never as "this tag references nothing" — an empty
+# answer would make the manifests a running image depends on look
+# unreferenced, and they would be deleted.
 API_ATTEMPTS=6
 API_RETRY_WAIT=10
 
@@ -472,14 +473,15 @@ done
 echo ""
 
 # ---------- phase 3: uploads cleanup ----------
-# Under <image>/_uploads/, delete blob files that are at least an hour old and
-# either:
+# Under <image>/_uploads/, delete blob files that are at least 20 minutes old
+# and either:
 #   (a) duplicates of layers already stored in tag folders, OR
 #   (b) older than 24 hours (stale upload sessions never GC'd)
 # These are leftover chunked-upload blobs that should not persist post-push.
-# Younger blobs may belong to a push that is still running or has just
-# finished; Artifactory can hold those, so a delete hangs until it times out,
-# and deleting a live one would break that push. They are left for a later run.
+# A younger blob may belong to a push that is still running, such as a prod
+# release or a manual deploy from another branch, and deleting it would break
+# that push. A layer uploads in minutes, and 20 minutes lets one deploy's
+# cleanup reclaim the copies the previous deploy left.
 
 log_info "Phase 3: cleaning _uploads (duplicate and stale blobs)..."
 
@@ -490,7 +492,7 @@ from datetime import datetime, timezone, timedelta
 data = json.load(sys.stdin)
 now = datetime.now(timezone.utc)
 stale_cutoff = now - timedelta(hours=24)
-young_cutoff = now - timedelta(hours=1)
+young_cutoff = now - timedelta(minutes=20)
 
 # Build set of (image, sha-blob-name) referenced as layer files in non-_uploads folders
 layer_blobs = set()
@@ -547,7 +549,7 @@ done <<< "${UPLOADS_PLAN}"
 
 UP_SIZE_MB=$(python3 -c "print(f'{${UP_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
 if [[ "${UP_YOUNG}" -gt 0 ]]; then
-  log_info "Uploads cleanup: left ${UP_YOUNG} blob(s) younger than an hour for a later run."
+  log_info "Uploads cleanup: left ${UP_YOUNG} blob(s) younger than 20 minutes for a later run."
 fi
 if [[ "${DO_DELETE}" == "true" ]]; then
   log_ok "Uploads cleanup: deleted ${UP_COUNT} blob(s) (${UP_SIZE_MB} MB)."
