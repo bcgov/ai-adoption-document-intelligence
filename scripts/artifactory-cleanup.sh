@@ -5,7 +5,8 @@
 # Three phases (rotation is optional, orphan + uploads always run):
 #   1. Tag rotation — for each image, keep only the N most-recent named tags
 #      matching a glob pattern; delete the rest. Use for immutable SHA tags like
-#      `bcgov-di-<sha>` so they don't accumulate unbounded.
+#      `bcgov-di-<sha>` so they don't accumulate unbounded. A tag given with
+#      --protect is never deleted and does not count toward N.
 #   2. Orphan manifest reclamation — identifies SHA-tagged manifests (stored as
 #      sha256__* folders) that are not referenced by any named tag and deletes
 #      them.
@@ -49,13 +50,14 @@ log_ok()    { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--env <dev|prod>] [--keep N --match GLOB] [--delete]
+Usage: $(basename "$0") [--env <dev|prod>] [--keep N --match GLOB [--protect TAG]...] [--delete]
 
 Reclaim storage in the Artifactory container repo.
 
 Phases:
   - Tag rotation (optional): pass --keep N AND --match GLOB to delete named
     tags matching GLOB beyond the N most recent per image (by created time).
+    Tags given with --protect are never deleted and do not count toward N.
   - Orphan cleanup (always): delete SHA-tagged manifests not referenced by any
     named tag.
   - Uploads cleanup (always): delete leftover blobs under <image>/_uploads/
@@ -72,6 +74,8 @@ Options:
   --env, -e        Environment profile (optional if env vars are set)
   --keep, -k N     Keep the N most recent named tags matching --match per image
   --match, -m GLOB Glob pattern for named tags to rotate (e.g. 'bcgov-di-*')
+  --protect, -p TAG
+                   Never delete this named tag in rotation (repeatable)
   --delete         Actually delete (default: dry run)
   --help, -h       Show this help message
 EOF
@@ -83,12 +87,14 @@ ENV_PROFILE=""
 DO_DELETE=false
 KEEP_N=""
 MATCH_GLOB=""
+PROTECT_TAGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env|-e) ENV_PROFILE="$2"; shift 2 ;;
     --keep|-k) KEEP_N="$2"; shift 2 ;;
     --match|-m) MATCH_GLOB="$2"; shift 2 ;;
+    --protect|-p) PROTECT_TAGS+=("$2"); shift 2 ;;
     --delete) DO_DELETE=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) log_error "Unknown option: $1"; usage; exit 1 ;;
@@ -105,6 +111,16 @@ if [[ -n "${KEEP_N}" ]] && ! [[ "${KEEP_N}" =~ ^[0-9]+$ ]]; then
   log_error "--keep must be a non-negative integer."
   exit 1
 fi
+if [[ "${#PROTECT_TAGS[@]}" -gt 0 && -z "${KEEP_N}" ]]; then
+  log_error "--protect only applies to rotation; pass it with --keep and --match."
+  exit 1
+fi
+for tag in "${PROTECT_TAGS[@]}"; do
+  if ! [[ "${tag}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    log_error "--protect takes a tag name: '${tag}' is not one."
+    exit 1
+  fi
+done
 
 # ---------- load credentials ----------
 # Prefer env vars (set by CI); fall back to config file for local usage.
@@ -218,6 +234,9 @@ fi
 
 if [[ -n "${KEEP_N}" ]]; then
   log_info "Rotation: keeping ${KEEP_N} most-recent '${MATCH_GLOB}' tags per image..."
+  if [[ "${#PROTECT_TAGS[@]}" -gt 0 ]]; then
+    log_info "Rotation: never deleting ${PROTECT_TAGS[*]}"
+  fi
 
   # Match both `manifest.json` (legacy single-platform) and `list.manifest.json`
   # (OCI image index — what buildx writes for multi-platform pushes).
@@ -229,11 +248,12 @@ if [[ -n "${KEEP_N}" ]]; then
   }
   ROTATION_AQL=$(cat "${WORK_DIR}/rotation-aql.json")
 
-  ROTATION_TAGS=$(echo "${ROTATION_AQL}" | python3 -c "
-import sys, json, fnmatch
+  ROTATION_TAGS=$(echo "${ROTATION_AQL}" | PROTECT="${PROTECT_TAGS[*]:-}" python3 -c "
+import sys, json, fnmatch, os
 data = json.load(sys.stdin)
 keep = int('${KEEP_N}')
 glob = '${MATCH_GLOB}'
+protect = set(os.environ.get('PROTECT', '').split())
 
 # Each result has path like 'backend-services/bcgov-di-abc123' (the tag dir)
 # plus name like 'manifest.json' or 'list.manifest.json'. A tag may have both;
@@ -247,7 +267,7 @@ for r in data['results']:
     image, tag = parts[0], parts[1]
     if tag.startswith('sha256__') or tag.startswith('sha256:') or tag == '_uploads':
         continue
-    if not fnmatch.fnmatch(tag, glob):
+    if not fnmatch.fnmatch(tag, glob) or tag in protect:
         continue
     created = r.get('created', '')
     key = (image, tag)

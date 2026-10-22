@@ -30,6 +30,9 @@ RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
 COPY apps/frontend/package*.json ./
 RUN npm install --ignore-scripts
 COPY apps/frontend/ .
+# The workflow builder bundles its templates through the @docs alias, which
+# resolves ../../docs-md from /app to /docs-md (as packages/ resolves above).
+COPY docs-md/workflows/templates /docs-md/workflows/templates
 RUN npm run build
 
 # Production stage: nginx to serve static files (non-root / OpenShift-safe)
