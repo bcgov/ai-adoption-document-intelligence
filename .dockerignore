@@ -27,6 +27,7 @@ coverage/
 **/__snapshots__/
 **/*.spec.ts
 **/*.test.ts
+**/*.test.tsx
 **/*.e2e-spec.ts
 
 # Dev tooling
