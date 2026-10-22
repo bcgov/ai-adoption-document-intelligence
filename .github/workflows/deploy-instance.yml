@@ -165,6 +165,9 @@ jobs:
 
       - name: Delete leftover builds and reclaim storage
         continue-on-error: true
+        # The build waits on this step. It normally takes under 4 minutes, and
+        # one failing Artifactory call can retry for about 13.
+        timeout-minutes: 15
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}

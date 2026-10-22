@@ -133,7 +133,7 @@ The **Clear Artifactory space** job runs before the build, so builds left in the
 - No build of the instance is deleted unless the lookup found the build the instance runs. If the cluster cannot be read, or the answer leaves that build out, the job only reclaims unreferenced manifests and old upload copies.
 - For prod, which keeps its rollback builds, the job only ever reclaims unreferenced manifests and old upload copies.
 - Upload copies younger than an hour are left, since a push may still own them. So a build deleted within an hour of its push leaves its upload copies behind, about three quarters of the build, and once the build is gone they no longer duplicate a stored layer: they stay until they are 24 hours old, unless Artifactory removes them first.
-- The job's steps cannot fail it, so the build always runs; a step that failed is marked on the run.
+- The job's steps cannot fail it, so the build always runs; a step that failed is marked on the run. The cleanup step stops after 15 minutes, so a slow Artifactory holds up the build by at most that.
 
 Tests: `bash scripts/lib/in-use-image-tags.test.sh`.
 
