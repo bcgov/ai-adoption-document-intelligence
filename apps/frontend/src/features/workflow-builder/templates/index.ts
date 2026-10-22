@@ -1,17 +1,18 @@
 /**
  * Static bundle of workflow templates.
  *
- * Templates are JSON files in `docs-md/workflows/templates/`. They
- * are not API-backed today — the picker reads them straight out of the
- * bundle, hydrates the editor's local state, and saves create a brand
- * new workflow record. To add a template, drop a new JSON file into the
+ * Templates are JSON files in `packages/graph-workflow/templates/`,
+ * reached through the `@workflow-templates` alias. They are not
+ * API-backed today — the picker reads them straight out of the bundle,
+ * hydrates the editor's local state, and saves create a brand new
+ * workflow record. To add a template, drop a new JSON file into the
  * directory; Vite's glob import picks it up on next build.
  */
 
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 
 const templateModules = import.meta.glob<GraphWorkflowConfig>(
-  "@docs/workflows/templates/*.json",
+  "@workflow-templates/*.json",
   { eager: true, import: "default" },
 );
 

@@ -7,9 +7,9 @@
  * US-049-auto-layout-helper.md and US-050-auto-layout-on-template-load.md.
  */
 
-import { describe, expect, it } from "vitest";
 // Fixture: the multi-page report template ships 5 node groups (Scenario 4).
-import multiPageReportTemplate from "../../../../../../docs-md/workflows/templates/multi-page-report-workflow.json";
+import multiPageReportTemplate from "@workflow-templates/multi-page-report-workflow.json";
+import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
   GraphEdge,

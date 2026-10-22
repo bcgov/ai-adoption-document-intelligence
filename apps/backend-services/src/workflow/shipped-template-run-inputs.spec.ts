@@ -17,7 +17,7 @@ import { deriveInputSchema } from "./derive-input-schema";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const TEMPLATE_DIR = path.join(REPO_ROOT, "docs-md/workflows/templates");
+const TEMPLATE_DIR = path.join(REPO_ROOT, "packages/graph-workflow/templates");
 
 const TEMPLATES = [
   "standard-ocr-workflow.json",

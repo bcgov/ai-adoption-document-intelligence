@@ -49,7 +49,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const require = createRequire(join(repoRoot, "package.json"));
 
-const TEMPLATES_DIR = join(repoRoot, "docs-md/workflows/templates");
+const TEMPLATES_DIR = join(repoRoot, "packages/graph-workflow/templates");
 const args = new Set(process.argv.slice(2));
 const useDb = args.has("--db");
 const strict = args.has("--strict");
