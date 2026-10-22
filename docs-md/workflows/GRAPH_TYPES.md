@@ -104,7 +104,7 @@ A single shared validator lives in `packages/graph-workflow/src/validator/valida
 - **Temporal** (`apps/temporal/src/graph-schema-validator.ts`): Thin wrapper that injects the runtime registry for execution-time defensive validation
 - **Frontend** (`apps/frontend/src/pages/WorkflowEditorPage.tsx`): Calls `validateGraphConfig()` directly without options; the `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` which skips activity-type/parameter checks (appropriate since the frontend has no activity registry)
 
-All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
+All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity. An output binding whose port the step's catalog entry does not declare is a **warning**: the engine copies `result[port]` into the variable, so a port the step does not return leaves the variable empty for the next step.
 
 ## Blob Storage
 

@@ -119,6 +119,81 @@ describe("AuditService", () => {
       );
     });
 
+    it("names the custom step and its run on an event recorded during the step's call", async () => {
+      jest.spyOn(requestContextModule, "getRequestContext").mockReturnValue({
+        requestId: "req-1",
+        actorId: "internal:dyn-run",
+        dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
+      });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "review_session_started",
+        resource_type: "review_session",
+        resource_id: "rs-1",
+        payload: { document_id: "doc-1" },
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor_id: "internal:dyn-run",
+          payload: {
+            document_id: "doc-1",
+            dynamic_node_run: {
+              workflow_execution_id: "run-1",
+              slug: "lookup-vendor",
+            },
+          },
+        }),
+        undefined,
+      );
+    });
+
+    it("names the custom step on an event recorded without a payload", async () => {
+      jest.spyOn(requestContextModule, "getRequestContext").mockReturnValue({
+        requestId: "req-1",
+        dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
+      });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "workflow_updated",
+        resource_type: "workflow",
+        resource_id: "wf-1",
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: {
+            dynamic_node_run: {
+              workflow_execution_id: "run-1",
+              slug: "lookup-vendor",
+            },
+          },
+        }),
+        undefined,
+      );
+    });
+
+    it("leaves the payload as given outside a custom step's call", async () => {
+      jest
+        .spyOn(requestContextModule, "getRequestContext")
+        .mockReturnValue({ requestId: "req-1", actorId: "actor-1" });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "workflow_updated",
+        resource_type: "workflow",
+        resource_id: "wf-1",
+        payload: { name: "renamed" },
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: { name: "renamed" } }),
+        undefined,
+      );
+    });
+
     it("should prefer explicit actor_id over request context", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")

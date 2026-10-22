@@ -74,24 +74,26 @@ verified during E03's iteration step.
 
 ## Activities
 
-Two activities are registered in all three registries (per
-`ADDING_OCR_PROVIDERS.md`):
-
-- **`azureContentUnderstanding.deployAnalyzer`** — idempotent PUT against
-  `/analyzers/{id}`. GETs first; skips PUT when the deployed body
-  matches. In-memory cache keyed on `analyzerId + bodyHash` short-circuits
-  repeats. Default timeout 2 min, 3 retries. The CU resource is shared by
-  every group, so the activity only deploys analyzer ids that start with the
-  running workflow's group prefix (`{prefix}{groupId}`, sanitised).
+One activity is registered in all three registries (per
+`ADDING_OCR_PROVIDERS.md`), and the step catalog describes it, so the
+workflow builder offers it as **Analyze with Content Understanding**:
 
 - **`azureContentUnderstanding.analyze`** — submits one document, polls
-  the operation, returns `{ ocrResult, cuResponse }`. Calls
-  `deployAnalyzer` first when a `templateModelId` is supplied. An explicit
-  `analyzerId` parameter must be an Azure `prebuilt-*` analyzer or one of
-  the group's own analyzers. Default
+  the operation, returns `{ ocrResult, ocrResponse }`. When a
+  `templateModelId` is supplied, it first deploys the analyzer built from the
+  template's fields (below). An explicit `analyzerId` parameter must be an
+  Azure `prebuilt-*` analyzer or one of the group's own analyzers. Default
   timeout 20 min, retry policy **30 attempts × 15 s × 1.5x × 60 s cap**
   (mirrors `mistralAzureOcr.process` because the Foundry RPM quota model
   applies — and the LLM layer can be slower than OCR-only paths).
+
+Deploying is a helper the analyze activity calls directly
+(`azureCuDeployAnalyzer` in `azure-cu-deploy-analyzer.ts`), not an activity a
+workflow can use: an idempotent PUT against `/analyzers/{id}`. It GETs first
+and skips the PUT when the deployed body matches, and an in-memory cache keyed
+on `analyzerId + bodyHash` short-circuits repeats. The CU resource is shared by
+every group, so it only deploys analyzer ids that start with the running
+workflow's group prefix (`{prefix}{groupId}`, sanitised).
 
 Mock mode for tests: set `MOCK_AZURE_CU=true` and the activity returns a
 canned response without hitting the network.

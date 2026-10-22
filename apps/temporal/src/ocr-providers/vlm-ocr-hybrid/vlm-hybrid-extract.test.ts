@@ -8,9 +8,17 @@ jest.mock("../../logger", () => ({
   }),
 }));
 
+import {
+  getActivityCatalogEntry,
+  type VlmOcrHybridExtractParameters,
+} from "@ai-di/graph-workflow";
 import axios from "axios";
+import type { SameShape } from "../../__testlib__/same-shape";
 import type { OCRResponse, PreparedFileData } from "../../types";
-import { vlmHybridExtract } from "./vlm-hybrid-extract";
+import {
+  type VlmHybridExtractParams,
+  vlmHybridExtract,
+} from "./vlm-hybrid-extract";
 
 jest.mock("axios");
 const axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
@@ -230,5 +238,45 @@ describe("vlmHybridExtract group scope", () => {
     expect(mockFindFirst).not.toHaveBeenCalled();
     expect(mockBlobRead).not.toHaveBeenCalled();
     expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  describe("catalog contract", () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    it("returns every output port the catalog declares for it", async () => {
+      templateRows = [amountTemplate(GROUP)];
+
+      const result = await vlmHybridExtract({
+        fileData: imageFile,
+        groupId: GROUP,
+        layoutResponse,
+        templateModelId: "tm-1",
+      });
+      const declared = getActivityCatalogEntry(
+        "vlmOcrHybrid.extract",
+      )?.outputs.map((port) => port.name);
+
+      expect(declared).toContain("ocrResult");
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(declared ?? []),
+      );
+    });
+
+    it("describes exactly the parameters the activity takes", () => {
+      const agree: SameShape<
+        VlmOcrHybridExtractParameters,
+        Omit<
+          VlmHybridExtractParams,
+          | "fileData"
+          | "groupId"
+          | "layoutResponse"
+          | "templateModelId"
+          | "azureOpenAiDeployment"
+          | "requestId"
+        >
+      > = true;
+      expect(agree).toBe(true);
+    });
   });
 });

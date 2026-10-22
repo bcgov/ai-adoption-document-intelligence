@@ -1,7 +1,10 @@
 import { Prisma } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { getRequestContext } from "@/logging/request-context";
+import {
+  getRequestContext,
+  type RequestContextData,
+} from "@/logging/request-context";
 import type { CreateAuditEventInput } from "./audit.types";
 import { AuditDbService } from "./audit-db.service";
 
@@ -37,7 +40,7 @@ export class AuditService {
           workflow_execution_id: e.workflow_execution_id ?? null,
           group_id: e.group_id ?? null,
           request_id: e.request_id ?? ctx?.requestId ?? null,
-          payload: e.payload,
+          payload: withDynamicNodeRun(e.payload, ctx?.dynamicNodeRun),
         },
         tx,
       );
@@ -57,4 +60,25 @@ export class AuditService {
       }
     }
   }
+}
+
+/**
+ * An event recorded while a custom step's call is handled names the step and
+ * the run it belongs to. The run's `workflow_run_started` event, which has the
+ * same Temporal run id, names the person or API key that started it.
+ */
+function withDynamicNodeRun(
+  payload: Record<string, unknown> | undefined,
+  run: RequestContextData["dynamicNodeRun"],
+): Record<string, unknown> | undefined {
+  if (!run) {
+    return payload;
+  }
+  return {
+    ...payload,
+    dynamic_node_run: {
+      workflow_execution_id: run.workflowExecutionId,
+      slug: run.slug,
+    },
+  };
 }

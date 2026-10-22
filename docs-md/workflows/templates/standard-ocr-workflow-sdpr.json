@@ -327,7 +327,8 @@
     },
     "modelId": {
       "type": "string",
-      "defaultValue": "sdpr_synth_test"
+      "defaultValue": "sdpr_synth_test",
+      "isInput": true
     },
     "preparedFileData": {
       "type": "object"
@@ -478,7 +479,7 @@
       ],
       "outputs": [
         {
-          "port": "response",
+          "port": "ocrResponse",
           "ctxKey": "ocrResponseRef"
         }
       ],
@@ -1030,6 +1031,10 @@
         {
           "port": "documentId",
           "ctxKey": "documentId"
+        },
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
         }
       ],
       "parameters": {

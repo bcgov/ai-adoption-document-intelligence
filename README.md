@@ -322,7 +322,11 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 ```bash
 docker compose --profile infra --profile temporal up -d
 # Starts: postgres, minio, temporal-postgresql, minio-init, temporal, temporal-ui
+docker compose -f deployments/local/docker-compose.deno.yml up -d
+# Starts: deno-runner, the sandbox that checks and runs custom-step code
 ```
+
+Custom steps cannot be published or run without the deno-runner.
 
 Verify all containers are healthy:
 
@@ -337,6 +341,7 @@ docker ps
 | MinIO Console | 19001     |
 | Temporal      | 7233      |
 | Temporal UI   | 8088      |
+| deno-runner   | 9099      |
 
 - http://localhost:8088 — Temporal UI
 - http://localhost:19001 — MinIO Console (user: `minioadmin` / `minioadmin`)

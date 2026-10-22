@@ -4,7 +4,14 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphWorkflowConfig } from "../../types/workflow";
 import { apiService } from "../services/api.service";
-import { useCreateWorkflow, useWorkflows } from "./useWorkflows";
+import {
+  useCreateWorkflow,
+  useUpdateWorkflow,
+  useWorkflows,
+  useWorkflowVersion,
+  WorkflowSaveError,
+  WorkflowVersionConflictError,
+} from "./useWorkflows";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -20,6 +27,7 @@ vi.mock("../services/api.service", () => ({
   apiService: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }));
 
@@ -166,8 +174,9 @@ describe("useWorkflows", () => {
         expect(
           cache.some(
             (q) =>
-              JSON.stringify(q.queryKey) ===
-              JSON.stringify(["workflows", activeGroup.id]),
+              Array.isArray(q.queryKey) &&
+              q.queryKey[0] === "workflows" &&
+              q.queryKey[1] === activeGroup.id,
           ),
         ).toBe(true);
       });
@@ -253,7 +262,56 @@ describe("useCreateWorkflow", () => {
 
       const returned = await result.current.mutateAsync(createDto);
 
-      expect(returned).toEqual(workflowInfo);
+      expect(returned.workflow).toEqual(workflowInfo);
+    });
+
+    // Draft-save (2026-08-02): saving persists whatever the author has and
+    // reports the validator's verdict alongside it, so the caller can say
+    // "saved, but it still cannot run" instead of "save failed".
+    it("carries the save-time validation verdict back to the caller", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      const findings = [
+        {
+          path: "nodes.ocr1.inputs.fileData",
+          message: "Input port has no source",
+          severity: "error",
+        },
+      ];
+      vi.mocked(apiService.post).mockResolvedValue({
+        success: true,
+        data: {
+          workflow: workflowInfo,
+          validation: { valid: false, errors: findings },
+        },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useCreateWorkflow(), {
+        wrapper: createWrapper(),
+      });
+
+      const returned = await result.current.mutateAsync(createDto);
+
+      expect(returned.validation).toEqual({ valid: false, errors: findings });
+    });
+
+    // A response without the field is read as clean rather than crashing the
+    // save path on `validation.errors`.
+    it("reads a missing verdict as clean", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.post).mockResolvedValue({
+        success: true,
+        data: { workflow: workflowInfo },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useCreateWorkflow(), {
+        wrapper: createWrapper(),
+      });
+
+      const returned = await result.current.mutateAsync(createDto);
+
+      expect(returned.validation).toEqual({ valid: true, errors: [] });
     });
   });
 
@@ -273,6 +331,224 @@ describe("useCreateWorkflow", () => {
       );
 
       expect(apiService.post).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-081 — useWorkflowVersion
+//   feature-docs/20260528-workflow-builder-phase2-versioning-ui/user_stories/
+//   US-081-history-top-bar-button-and-hook.md (Scenario 3 + 4)
+// ---------------------------------------------------------------------------
+
+describe("useWorkflowVersion (US-081)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Scenario 3: fetches GET /workflows/:lineageId/versions/:versionId and returns the workflow", async () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+      message: undefined,
+    });
+
+    const { result } = renderHook(
+      () => useWorkflowVersion("lineage-1", "wv-7"),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(apiService.get).toHaveBeenCalledWith(
+      "/workflows/lineage-1/versions/wv-7",
+    );
+    expect(result.current.data).toEqual(workflowInfo);
+  });
+
+  it("Scenario 3: query is disabled when lineageId is undefined", () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+      message: undefined,
+    });
+
+    renderHook(() => useWorkflowVersion(undefined, "wv-7"), {
+      wrapper: createWrapper(),
+    });
+
+    expect(apiService.get).not.toHaveBeenCalled();
+  });
+
+  it("Scenario 3: query is disabled when versionId is undefined", () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+      message: undefined,
+    });
+
+    renderHook(() => useWorkflowVersion("lineage-1", undefined), {
+      wrapper: createWrapper(),
+    });
+
+    expect(apiService.get).not.toHaveBeenCalled();
+  });
+
+  it("Scenario 3: throws on apiService failure", async () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: false,
+      data: undefined,
+      message: "Version not found",
+    });
+
+    const { result } = renderHook(
+      () => useWorkflowVersion("lineage-1", "wv-missing"),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect((result.current.error as Error).message).toBe("Version not found");
+  });
+
+  it("Scenario 3: query key includes both ids for cache identity", async () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+      message: undefined,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    renderHook(() => useWorkflowVersion("lineage-1", "wv-7"), { wrapper });
+
+    await waitFor(() => {
+      const cache = queryClient.getQueryCache().findAll();
+      expect(
+        cache.some(
+          (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey[0] === "workflow-version" &&
+            q.queryKey[1] === "lineage-1" &&
+            q.queryKey[2] === "wv-7",
+        ),
+      ).toBe(true);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-063 — a save based on a stale version is refused, and told apart from a
+// validation failure so the editor can offer the right remedy.
+// ---------------------------------------------------------------------------
+
+describe("useUpdateWorkflow — version conflict", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseGroup.mockReturnValue({ activeGroup });
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function renderUpdate() {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    return renderHook(() => useUpdateWorkflow(), {
+      wrapper: ({ children }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children),
+    });
+  }
+
+  it("raises a version-conflict error on the 409 body", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Conflict",
+      data: {
+        error: "workflow_version_conflict",
+        message: "This workflow was saved by someone else (version 4).",
+        expectedVersion: 3,
+        currentVersion: 4,
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    await expect(
+      result.current.mutateAsync({
+        id: "wf-1",
+        dto: { expectedVersion: 3, config: minimalConfig },
+      }),
+    ).rejects.toBeInstanceOf(WorkflowVersionConflictError);
+  });
+
+  it("carries both versions so the editor can name them", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Conflict",
+      data: {
+        error: "workflow_version_conflict",
+        message: "saved by someone else",
+        expectedVersion: 3,
+        currentVersion: 9,
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    const err = await result.current
+      .mutateAsync({ id: "wf-1", dto: { expectedVersion: 3 } })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ expectedVersion: 3, currentVersion: 9 });
+  });
+
+  it("still raises an ordinary save error for a validation failure", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Invalid workflow configuration",
+      data: {
+        errors: [{ path: "nodes.a", message: "bad", severity: "error" }],
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    const err = await result.current
+      .mutateAsync({ id: "wf-1", dto: { expectedVersion: 3 } })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WorkflowSaveError);
+    expect(err).not.toBeInstanceOf(WorkflowVersionConflictError);
+  });
+
+  it("sends expectedVersion in the body", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+    } as never);
+
+    const { result } = renderUpdate();
+    await result.current.mutateAsync({
+      id: "wf-1",
+      dto: { expectedVersion: 5, config: minimalConfig },
+    });
+    await waitFor(() => {
+      expect(apiService.put).toHaveBeenCalledWith(
+        "/workflows/wf-1",
+        expect.objectContaining({ expectedVersion: 5 }),
+      );
     });
   });
 });

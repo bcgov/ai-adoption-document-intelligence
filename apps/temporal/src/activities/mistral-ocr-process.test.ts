@@ -8,12 +8,18 @@ jest.mock("../logger", () => ({
   }),
 }));
 
+import {
+  getActivityCatalogEntry,
+  type MistralOcrProcessParameters,
+} from "@ai-di/graph-workflow";
 import axios from "axios";
+import type { SameKeys } from "../__testlib__/same-shape";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResult, PreparedFileData } from "../types";
 import {
   __testInternals,
+  type MistralOcrProcessParams,
   mistralOcrProcess,
   resolveMistralAzureDeploymentId,
   resolveMistralOcrModelId,
@@ -196,6 +202,22 @@ describe("mistralOcrProcess", () => {
   afterEach(() => {
     process.env = originalEnv;
     jest.restoreAllMocks();
+  });
+
+  it("returns every output port the catalog declares for it", async () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    const result = await mistralOcrProcess({
+      fileData: baseFile,
+      documentId: DOC_ID,
+    });
+    const declared = getActivityCatalogEntry("mistralOcr.process")?.outputs.map(
+      (port) => port.name,
+    );
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 
   it("returns mock OCRResult when MOCK_MISTRAL_OCR is true", async () => {
@@ -527,5 +549,20 @@ describe("mistralOcrProcess", () => {
         }),
       ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_KEY");
     });
+  });
+});
+
+describe("mistralOcrProcess — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      MistralOcrProcessParameters,
+      Omit<
+        MistralOcrProcessParams,
+        "fileData" | "documentId" | "groupId" | "templateModelId" | "requestId"
+      >
+    > = true;
+    expect(agree).toBe(true);
   });
 });

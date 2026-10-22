@@ -31,9 +31,19 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+import {
+  getActivityCatalogEntry,
+  getActivityParametersJsonSchema,
+  type OcrNormalizeFieldsParameters,
+} from "@ai-di/graph-workflow";
+import type { SameKeys } from "../__testlib__/same-shape";
 import { buildFlatPredictionMapFromCtx } from "../azure-ocr-field-display-value";
 import { getPrismaClient } from "./database-client";
-import { normalizeOcrFields } from "./ocr-normalize-fields";
+import {
+  NORMALIZATION_RULE_IDS,
+  type NormalizeFieldsParams,
+  normalizeOcrFields,
+} from "./ocr-normalize-fields";
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
@@ -1436,5 +1446,47 @@ describe("normalizeOcrFields", () => {
         ocrFromRef(result.ocrResult).documents![0].fields.birth.content,
       ).toBe("2016-Mar-30");
     });
+  });
+});
+
+describe("normalizeOcrFields — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await normalize({
+      ocrResult: makeOcrResult([
+        { key: "Name", value: "  John   Doe  ", confidence: 0.9 },
+      ]),
+    });
+    const declared = getActivityCatalogEntry(
+      "ocr.normalizeFields",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+});
+
+describe("normalizeOcrFields — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      OcrNormalizeFieldsParameters,
+      Omit<NormalizeFieldsParams, "documentId" | "groupId" | "ocrResult">
+    > = true;
+    expect(agree).toBe(true);
+  });
+
+  it("offers exactly the rules the activity applies", () => {
+    const schema = getActivityParametersJsonSchema("ocr.normalizeFields") as {
+      properties: Record<string, { items?: { enum?: string[] } }>;
+    };
+    for (const name of ["enabledRules", "disabledRules"]) {
+      expect([...(schema.properties[name].items?.enum ?? [])].sort()).toEqual(
+        [...NORMALIZATION_RULE_IDS].sort(),
+      );
+    }
   });
 });

@@ -7,6 +7,11 @@ export interface RequestContextData {
   sessionId?: string;
   apiKeyId?: string;
   clientIp?: string;
+  /**
+   * Set while a custom step's (dynamic node's) call is handled: the Temporal
+   * run id of the workflow execution running the step, and the step's slug.
+   */
+  dynamicNodeRun?: { workflowExecutionId: string; slug: string };
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContextData>();

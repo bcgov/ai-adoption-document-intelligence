@@ -21,6 +21,7 @@ jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import { createActivityLogger } from "../logger";
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
@@ -137,6 +138,29 @@ describe("enrichResults activity", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  describe("catalog contract", () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    it("returns every output port the catalog declares for it", async () => {
+      prismaMock.templateModel.findFirst.mockResolvedValue(null);
+      const result = await enrichResults({
+        documentId: "doc-1",
+        groupId: GROUP,
+        ocrResult: minimalOcrResult(),
+        documentType: "missing-tm",
+      });
+      const declared = getActivityCatalogEntry("ocr.enrich")?.outputs.map(
+        (port) => port.name,
+      );
+
+      expect(declared).toContain("ocrResult");
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(declared ?? []),
+      );
+    });
   });
 
   describe("when template model not found or empty schema", () => {

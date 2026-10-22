@@ -19,10 +19,6 @@
       "type": "string",
       "description": "Group ID — must own the classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
     },
-    "classifierName": {
-      "type": "string",
-      "description": "Name of the READY Azure Document Intelligence classifier. SELECT THIS IN THE UI via the azureClassify.submit node form."
-    },
     "resultId": {
       "type": "string",
       "description": "Azure DI operation ID returned by azureClassify.submit — consumed by the poll node"
@@ -34,6 +30,10 @@
     "labeledDocuments": {
       "type": "object",
       "description": "Classification result: Record<label, ClassifiedDocument[]> where ClassifiedDocument = { confidence: number, pageRange: { start: number, end: number } }"
+    },
+    "targetLabel": {
+      "type": "string",
+      "description": "Document-type label to extract (e.g. \"invoice\"). SELECT THIS IN THE UI via the selectClassifiedPages node form."
     },
     "classifiedSegments": {
       "type": "array",
@@ -57,7 +57,6 @@
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "groupId", "ctxKey": "groupId" },
-        { "port": "classifierName", "ctxKey": "classifierName" },
         { "port": "documentId", "ctxKey": "documentId" }
       ],
       "outputs": [
@@ -99,14 +98,12 @@
       "label": "Select Classified Page Segments",
       "activityType": "document.selectClassifiedPages",
       "inputs": [
-        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" }
+        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" },
+        { "port": "targetLabel", "ctxKey": "targetLabel" }
       ],
       "outputs": [
         { "port": "segments", "ctxKey": "classifiedSegments" }
       ],
-      "parameters": {
-        "targetLabel": "<SELECT_IN_UI>"
-      },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 1 }
     },
@@ -116,6 +113,7 @@
       "label": "Extract Each Document Segment",
       "collectionCtxKey": "classifiedSegments",
       "itemCtxKey": "currentSegment",
+      "maxConcurrency": 10,
       "bodyEntryNodeId": "extractSegment",
       "bodyExitNodeId": "extractSegment"
     },

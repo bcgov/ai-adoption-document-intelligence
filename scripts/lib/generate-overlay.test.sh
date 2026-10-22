@@ -241,6 +241,12 @@ echo "Test 3.4: Image overrides are set for worker"
 assert_contains "Worker image override" "${WORKER_IMAGE}" "${kustomization_content}"
 echo ""
 
+echo "Test 3.4b: deno-runner image override defaults to the base image name"
+assert_contains "deno-runner image override" \
+  "artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner" \
+  "${kustomization_content}"
+echo ""
+
 echo "Test 3.5: Image tag is set"
 assert_contains "Image tag" "${IMAGE_TAG}" "${kustomization_content}"
 echo ""
@@ -264,6 +270,26 @@ else
   echo "  FAIL: Temporal address should appear in at least 2 config patches, found ${temporal_addr_count}"
   TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
+echo ""
+
+echo "Test 3.9: deno-runner URL is prefixed in both config patches"
+# namePrefix renames the Service, so both the backend and worker ConfigMap
+# patches must carry the prefixed URL.
+deno_url_count=$(grep -c "http://${INSTANCE}-deno-runner:9090" "${overlay_dir}/kustomization.yml" || true)
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ "${deno_url_count}" -ge 2 ]]; then
+  echo "  PASS: DENO_RUNNER_URL appears prefixed in both config patches (${deno_url_count} occurrences)"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo "  FAIL: DENO_RUNNER_URL should appear prefixed in at least 2 config patches, found ${deno_url_count}"
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+echo ""
+
+echo "Test 3.10: platform API base URL is prefixed in the worker config patch"
+assert_contains "AI_DI_API_BASE_URL prefixed" \
+  "AI_DI_API_BASE_URL: \"http://${INSTANCE}-backend-services:3002\"" \
+  "${kustomization_content}"
 echo ""
 
 # Clean up
