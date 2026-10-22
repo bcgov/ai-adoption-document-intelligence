@@ -11,7 +11,7 @@
 #      sha256__* folders) that are not referenced by any named tag and deletes
 #      them.
 #   3. Uploads cleanup — under <image>/_uploads/, delete blob files that are
-#      at least 20 minutes old and either (a) duplicates of layers already
+#      at least 5 minutes old and either (a) duplicates of layers already
 #      stored in tag folders, or (b) older than 24 hours (stale upload sessions
 #      that didn't get GC'd).
 #
@@ -62,7 +62,7 @@ Phases:
     named tag.
   - Uploads cleanup (always): delete leftover blobs under <image>/_uploads/
     that are duplicates of stored layers or older than 24 hours, leaving any
-    younger than 20 minutes (a push may still own them).
+    younger than 5 minutes (a push may still own them).
 
 By default runs in dry-run mode (shows what would be deleted without deleting).
 
@@ -473,15 +473,16 @@ done
 echo ""
 
 # ---------- phase 3: uploads cleanup ----------
-# Under <image>/_uploads/, delete blob files that are at least 20 minutes old
+# Under <image>/_uploads/, delete blob files that are at least 5 minutes old
 # and either:
 #   (a) duplicates of layers already stored in tag folders, OR
 #   (b) older than 24 hours (stale upload sessions never GC'd)
 # These are leftover chunked-upload blobs that should not persist post-push.
 # A younger blob may belong to a push that is still running, such as a prod
 # release or a manual deploy from another branch, and deleting it would break
-# that push. A layer uploads in minutes, and 20 minutes lets one deploy's
-# cleanup reclaim the copies the previous deploy left.
+# that push. A push stores what it uploads within a minute or two, and the
+# cleanup at the end of a deploy normally starts 8 or more minutes after its
+# last push, so it deletes that deploy's own copies.
 
 log_info "Phase 3: cleaning _uploads (duplicate and stale blobs)..."
 
@@ -492,7 +493,7 @@ from datetime import datetime, timezone, timedelta
 data = json.load(sys.stdin)
 now = datetime.now(timezone.utc)
 stale_cutoff = now - timedelta(hours=24)
-young_cutoff = now - timedelta(minutes=20)
+young_cutoff = now - timedelta(minutes=5)
 
 # Build set of (image, sha-blob-name) referenced as layer files in non-_uploads folders
 layer_blobs = set()
@@ -549,7 +550,7 @@ done <<< "${UPLOADS_PLAN}"
 
 UP_SIZE_MB=$(python3 -c "print(f'{${UP_SIZE}/1048576:.1f}')" 2>/dev/null || echo "?")
 if [[ "${UP_YOUNG}" -gt 0 ]]; then
-  log_info "Uploads cleanup: left ${UP_YOUNG} blob(s) younger than 20 minutes for a later run."
+  log_info "Uploads cleanup: left ${UP_YOUNG} blob(s) younger than 5 minutes for a later run."
 fi
 if [[ "${DO_DELETE}" == "true" ]]; then
   log_ok "Uploads cleanup: deleted ${UP_COUNT} blob(s) (${UP_SIZE_MB} MB)."
