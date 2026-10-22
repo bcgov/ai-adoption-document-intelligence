@@ -117,9 +117,83 @@ jobs:
           echo "Namespace:    ${NAMESPACE:-(default from environment secret)}"
           echo "Checkout ref: $CHECKOUT_REF"
 
+  pre-cleanup:
+    name: Clear Artifactory space
+    # Runs before any image is pushed, so builds left in Artifactory by earlier
+    # runs cannot make this run's push fail. A run whose build failed keeps the
+    # images that did build, for "Re-run failed jobs"; once a newer run starts,
+    # that run will not be re-run, so its images are deleted here. Every image
+    # tag the namespace refers to is kept: the running build, both builds of a
+    # rollout caught halfway, and anything deployed outside the instance
+    # overlay. If the cluster cannot be read, no build is deleted. Prod keeps
+    # its rollback builds, so there this job only reclaims unreferenced
+    # manifests and old upload copies. Its steps cannot fail the job, so the
+    # build always runs.
+    needs: [metadata]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Install oc CLI
+        if: needs.metadata.outputs.environment != 'prod'
+        continue-on-error: true
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1
+        with:
+          oc: "4"
+
+      - name: Find the image tags in use
+        id: in-use
+        if: needs.metadata.outputs.environment != 'prod'
+        continue-on-error: true
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/openshift-login.sh
+          source scripts/lib/oc-retry.sh
+          source scripts/lib/in-use-image-tags.sh
+          openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
+          in_use_image_tags "${OC_NAMESPACE}" > "${RUNNER_TEMP}/in-use-tags"
+          echo "Image tags in use in ${OC_NAMESPACE}:"
+          cat "${RUNNER_TEMP}/in-use-tags"
+
+      - name: Delete leftover builds and reclaim storage
+        continue-on-error: true
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
+          INSTANCE: ${{ needs.metadata.outputs.instance-name }}
+          LOOKUP: ${{ steps.in-use.outcome }}
+        run: |
+          set -euo pipefail
+          ARGS=(--delete)
+          TAGS_FILE="${RUNNER_TEMP}/in-use-tags"
+          if [[ "${ENVIRONMENT}" == "prod" ]]; then
+            echo "Prod keeps its rollback builds; reclaiming only unreferenced manifests and old upload copies."
+          elif [[ "${LOOKUP}" == "success" ]] && grep -Eqx "${INSTANCE}-[0-9a-f]{12}" "${TAGS_FILE}"; then
+            # Every build of this instance goes except the tags in use. The
+            # lookup must have found the running build, so an empty or wrong
+            # answer can never clear the instance's images.
+            ARGS+=(--keep 0 --match "${INSTANCE}-????????????")
+            while IFS= read -r tag; do
+              ARGS+=(--protect "${tag}")
+            done < "${TAGS_FILE}"
+          else
+            echo "::warning::Could not tell which build ${INSTANCE} runs, so no build is deleted; reclaiming only unreferenced manifests and old upload copies."
+          fi
+          bash ./scripts/artifactory-cleanup.sh "${ARGS[@]}"
+
   build:
     name: Build ${{ matrix.service }}
-    needs: [metadata]
+    needs: [metadata, pre-cleanup]
     runs-on: ubuntu-latest
     environment: ${{ needs.metadata.outputs.environment }}
     strategy:
@@ -604,7 +678,7 @@ jobs:
 
   promote:
     name: Promote floating tag
-    # Its own job because nothing in the cluster pulls the floating tag: when
+    # Its own job because the app's Deployments pull the build's SHA tag: when
     # only this fails, the deploy job stays green, artifactory-cleanup still
     # runs, and "Re-run failed jobs" repeats this job and the cleanup without
     # repeating the rollout.
