@@ -26,6 +26,7 @@ logs/
 coverage/
 **/__snapshots__/
 **/*.spec.ts
+**/*.spec.tsx
 **/*.test.ts
 **/*.test.tsx
 **/*.e2e-spec.ts
@@ -42,4 +43,7 @@ playwright-report/
 # Docs (not needed for runtime)
 docs/
 docs-md/
+# ...except the workflow templates, which the frontend bundles (see
+# apps/frontend/Dockerfile)
+!docs-md/workflows/templates/
 feature-docs/

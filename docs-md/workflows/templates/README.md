@@ -11,6 +11,8 @@ This folder holds example [graph workflow](../DAG_WORKFLOW_ENGINE.md) configurat
 
 These templates are validated by the graph schema validator tests in `apps/backend-services`.
 
+The workflow builder's **New from template** picker lists every JSON file in this folder. The frontend bundles them at build time ([`templates/index.ts`](../../../apps/frontend/src/features/workflow-builder/templates/index.ts)), and the frontend image copies this folder in to do so ([`apps/frontend/Dockerfile`](../../../apps/frontend/Dockerfile)). A file added here appears in the picker after the next frontend build.
+
 ## Run inputs
 
 The standard OCR templates (`standard-ocr-workflow*.json`) and `mistral-standard-ocr-workflow.json` flag their `modelId` variable as a workflow input (`isInput`) with a default. No step writes `modelId`: the upload request sends the model the person picked, and a run that sends none uses the default. The flag lists `modelId` in the Run drawer and in `GET /api/workflows/:id/run-spec` as an optional property, so callers that never send it still pass validation. `apps/backend-services/src/workflow/shipped-template-run-inputs.spec.ts` checks this for each of those templates.
