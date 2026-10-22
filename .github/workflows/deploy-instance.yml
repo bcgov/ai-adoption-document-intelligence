@@ -679,9 +679,9 @@ jobs:
           # For test/dev, keep only the newest `<instance>-<12hex>` tag per
           # image: this job runs only once the deploy has rolled out, so that
           # is the build the instance is running. Test keeps no rollback
-          # history; each build adds about 0.9 GB to a repository that test and
-          # prod share, and Artifactory has refused writes once it held about
-          # 4 GB.
+          # history: each build adds about 0.9 GB to a repository that test and
+          # prod share under a 5 GB quota, and while it is pushed the
+          # repository also holds temporary upload copies of most of its layers.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
             bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
