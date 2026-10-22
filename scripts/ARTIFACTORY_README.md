@@ -112,17 +112,17 @@ CI builds push images to immutable SHA tags (`<floating>-<sha12>`) and only prom
 
 ### Failure cleanup
 
-When a CI build or deploy fails, the `cleanup-on-failure` workflow job runs:
+When a CI build fails, the `cleanup-on-failure` workflow job deletes the run's SHA tag from the images whose build failed, for example:
 
 ```bash
-./scripts/artifactory-delete-run-tags.sh --tag bcgov-di-test-<sha12> --delete
+./scripts/artifactory-delete-run-tags.sh --tag bcgov-di-test-<sha12> --delete frontend
 ```
 
-This deletes the named tag from all four images (`backend-services`, `frontend`, `temporal`, `ches-adapter`) and then runs orphan/uploads cleanup.
+The images that did build keep their tag, so **Re-run failed jobs** rebuilds only the failures. If the run is not re-run, the next run's **Clear Artifactory space** job deletes them. `artifactory-cleanup.sh` reclaims the layers the deleted tags leave unreferenced. A failed deploy deletes nothing here: once `oc apply` has run, the Deployments pull the SHA tag.
 
 ### Routine cleanup
 
-After successful prod deploys, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image. Test/dev keeps only the newest (the build the instance is running). Manual cleanup:
+Once a deploy has rolled out, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image for prod; test/dev keep only the newest (the build the instance is running). Before each build, the **Clear Artifactory space** job also deletes every build of the instance that nothing in its namespace uses, except in prod: `scripts/lib/in-use-image-tags.sh` lists the tags in use, and each goes to `artifactory-cleanup.sh` as `--protect` (see [AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md#clearing-space-before-a-push)). Manual cleanup:
 
 ```bash
 ./scripts/artifactory-cleanup.sh --env dev --delete --keep 1 --match 'bcgov-di-test-????????????'

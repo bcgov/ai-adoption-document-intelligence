@@ -26,7 +26,7 @@ Two guards keep production runs on `main`:
 
 1. **Trigger**: a push to `develop`, or a manual run (`workflow_dispatch`).
 2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment, and stops a `prod` run that is not on `main` or that sets an override.
-3. **Clear Artifactory space job** (before any image is pushed): asks the cluster which image tags anything in the namespace uses, then runs `scripts/artifactory-cleanup.sh` to delete every other build of the instance and reclaim unreferenced manifests and old upload copies, so builds left by earlier runs cannot make this run's push fail. See [Clearing space before a push](#clearing-space-before-a-push).
+3. **Clear Artifactory space job** (before any image is pushed): asks the cluster which image tags anything in the namespace uses, then runs `scripts/artifactory-cleanup.sh` to delete every other build of the instance and reclaim unreferenced manifests and old upload copies, so builds left by earlier runs are gone before this run pushes. See [Clearing space before a push](#clearing-space-before-a-push).
 4. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`, `deno-runner`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
 5. **Deploy job**:
    - Verifies every staged image exists in Artifactory at the SHA tag.
@@ -124,7 +124,7 @@ Artifactory intermittently drops requests after about 15 seconds with no respons
 
 ### Clearing space before a push
 
-The **Clear Artifactory space** job runs before the build, so builds left in the repository by earlier runs cannot make this run's push fail. The usual leftover is a run whose build failed. It keeps the images that did build, so that **Re-run failed jobs** can reuse them, but once a newer run starts, nothing will re-run it.
+The **Clear Artifactory space** job runs before the build, so builds left in the repository by earlier runs are gone before this run pushes. The usual leftover is a run whose build failed. It keeps the images that did build, so that **Re-run failed jobs** can reuse them, but once a newer run starts, nothing will re-run it.
 
 - `scripts/lib/in-use-image-tags.sh` lists the tag of every `kfd3-fd34fb-local` image that a Pod, Deployment, StatefulSet, Job or CronJob in the namespace names.
   - Pods count as well as their controllers, so both builds of a rollout caught halfway are kept.
@@ -132,6 +132,7 @@ The **Clear Artifactory space** job runs before the build, so builds left in the
 - Those tags go to `artifactory-cleanup.sh --keep 0 --match '<instance>-????????????' --protect <tag>...`, which deletes every other build of the instance. A tag given with `--protect` is never deleted and does not count toward `--keep`.
 - No build of the instance is deleted unless the lookup found the build the instance runs. If the cluster cannot be read, or the answer leaves that build out, the job only reclaims unreferenced manifests and old upload copies.
 - For prod, which keeps its rollback builds, the job only ever reclaims unreferenced manifests and old upload copies.
+- Upload copies younger than an hour are left, since a push may still own them. So a build deleted within an hour of its push leaves its upload copies behind, about three quarters of the build, and once the build is gone they no longer duplicate a stored layer: they stay until they are 24 hours old, unless Artifactory removes them first.
 - The job's steps cannot fail it, so the build always runs; a step that failed is marked on the run.
 
 Tests: `bash scripts/lib/in-use-image-tags.test.sh`.

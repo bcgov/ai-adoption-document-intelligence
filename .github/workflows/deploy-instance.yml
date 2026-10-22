@@ -120,7 +120,7 @@ jobs:
   pre-cleanup:
     name: Clear Artifactory space
     # Runs before any image is pushed, so builds left in Artifactory by earlier
-    # runs cannot make this run's push fail. A run whose build failed keeps the
+    # runs are gone before this run pushes. A run whose build failed keeps the
     # images that did build, for "Re-run failed jobs"; once a newer run starts,
     # that run will not be re-run, so its images are deleted here. Every image
     # tag the namespace refers to is kept: the running build, both builds of a
