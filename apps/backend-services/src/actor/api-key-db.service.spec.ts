@@ -35,12 +35,15 @@ describe("ApiKeyDbService", () => {
   };
   let mockActorPrisma: {
     create: jest.Mock;
-    findFirstOrThrow: jest.Mock;
-    delete: jest.Mock;
+  };
+  let mockGroupPrisma: {
+    findUniqueOrThrow: jest.Mock;
+    update: jest.Mock;
   };
   let mockPrisma: {
     apiKey: typeof mockApiKeyPrisma;
     actor: typeof mockActorPrisma;
+    group: typeof mockGroupPrisma;
     $transaction: jest.Mock;
   };
 
@@ -57,17 +60,24 @@ describe("ApiKeyDbService", () => {
     };
     mockActorPrisma = {
       create: jest.fn().mockResolvedValue({ id: "actor-1" }),
-      findFirstOrThrow: jest.fn().mockResolvedValue({ id: "actor-1" }),
-      delete: jest.fn().mockResolvedValue({ id: "actor-1" }),
+    };
+    mockGroupPrisma = {
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ api_actor_id: null }),
+      update: jest.fn().mockResolvedValue({ api_actor_id: "actor-1" }),
     };
     mockPrisma = {
       apiKey: mockApiKeyPrisma,
       actor: mockActorPrisma,
+      group: mockGroupPrisma,
       $transaction: jest
         .fn()
         .mockImplementation(
           async (callback: (tx: unknown) => Promise<unknown>) =>
-            callback({ apiKey: mockApiKeyPrisma, actor: mockActorPrisma }),
+            callback({
+              apiKey: mockApiKeyPrisma,
+              actor: mockActorPrisma,
+              group: mockGroupPrisma,
+            }),
         ),
     };
 
@@ -187,13 +197,24 @@ describe("ApiKeyDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("createApiKey", () => {
-    it("should create an api key using this.prisma when no tx", async () => {
+    it("should create a group api actor when the group has none yet", async () => {
+      mockGroupPrisma.findUniqueOrThrow.mockResolvedValue({
+        api_actor_id: null,
+      });
       mockApiKeyPrisma.create.mockResolvedValue(mockApiKey);
 
       const result = await service.createApiKey(createData);
 
       expect(result).toEqual(mockApiKey);
+      expect(mockGroupPrisma.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: createData.group_id },
+        select: { api_actor_id: true },
+      });
       expect(mockActorPrisma.create).toHaveBeenCalled();
+      expect(mockGroupPrisma.update).toHaveBeenCalledWith({
+        where: { id: createData.group_id },
+        data: { api_actor_id: "actor-1" },
+      });
       expect(mockApiKeyPrisma.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -207,15 +228,37 @@ describe("ApiKeyDbService", () => {
       );
     });
 
+    it("should reuse the group's existing api actor without creating a new one", async () => {
+      mockGroupPrisma.findUniqueOrThrow.mockResolvedValue({
+        api_actor_id: "existing-actor",
+      });
+      mockApiKeyPrisma.create.mockResolvedValue(mockApiKey);
+
+      await service.createApiKey(createData);
+
+      expect(mockActorPrisma.create).not.toHaveBeenCalled();
+      expect(mockGroupPrisma.update).not.toHaveBeenCalled();
+      expect(mockApiKeyPrisma.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ actor_id: "existing-actor" }),
+        }),
+      );
+    });
+
     it("should use tx when provided", async () => {
       const txActorPrisma = {
         create: jest.fn().mockResolvedValue({ id: "actor-1" }),
+      };
+      const txGroupPrisma = {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ api_actor_id: null }),
+        update: jest.fn().mockResolvedValue({ api_actor_id: "actor-1" }),
       };
       const txApiKeyPrisma = {
         create: jest.fn().mockResolvedValue(mockApiKey),
       };
       const tx = {
         actor: txActorPrisma,
+        group: txGroupPrisma,
         apiKey: txApiKeyPrisma,
       } as unknown as Parameters<typeof service.createApiKey>[1];
 
@@ -263,49 +306,33 @@ describe("ApiKeyDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("deleteApiKeyById", () => {
-    it("should delete the key (and its actor) using this.prisma when no tx", async () => {
+    it("should delete the key using this.prisma when no tx, leaving its actor intact", async () => {
       mockApiKeyPrisma.delete.mockResolvedValue(mockApiKey);
 
       const result = await service.deleteApiKeyById("key-1");
 
       expect(result).toEqual(mockApiKey);
-      expect(mockApiKeyPrisma.findFirstOrThrow).toHaveBeenCalledWith({
-        where: { id: "key-1" },
-      });
-      expect(mockActorPrisma.findFirstOrThrow).toHaveBeenCalledWith({
-        where: { id: mockApiKey.actor_id },
-      });
-      expect(mockActorPrisma.delete).toHaveBeenCalled();
       expect(mockApiKeyPrisma.delete).toHaveBeenCalledWith({
         where: { id: "key-1" },
       });
+      expect(mockActorPrisma.create).not.toHaveBeenCalled();
     });
 
     it("should use tx when provided", async () => {
-      const txActorPrisma = {
-        delete: jest.fn().mockResolvedValue({ id: "actor-1" }),
-        findFirstOrThrow: jest.fn().mockResolvedValue({ id: "actor-1" }),
-      };
       const txApiKeyPrisma = {
         delete: jest.fn().mockResolvedValue(mockApiKey),
-        findFirstOrThrow: jest.fn().mockResolvedValue(mockApiKey),
       };
       const tx = {
         apiKey: txApiKeyPrisma,
-        actor: txActorPrisma,
       } as unknown as Parameters<typeof service.deleteApiKeyById>[1];
 
       const result = await service.deleteApiKeyById("key-1", tx);
 
       expect(result).toEqual(mockApiKey);
-      expect(txApiKeyPrisma.findFirstOrThrow).toHaveBeenCalledWith({
+      expect(txApiKeyPrisma.delete).toHaveBeenCalledWith({
         where: { id: "key-1" },
       });
-      expect(txActorPrisma.findFirstOrThrow).toHaveBeenCalledWith({
-        where: { id: mockApiKey.actor_id },
-      });
-      expect(txActorPrisma.delete).toHaveBeenCalled();
-      expect(txApiKeyPrisma.delete).toHaveBeenCalled();
+      expect(mockApiKeyPrisma.delete).not.toHaveBeenCalled();
     });
   });
 
