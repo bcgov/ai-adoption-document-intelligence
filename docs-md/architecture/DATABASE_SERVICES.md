@@ -107,6 +107,13 @@ Service wiring in the benchmark module:
 
 `ApiKeyService` and `UserService` (both in `actor/`) inject their respective db services and are the public interfaces exported by `ActorModule`.
 
+#### Group API actor (durable identity across key delete/regenerate)
+
+`Group.api_actor_id` is the group's durable API-key `Actor`, mirroring how `User.actor_id` is created once (on first login) and reused forever:
+
+- `ApiKeyDbService.createApiKey` resolves the group's `api_actor_id` (`getOrCreateGroupApiActorId`), creating it only the first time a group ever gets a key, and reuses it for every key created afterward — including after a delete + recreate cycle.
+- `ApiKeyDbService.deleteApiKeyById` only deletes the `ApiKey` row. It does **not** delete the `Actor`: nine tables (`workflow_lineages.actor_id`, `review_sessions.actor_id`, `template_models.created_by`, `classifier_model.created_by`/`updated_by`, `group.created_by`, `group_membership_request.created_by`/`updated_by`, `datasets.createdBy`, `benchmark_projects.createdBy`, `benchmark_audit_logs.actor_id`) reference an actor with `ON DELETE RESTRICT`, so deleting the actor would roll back the whole transaction (and leave the key undeleted) the moment it had authored anything. Keeping the actor in place means those records keep a valid author, and regenerating or recreating the group's key resolves back to the same actor.
+
 ### Tables Module
 `apps/backend-services/src/tables/`
 
@@ -223,4 +230,5 @@ The `User` model tracks users separately in its own table. Each `User` has a one
 
 ## Usage
 - The `ApiKey` table references `User` via `generating_user_id` (the user who most recently generated/regenerated the key; recorded for audit purposes only, not used for authentication identity resolution).
-- Both `User` and `ApiKey` link to an `Actor` row; audit/provenance fields on other tables (e.g., group created/updated by, classifier created/updated by) reference `Actor`.
+- `ApiKey.actor_id` always points at its group's durable `Group.api_actor_id` (see [Group API actor](#group-api-actor-durable-identity-across-key-deleteregenerate) above), not a per-key actor.
+- Both `User` and `Group` (via `api_actor_id`) link to an `Actor` row; audit/provenance fields on other tables (e.g., group created/updated by, classifier created/updated by) reference `Actor`.
