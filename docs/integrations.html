@@ -741,7 +741,7 @@
 
 <h1>Integrations Guide</h1>
 
-<p>This guide covers how to integrate with the Document Intelligence Platform programmatically — sending documents in for processing and retrieving the extracted results.</p>
+<p>This guide covers how to integrate with the Document Intelligence Platform programmatically — sending documents in for processing and retrieving the extracted results. New to the platform? Start with the step-by-step <a href="integration-tutorial.html">From Zero to Integration</a> tutorial and its sample app.</p>
 
 <div class="alert alert-info">
     <div class="alert-icon">
@@ -775,7 +775,7 @@
 <ol>
     <li><strong>Log in with your IDIR</strong> — Open the Document Intelligence frontend and sign in through the Keycloak SSO login page using your IDIR credentials.</li>
     <li><strong>Navigate to Settings</strong> — Click the <strong>Settings</strong> tab in the left sidebar.</li>
-    <li><strong>Generate API Key</strong> — Click the <strong>Generate API Key</strong> button. Your new key will be displayed in a modal dialog.</li>
+    <li><strong>Generate API Key</strong> — Click the <strong>Generate API key</strong> button. Your new key will be displayed in a modal dialog. Only a group <code>ADMIN</code> can generate, regenerate, or delete the group's key.</li>
     <li><strong>Copy and store the key</strong> — Copy the key immediately and store it securely. The full key is only shown once at creation time.</li>
 </ol>
 
@@ -784,7 +784,7 @@
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
     <div>
-        <strong>One key per group.</strong> Each group can have one active API key. API keys are group-scoped — requests authenticated with an API key can only access resources belonging to that group. To get a new key, use <strong>Regenerate Key</strong> on the Settings page (this invalidates the previous key). If a key is compromised, delete it immediately from Settings and generate a new one.
+        <strong>One key per group.</strong> Each group can have one active API key. API keys are group-scoped — requests authenticated with an API key can only access resources belonging to that group. To get a new key, use <strong>Regenerate key</strong> on the Settings page (this invalidates the previous key). If a key is compromised, delete it immediately from Settings and generate a new one.
     </div>
 </div>
 
@@ -809,7 +809,7 @@
     <p>Accepts a JSON body with the document file encoded as a base64 string. Processing begins immediately after upload — no separate "start" call is needed.</p>
 </div>
 
-<h3>Request Fields</h3>
+<h3 id="upload-fields">Upload Request Fields</h3>
 
 <table>
     <tr>
@@ -828,37 +828,61 @@
         <td><code>file</code></td>
         <td>string</td>
         <td>Yes</td>
-        <td>Base64-encoded file content</td>
+        <td>Base64-encoded file content. The JSON body limit is 50 MB (about a 37 MB file).</td>
     </tr>
     <tr>
         <td><code>file_type</code></td>
         <td>enum</td>
         <td>Yes</td>
-        <td><code>pdf</code>, <code>image</code>, or <code>scan</code></td>
+        <td><code>pdf</code>, <code>image</code>, or <code>scan</code>. Images are converted to PDF.</td>
     </tr>
     <tr>
-        <td><code>model_id</code></td>
+        <td><code>workflow_slug</code></td>
         <td>string</td>
-        <td>Yes</td>
-        <td>Azure Document Intelligence model to use (e.g. <code>prebuilt-layout</code>)</td>
+        <td><strong>Effectively yes</strong></td>
+        <td>Stable workflow handle, unique within the group. Without a workflow (<code>workflow_slug</code> or <code>workflow_config_id</code>), processing never starts.</td>
     </tr>
     <tr>
-        <td><code>original_filename</code></td>
-        <td>string</td>
+        <td><code>workflow_version</code></td>
+        <td>integer</td>
         <td>No</td>
-        <td>Original file name for display purposes</td>
-    </tr>
-    <tr>
-        <td><code>metadata</code></td>
-        <td>object</td>
-        <td>No</td>
-        <td>Arbitrary key-value metadata to attach to the document</td>
+        <td>Pins a version number of <code>workflow_slug</code>. Defaults to the latest version. Ignored without <code>workflow_slug</code>.</td>
     </tr>
     <tr>
         <td><code>workflow_config_id</code></td>
         <td>string</td>
         <td>No</td>
-        <td>ID of a workflow configuration to use for processing. If omitted, the default pipeline runs.</td>
+        <td>A workflow version id or lineage id (resolved to the latest version). Alternative to <code>workflow_slug</code>; don't send both.</td>
+    </tr>
+    <tr>
+        <td><code>model_id</code></td>
+        <td>string</td>
+        <td>No*</td>
+        <td>Model to run (e.g. <code>prebuilt-layout</code>). Defaults to the workflow's <code>ctx.modelId.defaultValue</code>. *Required if the workflow has no default.</td>
+    </tr>
+    <tr>
+        <td><code>original_filename</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>Original file name. Defaults to <code>&lt;title&gt;.&lt;file_type&gt;</code>.</td>
+    </tr>
+    <tr>
+        <td><code>metadata</code></td>
+        <td>object</td>
+        <td>No</td>
+        <td>Arbitrary JSON metadata to attach to the document, such as your own correlation ids</td>
+    </tr>
+    <tr>
+        <td><code>ctx_overrides</code></td>
+        <td>object</td>
+        <td>No</td>
+        <td>Overrides the workflow's <code>ctx</code> default values for this upload, e.g. <code>{ "confidenceThreshold": 0.8 }</code></td>
+    </tr>
+    <tr>
+        <td><code>group_id</code></td>
+        <td>string</td>
+        <td>No</td>
+        <td>Inferred from the API key. If sent, it must match the key's group.</td>
     </tr>
 </table>
 
@@ -877,6 +901,7 @@ curl -X POST /api/upload \
     \"title\": \"Invoice Q1-2026\",
     \"file\": \"$FILE_B64\",
     \"file_type\": \"pdf\",
+    \"workflow_slug\": \"standard-ocr\",
     \"model_id\": \"prebuilt-layout\",
     \"original_filename\": \"invoice.pdf\",
     \"metadata\": { \"department\": \"finance\", \"quarter\": \"Q1\" }
@@ -890,7 +915,7 @@ curl -X POST /api/upload \
     "original_filename": "invoice.pdf",
     "file_type": "pdf",
     "file_size": 245782,
-    "status": "ongoing_ocr",
+    "status": "pre_ocr",
     "created_at": "2026-02-19T10:30:00.000Z"
   }
 }</pre>
@@ -909,7 +934,7 @@ curl -X POST /api/upload \
     \"title\": \"Expense Receipt\",
     \"file\": \"$FILE_B64\",
     \"file_type\": \"image\",
-    \"model_id\": \"prebuilt-layout\"
+    \"workflow_slug\": \"standard-ocr\"
   }"</pre>
         </div>
     </details>
@@ -930,7 +955,7 @@ curl -X POST /api/upload \
 
 <h3>Workflow Configuration (Optional)</h3>
 
-<p>For advanced processing pipelines, create a workflow configuration using the Workflows API. Workflows are DAG-based graphs with 30+ built-in activities including OCR, validation, classification, HITL routing, and more. Reference the workflow ID when uploading documents to route them through your custom pipeline.</p>
+<p>For advanced processing pipelines, create a workflow configuration using the Workflows API. Workflows are DAG-based graphs with 30+ built-in activities including OCR, validation, classification, HITL routing, and more. Reference the workflow when uploading documents (by <code>workflow_slug</code>, or by <code>workflow_config_id</code>) to route them through your custom pipeline. List the workflows in your group with <code>GET /api/workflows?groupId=&lt;group-id&gt;</code>.</p>
 
 <div class="accordion-group">
     <details>
@@ -970,21 +995,75 @@ curl -X POST /api/upload \
     <h3 style="margin-top:0;">Processing Flow</h3>
     <p>Documents move through the following statuses:</p>
     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; font-family: monospace; font-size: 0.9rem;">
+        <span class="badge badge-blue">pre_ocr</span>
+        <span style="color: var(--text-secondary);">&rarr;</span>
         <span class="badge badge-blue">ongoing_ocr</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
         <span class="badge badge-gold">extracted</span>
-        <span style="color: var(--text-secondary);">or</span>
-        <span class="badge" style="background: #fee2e2; color: #991b1b;">failed</span>
+        <span style="color: var(--text-secondary);">&rarr;</span>
+        <span class="badge" style="background: #dcfce7; color: #166534;">complete</span>
     </div>
-    <p style="margin-top: 0.75rem;">If the workflow includes a human review step, documents may enter:</p>
+    <p style="margin-top: 0.75rem;">If the workflow includes a human review step, low-confidence documents pause before completing:</p>
     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-family: monospace; font-size: 0.9rem;">
         <span class="badge badge-gold">extracted</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
-        <span class="badge" style="background: #e0f2fe; color: #0c4a6e;">needs_validation</span>
+        <span class="badge" style="background: #e0f2fe; color: #0c4a6e;">awaiting_review</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
-        <span class="badge" style="background: #dcfce7; color: #166534;">approved</span>
+        <span class="badge" style="background: #dcfce7; color: #166534;">complete</span>
+        <span style="color: var(--text-secondary);">or</span>
+        <span class="badge" style="background: #fee2e2; color: #991b1b;">rejected</span>
     </div>
 </div>
+
+<h3 id="document-statuses">Document Statuses</h3>
+
+<table>
+    <tr>
+        <th>Status</th>
+        <th>Meaning</th>
+        <th>Final?</th>
+    </tr>
+    <tr>
+        <td><code>pre_ocr</code></td>
+        <td>Stored, waiting to start</td>
+        <td>No</td>
+    </tr>
+    <tr>
+        <td><code>ongoing_ocr</code></td>
+        <td>Workflow running</td>
+        <td>No</td>
+    </tr>
+    <tr>
+        <td><code>extracted</code></td>
+        <td>OCR result stored, workflow continuing</td>
+        <td>No</td>
+    </tr>
+    <tr>
+        <td><code>awaiting_review</code></td>
+        <td>Low confidence. A person must review it in the HITL queue. The result is readable now, and it becomes <code>complete</code> after review (which can take hours or days).</td>
+        <td>Yes, for most callers</td>
+    </tr>
+    <tr>
+        <td><code>complete</code></td>
+        <td>Done (OCR and any review)</td>
+        <td><strong>Yes</strong></td>
+    </tr>
+    <tr>
+        <td><code>failed</code></td>
+        <td>Processing error</td>
+        <td>Yes</td>
+    </tr>
+    <tr>
+        <td><code>conversion_failed</code></td>
+        <td>The original was stored but could not be converted to PDF (corrupt or password-protected)</td>
+        <td>Yes</td>
+    </tr>
+    <tr>
+        <td><code>rejected</code></td>
+        <td>A reviewer rejected it at the human review step</td>
+        <td>Yes</td>
+    </tr>
+</table>
 
 <div class="alert alert-info">
     <div class="alert-icon">
@@ -992,40 +1071,55 @@ curl -X POST /api/upload \
     </div>
     <div>
         <strong>Polling Pattern</strong><br>
-        The platform does not currently support webhooks. Poll <code>GET /api/documents</code> or <code>GET /api/documents/:id/ocr</code> to check when processing completes. A reasonable interval is every 5-10 seconds.
+        The platform does not currently support webhooks. Poll <code>GET /api/documents/:id</code> until the status is final, then fetch the result. A reasonable interval is every 3-5 seconds. Rate limits are counted per public IP address.
     </div>
 </div>
 
 <h3>Checking Document Status</h3>
 
-<p>List all documents to see their current processing status.</p>
+<p>Get a single document to check its status, or list the documents in your group.</p>
 
 <div class="accordion-group">
     <details>
-        <summary>List all documents (curl example)</summary>
+        <summary>Get one document (curl example)</summary>
         <div class="accordion-content">
-<pre>curl /api/documents \
+<pre>curl /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4 \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
-            <p>Response (array of documents):</p>
-<pre>[
-  {
-    "id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
-    "title": "Invoice Q1-2026",
-    "original_filename": "invoice.pdf",
-    "file_type": "pdf",
-    "file_size": 245782,
-    "status": "extracted",
-    "created_at": "2026-02-19T10:30:00.000Z",
-    "updated_at": "2026-02-19T10:31:15.000Z"
-  }
-]</pre>
+            <p>Returns the document record, including <code>status</code>.</p>
+        </div>
+    </details>
+
+    <details>
+        <summary>List documents in a group (curl example)</summary>
+        <div class="accordion-content">
+<pre>curl "/api/documents?group_id=&lt;group-id&gt;&amp;source=api&amp;limit=50" \
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p><code>group_id</code> is required. Optional filters include <code>status</code>, <code>source</code>, <code>search</code>, <code>limit</code> (default 50, max 200), and <code>offset</code>.</p>
+            <p>Response (paginated):</p>
+<pre>{
+  "documents": [
+    {
+      "id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
+      "title": "Invoice Q1-2026",
+      "original_filename": "invoice.pdf",
+      "file_type": "pdf",
+      "file_size": 245782,
+      "status": "complete",
+      "created_at": "2026-02-19T10:30:00.000Z",
+      "updated_at": "2026-02-19T10:31:15.000Z"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}</pre>
         </div>
     </details>
 </div>
 
 <h3>Retrieving OCR Results</h3>
 
-<p>Once a document reaches <code>extracted</code> status, retrieve the structured extraction data.</p>
+<p>Once a document reaches a final status (usually <code>complete</code> or <code>awaiting_review</code>), retrieve the structured extraction data.</p>
 
 <div class="accordion-group">
     <details>
@@ -1036,7 +1130,7 @@ curl -X POST /api/upload \
             <p>Response:</p>
 <pre>{
   "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
-  "status": "extracted",
+  "status": "complete",
   "title": "Invoice Q1-2026",
   "original_filename": "invoice.pdf",
   "file_type": "pdf",
@@ -1052,17 +1146,43 @@ curl -X POST /api/upload \
       "Date": "2026-01-15",
       "Total": "$1,234.56"
     },
+    "content": {
+      "format": "text",
+      "text": "full document text ...",
+      "pages": [ { "pageNumber": 1, "content": "...", "lines": [ ... ] } ]
+    },
     "processed_at": "2026-02-19T10:31:15.000Z"
   }
 }</pre>
-            <p>The <code>keyValuePairs</code> object contains the extracted fields. Its structure depends on the model used — custom models return fields defined during training, while prebuilt models return standard fields for their document type.</p>
+            <p>The <code>keyValuePairs</code> object contains the extracted fields. Its structure depends on the model used — custom models return fields defined during training, while prebuilt models return standard fields for their document type. For prebuilt read/layout models, which have no fields to extract, read <code>content.text</code> and <code>content.pages</code> instead. <code>ocr_result</code> is <code>null</code> until a result is stored.</p>
         </div>
     </details>
 </div>
 
-<h3>Downloading the Original File</h3>
+<h3>Other Document Endpoints</h3>
 
-<p>Retrieve the original uploaded file as a binary download.</p>
+<table>
+    <tr>
+        <th>Call</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td><code>GET /api/documents/:id/download</code></td>
+        <td>The file exactly as uploaded, with its original type and filename (<code>410</code> if purged by the workflow's retention policy)</td>
+    </tr>
+    <tr>
+        <td><code>GET /api/documents/:id/view</code></td>
+        <td>The PDF that DIP converted the upload into and ran OCR on. Always <code>application/pdf</code> (<code>410</code> if purged)</td>
+    </tr>
+    <tr>
+        <td><code>POST /api/documents/:id/reprocess</code></td>
+        <td>Re-run a <code>failed</code> document</td>
+    </tr>
+    <tr>
+        <td><code>DELETE /api/documents/:id</code></td>
+        <td>Delete a document</td>
+    </tr>
+</table>
 
 <div class="accordion-group">
     <details>
@@ -1070,8 +1190,8 @@ curl -X POST /api/upload \
         <div class="accordion-content">
 <pre>curl -o invoice.pdf \
   /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4/download \
-  -H "Authorization: Bearer &lt;your-sso-token&gt;"</pre>
-            <p>Returns the file with appropriate <code>Content-Type</code> and <code>Content-Disposition</code> headers.</p>
+  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p>Returns the file with appropriate <code>Content-Type</code> and <code>Content-Disposition</code> headers. For an image upload, <code>/download</code> returns the image and <code>/view</code> returns the converted PDF.</p>
         </div>
     </details>
 </div>
@@ -1154,56 +1274,15 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/submit \
     </details>
 </div>
 
-<h2>End-to-End Example</h2>
+<h2>Step-by-Step Tutorial</h2>
 
-<p>A complete integration walkthrough: authenticate, upload a document, wait for processing, and retrieve the results.</p>
-
-<div class="card card-gold">
-    <h3 style="margin-top: 0;">Complete Workflow</h3>
-<pre># 1. Set your API key
-API_KEY="dip_xxxxxxxxxxxxxxxxxxxx"
-BASE_URL="https://your-host:3002"
-
-# 2. Check available models
-curl -s "$BASE_URL/api/models" \
-  -H "X-API-Key: $API_KEY" | jq .
-
-# 3. Upload a document
-FILE_B64=$(base64 -w 0 document.pdf)
-DOC_ID=$(curl -s -X POST "$BASE_URL/api/upload" \
-  -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"title\": \"My Document\",
-    \"file\": \"$FILE_B64\",
-    \"file_type\": \"pdf\",
-    \"model_id\": \"prebuilt-layout\"
-  }" | jq -r '.document.id')
-
-echo "Uploaded document: $DOC_ID"
-
-# 4. Poll for completion
-while true; do
-  STATUS=$(curl -s "$BASE_URL/api/documents/$DOC_ID/ocr" \
-    -H "X-API-Key: $API_KEY" | jq -r '.status')
-  echo "Status: $STATUS"
-  if [ "$STATUS" != "ongoing_ocr" ]; then break; fi
-  sleep 5
-done
-
-# 5. Retrieve OCR results
-curl -s "$BASE_URL/api/documents/$DOC_ID/ocr" \
-  -H "X-API-Key: $API_KEY" | jq '.ocr_result.keyValuePairs'</pre>
-</div>
-
-<div class="alert alert-success">
-    <div class="alert-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+<a href="integration-tutorial.html" class="card-link">
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">From Zero to Integration</h3>
+        <p>Want to see these calls put together? Follow a complete walkthrough, from getting an API key to uploading, polling, and reading results, with <code>curl</code> and a dependency-free Node.js sample app you can copy into your own service.</p>
+        <div class="card-arrow">Start the tutorial →</div>
     </div>
-    <div>
-        <strong>That's it!</strong> You now have the extracted data from your document. For the full API specification with all request/response schemas, see the <a href="api-reference.html">API Reference</a>.
-    </div>
-</div>
+</a>
     </main>
     <footer class="site-footer">
         <div class="footer-content">
