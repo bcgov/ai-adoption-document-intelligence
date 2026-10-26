@@ -122,11 +122,11 @@ The images that did build keep their tag, so **Re-run failed jobs** rebuilds onl
 
 ### Routine cleanup
 
-Once a deploy has rolled out, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image for prod; test/dev keep only the newest (the build the instance is running). Before each build, the **Clear Artifactory space** job also deletes every build of the instance that nothing in its namespace uses, except in prod: `scripts/lib/in-use-image-tags.sh` lists the tags in use, and each goes to `artifactory-cleanup.sh` as `--protect` (see [AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md#clearing-space-before-a-push)). Manual cleanup:
+Once a deploy has rolled out, CI keeps the 2 most recent `bcgov-di-????????????` SHA tags per image for prod (the running build and the one before it); test/dev keep only the newest (the build the instance is running). Before each build, the **Clear Artifactory space** job also deletes every build of the instance that nothing in its namespace uses, except in prod: `scripts/lib/in-use-image-tags.sh` lists the tags in use, and each goes to `artifactory-cleanup.sh` as `--protect` (see [AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md#clearing-space-before-a-push)). Manual cleanup:
 
 ```bash
 ./scripts/artifactory-cleanup.sh --env dev --delete --keep 1 --match 'bcgov-di-test-????????????'
-./scripts/artifactory-cleanup.sh --env prod --delete --keep 3 --match 'bcgov-di-????????????'
+./scripts/artifactory-cleanup.sh --env prod --delete --keep 2 --match 'bcgov-di-????????????'
 ```
 
 All Artifactory API calls use `--connect-timeout 30 --max-time 120`. Docker login retries up to 3 times via `scripts/lib/artifactory-login.sh`, and the CI staged-image existence check and `imagetools create` tag promotion retry via `scripts/lib/retry.sh` (`with_retries`).

@@ -9,7 +9,6 @@ on:
       - 'apps/backend-services/**'
       - 'apps/shared/**'
       - 'packages/**'
-      - 'docs-md/workflows/templates/**'
       - 'scripts/lint-workflows.mjs'
       - '.github/workflows/backend-qa.yml'
   workflow_dispatch:

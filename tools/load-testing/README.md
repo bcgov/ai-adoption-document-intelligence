@@ -472,7 +472,7 @@ What it does:
 
 | Resource | Default name | Source if missing |
 |----------|--------------|-------------------|
-| Workflow + initial version | `loadtest-standard-ocr` | `POST /api/workflows` with the JSON template at [`docs-md/workflows/templates/standard-ocr-workflow.json`](../../docs-md/workflows/templates/standard-ocr-workflow.json) (the same template the prisma seed uses) |
+| Workflow + initial version | `loadtest-standard-ocr` | `POST /api/workflows` with the JSON template at [`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json) (the same template the prisma seed uses) |
 | Classifier | `loadtest-blob-classifier` | `POST /api/azure/classifier` (PRETRAINING, source AZURE) |
 
 Useful flags:

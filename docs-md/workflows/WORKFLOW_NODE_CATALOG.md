@@ -35,7 +35,7 @@ Azure OCR graphs store **references** in workflow context, not full JSON:
 
 Each value is an `OcrPayloadRef` (`documentId`, `blobPath`, `status`, …). **Poll Until** stop conditions should reference the ref’s status, e.g. `ocrResponseRef.status` not `running`. **Switch** / **transform** expressions use the same `*Ref` names.
 
-Canonical JSON: [`docs-md/workflows/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
+Canonical JSON: [`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
 
 ---
 

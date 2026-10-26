@@ -34,7 +34,7 @@ backend, the frontend, the Temporal worker, the database seed and the demo
 seeders below all read it, and no app has its own. Come back here once
 `http://localhost:3000` loads and you can sign in. That seed is also where
 **Standard OCR Workflow** (stops 1 and 8) comes from: it is loaded from
-[`templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json)
+[`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json)
 by `apps/shared/prisma/seed.ts`.
 
 Seven processes have to be live: postgres, minio and the Temporal server; the

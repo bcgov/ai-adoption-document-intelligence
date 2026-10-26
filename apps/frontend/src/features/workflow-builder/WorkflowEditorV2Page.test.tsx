@@ -661,7 +661,7 @@ describe("WorkflowEditorV2Page — draft-save toast", () => {
 
 // ---------------------------------------------------------------------------
 // Edit-mode hydration auto-layout — an opened workflow that carries no node
-// positions (seeded workflows from docs-md/workflows/templates/*.json,
+// positions (seeded workflows from packages/graph-workflow/templates/*.json,
 // or any API/agent-authored workflow) must be auto-laid-out on open, mirroring
 // the create-from-template path. Regression: such workflows rendered
 // stacked/out-of-order because hydration skipped layoutGraphIfMissingPositions.
@@ -2118,14 +2118,13 @@ describe("WorkflowEditorV2Page — Multi-Page Report template integration (Task 
   });
 
   it("synthesises a map-body group around the processSegments body when the template loads", async () => {
-    // Load the canonical template fixture from docs-md. Vite resolves
-    // JSON via its native loader; the page-test's canvas mock captures
-    // the merged `displayConfig` so we can read the synthesised
-    // `nodeGroups` entry directly from `capturedCanvasProps.current`.
+    // Load the canonical template fixture from the graph-workflow
+    // package. Vite resolves JSON via its native loader; the page-test's
+    // canvas mock captures the merged `displayConfig` so we can read the
+    // synthesised `nodeGroups` entry directly from
+    // `capturedCanvasProps.current`.
     const templateConfig = (
-      await import(
-        "../../../../../docs-md/workflows/templates/multi-page-report-workflow.json"
-      )
+      await import("@workflow-templates/multi-page-report-workflow.json")
     ).default as unknown as GraphWorkflowConfig;
 
     const template: WorkflowTemplate = {

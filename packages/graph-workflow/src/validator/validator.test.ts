@@ -401,10 +401,6 @@ describe("US-052 Scenario 3: pre-existing pollUntil templates raise zero new err
     __dirname,
     "..",
     "..",
-    "..",
-    "..",
-    "docs-md",
-    "workflows",
     "templates",
   );
 

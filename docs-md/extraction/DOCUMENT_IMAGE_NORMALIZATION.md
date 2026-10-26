@@ -116,7 +116,7 @@ The Temporal activity [`document.normalizeOrientation`](../../apps/temporal/src/
 
 Because Stages 1 and 2 use the **same** rotation-baking math (the switch on 90/180/270 and paired CCW rotate + translate), keep both call sites in sync — this is annotated reciprocally in their JSDoc.
 
-The trained-data file `apps/temporal/osd.traineddata` is committed to the repo and copied into the production container image so OSD runs offline. Sample workflow: [`docs-md/workflows/templates/orientation-detection-workflow.json`](../workflows/templates/orientation-detection-workflow.json).
+The trained-data file `apps/temporal/osd.traineddata` is committed to the repo and copied into the production container image so OSD runs offline. Sample workflow: [`packages/graph-workflow/templates/orientation-detection-workflow.json`](../../packages/graph-workflow/templates/orientation-detection-workflow.json).
 
 ### Known limitations
 
@@ -139,4 +139,4 @@ Deleting a document removes the whole document prefix (`{groupId}/ocr/{documentI
 - Requirements: `feature-docs/007-document-image-normalization/REQUIREMENTS.md`
 - Blob layout: [`docs-md/architecture/BLOB_STORAGE.md`](../architecture/BLOB_STORAGE.md)
 - Workflow node catalog (Stage 2 node): [`docs-md/workflows/WORKFLOW_NODE_CATALOG.md`](../workflows/WORKFLOW_NODE_CATALOG.md)
-- Sample orientation workflow: [`docs-md/workflows/templates/orientation-detection-workflow.json`](../workflows/templates/orientation-detection-workflow.json)
+- Sample orientation workflow: [`packages/graph-workflow/templates/orientation-detection-workflow.json`](../../packages/graph-workflow/templates/orientation-detection-workflow.json)

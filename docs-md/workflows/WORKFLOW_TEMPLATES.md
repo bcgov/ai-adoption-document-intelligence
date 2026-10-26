@@ -1,6 +1,6 @@
 # Graph Workflow Templates
 
-This folder holds example [graph workflow](../DAG_WORKFLOW_ENGINE.md) configuration files. Each JSON file is a valid `GraphWorkflowConfig` that can be used as a starting point or reference.
+The shipped workflow templates live in [`packages/graph-workflow/templates/`](../../packages/graph-workflow/templates/): example [graph workflow](DAG_WORKFLOW_ENGINE.md) configuration files. Each JSON file is a valid `GraphWorkflowConfig` that can be used as a starting point or reference.
 
 | File | Description |
 |------|-------------|
@@ -11,7 +11,7 @@ This folder holds example [graph workflow](../DAG_WORKFLOW_ENGINE.md) configurat
 
 These templates are validated by the graph schema validator tests in `apps/backend-services`.
 
-The workflow builder's **New from template** picker lists every JSON file in this folder. The frontend bundles them at build time ([`templates/index.ts`](../../../apps/frontend/src/features/workflow-builder/templates/index.ts)), and the frontend image copies this folder in to do so ([`apps/frontend/Dockerfile`](../../../apps/frontend/Dockerfile)). A file added here appears in the picker after the next frontend build.
+The workflow builder's **New from template** picker lists every JSON file in that folder. The frontend bundles them at build time through its `@workflow-templates` alias ([`templates/index.ts`](../../apps/frontend/src/features/workflow-builder/templates/index.ts)), and the frontend image has them because its Dockerfile copies `packages/graph-workflow`. A file added there appears in the picker after the next frontend build. The local database seed (`apps/shared/prisma/seed.ts`) loads four of them and every `experiment-*-workflow.json`, and `npm run workflows:lint` checks them all ([WORKFLOW_LINTER.md](WORKFLOW_LINTER.md)).
 
 ## Run inputs
 

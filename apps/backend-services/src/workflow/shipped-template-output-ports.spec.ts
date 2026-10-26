@@ -18,7 +18,7 @@ import * as path from "node:path";
 import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const TEMPLATE_DIR = path.join(REPO_ROOT, "docs-md/workflows/templates");
+const TEMPLATE_DIR = path.join(REPO_ROOT, "packages/graph-workflow/templates");
 
 interface PortBinding {
   port: string;

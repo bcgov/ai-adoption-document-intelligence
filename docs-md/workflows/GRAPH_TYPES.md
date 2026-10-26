@@ -180,7 +180,7 @@ The backend and temporal validators perform lightweight checks on `nodeGroups`:
 
 ### Example
 
-See [`docs-md/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json) for a complete example with 5 node groups:
+See [`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json) for a complete example with 5 node groups:
 - `ocr-extraction`: 6 nodes (status updates, file prep, OCR submission, polling, extraction)
 - `cleanup`: 1 node (post-OCR cleanup)
 - `quality-gate`: 2 nodes (confidence check, switch)

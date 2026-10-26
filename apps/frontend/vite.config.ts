@@ -87,7 +87,12 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@docs": fileURLToPath(new URL("../../docs-md", import.meta.url)),
+      // The shipped workflow templates the New from template picker bundles.
+      // Inside the image this is /packages/graph-workflow/templates: the
+      // Dockerfile copies the package there.
+      "@workflow-templates": fileURLToPath(
+        new URL("../../packages/graph-workflow/templates", import.meta.url),
+      ),
       // Bundle graph-workflow from source: dist is CommonJS and Rollup cannot
       // resolve named exports (e.g. validateGraphConfig) from the compiled output.
       "@ai-di/graph-workflow": fileURLToPath(

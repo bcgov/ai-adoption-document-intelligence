@@ -72,7 +72,7 @@ cd apps/temporal && npm run dev   # Temporal worker
 
 ### 1.5 Seed templates
 
-Sixteen workflow templates live in `docs-md/workflows/templates/` and are loaded via the **New from template** picker on the `/workflows` list page (not auto-seeded into the DB). `multi-page-report-workflow.json` is the 16-node “everything” template (switch with 4 branches, map/join, validateFields, 5 groups) — use it as the master exemplar for many tests below.
+Sixteen workflow templates live in `packages/graph-workflow/templates/` and are loaded via the **New from template** picker on the `/workflows` list page (not auto-seeded into the DB). `multi-page-report-workflow.json` is the 16-node “everything” template (switch with 4 branches, map/join, validateFields, 5 groups) — use it as the master exemplar for many tests below.
 
 ### 1.6 Known discrepancies to keep in mind (⚠️ not bugs)
 

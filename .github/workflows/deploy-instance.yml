@@ -751,8 +751,10 @@ jobs:
           INSTANCE: ${{ needs.metadata.outputs.instance-name }}
         run: |
           set -euo pipefail
-          # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
-          # recent `<instance>-<12hex>` named tags per image, delete the rest.
+          # For prod, rotate the SHA-tagged rollback handles: keep the 2 most
+          # recent `<instance>-<12hex>` named tags per image (the running build
+          # and the one before it), delete the rest. With a third, a deploy
+          # would peak at about 5.2 GB, over the quota below.
           # For test/dev, keep only the newest `<instance>-<12hex>` tag per
           # image: this job runs only once the deploy has rolled out, so that
           # is the build the instance is running. Test keeps no rollback
@@ -760,7 +762,7 @@ jobs:
           # prod share under a 5 GB quota, and while it is pushed the
           # repository also holds temporary upload copies of most of its layers.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 2 --match "${INSTANCE}-????????????"
           else
             bash ./scripts/artifactory-cleanup.sh --delete --keep 1 --match "${INSTANCE}-????????????"
           fi

@@ -18,9 +18,9 @@ Both shapes lose information: the user wrote `0`, the model emits "nothing." Thi
 
 ## Where it sits in the workflow
 
-Between `azureOcr.extract` and `ocr.normalizeFields` in the SDPR variant template [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → normalizeFields → e6b → postOcrCleanup`). The node reads and writes the `ocrResultRef` ctx key in place (matching the other correction nodes), so `normalizeFields` and `postOcrCleanup` — both of which read `ocrResultRef`/consume its output — see the recovered result.
+Between `azureOcr.extract` and `ocr.normalizeFields` in the SDPR variant template [packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json](../../packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → normalizeFields → e6b → postOcrCleanup`). The node reads and writes the `ocrResultRef` ctx key in place (matching the other correction nodes), so `normalizeFields` and `postOcrCleanup` — both of which read `ocrResultRef`/consume its output — see the recovered result.
 
-The base [standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) is deliberately kept generic and does **not** include this node: its per-table config is form-specific, so it lives only in form-specific variants (seeded as workflow `seed-workflow-standard-ocr-sdpr`, slug `standard-ocr-sdpr`).
+The base [standard-ocr-workflow.json](../../packages/graph-workflow/templates/standard-ocr-workflow.json) is deliberately kept generic and does **not** include this node: its per-table config is form-specific, so it lives only in form-specific variants (seeded as workflow `seed-workflow-standard-ocr-sdpr`, slug `standard-ocr-sdpr`).
 
 Like every correction activity it is **blob-backed** (see the correction-tool contract in `apps/temporal/src/ocr-activity-ref-utils.ts`): it resolves the input OCR result from its blob ref via `resolveOcrResultInput`, applies recoveries to a deep copy (**the input is never mutated**), and returns a new blob-backed `OcrPayloadRef` via `finalizeCorrectionResult`. Downstream nodes (`ocr.normalizeFields`, `ocr.cleanup`, `hitl.applyReviewCriteria`, `ocr.storeResults`, benchmark prediction flattening) consume the corrected ref and see real numeric values.
 
@@ -200,5 +200,5 @@ If renaming or removing the activity, update all of these:
 - [apps/backend-services/src/workflow/activity-registry.ts](../../apps/backend-services/src/workflow/activity-registry.ts) — backend-side type list
 - [apps/backend-services/src/workflow/activity-registry.spec.ts](../../apps/backend-services/src/workflow/activity-registry.spec.ts) — `EXPECTED_ACTIVITY_TYPES`
 - [apps/backend-services/src/hitl/tool-manifest.service.ts](../../apps/backend-services/src/hitl/tool-manifest.service.ts) — backend-side tool manifest and `getAiRecommendableTools()` exclusion
-- [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) — SDPR variant workflow JSON (node + edges + nodeGroups); the generic base template does not carry the node
+- [packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json](../../packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json) — SDPR variant workflow JSON (node + edges + nodeGroups); the generic base template does not carry the node
 - [apps/shared/prisma/seed.ts](../../apps/shared/prisma/seed.ts) — seeds the SDPR variant as workflow `seed-workflow-standard-ocr-sdpr`

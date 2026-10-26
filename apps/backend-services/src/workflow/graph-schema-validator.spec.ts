@@ -1287,8 +1287,8 @@ describe("graph-schema-validator", () => {
       "..",
       "..",
       "..",
-      "docs-md",
-      "workflows",
+      "packages",
+      "graph-workflow",
       "templates",
     );
     const templateFiles = readdirSync(templatesDir).filter((file) =>

@@ -159,7 +159,7 @@ describe("JsonSchemaForm — Scenario 3: catalog schema + multi-page-report temp
     ) as JsonSchemaProperty;
 
     // Rules copied verbatim from
-    // docs-md/workflows/templates/multi-page-report-workflow.json →
+    // packages/graph-workflow/templates/multi-page-report-workflow.json →
     // nodes.validateFields.parameters.rules.
     const rules: ValidationRule[] = [
       {

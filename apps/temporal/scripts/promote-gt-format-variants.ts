@@ -331,8 +331,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   } else {
     const workflowPath = path.join(
       repoRoot,
-      "docs-md",
-      "workflows",
+      "packages",
+      "graph-workflow",
       "templates",
       `experiment-${slug}-workflow.json`,
     );
