@@ -77,6 +77,7 @@ for page in "$PAGES_DIR"/*.html; do
         header="${header//\{\{NAV_API\}\}/}"
         header="${header//\{\{NAV_DIAGRAMS\}\}/}"
         header="${header//\{\{NAV_INTEGRATIONS\}\}/}"
+        header="${header//\{\{NAV_INTEGRATIONTUTORIAL\}\}/}"
         header="${header//\{\{NAV_AUTHENTICATION\}\}/}"
         header="${header//\{\{NAV_BENCHMARKINGGUIDE\}\}/}"
         header="${header//\{\{NAV_BENCHMARKINGTECHNICAL\}\}/}"

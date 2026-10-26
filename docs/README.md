@@ -69,7 +69,8 @@ docs/
 │   ├── api-reference.html     # API reference (Redoc)
 │   ├── authentication.html    # Authentication guide
 │   ├── diagrams.html          # Interactive SVG viewer
-│   └── integrations.html      # Integrations guide
+│   ├── integrations.html      # Integrations guide
+│   └── integration-tutorial.html # Step-by-step sample integration
 │
 ├── _diagrams/                 # Mermaid diagram sources
 │   ├── mermaid.config.json
@@ -96,7 +97,8 @@ docs/
     ├── api-reference.html
     ├── authentication.html
     ├── diagrams.html
-    └── integrations.html
+    ├── integrations.html
+    └── integration-tutorial.html
 ```
 
 ---

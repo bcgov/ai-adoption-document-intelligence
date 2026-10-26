@@ -1,0 +1,511 @@
+<!-- TITLE: From Zero to Integration -->
+<!-- NAV: integrationtutorial -->
+
+<h1>From Zero to Integration</h1>
+
+<p>This step-by-step tutorial is for a developer on an outside team who wants to send documents to the Document Intelligence Platform (DIP) and get extracted data back. It starts from nothing and assumes <strong>your application and DIP run on different machines and networks</strong>. Your app talks to DIP only over HTTPS with an API key. You don't need any DIP-specific code or libraries.</p>
+
+<p>Each step is shown first with <code>curl</code>, then with a small, dependency-free Node.js sample app that you can copy into your own service.</p>
+
+<div class="grid grid-2">
+    <a href="https://github.com/TimRez10-bcgov/dip-integration-sample" class="card-link">
+        <div class="card card-gold">
+            <h3 style="margin-top:0;">Sample App Repository</h3>
+            <p>A minimal Node.js app that uploads a document, polls until processing finishes, and saves the OCR result. Clone it to follow along.</p>
+            <div class="card-arrow">dip-integration-sample on GitHub ↗</div>
+        </div>
+    </a>
+    <a href="integrations.html" class="card-link">
+        <div class="card">
+            <h3 style="margin-top:0;">Integrations Guide</h3>
+            <p>Looking for a reference of authentication options, workflow configuration, or the human-in-the-loop review API instead of a walkthrough?</p>
+            <div class="card-arrow">Go to the Integrations Guide →</div>
+        </div>
+    </a>
+</div>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Placeholders used on this page</strong><br>
+        <code>&lt;DIP_API_URL&gt;</code> is the base URL of the DIP backend (API), and <code>&lt;DIP_UI_URL&gt;</code> is the base URL of the DIP web UI, for the environment you target. Ask the DIP team for both URLs for each environment (dev, test, prod). Each environment is a <strong>separate instance with its own database</strong>, so API keys, group ids, and workflow slugs from one environment don't work in another. Swagger UI for an environment is at <code>&lt;DIP_API_URL&gt;/api</code>, and the full spec is on the <a href="api-reference.html">API Reference</a> page.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2>Table of Contents</h2>
+
+<ul>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#prerequisites">Before You Start</a></li>
+    <li><a href="#step-1">Step 1: Get Access and an API Key</a></li>
+    <li><a href="#step-2">Step 2: Check the Network Path</a></li>
+    <li><a href="#step-3">Step 3: Check Your Key and Pick a Workflow</a></li>
+    <li><a href="#step-4">Step 4: Upload a Document</a></li>
+    <li><a href="#step-5">Step 5: Poll Until the Status Is Final</a></li>
+    <li><a href="#step-6">Step 6: Get the Result</a></li>
+    <li><a href="#step-7">Step 7: Run the Sample App</a></li>
+    <li><a href="#step-8">Step 8: Move It Into Your Service</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#security">Security Checklist</a></li>
+    <li><a href="#local-dip">Appendix: Trying This Against a Local DIP Instance</a></li>
+</ul>
+
+<!-- ====================================================================== -->
+<h2 id="how-it-works">How It Works</h2>
+
+<p>An integration makes four kinds of calls. Processing runs in the background after the upload, so your app pulls status and results. DIP never needs inbound access to your network.</p>
+
+<div class="grid grid-4">
+    <div class="card">
+        <h3 style="margin-top:0;">1. Discover</h3>
+        <p><code>GET /api/models</code><br><code>GET /api/workflows</code></p>
+        <p>Optional. See which models and workflows your key can use.</p>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">2. Upload</h3>
+        <p><code>POST /api/upload</code></p>
+        <p>Send a base64 file and a workflow slug. Get back a document id.</p>
+    </div>
+    <div class="card">
+        <h3 style="margin-top:0;">3. Poll</h3>
+        <p><code>GET /api/documents/{id}</code></p>
+        <p>Check the status every few seconds until it is final.</p>
+    </div>
+    <div class="card card-gold">
+        <h3 style="margin-top:0;">4. Fetch Result</h3>
+        <p><code>GET /api/documents/{id}/ocr</code></p>
+        <p>Read the extracted fields and text.</p>
+    </div>
+</div>
+
+
+<!-- ====================================================================== -->
+<h2 id="prerequisites">Before You Start</h2>
+
+<table>
+    <tr>
+        <th>What</th>
+        <th>Why</th>
+    </tr>
+    <tr>
+        <td>A DIP <strong>group</strong></td>
+        <td>Documents, workflows, and API keys all belong to a group.</td>
+    </tr>
+    <tr>
+        <td>An <strong>API key</strong> for that group</td>
+        <td>Server-to-server authentication through the <code>x-api-key</code> header.</td>
+    </tr>
+    <tr>
+        <td>A <strong>workflow slug</strong> in that group</td>
+        <td>Every upload must name a workflow. The workflow defines the processing steps.</td>
+    </tr>
+    <tr>
+        <td>The <code>&lt;DIP_API_URL&gt;</code> for your target environment</td>
+        <td>Supplied by the DIP team.</td>
+    </tr>
+    <tr>
+        <td><strong>Network reachability</strong> from your server to <code>&lt;DIP_API_URL&gt;</code> over HTTPS (443)</td>
+        <td>See <a href="#step-2">Step 2</a>. Production DIP only accepts callers from an IP allow-list.</td>
+    </tr>
+    <tr>
+        <td>Node.js ≥ 20.6 (sample app only)</td>
+        <td>The sample uses the built-in <code>fetch</code> and <code>--env-file</code>.</td>
+    </tr>
+</table>
+
+<!-- ====================================================================== -->
+<h2 id="step-1">Step 1: Get Access and an API Key</h2>
+
+<ol>
+    <li><strong>Sign in</strong> — In a browser, go to <code>&lt;DIP_UI_URL&gt;</code> and sign in with your Keycloak/IDIR account.</li>
+    <li><strong>Join a group</strong> — Ask to join a group, or have a DIP admin add you. <strong>Only a group <code>ADMIN</code> can create API keys.</strong> If you aren't an admin, ask your group admin to generate the key and share it with you securely.</li>
+    <li><strong>Generate the key</strong> — Go to <strong>Settings → API key → Generate API key</strong>. <strong>Copy the key right away.</strong> It is shown only once, because DIP stores only a hash.</li>
+    <li><strong>Note your group id</strong> — You need it only to list workflows; uploads infer the group from the key. Open <strong>Groups</strong> in the DIP UI and click your group. The id is the last part of the page URL (<code>&lt;DIP_UI_URL&gt;/groups/&lt;group id&gt;</code>). It is also returned as <code>groupId</code> when the key is generated.</li>
+    <li><strong>Store the key</strong> — Put it in your application's secret store (for example a vault or a Kubernetes/OpenShift secret). Don't store it in source code.</li>
+</ol>
+
+<div class="alert alert-warning">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+        <strong>One key per group, per environment.</strong> <strong>Regenerate key</strong> replaces the group's key, so the old key stops working immediately. Repeat this step in each DIP environment you integrate with.
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="step-2">Step 2: Check the Network Path</h2>
+
+<p>Run the commands in this tutorial from the machine (or a machine on the same network) that will host your integration. That confirms the network path works before you write any code. Set these variables first:</p>
+
+<pre>export DIP=&lt;DIP_API_URL&gt;
+export KEY=&lt;your api key&gt;
+export GROUP=&lt;your group id&gt;</pre>
+
+<p>DIP is deployed as OpenShift routes behind an HAProxy router. Confirm the details for your target environment with the DIP team.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Network and hosting considerations</summary>
+        <div class="accordion-content">
+            <table>
+                <tr>
+                    <th>Topic</th>
+                    <th>What to know</th>
+                </tr>
+                <tr>
+                    <td><strong>HTTPS only</strong></td>
+                    <td>DIP routes terminate TLS at the edge and redirect plain HTTP to HTTPS. Always call <code>https://…</code>. A redirected <code>POST</code> can arrive as a <code>GET</code> or lose its body, which looks like a confusing 404/400. This doesn't apply if your app shares a network with DIP and calls the backend directly (for example <code>http://localhost:3002</code> or the in-cluster service).</td>
+                </tr>
+                <tr>
+                    <td><strong>Production IP allow-list</strong></td>
+                    <td>The <strong>production</strong> backend route only accepts connections from BC Government public address ranges (<code>142.22.0.0/16</code> – <code>142.36.0.0/16</code>). That includes the gov VPN and the OpenShift Silver/Gold/Gold-DR egress pools. If your app is hosted elsewhere (for example a public cloud or a vendor network), requests are refused before they reach DIP.</td>
+                </tr>
+                <tr>
+                    <td><strong>Your own egress</strong></td>
+                    <td>Make sure your firewall or cluster egress policy (for example an OpenShift <code>NetworkPolicy</code> or an egress firewall) allows outbound HTTPS to the DIP host.</td>
+                </tr>
+                <tr>
+                    <td><strong>Rate limits count your public IP</strong></td>
+                    <td>100 requests / 60 s globally, and 20 failed API-key attempts / 60 s. If several of your services or pods share one NAT egress IP, <strong>they share these limits</strong>.</td>
+                </tr>
+                <tr>
+                    <td><strong>Request size</strong></td>
+                    <td>The DIP API accepts JSON bodies up to <strong>50 MB</strong>. Base64 adds about 33%, so the practical file limit is about <strong>37 MB</strong>.</td>
+                </tr>
+                <tr>
+                    <td><strong>Timeouts</strong></td>
+                    <td>The upload call converts the file to PDF before it responds, so give uploads a generous client timeout (60 s or more). OpenShift routes time out idle requests at 30 s by default unless DIP has configured otherwise. All other calls are quick.</td>
+                </tr>
+                <tr>
+                    <td><strong>No callbacks</strong></td>
+                    <td>DIP doesn't push results or webhooks. Your app pulls status and results.</td>
+                </tr>
+                <tr>
+                    <td><strong>File retention</strong></td>
+                    <td>A workflow may purge stored files after processing. After a purge, <code>/view</code> and <code>/download</code> return <code>410 Gone</code>, but <code>/ocr</code> still returns the extracted result. Keep your own copy of the original file if you need it.</td>
+                </tr>
+            </table>
+        </div>
+    </details>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="step-3">Step 3: Check Your Key and Pick a Workflow</h2>
+
+<p>The first call checks connectivity and the key at the same time. The second lists the workflows you can upload to.</p>
+
+<pre># Models (Azure prebuilt + models your group trained)
+curl -s -H "x-api-key: $KEY" $DIP/api/models
+
+# Workflows in your group (slug, name, config)
+curl -s -H "x-api-key: $KEY" "$DIP/api/workflows?groupId=$GROUP"</pre>
+
+<div class="alert alert-info">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </div>
+    <div>
+        <strong>Reading the result</strong><br>
+        If the first call hangs or the connection is refused, it's a network problem (see <a href="#step-2">Step 2</a>). A <code>401</code> means you reached DIP but the key is wrong.
+    </div>
+</div>
+
+<p>Pick a workflow <code>slug</code> from the list. Workflows are created by DIP users in your group, so the names vary by group and environment. A typical DIP instance includes something like:</p>
+
+<table>
+    <tr>
+        <th>slug</th>
+        <th>Notes</th>
+    </tr>
+    <tr>
+        <td><code>standard-ocr</code></td>
+        <td>Azure Document Intelligence OCR → cleanup → confidence check → optional human review. <strong>A good starting point.</strong></td>
+    </tr>
+    <tr>
+        <td><code>standard-ocr-mistral</code></td>
+        <td>Same pipeline using Mistral OCR.</td>
+    </tr>
+    <tr>
+        <td><code>multi-page-report</code></td>
+        <td>Splits multi-page reports by keyword.</td>
+    </tr>
+</table>
+
+<p>Each workflow has a default model (<code>config.ctx.modelId.defaultValue</code>). You can override it for each upload with <code>model_id</code>. For example, <code>prebuilt-layout</code> extracts generic text and structure from any document. Ask your group's DIP admin which workflow and model fit your documents.</p>
+
+<!-- ====================================================================== -->
+<h2 id="step-4">Step 4: Upload a Document</h2>
+
+<p>Send <code>POST /api/upload</code> with a JSON body. The <code>file</code> field is the file content <strong>base64-encoded</strong>. Writing the body to a file avoids shell argument-length limits for larger documents.</p>
+
+<pre>B64=$(base64 -w0 invoice.pdf)
+cat &gt; body.json &lt;&lt;EOF
+{
+  "title": "Invoice 123",
+  "file": "$B64",
+  "file_type": "pdf",
+  "original_filename": "invoice.pdf",
+  "workflow_slug": "standard-ocr",
+  "model_id": "prebuilt-layout",
+  "metadata": { "externalRef": "my-system-123" }
+}
+EOF
+
+curl -s -X POST $DIP/api/upload \
+  -H "x-api-key: $KEY" -H "content-type: application/json" \
+  --max-time 120 \
+  --data @body.json</pre>
+
+<p>Response <code>201</code>:</p>
+
+<pre>{ "success": true,
+  "document": { "id": "652946b5-...", "title": "Invoice 123", "status": "pre_ocr",
+                "file_type": "pdf", "file_size": 668, "created_at": "..." } }</pre>
+
+<div class="alert alert-success">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <div>
+        <strong>Save <code>document.id</code> in your own system.</strong> You need it for every later call. Because processing continues after the upload returns, your app can restart and resume polling later with the saved id.
+    </div>
+</div>
+
+<p>For every upload field, including <code>workflow_version</code> and <code>ctx_overrides</code>, see <a href="integrations.html#upload-fields">Upload Request Fields</a> in the Integrations Guide.</p>
+
+<!-- ====================================================================== -->
+<h2 id="step-5">Step 5: Poll Until the Status Is Final</h2>
+
+<pre>curl -s -H "x-api-key: $KEY" $DIP/api/documents/&lt;id&gt;</pre>
+
+<p>Stop polling when <code>status</code> is final: <code>complete</code>, <code>awaiting_review</code>, <code>failed</code>, <code>conversion_failed</code>, or <code>rejected</code>. <code>awaiting_review</code> means a person must review the document, but the result is already readable. See <a href="integrations.html#document-statuses">Document Statuses</a> for what each status means.</p>
+
+<p>Poll every 3–5 seconds, and stop after a reasonable timeout. A single page usually finishes in seconds, but it can take longer when DIP is busy. Remember that the rate limit is shared per public IP (see <a href="#step-2">Step 2</a>).</p>
+
+<!-- ====================================================================== -->
+<h2 id="step-6">Step 6: Get the Result</h2>
+
+<pre>curl -s -H "x-api-key: $KEY" $DIP/api/documents/&lt;id&gt;/ocr</pre>
+
+<pre>{
+  "document_id": "652946b5-...",
+  "status": "complete",
+  "model_id": "prebuilt-layout",
+  "ocr_result": {
+    "keyValuePairs": { ... },              // extracted fields (custom/form models)
+    "content": {
+      "format": "text",
+      "text": "full document text ...",
+      "pages": [ { "pageNumber": 1, "content": "...", "lines": [ ... ] } ]
+    },
+    "processed_at": "..."
+  }
+}</pre>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 style="margin-top:0;">Custom or Trained Models</h3>
+        <p>Read the field values from <code>ocr_result.keyValuePairs</code>.</p>
+    </div>
+    <div class="card">
+        <h3 style="margin-top:0;">Prebuilt Read / Layout</h3>
+        <p>Read <code>ocr_result.content.text</code> and <code>content.pages</code>.</p>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="step-7">Step 7: Run the Sample App</h2>
+
+<p>Now that each call works with <code>curl</code>, run the same flow with the <a href="https://github.com/TimRez10-bcgov/dip-integration-sample">sample app</a>. Run it on the machine that will host your integration.</p>
+
+<pre>git clone https://github.com/TimRez10-bcgov/dip-integration-sample.git
+cd dip-integration-sample
+cp .env.example .env        # then set the values below</pre>
+
+<table>
+    <tr>
+        <th>Variable</th>
+        <th>Required</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td><code>DIP_BASE_URL</code></td>
+        <td>Yes</td>
+        <td><code>&lt;DIP_API_URL&gt;</code> for your environment</td>
+    </tr>
+    <tr>
+        <td><code>DIP_API_KEY</code></td>
+        <td>Yes</td>
+        <td>Your group's API key</td>
+    </tr>
+    <tr>
+        <td><code>DIP_GROUP_ID</code></td>
+        <td>No</td>
+        <td>Needed only to list workflows with <code>npm run list</code></td>
+    </tr>
+    <tr>
+        <td><code>DIP_WORKFLOW_SLUG</code></td>
+        <td>No</td>
+        <td>Default workflow when <code>--workflow</code> isn't passed</td>
+    </tr>
+    <tr>
+        <td><code>DIP_MODEL_ID</code></td>
+        <td>No</td>
+        <td>Default model override when <code>--model</code> isn't passed</td>
+    </tr>
+</table>
+
+<pre>npm run list                # models + workflows available to your key
+npm run process -- ./invoice.pdf
+npm run process -- ./scan.jpg --workflow standard-ocr --model prebuilt-layout</pre>
+
+<p>Example output:</p>
+
+<pre>Uploading sample-invoice.pdf (workflow=standard-ocr, model=prebuilt-layout)...
+Document id: 652946b5-00cd-4973-82a1-72cc5baaebe9
+  status: ongoing_ocr
+  status: complete
+
+Final status: complete
+Model: prebuilt-layout
+Extracted fields: (none)
+Text preview: E2E Sample Invoice Document for workflow-builder Try-in-place tests.
+Full result written to output/652946b5-00cd-4973-82a1-72cc5baaebe9.json</pre>
+
+<!-- ====================================================================== -->
+<h2 id="step-8">Step 8: Move It Into Your Service</h2>
+
+<p>The sample is split so that the reusable part has no CLI concerns:</p>
+
+<table>
+    <tr>
+        <th>File</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td><a href="https://github.com/TimRez10-bcgov/dip-integration-sample/blob/main/src/dipClient.js"><code>src/dipClient.js</code></a></td>
+        <td>Reusable client: <code>uploadDocument</code>, <code>getDocument</code>, <code>waitForDocument</code>, <code>getOcrResult</code>, <code>listWorkflows</code>, <code>listModels</code>. Copy it into your own service.</td>
+    </tr>
+    <tr>
+        <td><a href="https://github.com/TimRez10-bcgov/dip-integration-sample/blob/main/src/index.js"><code>src/index.js</code></a></td>
+        <td>CLI that uses the client.</td>
+    </tr>
+    <tr>
+        <td><code>.env.example</code></td>
+        <td>Configuration. In a deployed service, provide these values as environment variables from your secret store instead of a <code>.env</code> file.</td>
+    </tr>
+</table>
+
+<p>In a long-running service, consider polling from a background job keyed on the saved document id rather than holding a request open, so a restart doesn't lose track of in-flight documents.</p>
+
+<!-- ====================================================================== -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+    <tr>
+        <th>Symptom</th>
+        <th>Cause / fix</th>
+    </tr>
+    <tr>
+        <td><code>401 Invalid API key</code> / <code>Authentication required</code></td>
+        <td>The key is missing or wrong, it was regenerated, or it belongs to a different DIP environment. Send it in the <code>x-api-key</code> header.</td>
+    </tr>
+    <tr>
+        <td><code>429 Too many failed API key attempts</code></td>
+        <td>20 bad keys from your public IP within 60 s blocks that IP for the rest of the window.</td>
+    </tr>
+    <tr>
+        <td><code>429</code> (general)</td>
+        <td>100 requests per 60 s per public IP. Poll less often, or spread load.</td>
+    </tr>
+    <tr>
+        <td><code>403 group_id does not match the API key's group</code></td>
+        <td>Remove <code>group_id</code> from the upload, or use the matching key.</td>
+    </tr>
+    <tr>
+        <td><code>403</code> on <code>GET /api/workflows</code></td>
+        <td><code>groupId</code> is not the key's group.</td>
+    </tr>
+    <tr>
+        <td><code>404 Workflow not found: slug "…"</code></td>
+        <td>The slug doesn't exist in the key's group in this environment. Check <code>npm run list</code>.</td>
+    </tr>
+    <tr>
+        <td><code>400 model_id is required…</code></td>
+        <td>The workflow has no default model, so pass <code>model_id</code>.</td>
+    </tr>
+    <tr>
+        <td><code>413</code> / body too large</td>
+        <td>The JSON body is over 50 MB (about a 37 MB file).</td>
+    </tr>
+    <tr>
+        <td><code>422 conversion_failed</code> / <code>password_protected</code></td>
+        <td>The file couldn't be converted. Upload an unlocked or valid file.</td>
+    </tr>
+    <tr>
+        <td><code>504</code> / gateway timeout on upload</td>
+        <td>A large file took longer than the route timeout. Retry with a smaller file, or ask the DIP team.</td>
+    </tr>
+    <tr>
+        <td><code>410 Gone</code> on <code>/view</code> or <code>/download</code></td>
+        <td>The file was purged per the workflow's retention policy. Use <code>/ocr</code> for the result.</td>
+    </tr>
+    <tr>
+        <td>Document stays at <code>pre_ocr</code> / <code>ongoing_ocr</code> for a long time</td>
+        <td>A DIP-side processing problem. Send the DIP team the <code>document.id</code>.</td>
+    </tr>
+    <tr>
+        <td><code>400</code> with a database/Prisma error message</td>
+        <td>A DIP-side deployment problem. Report it to the DIP team.</td>
+    </tr>
+    <tr>
+        <td>Browser <code>fetch</code> blocked by CORS</td>
+        <td>Expected. Call DIP from your backend.</td>
+    </tr>
+</table>
+
+<!-- ====================================================================== -->
+<h2 id="security">Security Checklist</h2>
+
+<div class="card card-gold">
+    <ul style="margin: 0;">
+        <li>Keep the API key <strong>server-side only</strong>, in a secret store or environment variable. Never put it in front-end code or commit it.</li>
+        <li>The key acts for the <strong>whole group</strong>. Anyone who has it can read, upload, and delete that group's documents.</li>
+        <li>Use a separate key and group per environment. Never reuse a production key in dev/test.</li>
+        <li>Rotate the key with <strong>Settings → Regenerate key</strong>, then update your secret store. The old key stops working immediately, so plan the switch to avoid downtime.</li>
+        <li>Always use HTTPS, and don't turn off certificate verification in your HTTP client.</li>
+        <li>Don't log the <code>x-api-key</code> header, base64 file content, or OCR text if documents contain personal information.</li>
+    </ul>
+</div>
+
+<!-- ====================================================================== -->
+<h2 id="local-dip">Appendix: Trying This Against a Local DIP Instance</h2>
+
+<p>This applies only if you run DIP yourself for evaluation (for example from the <a href="https://github.com/bcgov/ai-adoption-document-intelligence">DIP source repo</a>). It is not part of a normal integration.</p>
+
+<div class="accordion-group">
+    <details>
+        <summary>Local DIP setup notes</summary>
+        <div class="accordion-content">
+            <ul>
+                <li>Use <code>DIP_BASE_URL=http://localhost:3002</code>. The UI is at <code>http://localhost:3000</code>.</li>
+                <li>Seeding the DIP database (<code>npm run db:seed</code>) creates a test API key for the group <code>seeddefaultgroup</code>. The key's value is <code>TEST_API_KEY</code> in the DIP repo's <code>.env</code>.</li>
+                <li>If documents stay at <code>ongoing_ocr</code>, the Temporal worker isn't running. In the DIP repo, run <code>npm run dev:temporal-worker</code>.</li>
+                <li>If uploads fail with <code>table … does not exist</code>, the database is behind on migrations. Run <code>npm run db:migrate</code> in <code>apps/backend-services</code>.</li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+<div class="alert alert-success">
+    <div class="alert-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
+    <div>
+        <strong>You're integrated.</strong> For every request and response schema, see the <a href="api-reference.html">API Reference</a>. For workflow configuration and the human-in-the-loop review API, see the <a href="integrations.html">Integrations Guide</a>.
+    </div>
+</div>
