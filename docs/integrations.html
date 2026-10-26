@@ -766,7 +766,7 @@
     <div class="card" style="border-left-color: #8b5cf6;">
         <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
         <p>Best for user-facing applications. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
-        <p>Tokens are passed in the <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass the access token in the <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
     </div>
 </div>
 
@@ -965,13 +965,19 @@ curl -X POST /api/upload \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d "{
+    \"groupId\": \"&lt;group-id&gt;\",
     \"name\": \"Invoice Processing\",
     \"description\": \"OCR + validation + review pipeline\",
     \"config\": {
-      \"nodes\": [...],
-      \"edges\": [...]
+      \"schemaVersion\": \"1.0\",
+      \"metadata\": { ... },
+      \"entryNodeId\": \"...\",
+      \"ctx\": { ... },
+      \"nodes\": { ... },
+      \"edges\": [ ... ]
     }
   }"</pre>
+            <p><code>groupId</code> is required. The response contains the new <code>workflow</code>, including its <code>id</code> and a <code>slug</code> generated from the name, plus a <code>validation</code> result for the config.</p>
             <p>Then reference it during upload:</p>
 <pre>curl -X POST /api/upload \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
@@ -981,7 +987,7 @@ curl -X POST /api/upload \
     \"file\": \"...\",
     \"file_type\": \"pdf\",
     \"model_id\": \"prebuilt-layout\",
-    \"workflow_config_id\": \"&lt;workflow-id&gt;\"
+    \"workflow_slug\": \"&lt;workflow-slug&gt;\"
   }"</pre>
         </div>
     </details>
@@ -1198,33 +1204,35 @@ curl -X POST /api/upload \
 
 <h2>Human-in-the-Loop Review</h2>
 
-<p>When workflows include confidence-based routing, documents that fall below confidence thresholds are routed to a human review queue. The HITL API enables building custom review interfaces or integrating review into existing tools.</p>
+<p>When workflows include confidence-based routing, documents that fall below confidence thresholds are routed to a human review queue and wait in the <code>awaiting_review</code> status. The HITL API enables building custom review interfaces or integrating review into existing tools. The queue, statistics, and analytics endpoints require a <code>group_id</code> query parameter.</p>
 
 <div class="grid grid-2">
     <div class="card">
         <h3 style="margin-top:0;">Review Queue</h3>
-        <p><code>GET /api/hitl/queue</code></p>
-        <p>Lists documents awaiting review. Supports filtering by status, priority, and assignment.</p>
+        <p><code>GET /api/hitl/queue?group_id=&lt;group-id&gt;</code></p>
+        <p>Paginated list of documents requiring review. Supports filtering by <code>reviewStatus</code> (<code>pending</code>, <code>claimed</code>, <code>reviewed</code>, <code>flagged</code>, <code>all</code>), <code>modelId</code>, <code>workflowId</code>, and filename <code>search</code>, with <code>sortBy</code>/<code>sortDir</code>, <code>limit</code>, and <code>offset</code>.</p>
     </div>
     <div class="card">
         <h3 style="margin-top:0;">Queue Statistics</h3>
-        <p><code>GET /api/hitl/queue/stats</code></p>
+        <p><code>GET /api/hitl/queue/stats?group_id=&lt;group-id&gt;</code></p>
         <p>Returns counts and metrics for the review queue — useful for dashboards and monitoring.</p>
     </div>
 </div>
 
 <h3>Review Session Lifecycle</h3>
 
-<p>Reviews follow a session-based model:</p>
+<p>Reviews follow a session-based model. Starting a session locks the document to the reviewer:</p>
 
 <ol>
-    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with the document ID to begin reviewing</li>
-    <li><strong>Submit corrections</strong> — <code>POST /api/hitl/sessions/:id/corrections</code> to fix extracted fields</li>
-    <li><strong>Complete the review</strong> — choose one of:
+    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with a <code>documentId</code>, or <code>POST /api/hitl/sessions/next?group_id=&lt;group-id&gt;</code> to claim the next eligible document from the queue</li>
+    <li><strong>Keep the lock alive</strong> — <code>POST /api/hitl/sessions/:id/heartbeat</code> extends the lock while the reviewer is working</li>
+    <li><strong>Submit corrections</strong> — <code>POST /api/hitl/sessions/:id/corrections</code> to confirm, correct, flag, or delete extracted fields</li>
+    <li><strong>Finish the review</strong> — choose one of:
         <ul>
-            <li><code>POST /api/hitl/sessions/:id/submit</code> — approve the document</li>
-            <li><code>POST /api/hitl/sessions/:id/escalate</code> — escalate for expert review</li>
-            <li><code>POST /api/hitl/sessions/:id/skip</code> — skip and return to queue</li>
+            <li><code>POST /api/hitl/sessions/:id/approve</code> — approve the document; it becomes <code>complete</code></li>
+            <li><code>POST /api/hitl/sessions/:id/reject</code> — reject the document with a <code>rejectionReason</code> (<code>INPUT_QUALITY</code>, <code>OCR_FAILURE</code>, <code>MODEL_MISMATCH</code>, <code>CONFIDENCE_TOO_LOW</code>, or <code>SYSTEMIC_ERROR</code>) and optional <code>comments</code>; it becomes <code>rejected</code></li>
+            <li><code>POST /api/hitl/sessions/:id/skip</code> — release the lock and return the document to the pending queue</li>
+            <li><code>POST /api/hitl/sessions/:id/flag</code> — flag the document for priority attention, with an optional <code>note</code>, and return it to the queue</li>
         </ul>
     </li>
 </ol>
@@ -1234,7 +1242,7 @@ curl -X POST /api/upload \
         <summary>Review session workflow (curl examples)</summary>
         <div class="accordion-content">
 <pre># 1. Get the review queue
-curl /api/hitl/queue \
+curl "/api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=pending" \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"
 
 # 2. Start a review session
@@ -1249,26 +1257,32 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/corrections \
   -H "Content-Type: application/json" \
   -d "{
     \"corrections\": [
-      { \"field\": \"InvoiceNumber\", \"value\": \"INV-2026-002\" }
+      {
+        \"field_key\": \"InvoiceNumber\",
+        \"original_value\": \"INV-2026-001\",
+        \"corrected_value\": \"INV-2026-002\",
+        \"action\": \"corrected\"
+      }
     ]
   }"
 
 # 4. Approve the document
-curl -X POST /api/hitl/sessions/&lt;session-id&gt;/submit \
+curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+            <p>Each correction's <code>action</code> is one of <code>confirmed</code>, <code>corrected</code>, <code>flagged</code>, or <code>deleted</code>.</p>
         </div>
     </details>
 </div>
 
 <h3>Analytics</h3>
 
-<p>Track review performance and throughput with the analytics endpoint:</p>
+<p>Track review performance and throughput with the analytics endpoint. Filter by <code>startDate</code>, <code>endDate</code>, and <code>reviewerId</code>:</p>
 
 <div class="accordion-group">
     <details>
         <summary>Get HITL analytics (curl example)</summary>
         <div class="accordion-content">
-<pre>curl "/api/hitl/analytics?from=2026-01-01&to=2026-02-19" \
+<pre>curl "/api/hitl/analytics?group_id=&lt;group-id&gt;&amp;startDate=2026-01-01&amp;endDate=2026-02-19" \
   -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
         </div>
     </details>
