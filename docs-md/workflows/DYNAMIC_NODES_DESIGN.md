@@ -401,9 +401,12 @@ hardening changes and one explicitly accepted risk.
   two layers agree and a version row carrying a non-allowlisted host cannot
   widen run-time egress.
 - **Egress NetworkPolicy.** `deno-runner-egress` restricts the runner pod's
-  outbound traffic to DNS + `backend-services:3002`. With `DYNAMIC_NODE_ALLOW_NET`
-  empty, scripts can reach only the platform API. (Flagged NEEDS CLUSTER
-  VALIDATION in the manifest.)
+  outbound traffic to cluster DNS + `backend-services:3002`. The DNS rule allows
+  ports 53 and 5353 to the `openshift-dns` namespace, because policy ports match
+  the destination pod and OpenShift's CoreDNS pods listen on 5353 behind the
+  `dns-default` Service's port 53. With `DYNAMIC_NODE_ALLOW_NET` empty, scripts
+  can reach only the platform API. The manifest's closing comment gives the
+  one-line check that DNS resolves from the runner pod.
 
 **Credential scope (security item #4):** `AI_DI_API_KEY` is a per-invocation
 internal token minted by the `dyn.run` activity, scoped to the group that owns
