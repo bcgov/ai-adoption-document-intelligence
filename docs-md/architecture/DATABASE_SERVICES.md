@@ -113,6 +113,7 @@ Service wiring in the benchmark module:
 
 - `ApiKeyDbService.createApiKey` resolves the group's `api_actor_id` (`getOrCreateGroupApiActorId`), creating it only the first time a group ever gets a key, and reuses it for every key created afterward — including after a delete + recreate cycle.
 - `ApiKeyDbService.deleteApiKeyById` only deletes the `ApiKey` row. It does **not** delete the `Actor`: nine tables (`workflow_lineages.actor_id`, `review_sessions.actor_id`, `template_models.created_by`, `classifier_model.created_by`/`updated_by`, `group.created_by`, `group_membership_request.created_by`/`updated_by`, `datasets.createdBy`, `benchmark_projects.createdBy`, `benchmark_audit_logs.actor_id`) reference an actor with `ON DELETE RESTRICT`, so deleting the actor would roll back the whole transaction (and leave the key undeleted) the moment it had authored anything. Keeping the actor in place means those records keep a valid author, and regenerating or recreating the group's key resolves back to the same actor.
+- The seed's test key (`seedTestApiKey` in `apps/shared/prisma/seed.ts`) follows the same rule: when it creates the key, it reuses the seed group's `api_actor_id` if the group has one, and otherwise creates the actor and records it on the group first.
 
 ### Tables Module
 `apps/backend-services/src/tables/`
