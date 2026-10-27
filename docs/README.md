@@ -70,7 +70,7 @@ docs/
 │   ├── authentication.html    # Authentication guide
 │   ├── diagrams.html          # Interactive SVG viewer
 │   ├── integrations.html      # Integrations guide
-│   └── integration-tutorial.html # Step-by-step sample integration
+│   └── integration-tutorial.html # Step-by-step first integration
 │
 ├── _diagrams/                 # Mermaid diagram sources
 │   ├── mermaid.config.json

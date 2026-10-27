@@ -5,24 +5,15 @@
 
 <p>This step-by-step tutorial is for a developer on an outside team who wants to send documents to the Document Intelligence Platform (DIP) and get extracted data back. It starts from nothing and assumes <strong>your application and DIP run on different machines and networks</strong>. Your app talks to DIP only over HTTPS with an API key. You don't need any DIP-specific code or libraries.</p>
 
-<p>Each step is shown first with <code>curl</code>, then with a small, dependency-free Node.js sample app that you can copy into your own service.</p>
+<p>Each step uses <code>curl</code>, so you can confirm every call works from the machine that will host your integration before you write any code. The last step explains how to move the same calls into your own service, in any language.</p>
 
-<div class="grid grid-2">
-    <a href="https://github.com/TimRez10-bcgov/dip-integration-sample" class="card-link">
-        <div class="card card-gold">
-            <h3 style="margin-top:0;">Sample App Repository</h3>
-            <p>A minimal Node.js app that uploads a document, polls until processing finishes, and saves the OCR result. Clone it to follow along.</p>
-            <div class="card-arrow">dip-integration-sample on GitHub ↗</div>
-        </div>
-    </a>
-    <a href="integrations.html" class="card-link">
-        <div class="card">
-            <h3 style="margin-top:0;">Integrations Guide</h3>
-            <p>Looking for a reference of authentication options, workflow configuration, or the human-in-the-loop review API instead of a walkthrough?</p>
-            <div class="card-arrow">Go to the Integrations Guide →</div>
-        </div>
-    </a>
-</div>
+<a href="integrations.html" class="card-link">
+    <div class="card">
+        <h3 style="margin-top:0;">Integrations Guide</h3>
+        <p>Looking for a reference of authentication options, workflow configuration, or the human-in-the-loop review API instead of a walkthrough?</p>
+        <div class="card-arrow">Go to the Integrations Guide →</div>
+    </div>
+</a>
 
 <div class="alert alert-info">
     <div class="alert-icon">
@@ -46,8 +37,7 @@
     <li><a href="#step-4">Step 4: Upload a Document</a></li>
     <li><a href="#step-5">Step 5: Poll Until the Status Is Final</a></li>
     <li><a href="#step-6">Step 6: Get the Result</a></li>
-    <li><a href="#step-7">Step 7: Run the Sample App</a></li>
-    <li><a href="#step-8">Step 8: Move It Into Your Service</a></li>
+    <li><a href="#step-7">Step 7: Move It Into Your Service</a></li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
     <li><a href="#security">Security Checklist</a></li>
     <li><a href="#local-dip">Appendix: Trying This Against a Local DIP Instance</a></li>
@@ -109,10 +99,6 @@
     <tr>
         <td><strong>Network reachability</strong> from your server to <code>&lt;DIP_API_URL&gt;</code> over HTTPS (443)</td>
         <td>See <a href="#step-2">Step 2</a>. Production DIP only accepts callers from an IP allow-list.</td>
-    </tr>
-    <tr>
-        <td>Node.js ≥ 20.6 (sample app only)</td>
-        <td>The sample uses the built-in <code>fetch</code> and <code>--env-file</code>.</td>
     </tr>
 </table>
 
@@ -318,85 +304,34 @@ curl -s -X POST $DIP/api/upload \
 </div>
 
 <!-- ====================================================================== -->
-<h2 id="step-7">Step 7: Run the Sample App</h2>
+<h2 id="step-7">Step 7: Move It Into Your Service</h2>
 
-<p>Now that each call works with <code>curl</code>, run the same flow with the <a href="https://github.com/TimRez10-bcgov/dip-integration-sample">sample app</a>. Run it on the machine that will host your integration.</p>
-
-<pre>git clone https://github.com/TimRez10-bcgov/dip-integration-sample.git
-cd dip-integration-sample
-cp .env.example .env        # then set the values below</pre>
+<p>Once each <code>curl</code> call works, your service makes the same HTTPS calls with any HTTP client. No DIP library is needed.</p>
 
 <table>
     <tr>
-        <th>Variable</th>
-        <th>Required</th>
-        <th>Purpose</th>
+        <th>In your service</th>
+        <th>What to do</th>
     </tr>
     <tr>
-        <td><code>DIP_BASE_URL</code></td>
-        <td>Yes</td>
-        <td><code>&lt;DIP_API_URL&gt;</code> for your environment</td>
+        <td><strong>Configuration</strong></td>
+        <td>Provide <code>&lt;DIP_API_URL&gt;</code>, the API key, and the workflow slug as environment variables from your secret store. Send the key in the <code>x-api-key</code> header on every call.</td>
     </tr>
     <tr>
-        <td><code>DIP_API_KEY</code></td>
-        <td>Yes</td>
-        <td>Your group's API key</td>
+        <td><strong>Upload</strong></td>
+        <td>Base64-encode the file, call <code>POST /api/upload</code> (<a href="#step-4">Step 4</a>) with a generous client timeout, and save <code>document.id</code> with your own record.</td>
     </tr>
     <tr>
-        <td><code>DIP_GROUP_ID</code></td>
-        <td>No</td>
-        <td>Needed only to list workflows with <code>npm run list</code></td>
+        <td><strong>Poll</strong></td>
+        <td>Call <code>GET /api/documents/{id}</code> every 3–5 seconds until the status is final (<a href="#step-5">Step 5</a>), with an overall timeout.</td>
     </tr>
     <tr>
-        <td><code>DIP_WORKFLOW_SLUG</code></td>
-        <td>No</td>
-        <td>Default workflow when <code>--workflow</code> isn't passed</td>
+        <td><strong>Read the result</strong></td>
+        <td>Unless the status is <code>failed</code> or <code>conversion_failed</code>, call <code>GET /api/documents/{id}/ocr</code> (<a href="#step-6">Step 6</a>) and store what you need.</td>
     </tr>
     <tr>
-        <td><code>DIP_MODEL_ID</code></td>
-        <td>No</td>
-        <td>Default model override when <code>--model</code> isn't passed</td>
-    </tr>
-</table>
-
-<pre>npm run list                # models + workflows available to your key
-npm run process -- ./invoice.pdf
-npm run process -- ./scan.jpg --workflow standard-ocr --model prebuilt-layout</pre>
-
-<p>Example output:</p>
-
-<pre>Uploading sample-invoice.pdf (workflow=standard-ocr, model=prebuilt-layout)...
-Document id: 652946b5-00cd-4973-82a1-72cc5baaebe9
-  status: ongoing_ocr
-  status: complete
-
-Final status: complete
-Model: prebuilt-layout
-Extracted fields: (none)
-Text preview: E2E Sample Invoice Document for workflow-builder Try-in-place tests.
-Full result written to output/652946b5-00cd-4973-82a1-72cc5baaebe9.json</pre>
-
-<!-- ====================================================================== -->
-<h2 id="step-8">Step 8: Move It Into Your Service</h2>
-
-<p>The sample is split so that the reusable part has no CLI concerns:</p>
-
-<table>
-    <tr>
-        <th>File</th>
-        <th>Purpose</th>
-    </tr>
-    <tr>
-        <td><a href="https://github.com/TimRez10-bcgov/dip-integration-sample/blob/main/src/dipClient.js"><code>src/dipClient.js</code></a></td>
-        <td>Reusable client: <code>uploadDocument</code>, <code>getDocument</code>, <code>waitForDocument</code>, <code>getOcrResult</code>, <code>listWorkflows</code>, <code>listModels</code>. Copy it into your own service.</td>
-    </tr>
-    <tr>
-        <td><a href="https://github.com/TimRez10-bcgov/dip-integration-sample/blob/main/src/index.js"><code>src/index.js</code></a></td>
-        <td>CLI that uses the client.</td>
-    </tr>
-    <tr>
-        <td><code>.env.example</code></td>
-        <td>Configuration. In a deployed service, provide these values as environment variables from your secret store instead of a <code>.env</code> file.</td>
+        <td><strong>Errors</strong></td>
+        <td>Treat non-2xx responses as errors and log the response's <code>message</code>, never the API key. See <a href="#troubleshooting">Troubleshooting</a>.</td>
     </tr>
 </table>
 
@@ -432,7 +367,7 @@ Full result written to output/652946b5-00cd-4973-82a1-72cc5baaebe9.json</pre>
     </tr>
     <tr>
         <td><code>404 Workflow not found: slug "…"</code></td>
-        <td>The slug doesn't exist in the key's group in this environment. Check <code>npm run list</code>.</td>
+        <td>The slug doesn't exist in the key's group in this environment. List the available workflows with <code>GET /api/workflows</code> (<a href="#step-3">Step 3</a>).</td>
     </tr>
     <tr>
         <td><code>400 model_id is required…</code></td>
@@ -492,7 +427,7 @@ Full result written to output/652946b5-00cd-4973-82a1-72cc5baaebe9.json</pre>
         <summary>Local DIP setup notes</summary>
         <div class="accordion-content">
             <ul>
-                <li>Use <code>DIP_BASE_URL=http://localhost:3002</code>. The UI is at <code>http://localhost:3000</code>.</li>
+                <li>Use <code>http://localhost:3002</code> as <code>&lt;DIP_API_URL&gt;</code>. The UI is at <code>http://localhost:3000</code>.</li>
                 <li>Seeding the DIP database (<code>npm run db:seed</code>) creates a test API key for the group <code>seeddefaultgroup</code>. The key's value is <code>TEST_API_KEY</code> in the DIP repo's <code>.env</code>.</li>
                 <li>If documents stay at <code>ongoing_ocr</code>, the Temporal worker isn't running. In the DIP repo, run <code>npm run dev:temporal-worker</code>.</li>
                 <li>If uploads fail with <code>table … does not exist</code>, the database is behind on migrations. Run <code>npm run db:migrate</code> in <code>apps/backend-services</code>.</li>
