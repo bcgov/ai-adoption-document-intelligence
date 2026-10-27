@@ -1,6 +1,6 @@
 # Retention policy
 
-Permanently deletes records once they exceed a configured age. Four independent
+Permanently deletes records once they exceed a configured age. Five independent
 janitors cover different data classes. Each is controlled by its own
 environment variable; all default to disabled so behaviour does not change on
 deploy unless the variable is explicitly set.
@@ -120,10 +120,35 @@ so this janitor only deletes anything earlier when its window is shorter than
 
 Runs **daily at 02:45**, in batches.
 
+## Chat-conversation janitor
+
+Controlled by `CHAT_CONVERSATION_RETENTION_DAYS`. Deletes `chat_conversation`
+rows (and their cascading `chat_message` rows, `onDelete: Cascade`) whose
+`last_message_at` is older than the configured window.
+
+The workflow-builder agent's chat is saved indefinitely otherwise: one
+`chat_conversation` row per chat and one `chat_message` row per turn, deleted
+only when a user deletes their own chat. Tool results persisted on a message
+can include a test run's step outputs — document text such as OCR text and
+extraction results, up to 20,000 characters per tool result — so a chat can
+outlive the document it was read from.
+
+Seeded demo conversations (`is_demo`) are never eligible, at any age — they are
+read-only replays shown to every group member, not a real user's chat.
+
+Because chat messages can hold document text, when both janitors are enabled
+this window should be set **no longer than `DOCUMENT_RETENTION_DAYS`**, so a
+chat's copy of a document's text does not outlive the document itself by more
+than the gap between the two janitors' runs. This is not enforced in code —
+it's an operational convention for whoever sets the environment variables.
+
+Runs **daily at 03:00**, in batches.
+
 ## How the database-only janitors batch
 
-The audit-event, benchmark audit-log and review-session janitors each delete in
-batches of 2,000 rows: find up to 2,000 eligible IDs, then delete exactly those.
+The audit-event, benchmark audit-log, review-session and chat-conversation
+janitors each delete in batches of 2,000 rows: find up to 2,000 eligible IDs,
+then delete exactly those.
 A run keeps taking batches until one deletes nothing or the run has spent 5
 minutes. The cutoff date is fixed at the start of the run.
 
@@ -159,7 +184,8 @@ which:
 
 The lock label is the job's method name: `deleteExpiredDocuments`,
 `deleteExpiredAuditEvents`, `deleteExpiredBenchmarkAuditLogs`,
-`deleteExpiredReviewSessions`, and `purgeEphemeralDocuments` for
+`deleteExpiredReviewSessions`, `deleteExpiredChatConversations`, and
+`purgeEphemeralDocuments` for
 [ephemeral cleanup](./EPHEMERAL_DOCUMENT_CLEANUP.md).
 
 What runs inside the lock transaction differs by job:
@@ -167,7 +193,7 @@ What runs inside the lock transaction differs by job:
 | Job | Uses the lock transaction for | Why |
 |-----|-------------------------------|-----|
 | Document retention | Nothing; row deletes use the ordinary client | Each row delete follows an irreversible blob delete, so it must commit immediately. If it waited for the batch, a rollback would keep rows whose files are gone. |
-| Audit-event, benchmark-log, review-session janitors | Every batch's `deleteMany` and the run's audit event | Database-only work; a run's deletes and its audit event commit or roll back together. |
+| Audit-event, benchmark-log, review-session, chat-conversation janitors | Every batch's `deleteMany` and the run's audit event | Database-only work; a run's deletes and its audit event commit or roll back together. |
 | Ephemeral cleanup | Nothing | Every step is an external call or an idempotent stamp. |
 
 The 15-minute timeout exists because Prisma's default for an interactive
@@ -198,7 +224,7 @@ workflow-scoped (`workflow_config_id`, and the partial
 
 ## Enabling it
 
-All four variables reach a deployed backend through the overlay generator:
+All five variables reach a deployed backend through the overlay generator:
 
 1. Each variable's repository secret supplies the value to
    `.github/workflows/deploy-instance.yml`.
@@ -225,6 +251,7 @@ them use `actor_id: "retention_system"` and `resource_id: ""`.
 | `audit_events_retention_run` | Every run that acquired the lock | `daysRemoved` | Lock transaction |
 | `benchmark_audit_logs_retention_run` | Every run that acquired the lock | `daysRemoved` | Lock transaction |
 | `review_session_retention_run` | Every run that acquired the lock | `daysRemoved` | Lock transaction |
+| `chat_conversation_retention_run` | Every run that acquired the lock | `daysRemoved` | Lock transaction |
 
 How to read these events:
 
@@ -234,7 +261,7 @@ How to read these events:
   including documents whose deletion failed and that will be retried. `quantity`
   is the number actually deleted. No event is written when the variable is
   unset, the query fails, or nothing is eligible.
-- The three database-only events are written on every scheduled run that
+- The four database-only events are written on every scheduled run that
   acquired the lock, **including runs that did nothing** because the variable is
   unset or invalid, and runs whose delete failed. They do not carry a deleted
   count. The count is only in the application log's run summary.

@@ -336,6 +336,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: REVIEW_SESSION_RETENTION_DAYS
+        - name: CHAT_CONVERSATION_RETENTION_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: CHAT_CONVERSATION_RETENTION_DAYS
         # Phase 6 dynamic nodes — the publish-time /check call POSTs to the
         # deno-runner. Without these the client defaults to localhost:9099 and
         # DYNAMIC_NODE_ALLOW_NET (enforced at publish time) is empty, so

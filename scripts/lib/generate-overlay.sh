@@ -79,6 +79,7 @@ generate_instance_overlay() {
   local audit_event_retention_days=""
   local benchmark_audit_log_retention_days=""
   local review_session_retention_days=""
+  local chat_conversation_retention_days=""
   local azure_openai_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
@@ -207,6 +208,10 @@ generate_instance_overlay() {
         ;;
       --review-session-retention-days)
         review_session_retention_days="$2"
+        shift 2
+        ;;
+      --chat-conversation-retention-days)
+        chat_conversation_retention_days="$2"
         shift 2
         ;;
       --azure-openai-endpoint)
@@ -395,6 +400,7 @@ generate_instance_overlay() {
     -e "s|__AUDIT_EVENT_RETENTION_DAYS__|$(_sed_escape_replacement "${audit_event_retention_days}")|g"
     -e "s|__BENCHMARK_AUDIT_LOG_RETENTION_DAYS__|$(_sed_escape_replacement "${benchmark_audit_log_retention_days}")|g"
     -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
+    -e "s|__CHAT_CONVERSATION_RETENTION_DAYS__|$(_sed_escape_replacement "${chat_conversation_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"

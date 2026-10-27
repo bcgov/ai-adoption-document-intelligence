@@ -225,6 +225,7 @@ conditions and payload semantics are in
 | `audit_events_retention_run` | Audit-event janitor run acquired its lock | audit_event | `""` | daysRemoved; in the lock transaction |
 | `benchmark_audit_logs_retention_run` | Benchmark-log janitor run acquired its lock | benchmark_audit_log | `""` | daysRemoved; in the lock transaction |
 | `review_session_retention_run` | Review-session janitor run acquired its lock | review_session | `""` | daysRemoved; in the lock transaction |
+| `chat_conversation_retention_run` | Chat-conversation janitor run acquired its lock | chat_conversation | `""` | daysRemoved; in the lock transaction |
 | `classifier_orphan_deleted` | Weekly orphan cleanup deleted an Azure classifier with no DB record | classifier | modelId | modelId, classifierName; group_id set |
 
 ### Confusion profile

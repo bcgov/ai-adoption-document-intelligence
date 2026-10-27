@@ -11,6 +11,7 @@ import { DocumentDbService } from "../document/document-db.service";
 import {
   AUDIT_EVENT_RETENTION_ENV_VAR,
   BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
+  CHAT_CONVERSATION_RETENTION_ENV_VAR,
   DOCUMENT_RETENTION_ENV_VAR,
   DocumentRetentionService,
   REVIEW_SESSION_RETENTION_ENV_VAR,
@@ -33,6 +34,7 @@ const mockRetentionDb = {
   deleteAuditEventsOlderThan: jest.fn(),
   deleteBenchmarkAuditLogsOlderThan: jest.fn(),
   deleteCompletedReviewSessionsOlderThan: jest.fn(),
+  deleteChatConversationsOlderThan: jest.fn(),
   runWithDatabaseLock: jest
     .fn()
     .mockImplementation(
@@ -309,11 +311,13 @@ function describeSimpleRetentionJob(params: {
   methodName:
     | "deleteExpiredAuditEvents"
     | "deleteExpiredBenchmarkAuditLogs"
-    | "deleteExpiredReviewSessions";
+    | "deleteExpiredReviewSessions"
+    | "deleteExpiredChatConversations";
   dbMethodName:
     | "deleteAuditEventsOlderThan"
     | "deleteBenchmarkAuditLogsOlderThan"
-    | "deleteCompletedReviewSessionsOlderThan";
+    | "deleteCompletedReviewSessionsOlderThan"
+    | "deleteChatConversationsOlderThan";
   logLabel: string;
   auditEventType: string;
   auditResourceType: string;
@@ -598,5 +602,16 @@ describeSimpleRetentionJob({
   logLabel: "Review session",
   auditEventType: "review_session_retention_run",
   auditResourceType: "review_session",
+  getService: () => service,
+});
+
+describeSimpleRetentionJob({
+  envVar: CHAT_CONVERSATION_RETENTION_ENV_VAR,
+  label: CHAT_CONVERSATION_RETENTION_ENV_VAR,
+  methodName: "deleteExpiredChatConversations",
+  dbMethodName: "deleteChatConversationsOlderThan",
+  logLabel: "Chat conversation",
+  auditEventType: "chat_conversation_retention_run",
+  auditResourceType: "chat_conversation",
   getService: () => service,
 });

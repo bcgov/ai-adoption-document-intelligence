@@ -32,6 +32,7 @@ data:
   AUDIT_EVENT_RETENTION_DAYS: ""
   BENCHMARK_AUDIT_LOG_RETENTION_DAYS: ""
   REVIEW_SESSION_RETENTION_DAYS: ""
+  CHAT_CONVERSATION_RETENTION_DAYS: ""
   # Azure OpenAI — the non-secret half. Consumed by the workflow chat agent
   # (apps/backend-services/src/agent), AI format suggestion and benchmark
   # recommendations. These are the SAME values as temporal-worker-config: one
