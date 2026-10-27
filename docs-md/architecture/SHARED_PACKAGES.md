@@ -13,7 +13,7 @@ Existing packages and what they contain:
 | `packages/logging` | `@ai-di/shared-logging` | Structured logger factory |
 | `packages/blob-storage-paths` | `@ai-di/blob-storage-paths` | Blob key path helpers |
 | `packages/graph-insertion-slots` | `@ai-di/graph-insertion-slots` | Graph workflow insertion slot types |
-| `packages/graph-workflow` | `@ai-di/graph-workflow` | Graph workflow types and validator, plus workflow config hashing (`computeConfigHash`, `computeConfigHashWithOverrides`, `stampConfigWithPersistedHash`, `stripPersistedConfigHash`) and override helpers (`applyWorkflowConfigOverrides`, `isSafeOverridePathSegment`); ships a browser-safe entry (`src/index.browser.ts`) with no `node:crypto` |
+| `packages/graph-workflow` | `@ai-di/graph-workflow` | Graph workflow types and validator, plus workflow config hashing (`computeConfigHash`, `computeConfigHashWithOverrides`, `stampConfigWithPersistedHash`, `stripPersistedConfigHash`) and override helpers (`applyWorkflowConfigOverrides`, `isSafeOverridePathSegment`); ships a browser-safe entry (`src/index.browser.ts`) with no `node:crypto`; holds the shipped workflow templates (`templates/*.json`, see [WORKFLOW_TEMPLATES.md](../workflows/WORKFLOW_TEMPLATES.md)) |
 | `packages/monitoring` | `@ai-di/monitoring` | Alert threshold config, static alert rules, Prometheus app-metrics factory |
 | `packages/temporal-payload-codec` | `@ai-di/temporal-payload-codec` | Gzip Temporal `PayloadCodec` shared by worker and clients |
 
@@ -89,7 +89,7 @@ Run `npm install` from the repo root to create the workspace symlink.
 
 **No `tsconfig.json` path alias is needed.** The package resolves through the workspace symlink in `node_modules` to `dist/index.js` / `dist/index.d.ts`, the same as any other installed package. This is consistent with all other `@ai-di/*` packages in this repo.
 
-One exception: the frontend's `vite.config.ts` aliases `@ai-di/graph-workflow` to the package's browser entry `src/index.browser.ts` (and lists it in `optimizeDeps.include`), because the compiled dist is CommonJS and Rollup cannot resolve its named exports. The browser entry omits Node-only modules (e.g. `node:crypto`). Vite consumers bundling a package should follow that pattern instead of relying on the dist build.
+One exception: the frontend's `vite.config.ts` aliases `@ai-di/graph-workflow` to the package's browser entry `src/index.browser.ts` (and keeps it out of dependency pre-bundling with `optimizeDeps.exclude`), because the compiled dist is CommonJS and Rollup cannot resolve its named exports. The browser entry omits Node-only modules (e.g. `node:crypto`). Vite consumers bundling a package should follow that pattern instead of relying on the dist build. The same config aliases `@workflow-templates` to the package's `templates/` folder, which the workflow builder's template picker bundles.
 
 Optionally add a helper script to the app's `package.json` for rebuilding the package in isolation:
 

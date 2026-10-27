@@ -275,6 +275,9 @@ describe("BenchmarkDefinitionService", () => {
         ...mockWorkflowVersion,
         config: {
           ...mockWorkflowVersion.config,
+          ctx: {
+            modelId: { type: "string", defaultValue: "prebuilt-layout" },
+          },
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",
@@ -366,6 +369,9 @@ describe("BenchmarkDefinitionService", () => {
         ...mockWorkflowVersion,
         config: {
           ...mockWorkflowVersion.config,
+          ctx: {
+            modelId: { type: "string", defaultValue: "prebuilt-layout" },
+          },
           nodeGroups: {
             "ocr-extraction": {
               label: "OCR",
@@ -1082,6 +1088,7 @@ describe("BenchmarkDefinitionService", () => {
           type: "activity",
           label: "Start",
           activityType: "document.updateStatus",
+          parameters: { status: "ongoing_ocr" },
           inputs: [{ port: "documentId", ctxKey: "documentId" }],
         },
       },
@@ -1337,6 +1344,7 @@ describe("BenchmarkDefinitionService", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "documentId", ctxKey: "documentId" }],
           },
         },
@@ -1417,6 +1425,7 @@ describe("BenchmarkDefinitionService", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [],
           },
         },

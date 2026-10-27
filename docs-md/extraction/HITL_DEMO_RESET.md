@@ -111,7 +111,7 @@ exists.
 
 ## Environment
 
-Both scripts load `apps/backend-services/.env` via Node's `loadEnvFile` (values
+Both scripts load the repo-root `.env` via Node's `loadEnvFile` (values
 are never printed) and honour:
 
 | Var | Purpose | Default |

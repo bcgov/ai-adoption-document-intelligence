@@ -31,9 +31,19 @@ jest.mock("../blob-storage/blob-storage-client", () => ({
   }),
 }));
 
+import {
+  getActivityCatalogEntry,
+  getActivityParametersJsonSchema,
+  type OcrNormalizeFieldsParameters,
+} from "@ai-di/graph-workflow";
+import type { SameKeys } from "../__testlib__/same-shape";
 import { buildFlatPredictionMapFromCtx } from "../azure-ocr-field-display-value";
 import { getPrismaClient } from "./database-client";
-import { normalizeOcrFields } from "./ocr-normalize-fields";
+import {
+  NORMALIZATION_RULE_IDS,
+  type NormalizeFieldsParams,
+  normalizeOcrFields,
+} from "./ocr-normalize-fields";
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
@@ -52,12 +62,15 @@ function ocrFromRef(ref: OcrPayloadRef): OCRResult {
   return JSON.parse(blobBody.toString("utf8")) as OCRResult;
 }
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 function normalize(
   params: Omit<Parameters<typeof normalizeOcrFields>[0], "documentId"> & {
     documentId?: string;
   },
 ) {
-  return normalizeOcrFields({ documentId: DOC_ID, ...params });
+  return normalizeOcrFields({ documentId: DOC_ID, groupId: GROUP, ...params });
 }
 
 beforeEach(() => {
@@ -65,15 +78,23 @@ beforeEach(() => {
   mockBlobBodies.clear();
   jest
     .spyOn(ocrRefUtils, "resolveOcrResultInput")
-    .mockImplementation(async (params) => ({
-      ocrResult:
-        typeof params.ocrResult === "object" &&
-        params.ocrResult !== null &&
-        "storage" in params.ocrResult
-          ? ocrFromRef(params.ocrResult as OcrPayloadRef)
-          : (params.ocrResult as OCRResult),
-      groupId: "gtestgroupidfortests01",
-    }));
+    .mockImplementation(async (params) => {
+      // Mirrors the real helper: the run's group is required and returned.
+      if (!params.groupId) {
+        throw new Error(
+          `groupId is required for OCR payloads of document ${params.documentId}`,
+        );
+      }
+      return {
+        ocrResult:
+          typeof params.ocrResult === "object" &&
+          params.ocrResult !== null &&
+          "storage" in params.ocrResult
+            ? ocrFromRef(params.ocrResult as OcrPayloadRef)
+            : (params.ocrResult as OCRResult),
+        groupId: params.groupId,
+      };
+    });
   jest
     .spyOn(ocrRefUtils, "toOcrResultPort")
     .mockImplementation(async (body, documentId, groupId) => {
@@ -740,11 +761,11 @@ describe("normalizeOcrFields", () => {
     });
 
     describe("with documentType schema", () => {
-      let prismaMock: { templateModel: { findUnique: jest.Mock } };
+      let prismaMock: { templateModel: { findFirst: jest.Mock } };
 
       beforeEach(() => {
         prismaMock = {
-          templateModel: { findUnique: jest.fn() },
+          templateModel: { findFirst: jest.fn() },
         };
         getPrismaClientMock.mockReturnValue(prismaMock);
       });
@@ -754,7 +775,7 @@ describe("normalizeOcrFields", () => {
       });
 
       it("coerces a single character on a number-typed schema field regardless of key naming", async () => {
-        prismaMock.templateModel.findUnique.mockResolvedValue({
+        prismaMock.templateModel.findFirst.mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -792,7 +813,7 @@ describe("normalizeOcrFields", () => {
       });
 
       it("does not coerce a single character on a string-typed schema field", async () => {
-        prismaMock.templateModel.findUnique.mockResolvedValue({
+        prismaMock.templateModel.findFirst.mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -830,7 +851,7 @@ describe("normalizeOcrFields", () => {
       });
 
       it("does not coerce spouse_name / spouse_signature when schema is loaded (income-like keys that are not number-typed)", async () => {
-        prismaMock.templateModel.findUnique.mockResolvedValue({
+        prismaMock.templateModel.findFirst.mockResolvedValue({
           id: "seed-sdpr-monthly-report-template",
           field_schema: [
             {
@@ -997,11 +1018,11 @@ describe("normalizeOcrFields", () => {
   });
 
   describe("field format engine integration", () => {
-    let prismaMock: { templateModel: { findUnique: jest.Mock } };
+    let prismaMock: { templateModel: { findFirst: jest.Mock } };
 
     beforeEach(() => {
       prismaMock = {
-        templateModel: { findUnique: jest.fn() },
+        templateModel: { findFirst: jest.fn() },
       };
       getPrismaClientMock.mockReturnValue(prismaMock);
     });
@@ -1011,7 +1032,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("normalizes SIN field using format spec digits canonicalization", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1051,7 +1072,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("normalizes phone field using format spec with displayTemplate", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1094,7 +1115,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("normalizes date field using format spec date canonicalization", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1134,7 +1155,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("normalizes text field using format spec text canonicalization", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1174,7 +1195,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("falls back to heuristic normalization for fields without format spec", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1215,12 +1236,110 @@ describe("normalizeOcrFields", () => {
     });
   });
 
+  describe("group scope of the documentType schema", () => {
+    const amountTemplate = (groupId: string) => ({
+      id: "proj-1",
+      group_id: groupId,
+      field_schema: [
+        {
+          field_key: "amount",
+          field_type: "number",
+          field_format: null,
+          format_spec: null,
+        },
+      ],
+    });
+
+    function templateTable(rows: Array<ReturnType<typeof amountTemplate>>) {
+      return {
+        templateModel: {
+          findUnique: jest.fn(
+            async ({ where }: { where: { id: string } }) =>
+              rows.find((r) => r.id === where.id) ?? null,
+          ),
+          findFirst: jest.fn(
+            async ({ where }: { where: { id: string; group_id?: string } }) =>
+              rows.find(
+                (r) =>
+                  r.id === where.id &&
+                  (where.group_id === undefined ||
+                    r.group_id === where.group_id),
+              ) ?? null,
+          ),
+        },
+      };
+    }
+
+    function singleCharAmountResult(): OCRResult {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        { docType: "custom", fields: { amount: { content: "8" } } },
+      ];
+      return ocrResult;
+    }
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads the field schema only within the run's group", async () => {
+      const prisma = templateTable([amountTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      const result = await normalize({
+        ocrResult: singleCharAmountResult(),
+        documentType: "proj-1",
+        singleCharacterToZero: true,
+      });
+
+      expect(prisma.templateModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "proj-1", group_id: GROUP } }),
+      );
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.amount.content,
+      ).toBe("0");
+    });
+
+    it("treats a template model from another group as not found", async () => {
+      getPrismaClientMock.mockReturnValue(
+        templateTable([amountTemplate(OTHER_GROUP)]),
+      );
+
+      const result = await normalize({
+        ocrResult: singleCharAmountResult(),
+        documentType: "proj-1",
+        singleCharacterToZero: true,
+      });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.amount.content,
+      ).toBe("8");
+    });
+
+    it("refuses to load the field schema without a groupId", async () => {
+      const prisma = templateTable([amountTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      await expect(
+        normalize({
+          groupId: undefined,
+          ocrResult: singleCharAmountResult(),
+          documentType: "proj-1",
+        }),
+      ).rejects.toThrow(
+        `groupId is required for OCR payloads of document ${DOC_ID}`,
+      );
+      expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
+      expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
   describe("schema-aware (documentType)", () => {
-    let prismaMock: { templateModel: { findUnique: jest.Mock } };
+    let prismaMock: { templateModel: { findFirst: jest.Mock } };
 
     beforeEach(() => {
       prismaMock = {
-        templateModel: { findUnique: jest.fn() },
+        templateModel: { findFirst: jest.fn() },
       };
       getPrismaClientMock.mockReturnValue(prismaMock);
     });
@@ -1230,7 +1349,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("does not run number rules on string-typed schema fields", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1264,7 +1383,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("runs number rules on number-typed schema fields", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1297,7 +1416,7 @@ describe("normalizeOcrFields", () => {
     });
 
     it("canonicalizes date-typed fields by schema even when key is not *_date", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "proj-1",
         field_schema: [
           {
@@ -1327,5 +1446,47 @@ describe("normalizeOcrFields", () => {
         ocrFromRef(result.ocrResult).documents![0].fields.birth.content,
       ).toBe("2016-Mar-30");
     });
+  });
+});
+
+describe("normalizeOcrFields — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await normalize({
+      ocrResult: makeOcrResult([
+        { key: "Name", value: "  John   Doe  ", confidence: 0.9 },
+      ]),
+    });
+    const declared = getActivityCatalogEntry(
+      "ocr.normalizeFields",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("ocrResult");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+});
+
+describe("normalizeOcrFields — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      OcrNormalizeFieldsParameters,
+      Omit<NormalizeFieldsParams, "documentId" | "groupId" | "ocrResult">
+    > = true;
+    expect(agree).toBe(true);
+  });
+
+  it("offers exactly the rules the activity applies", () => {
+    const schema = getActivityParametersJsonSchema("ocr.normalizeFields") as {
+      properties: Record<string, { items?: { enum?: string[] } }>;
+    };
+    for (const name of ["enabledRules", "disabledRules"]) {
+      expect([...(schema.properties[name].items?.enum ?? [])].sort()).toEqual(
+        [...NORMALIZATION_RULE_IDS].sort(),
+      );
+    }
   });
 });

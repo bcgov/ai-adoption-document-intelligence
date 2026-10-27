@@ -26,22 +26,24 @@ Two guards keep production runs on `main`:
 
 1. **Trigger**: a push to `develop`, or a manual run (`workflow_dispatch`).
 2. **Metadata job** resolves instance name, floating tag, SHA tag, namespace, and GH environment, and stops a `prod` run that is not on `main` or that sets an override.
-3. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
-4. **Deploy job**:
-   - Verifies all four staged images exist in Artifactory at the SHA tag.
+3. **Clear Artifactory space job** (before any image is pushed): asks the cluster which image tags anything in the namespace uses, then runs `scripts/artifactory-cleanup.sh` to delete every other build of the instance and reclaim unreferenced manifests and old upload copies, so builds left by earlier runs are gone before this run pushes. See [Clearing space before a push](#clearing-space-before-a-push).
+4. **Build job** (parallel matrix): `backend-services`, `frontend`, `temporal`, `ches-adapter`, `deno-runner`. Each image is pushed **only** to the immutable SHA tag (`<floating>-<sha12>`). The floating tag is not updated during build.
+5. **Deploy job**:
+   - Verifies every staged image exists in Artifactory at the SHA tag.
    - Generates a Kustomize overlay from `deployments/openshift/kustomize/overlays/instance-template` using the **SHA tag** (not the floating tag), substituting instance/namespace/cluster-domain/image tags plus SSO and app-config values.
    - `oc apply`s the rendered manifests.
    - Creates/updates the `<instance>-artifactory-pull` image-pull secret (and patches each deployment to use it), plus `<instance>-backend-services-secrets` and `<instance>-temporal-worker-secrets` from GitHub env secrets. For `develop` pushes the instance is `bcgov-di-test`, so e.g. `bcgov-di-test-artifactory-pull`.
    - Generates Prometheus alert rules (`npm run generate:alert-rules`), creates the `<instance>-ches-adapter-secrets` and `<instance>-plg-alertmanager-adapter-secret` secrets, then Helm-installs the per-instance PLG monitoring stack (Grafana/Loki/Prometheus/Alertmanager + CHES adapter). Gated by the workflow-level `DEPLOY_PLG` env (currently `"true"`); immutable Loki/Prometheus/Alertmanager StatefulSets are deleted (`--cascade=orphan`, PVCs preserved) before the Helm upgrade. Sizing and retention come from `deployments/openshift/helm/plg/values-<environment>.yaml`, layered on top of `values-openshift.yaml`; only credentials and Alertmanager routing are passed as `--set` flags from environment secrets.
    - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out (including when namespace resources are exhausted and the new pods cannot schedule); the backend's `migrate-db` init container runs `prisma migrate deploy` on fresh-pod start (no separate migrate step).
-   - **Promotes** staged SHA tags to the floating tag via `docker buildx imagetools create` (only after rollouts succeed).
-5. **Artifactory cleanup job** (after a successful deploy): runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim unreferenced manifests and leftover upload blobs. It is its own job so that a failure turns that job red without marking the deploy failed; see [Artifactory cleanup](#artifactory-cleanup).
-6. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags via `scripts/artifactory-delete-run-tags.sh`, **only for the services whose build failed**. Each failed build job uploads a marker artifact named for its service and run attempt, and the cleanup reads only the current attempt's markers. Images that pushed successfully stay staged, so **Re-run failed jobs** rebuilds just the failures and the deploy still finds all four staged images. The layers the deleted tags leave behind are reclaimed by the next successful run's cleanup job. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
+6. **Promote job**: promotes the staged SHA tags to the floating tag via `docker buildx imagetools create`. The app's Deployments pull the build's SHA tag, so a failed promotion leaves the instance running the new build: only this job fails, and its error says the rollout succeeded.
+7. **Artifactory cleanup job** (once the deploy job has succeeded, after the promote job, whether or not the promotion succeeded): runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim unreferenced manifests and leftover upload blobs. It is its own job so that a failure turns that job red without marking the deploy failed; see [Artifactory cleanup](#artifactory-cleanup).
+8. **Cleanup on failure**: If the **build** fails, a follow-up job deletes the run's SHA tags via `scripts/artifactory-delete-run-tags.sh`, **only for the services whose build failed**. Each failed build job uploads a marker artifact named for its service and run attempt, and the cleanup reads only the current attempt's markers. Images that pushed successfully stay staged, so **Re-run failed jobs** rebuilds just the failures and the deploy still finds every staged image. If the failed run is not re-run, the next run's **Clear Artifactory space** job deletes the images it kept, and the layers the deleted tags leave behind are reclaimed the same way. Deploy failures do **not** trigger tag cleanup — once `oc apply` has run the Deployments reference the SHA tag, so it must stay pullable for pod restarts.
 
 ## Staging model
 
 ```mermaid
 flowchart LR
+  PreClean[Clear Artifactory space] --> Build
   Build[Build matrix] -->|"push SHA tag only"| Artifactory
   Artifactory --> Deploy[Deploy from SHA tag]
   Deploy --> Rollout[Rollout must succeed]
@@ -53,17 +55,19 @@ flowchart LR
 
 ## Concurrency
 
-The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. If two commits land on `develop` in rapid succession, the older run is cancelled and the newer commit is deployed; the same applies to two manual runs started on one branch, including two production runs from `main`. Runs on different branches run independently.
+The workflow uses a per-ref concurrency group with `cancel-in-progress: false`. A run that has started runs to the end, and a newer push to the same branch waits for it. GitHub keeps only the newest waiting run in the group, so when several commits land on `develop` during a deploy, only the newest is deployed after it; the same applies to manual runs started on one branch, including production runs from `main`. Runs on different branches run independently.
+
+Started runs are not cancelled because a run cancelled after its build pushed images would leave them in Artifactory: the cleanup jobs below never run for it, and the images stay until a later deploy's rotation.
 
 ## Image tagging strategy
 
 | Target | Staged tag | Floating tag | Rollback | Rotation |
 |---|---|---|---|---|
 | Test (push to `develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep only the newest SHA tag per image (the running build) |
-| Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
+| Production (manual run from `main`, `prod`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep the 2 most recent SHA tags per image (the running build and the one before it) |
 | Other manual runs (`dev`/`test`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
 
-Test keeps no rollback history: each build adds about 0.9 GB of image layers (Temporal about 460 MB, backend about 300 MB) against the repository's 5 GB quota, which test and production share. Rotation runs in the **Artifactory cleanup** job, after a successful deploy, so the newest test tag is the build the test instance is running.
+Test keeps no rollback history: each build adds about 0.9 GB of image layers (Temporal about 440 MB, backend about 325 MB) to a repository that test and production share. The repository's quota is 5 GB; the pipeline's service account cannot read it, and Artifactory refuses writes over it with `manifest invalid`. A push also leaves temporary copies of its new layers under `<image>/_uploads/`, about three quarters of the build. The cleanup leaves a copy alone for its first 5 minutes. After that, the copies of stored layers go at the next cleanup, normally the **Artifactory cleanup** job at the end of the same run, so a deploy needs room for about twice its build while it pushes. Production keeps one earlier build to roll back to: three production builds stored beside test's would bring a deploy's peak to about 5.2 GB, over the quota. Rotation runs in the **Artifactory cleanup** job once the deploy job has succeeded, so the newest test tag is the build the test instance is running. The **Clear Artifactory space** job at the start of each run also deletes any build of the instance that nothing in the namespace uses.
 
 Rotation matches `<instance>-????????????`, and for the test and production targets the instance name
 and the floating tag are the same string, so those SHA tags rotate. On other manual runs they are not:
@@ -104,17 +108,34 @@ Test and production images share one Artifactory repository (`kfd3-fd34fb-local`
 
 `scripts/artifactory-cleanup.sh` runs in three phases: optional tag rotation (`--keep N --match GLOB`), orphan reclamation, and `_uploads` cleanup. Orphan reclamation deletes a stored manifest only if no remaining named tag references it, so before deleting it resolves every named tag of an image to its manifest digest and, for an image index, each child digest.
 
-Artifactory intermittently drops requests after about 15 seconds with no response (logged as HTTP `000`), well inside `--max-time`, so a longer timeout does not help. Instead:
+From GitHub runners, requests to Artifactory intermittently fail for seconds to minutes at a time, whatever they ask for, because the connection itself fails. A failed lookup logs `curl: (7) Failed to connect` after about 15 seconds, or `curl: (28) Failed to connect` when `--connect-timeout` runs out at 30. A failed delete logs HTTP `000` after the same 15 or 30 seconds. A longer `--max-time` does not help. Instead:
 
-- Every request gets up to six attempts with a 10-second wait, and a failed request logs curl's exit code and error. From GitHub runners a connection can also time out outright (`curl: (28) Failed to connect`) for a while.
+- Every request gets up to six attempts with a 10-second wait, and a failed lookup logs curl's exit code and error.
 - If any named tag of an image still cannot be resolved, orphan reclamation is **skipped for that image**. An incomplete reference set would make manifests that running images depend on look unreferenced. Other images are still processed.
 - Deletes are retried; a `404` counts as already deleted.
-- `_uploads` blobs younger than an hour are left for a later run. The cleanup job runs straight after a deploy, when the run's own pushes have just finished: Artifactory still holds those blobs, so a delete hangs until it times out, and deleting a blob a concurrent push is still writing would break that push.
+- `_uploads` blobs younger than 5 minutes are left for a later run. One may belong to a push that is still running, such as a prod release or a manual deploy from another branch, and deleting it would break that push. A push stores what it uploads within a minute or two, and the cleanup at the end of a deploy normally starts 8 or more minutes after its last push, so it deletes that deploy's own copies.
 - Any lookup or delete that still fails makes the script exit `1`, which turns the **Artifactory cleanup** job red.
 
 **When the cleanup job fails**, the deploy itself succeeded. Use **Re-run failed jobs** on the run to retry just the cleanup; it is safe to repeat. If it keeps failing, run the script locally in dry-run mode (`./scripts/artifactory-cleanup.sh --env dev`) to see which lookups fail.
 
+**When the promote job fails with `manifest invalid`**, the instance already runs the new build, and the repository is most likely full. The cleanup job still runs after it, but it cannot reclaim the previous build, because the floating tag still points at it. Check what the repository holds (the cleanup script's dry run lists what it would delete), remove builds nothing runs, then **Re-run failed jobs**, which repeats the promotion and the cleanup but not the rollout.
+
 `scripts/artifactory-delete-run-tags.sh` deletes only the named run tag from each image (retried, `404` counts as done) and exits `1` if a delete still fails.
+
+### Clearing space before a push
+
+The **Clear Artifactory space** job runs before the build, so builds left in the repository by earlier runs are gone before this run pushes. The usual leftover is a run whose build failed. It keeps the images that did build, so that **Re-run failed jobs** can reuse them, but once a newer run starts, nothing will re-run it.
+
+- `scripts/lib/in-use-image-tags.sh` lists the tag of every `kfd3-fd34fb-local` image that a Pod, Deployment, StatefulSet, Job or CronJob in the namespace names.
+  - Pods count as well as their controllers, so both builds of a rollout caught halfway are kept.
+  - Anything deployed outside the instance overlay, such as the PLG stack's CHES adapter, is kept too.
+- Those tags go to `artifactory-cleanup.sh --keep 0 --match '<instance>-????????????' --protect <tag>...`, which deletes every other build of the instance. A tag given with `--protect` is never deleted and does not count toward `--keep`.
+- No build of the instance is deleted unless the lookup found the build the instance runs. If the cluster cannot be read, or the answer leaves that build out, the job only reclaims unreferenced manifests and old upload copies.
+- For prod, which keeps its rollback builds, the job only ever reclaims unreferenced manifests and old upload copies.
+- Upload copies younger than 5 minutes are left, since a push may still own them. So a build deleted within 5 minutes of its push leaves its upload copies behind, about three quarters of the build, and once the build is gone they no longer duplicate a stored layer: they stay until they are 24 hours old, unless Artifactory removes them first.
+- The job's steps cannot fail it, so the build always runs; a step that failed is marked on the run. The cleanup step stops after 15 minutes, so a slow Artifactory holds up the build by at most that.
+
+Tests: `bash scripts/lib/in-use-image-tags.test.sh`.
 
 ## Rollout failure handling
 

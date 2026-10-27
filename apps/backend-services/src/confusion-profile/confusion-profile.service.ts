@@ -217,7 +217,7 @@ export class ConfusionProfileService {
     sources?: DeriveSources,
   ): Promise<CorrectionPair[]> {
     // Resolve template model IDs to field keys
-    const resolvedFieldKeys = await this.resolveFieldKeys(sources);
+    const resolvedFieldKeys = await this.resolveFieldKeys(groupId, sources);
 
     const pairs: CorrectionPair[] = [];
 
@@ -232,6 +232,7 @@ export class ConfusionProfileService {
     // 2. Benchmark run mismatches
     if (sources?.benchmarkRunIds && sources.benchmarkRunIds.length > 0) {
       const mismatchPairs = await this.fetchBenchmarkMismatchPairs(
+        groupId,
         sources.benchmarkRunIds,
         resolvedFieldKeys.length > 0 ? resolvedFieldKeys : sources?.fieldKeys,
       );
@@ -249,8 +250,13 @@ export class ConfusionProfileService {
   /**
    * Resolve template model IDs to field keys by loading field_schema.
    * If both templateModelIds and fieldKeys are provided, intersects them.
+   * Only template models in the profile's group are read; an ID outside the
+   * group is skipped, the same as an ID that does not exist.
    */
-  private async resolveFieldKeys(sources?: DeriveSources): Promise<string[]> {
+  private async resolveFieldKeys(
+    groupId: string,
+    sources?: DeriveSources,
+  ): Promise<string[]> {
     const explicitFieldKeys = sources?.fieldKeys ?? [];
 
     if (!sources?.templateModelIds?.length) {
@@ -258,7 +264,7 @@ export class ConfusionProfileService {
     }
 
     const templateModels = await this.prisma.prisma.templateModel.findMany({
-      where: { id: { in: sources.templateModelIds } },
+      where: { id: { in: sources.templateModelIds }, group_id: groupId },
       include: { field_schema: { select: { field_key: true } } },
     });
     const tmFieldKeys = templateModels.flatMap((tm) =>
@@ -322,13 +328,20 @@ export class ConfusionProfileService {
 
   /**
    * Extract mismatch pairs from benchmark run perSampleResults.evaluationDetails.
+   * Only runs whose benchmark project belongs to the profile's group are read;
+   * a run ID outside the group is skipped, the same as one that does not exist.
    */
   private async fetchBenchmarkMismatchPairs(
+    groupId: string,
     benchmarkRunIds: string[],
     fieldKeys?: string[],
   ): Promise<CorrectionPair[]> {
     const runs = await this.prisma.prisma.benchmarkRun.findMany({
-      where: { id: { in: benchmarkRunIds }, status: "completed" },
+      where: {
+        id: { in: benchmarkRunIds },
+        status: "completed",
+        project: { group_id: groupId },
+      },
       select: { id: true, metrics: true },
     });
 

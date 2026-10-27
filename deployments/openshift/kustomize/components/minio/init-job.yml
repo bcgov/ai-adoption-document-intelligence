@@ -15,7 +15,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: mc
-          image: minio/mc:latest
+          # The MinIO server image also ships mc and sh, which this script uses.
+          image: cgr.dev/chainguard/minio:latest
           imagePullPolicy: IfNotPresent
           env:
             # OpenShift assigns a random non-root UID with $HOME=/, so direct

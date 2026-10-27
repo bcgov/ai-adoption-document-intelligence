@@ -26,9 +26,13 @@ interface PartitionResult {
 @Injectable()
 export class BenchmarkErrorDetectionService {
   private readonly logger = new Logger(BenchmarkErrorDetectionService.name);
+  /**
+   * Analyses keyed by runId. Each entry records the project that owns the run
+   * so a cached analysis is only returned for that project.
+   */
   protected readonly cache = new Map<
     string,
-    ErrorDetectionAnalysisResponseDto
+    { projectId: string; analysis: ErrorDetectionAnalysisResponseDto }
   >();
 
   constructor(
@@ -113,14 +117,16 @@ export class BenchmarkErrorDetectionService {
   }
 
   /**
-   * Build the error-detection analysis for a run. Cached by runId.
+   * Build the error-detection analysis for a run. Cached by runId; a cached
+   * analysis is only returned when the run belongs to `projectId`, otherwise
+   * the project-scoped lookup runs and reports the run as not found.
    */
   async getAnalysis(
     projectId: string,
     runId: string,
   ): Promise<ErrorDetectionAnalysisResponseDto> {
     const cached = this.cache.get(runId);
-    if (cached) return cached;
+    if (cached && cached.projectId === projectId) return cached.analysis;
 
     const run = await this.prismaService.prisma.benchmarkRun.findFirst({
       where: { id: runId, projectId },
@@ -150,7 +156,7 @@ export class BenchmarkErrorDetectionService {
         fields: [],
         excludedFields: [],
       };
-      this.cache.set(runId, empty);
+      this.cache.set(runId, { projectId, analysis: empty });
       return empty;
     }
 
@@ -210,7 +216,7 @@ export class BenchmarkErrorDetectionService {
       fields,
       excludedFields,
     };
-    this.cache.set(runId, result);
+    this.cache.set(runId, { projectId, analysis: result });
     return result;
   }
 

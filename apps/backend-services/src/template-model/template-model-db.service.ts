@@ -99,24 +99,59 @@ export class TemplateModelDbService {
   }
 
   /**
-   * Finds a template model by its model_id (Azure-safe identifier).
+   * Whether an Azure model id is unavailable to a new template model.
    *
-   * @param modelId - The model_id to search for.
-   * @returns The template model with field schema, or null if not found.
+   * Every group's trained models share one Azure resource, and a template's
+   * later versions train under `<model_id>-v<n>`. So an id is taken when a
+   * template model, trained model or owner record already uses it, when it has
+   * the form `<id>-v<n>` and a template model uses `<id>`, or when a template
+   * model, trained model or owner record already uses one of its own version
+   * names. Owner records outlive deleted templates, whose models may still be
+   * in Azure.
+   *
+   * @param modelId - The candidate model_id.
+   * @param tx - Optional transaction client.
+   * @returns `true` when the id must not be given to a new template model.
    */
-  async findTemplateModelByModelId(
+  async isModelIdTaken(
     modelId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<TemplateModelData | null> {
+  ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding template model by model_id", { modelId });
-    const templateModel = await client.templateModel.findUnique({
-      where: { model_id: modelId },
-      include: {
-        field_schema: { orderBy: { display_order: "asc" } },
-      },
-    });
-    return templateModel as TemplateModelData | null;
+    const versionPrefix = `${modelId}-v`;
+    const versionOf = /^(.+)-v\d+$/.exec(modelId)?.[1];
+    const ownIdOrVersion = {
+      OR: [{ model_id: modelId }, { model_id: { startsWith: versionPrefix } }],
+    };
+    const [templateModels, trainedModels, owners] = await Promise.all([
+      client.templateModel.findMany({
+        where: {
+          OR: [
+            { model_id: modelId },
+            { model_id: { startsWith: versionPrefix } },
+            ...(versionOf !== undefined ? [{ model_id: versionOf }] : []),
+          ],
+        },
+        select: { model_id: true },
+      }),
+      client.trainedModel.findMany({
+        where: ownIdOrVersion,
+        select: { model_id: true },
+      }),
+      client.modelOwner.findMany({
+        where: ownIdOrVersion,
+        select: { model_id: true },
+      }),
+    ]);
+    const isOwnVersion = (id: string): boolean =>
+      id.startsWith(versionPrefix) &&
+      /^\d+$/.test(id.slice(versionPrefix.length));
+    return [...templateModels, ...trainedModels, ...owners].some(
+      ({ model_id }) =>
+        model_id === modelId ||
+        model_id === versionOf ||
+        isOwnVersion(model_id),
+    );
   }
 
   /**
@@ -207,6 +242,41 @@ export class TemplateModelDbService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Every Azure model id a template model trained or targeted with a training
+   * job, tombstoned versions included, each once.
+   *
+   * @param templateModelId - The template model ID.
+   * @param tx - Optional transaction client.
+   * @returns The model ids, in the order first found.
+   */
+  async findAzureModelIdsForTemplate(
+    templateModelId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const [trainedModels, trainingJobs] = await Promise.all([
+      client.trainedModel.findMany({
+        where: { template_model_id: templateModelId },
+        select: { model_id: true },
+      }),
+      client.trainingJob.findMany({
+        where: {
+          template_model_id: templateModelId,
+          target_model_id: { not: null },
+        },
+        select: { target_model_id: true },
+      }),
+    ]);
+    const ids = [
+      ...trainedModels.map(({ model_id }) => model_id),
+      ...trainingJobs.flatMap(({ target_model_id }) =>
+        target_model_id === null ? [] : [target_model_id],
+      ),
+    ];
+    return [...new Set(ids)];
   }
 
   /**

@@ -23,6 +23,18 @@ function makePrismaMock() {
       documentLabel: {
         deleteMany: jest.fn(),
       },
+      templateModel: {
+        findMany: jest.fn(),
+      },
+      trainedModel: {
+        findMany: jest.fn(),
+      },
+      trainingJob: {
+        findMany: jest.fn(),
+      },
+      modelOwner: {
+        findMany: jest.fn(),
+      },
     },
   } as unknown as PrismaService;
 }
@@ -142,6 +154,157 @@ describe("TemplateModelDbService — child-write group scoping", () => {
         labelingDocumentId: "ld-1",
       });
       expect(result).toBe(false);
+    });
+  });
+});
+
+describe("TemplateModelDbService.isModelIdTaken", () => {
+  let service: TemplateModelDbService;
+  let prismaMock: ReturnType<typeof makePrismaMock>;
+
+  function given(
+    templateIds: string[],
+    trainedIds: string[],
+    ownedIds: string[] = [],
+  ): void {
+    (prismaMock.prisma.templateModel.findMany as jest.Mock).mockResolvedValue(
+      templateIds.map((model_id) => ({ model_id })),
+    );
+    (prismaMock.prisma.trainedModel.findMany as jest.Mock).mockResolvedValue(
+      trainedIds.map((model_id) => ({ model_id })),
+    );
+    (prismaMock.prisma.modelOwner.findMany as jest.Mock).mockResolvedValue(
+      ownedIds.map((model_id) => ({ model_id })),
+    );
+  }
+
+  beforeEach(() => {
+    prismaMock = makePrismaMock();
+    service = new TemplateModelDbService(prismaMock, makeLoggerMock());
+  });
+
+  it("looks up the id, its version names and the template it would be a version of", async () => {
+    given([], []);
+
+    await service.isModelIdTaken("invoice-v2");
+
+    expect(prismaMock.prisma.templateModel.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { model_id: "invoice-v2" },
+          { model_id: { startsWith: "invoice-v2-v" } },
+          { model_id: "invoice" },
+        ],
+      },
+      select: { model_id: true },
+    });
+    expect(prismaMock.prisma.trainedModel.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { model_id: "invoice-v2" },
+          { model_id: { startsWith: "invoice-v2-v" } },
+        ],
+      },
+      select: { model_id: true },
+    });
+    expect(prismaMock.prisma.modelOwner.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { model_id: "invoice-v2" },
+          { model_id: { startsWith: "invoice-v2-v" } },
+        ],
+      },
+      select: { model_id: true },
+    });
+  });
+
+  it.each<[string, string, string[]]>([
+    ["is taken when an owner record holds it", "invoice", ["invoice"]],
+    [
+      "is taken when an owner record holds one of its version names",
+      "invoice",
+      ["invoice-v2"],
+    ],
+  ])("%s, though no template or trained model uses it", async (_label, candidate, ownedIds) => {
+    given([], [], ownedIds);
+
+    await expect(service.isModelIdTaken(candidate)).resolves.toBe(true);
+  });
+
+  it.each<[string, string, string[], string[], boolean]>([
+    ["is free when nothing uses it", "invoice", [], [], false],
+    [
+      "is taken when a template model uses it",
+      "invoice",
+      ["invoice"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a trained model uses it",
+      "invoice-v2",
+      [],
+      ["invoice-v2"],
+      true,
+    ],
+    [
+      "is taken when it names a version of an existing template",
+      "invoice-v2",
+      ["invoice"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a template already uses one of its version names",
+      "invoice",
+      ["invoice-v2"],
+      [],
+      true,
+    ],
+    [
+      "is taken when a trained model already uses one of its version names",
+      "invoice",
+      [],
+      ["invoice-v3"],
+      true,
+    ],
+    [
+      "is free when another id only shares its prefix",
+      "invoice",
+      ["invoice-very-long"],
+      [],
+      false,
+    ],
+  ])("%s", async (_label, candidate, templateIds, trainedIds, expected) => {
+    given(templateIds, trainedIds);
+
+    await expect(service.isModelIdTaken(candidate)).resolves.toBe(expected);
+  });
+});
+
+describe("TemplateModelDbService.findAzureModelIdsForTemplate", () => {
+  it("lists every model id the template trained or targeted, once each", async () => {
+    const prismaMock = makePrismaMock();
+    const service = new TemplateModelDbService(prismaMock, makeLoggerMock());
+    (prismaMock.prisma.trainedModel.findMany as jest.Mock).mockResolvedValue([
+      { model_id: "pay-stub" },
+      { model_id: "pay-stub-v2" },
+    ]);
+    (prismaMock.prisma.trainingJob.findMany as jest.Mock).mockResolvedValue([
+      { target_model_id: "pay-stub-v2" },
+      { target_model_id: "pay-stub-v3" },
+    ]);
+
+    await expect(service.findAzureModelIdsForTemplate("tm-1")).resolves.toEqual(
+      ["pay-stub", "pay-stub-v2", "pay-stub-v3"],
+    );
+    expect(prismaMock.prisma.trainedModel.findMany).toHaveBeenCalledWith({
+      where: { template_model_id: "tm-1" },
+      select: { model_id: true },
+    });
+    expect(prismaMock.prisma.trainingJob.findMany).toHaveBeenCalledWith({
+      where: { template_model_id: "tm-1", target_model_id: { not: null } },
+      select: { target_model_id: true },
     });
   });
 });

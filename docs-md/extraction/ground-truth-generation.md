@@ -64,7 +64,7 @@ Both use the same `ReviewSession` and `FieldCorrection` models for the actual re
 ```
 POST   /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation
        Body: { workflowVersionId: string,             // WorkflowVersion.id
-               workflowConfigOverrides?: object }     // optional, keyed by exposed-parameter path (e.g. { "ctx.modelId": "prebuilt-layout" })
+               workflowConfigOverrides?: object }     // optional, keyed by exposed-parameter path (e.g. { "ctx.modelId.defaultValue": "prebuilt-layout" })
        Start ground truth generation for samples without GT.
 
 GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/jobs
@@ -84,7 +84,7 @@ GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/r
 ```
 POST   /api/hitl/sessions                    Start a review session
 POST   /api/hitl/sessions/:id/corrections    Submit corrections
-POST   /api/hitl/sessions/:id/submit         Approve session (triggers GT extraction)
+POST   /api/hitl/sessions/:id/approve         Approve session (triggers GT extraction)
 POST   /api/hitl/sessions/:id/reopen         Reopen session (reverts job to awaiting_review, clears groundTruthPath)
 ```
 

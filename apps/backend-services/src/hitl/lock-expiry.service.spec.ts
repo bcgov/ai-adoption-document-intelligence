@@ -1,4 +1,4 @@
-import { Prisma } from "@generated/client";
+import { Prisma, ReviewStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -17,12 +17,23 @@ describe("LockExpiryService", () => {
     document_id: "doc-1",
     group_id: "group-1",
     workflow_execution_id: "wf-1",
+    has_flag_note: false,
+  };
+
+  // A session taken over from the Flagged tab still carries its flag note.
+  const expiredHandoffLock = {
+    session_id: "session-2",
+    document_id: "doc-2",
+    group_id: "group-1",
+    workflow_execution_id: null,
+    has_flag_note: true,
   };
 
   beforeEach(async () => {
     const mockReviewDb = {
       findExpiredLocks: jest.fn(),
       abandonSessions: jest.fn().mockResolvedValue(0),
+      returnSessionsToFlagged: jest.fn().mockResolvedValue(0),
       releaseDocumentLocks: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -62,6 +73,7 @@ describe("LockExpiryService", () => {
       ["session-1"],
       expect.anything(),
     );
+    expect(reviewDb.returnSessionsToFlagged).not.toHaveBeenCalled();
     expect(reviewDb.releaseDocumentLocks).toHaveBeenCalledWith(
       ["session-1"],
       expect.anything(),
@@ -75,6 +87,42 @@ describe("LockExpiryService", () => {
           document_id: "doc-1",
           group_id: "group-1",
           workflow_execution_id: "wf-1",
+          payload: { document_id: "doc-1", status: ReviewStatus.abandoned },
+        }),
+      ],
+      expect.anything(),
+    );
+  });
+
+  it("returns a session that carries a flag note to flagged instead of abandoning it", async () => {
+    reviewDb.findExpiredLocks.mockResolvedValueOnce([
+      expiredLock,
+      expiredHandoffLock,
+    ]);
+
+    await service.expireAbandonedSessions();
+
+    expect(reviewDb.returnSessionsToFlagged).toHaveBeenCalledWith(
+      ["session-2"],
+      expect.anything(),
+    );
+    expect(reviewDb.abandonSessions).toHaveBeenCalledWith(
+      ["session-1"],
+      expect.anything(),
+    );
+    expect(reviewDb.releaseDocumentLocks).toHaveBeenCalledWith(
+      ["session-1", "session-2"],
+      expect.anything(),
+    );
+    expect(auditService.recordEvent).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          resource_id: "session-1",
+          payload: { document_id: "doc-1", status: ReviewStatus.abandoned },
+        }),
+        expect.objectContaining({
+          resource_id: "session-2",
+          payload: { document_id: "doc-2", status: ReviewStatus.flagged },
         }),
       ],
       expect.anything(),
@@ -87,6 +135,7 @@ describe("LockExpiryService", () => {
     await service.expireAbandonedSessions();
 
     expect(reviewDb.abandonSessions).not.toHaveBeenCalled();
+    expect(reviewDb.returnSessionsToFlagged).not.toHaveBeenCalled();
     expect(reviewDb.releaseDocumentLocks).not.toHaveBeenCalled();
     expect(auditService.recordEvent).not.toHaveBeenCalled();
   });

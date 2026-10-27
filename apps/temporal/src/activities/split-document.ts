@@ -1,10 +1,12 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
+import type { DocumentSegment } from "@ai-di/graph-workflow";
 import { PDFDocument } from "pdf-lib";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
+
+export type { DocumentSegment };
 
 export interface SplitDocumentInput {
   blobKey: string;
@@ -15,13 +17,6 @@ export interface SplitDocumentInput {
   documentId?: string;
 }
 
-export interface DocumentSegment {
-  segmentIndex: number;
-  pageRange: { start: number; end: number };
-  blobKey: string;
-  pageCount: number;
-}
-
 export interface SplitDocumentOutput {
   segments: DocumentSegment[];
 }
@@ -29,10 +24,8 @@ export interface SplitDocumentOutput {
 export async function splitDocument(
   input: SplitDocumentInput,
 ): Promise<SplitDocumentOutput> {
-  const blobStorage = getBlobStorageClient();
-  const sourceData = await blobStorage.read(
-    validateBlobFilePath(input.blobKey),
-  );
+  const blobStorage = getGroupBlobStorage(input.groupId);
+  const sourceData = await blobStorage.read(input.blobKey);
 
   const srcDoc = await PDFDocument.load(new Uint8Array(sourceData));
   const totalPages = srcDoc.getPageCount();

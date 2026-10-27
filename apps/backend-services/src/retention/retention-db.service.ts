@@ -3,13 +3,13 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
-// TODO: add ReviewStatus.rejected once it exists in the schema.
 /**
  * Review statuses whose sessions are eligible for age-based deletion.
  * `flagged` is excluded: it marks an escalation that still needs action.
  */
 const TERMINAL_REVIEW_STATUSES: ReviewStatus[] = [
   ReviewStatus.approved,
+  ReviewStatus.rejected,
   ReviewStatus.abandoned,
 ];
 
@@ -18,6 +18,7 @@ const TERMINAL_DOCUMENT_STATUSES: DocumentStatus[] = [
   DocumentStatus.complete,
   DocumentStatus.failed,
   DocumentStatus.conversion_failed,
+  DocumentStatus.rejected,
 ];
 
 /**

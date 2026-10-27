@@ -130,3 +130,50 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `groups/GROUP_CONTEXT.md`: `Group.role` and `permissions`, `hasPermissionForGroup`, and the active group derived during render.
 - `groups/DELETE_GROUP.md`, `auth/AUTHENTICATION.md`: memberships in soft-deleted groups grant no access.
 - `auth-and-groups.md`: new canonical source, and the drift risk of the frontend's copy of the `Permission` enum.
+
+## [2026-10-05] ingest | HITL rejection marks the document rejected
+
+- `architecture/HITL_ARCHITECTURE.md`: the reject transition stores the reason and comment on the session and marks the document `rejected`; added the reject path, how the workflow's failure hook leaves `rejected` alone, who the approval and rejection name, and that Reject is hidden while labelling a dataset.
+- `extraction/OCR_FAILURE_HANDLING.md`, `architecture/DOCUMENT_RETENTION.md`, `architecture/EPHEMERAL_DOCUMENT_CLEANUP.md`, `operations/ENVIRONMENT_CONFIGURATION.md`: `rejected` is a terminal, purgeable document status, and rejected sessions age out like approved ones.
+- `hitl.md`: four session outcomes, rejection is final, and the drift risk of the rejection reasons being defined in both the schema and the frontend.
+
+## [2026-10-06] ingest | HITL flag notes and correction authors
+
+- `architecture/HITL_ARCHITECTURE.md`: flagging stores an optional note (`flag_note`) shown in the Flagged tab and as a banner; Take sits in the read-only view, hands the session to the reader and keeps the note; each correction records who made it (`field_corrections.actor_id`), which the analytics `reviewerId` filter uses.
+- `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
+- `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
+- `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.
+
+## [2026-10-07] ingest | Group scope for references and the workflow worker
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: more reference rules (labeling upload and attach, upload `model_id` and `ctx_overrides`, thumbnails, HITL field schema, confusion-profile derivation, format suggestions, benchmark error detection, ground-truth generation, baseline history, classification results, blob path components, membership check), the blob path rules, and a Workflow Worker section.
+- `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/03-content-understanding-OCR.md`: child workflow refs resolve within the run's group; Content Understanding analyzers are named per group.
+- `auth-and-groups.md`: pointer to the worker rules, and the drift risk of a new activity trusting an id from its input.
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `auth-and-groups.md`: worker blob access goes through `getGroupBlobStorage` / `readGroupBlob`, enforced by a lint rule; the group-scope rule is also in `CLAUDE.md` and `.github/copilot-instructions.md`.
+
+## [2026-10-13] ingest | Group scope follow-ups
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: API keys of a deleted group, the `group_id` filter on `GET /api/models`, one model-ownership rule for the upload check and the worker (trained or in training by another group, compared without case), the `manifestPath` rule, workflow overrides limited to node settings and ctx defaults, and template model ids on the shared Azure resource; worker rules for graph steps, sample ids and which refusals are not retried; benchmark runs take the dataset's group.
+- `architecture/BLOB_STORAGE.md`: the worker example uses `getGroupBlobStorage` / `readGroupBlob`; the file table and the import lint rule.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`, `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/WORKFLOW_NODE_CATALOG.md`: the exposed-parameter path rule; `benchmark.*` activities are worker-only, not palette nodes.
+- `workflows/03-content-understanding-OCR.md`: the iteration script deploys under the group prefix. `docs/_pages/benchmarking-technical.html`: the benchmark cache is per group.
+- `blob-storage.md`, `auth-and-groups.md`: worker blob routing, and the drift risk of ids on shared Azure resources.
+- `workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`: worker-only activities stay out of `REGISTERED_ACTIVITY_TYPES`. `extraction/ground-truth-generation.md`, `architecture/TEMPLATE_MODELS.md`: the override example and what `GET /api/models` lists.
+
+## [2026-10-15] ingest | Owner records for model ids, per-caller limits, undeclared ctx keys
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `architecture/TEMPLATE_MODELS.md`: owner records (`model_owners`) keep a model id its group's after the template is deleted; training claims the id with the job; deleting a template deletes its models from Azure, best effort.
+- `auth/AUTHENTICATION.md`: the per-IP limits count the caller's own address behind the cluster's proxies.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`: an exposed ctx path whose key is not declared is a warning, and an override on it is refused.
+- `auth-and-groups.md`: a training records its model id's group.
+
+## [2026-10-16] ingest | Template deletion refusals, owner records for older trainings
+
+- `architecture/TEMPLATE_MODELS.md`: deleting a template answers `409` while one of its trainings is in progress or a benchmark definition names one of its versions; the owner records' migration also reads the training audit events.
+- `architecture/AUDIT.md`: the `template_model_deleted` payload lists the Azure model ids it deletes.
+- `auth/AUTHENTICATION.md`: the per-IP limits' `X-Forwarded-For` rule, stated for callers that come through the router.
+
+## [2026-10-22] maintenance | Workflow templates moved into graph-workflow
+
+- The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
+- `graph-workflows.md`: the source map names the templates' folder.

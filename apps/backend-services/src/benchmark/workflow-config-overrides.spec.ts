@@ -208,6 +208,62 @@ describe("validateWorkflowConfigOverrides", () => {
     expect(errors).toEqual([]);
   });
 
+  it("accepts an override on a declared ctx key", () => {
+    const config = makeWorkflowConfig();
+    const errors = validateWorkflowConfigOverrides(config, {
+      "ctx.language.defaultValue": "fr",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("refuses an override on a ctx key the workflow does not declare", () => {
+    const config = makeWorkflowConfig({
+      nodeGroups: {
+        groupA: {
+          label: "Group A",
+          nodeIds: ["node1"],
+          exposedParams: [
+            {
+              label: "Language",
+              path: "ctx.langauge.defaultValue",
+              type: "string",
+            },
+          ],
+        },
+      },
+    });
+    const errors = validateWorkflowConfigOverrides(config, {
+      "ctx.langauge.defaultValue": "fr",
+    });
+    expect(errors).toEqual([
+      'Override path "ctx.langauge.defaultValue" names ctx key "langauge", which the workflow does not declare',
+    ]);
+  });
+
+  it("refuses an override on an undeclared ctx key that every object inherits", () => {
+    const config = makeWorkflowConfig({
+      nodeGroups: {
+        groupA: {
+          label: "Group A",
+          nodeIds: ["node1"],
+          exposedParams: [
+            {
+              label: "Format",
+              path: "ctx.toString.defaultValue",
+              type: "string",
+            },
+          ],
+        },
+      },
+    });
+    const errors = validateWorkflowConfigOverrides(config, {
+      "ctx.toString.defaultValue": "markdown",
+    });
+    expect(errors).toEqual([
+      'Override path "ctx.toString.defaultValue" names ctx key "toString", which the workflow does not declare',
+    ]);
+  });
+
   it("returns multiple errors for multiple invalid overrides", () => {
     const config = makeWorkflowConfig();
     const errors = validateWorkflowConfigOverrides(config, {

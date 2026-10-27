@@ -1,5 +1,11 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
+import {
+  IsIn,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from "class-validator";
 import { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export class CreateWorkflowDto {
@@ -29,4 +35,15 @@ export class CreateWorkflowDto {
   @IsString()
   @IsNotEmpty()
   groupId!: string;
+
+  @ApiProperty({
+    description:
+      "Workflow kind. 'workflow' (default, absent) creates a regular primary lineage; 'library' creates a reusable building-block whose declared metadata.inputs[]/metadata.outputs[] define its signature.",
+    required: false,
+    enum: ["workflow", "library"],
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(["workflow", "library"])
+  kind?: "workflow" | "library";
 }

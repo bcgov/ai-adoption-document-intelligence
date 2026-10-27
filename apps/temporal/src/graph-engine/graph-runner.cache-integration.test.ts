@@ -1,0 +1,477 @@
+/**
+ * Integration test for Phase 4 (US-133) — `executeCachedActivity` wired
+ * into the graph-runner's per-node activity dispatch.
+ *
+ * Scenarios covered (matching the US-133 acceptance criteria):
+ *   - Scenario 1 — every activity dispatch routes through the decorator
+ *     when `workflowLineageId` + `cacheDeps` are set on `ExecutionState`.
+ *   - Scenario 2 — the lineage scope is plumbed through to every
+ *     `findFresh` + `upsert` call.
+ *   - Scenario 3 — source-node ctx-merge writes its own cache row at
+ *     workflow start (`configHash`/`inputHash`/`outputCtx` per L16).
+ *   - Scenario 4 — control-flow nodes (`switch`) keep their existing
+ *     execution path; only `activity` and `source` nodes are wrapped.
+ *   - Cache-write happens after a regular activity execution.
+ *   - Cache-hit short-circuits the activity and overlays cached ctx.
+ *
+ * Strategy: drive `runGraphExecution` directly with a mocked Temporal
+ * `proxyActivities` (so the activity dispatch is a plain `jest.fn`) and
+ * injected `cacheDeps` (Jest mocks for findFresh + upsert). This is the
+ * same pattern as `graph-runner.group-injection.test.ts`.
+ */
+
+const mockActivityFn = jest.fn();
+
+jest.mock("@temporalio/workflow", () => ({
+  // ⚠️ This is a bare OBJECT, not a class. `extractErrorDetails` (used on
+  // every node failure path) does `error instanceof ApplicationFailure`,
+  // which against a non-callable stub throws
+  // `TypeError: Right-hand side of 'instanceof' is not callable` and MASKS
+  // the real error. Fine here — these suites never reach that path — but if
+  // you add a test that exercises a FAILURE, copy the real-class stub from
+  // `node-executors.map-partial-failure.test.ts` instead of this one.
+  ApplicationFailure: {
+    create: jest.fn(
+      (opts: { message: string; type: string; nonRetryable?: boolean }) => {
+        const err = new Error(opts.message);
+        Object.assign(err, {
+          type: opts.type,
+          nonRetryable: opts.nonRetryable,
+        });
+        return err;
+      },
+    ),
+  },
+  proxyActivities: jest.fn(() => {
+    return new Proxy(
+      {},
+      {
+        get: () => mockActivityFn,
+      },
+    );
+  }),
+  condition: jest.fn(),
+  defineSignal: jest.fn(() => "mock-signal"),
+  executeChild: jest.fn(),
+  setHandler: jest.fn(),
+  sleep: jest.fn(),
+  workflowInfo: jest.fn(() => ({ workflowId: "test-wf-id" })),
+}));
+
+import type { CachedActivityDeps } from "../cache/cached-activity";
+import type {
+  GraphWorkflowConfig,
+  GraphWorkflowExecutionInput,
+} from "../graph-workflow-types";
+import type { ExecutionState } from "./execution-state";
+import { runGraphExecution } from "./graph-runner";
+
+const LINEAGE_ID = "wfl-test-1";
+
+function makeCacheDeps(): {
+  deps: CachedActivityDeps;
+  findFresh: jest.Mock;
+  upsert: jest.Mock;
+} {
+  const findFresh = jest.fn();
+  const upsert = jest.fn();
+  return {
+    deps: { findFresh, upsert },
+    findFresh,
+    upsert,
+  };
+}
+
+function makeFreshState(cacheDeps?: CachedActivityDeps): ExecutionState {
+  return {
+    currentNodes: [],
+    completedNodeIds: new Set(),
+    nodeStatuses: new Map(),
+    nodeRunStatuses: {},
+    cancelled: () => false,
+    cancelMode: () => "graceful" as const,
+    ctx: {},
+    selectedEdges: new Map(),
+    mapBranchResults: new Map(),
+    configHash: "test-hash",
+    runnerVersion: "1.0.0",
+    workflowLineageId: LINEAGE_ID,
+    cacheDeps,
+    lastError: {},
+  };
+}
+
+function makeInput(graph: GraphWorkflowConfig): GraphWorkflowExecutionInput {
+  return {
+    graph,
+    workflowVersionId: "wv",
+    initialCtx: {},
+    configHash: "h",
+    runnerVersion: "1.0.0",
+    workflowLineageId: LINEAGE_ID,
+  };
+}
+
+const minimalActivityGraph: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { name: "cache-integration-test", description: "" },
+  entryNodeId: "lookup",
+  ctx: {},
+  nodes: {
+    lookup: {
+      id: "lookup",
+      type: "activity",
+      label: "Lookup",
+      activityType: "tables.lookup",
+      parameters: { tableId: "t1", lookupName: "byDate" },
+      outputs: [{ port: "result", ctxKey: "lookupResult" }],
+    },
+  },
+  edges: [],
+};
+
+/**
+ * Item 13 fixture: an activity node whose output binds to a NAMESPACED ctx
+ * key (`doc.*`). `writeToCtx` remaps `doc.field → documentMetadata.field`,
+ * so the cache snapshot must record the `documentMetadata` subtree, not a
+ * (non-existent) `doc` subtree.
+ */
+const namespacedOutputGraph: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { name: "namespaced-output-cache-test", description: "" },
+  entryNodeId: "classify",
+  ctx: {},
+  nodes: {
+    classify: {
+      id: "classify",
+      type: "activity",
+      label: "Classify",
+      // Reuse the known-good cacheable activity type from the other
+      // fixtures; Item 13 is about the namespaced OUTPUT binding
+      // (`doc.*`), independent of the activity type.
+      activityType: "tables.lookup",
+      parameters: {},
+      outputs: [{ port: "category", ctxKey: "doc.category" }],
+    },
+  },
+  edges: [],
+};
+
+describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Item 13 — namespaced OUTPUT ctx keys (`doc.*` / `segment.*`) must snapshot
+  // the REMAPPED top-level subtree (`documentMetadata` / `currentSegment`),
+  // not the raw prefix. A raw `split(".")[0]` recorded `doc` (undefined), so
+  // the cache row stored `{ doc: undefined }` and a hit restored nothing.
+  it("Item 13 — snapshots the remapped subtree for a `doc.*` output (cache-miss write)", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null); // miss
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ category: "invoice" });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(namespacedOutputGraph), state);
+
+    expect(mockActivityFn).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const upsertCall = upsert.mock.calls[0][0] as {
+      outputCtx: Record<string, unknown>;
+    };
+    // The snapshot records `documentMetadata` (the subtree writeToCtx
+    // actually mutated) — NOT a `doc` key and NOT `{ doc: undefined }`.
+    expect(upsertCall.outputCtx).toEqual({
+      documentMetadata: { category: "invoice" },
+    });
+    expect(upsertCall.outputCtx).not.toHaveProperty("doc");
+    // And ctx itself was written under the remapped path.
+    expect(state.ctx.documentMetadata).toEqual({ category: "invoice" });
+  });
+
+  // §3.1 — the snapshot must record only the LEAF this node wrote
+  // (`documentMetadata.category`), not the whole `documentMetadata` subtree.
+  // Otherwise the cache row would carry a concurrent sibling's leaf
+  // (`pageCount`) and a later cache hit would restore a stale subtree that
+  // reverts the sibling's fresh write.
+  it("§3.1 — snapshots only the written leaf, not a sibling already in the subtree", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null); // miss
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ category: "invoice" });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(
+      {
+        graph: namespacedOutputGraph,
+        workflowVersionId: "wv",
+        // A concurrent sibling's write is already present in the subtree.
+        initialCtx: { documentMetadata: { pageCount: 7 } },
+        configHash: "h",
+        runnerVersion: "1.0.0",
+        workflowLineageId: LINEAGE_ID,
+      },
+      state,
+    );
+
+    const upsertCall = upsert.mock.calls[0][0] as {
+      outputCtx: Record<string, unknown>;
+    };
+    // Only the leaf THIS node produced is snapshotted — `pageCount` is absent.
+    expect(upsertCall.outputCtx).toEqual({
+      documentMetadata: { category: "invoice" },
+    });
+    // ctx keeps both the sibling's `pageCount` and this node's `category`.
+    expect(state.ctx.documentMetadata).toEqual({
+      pageCount: 7,
+      category: "invoice",
+    });
+  });
+
+  it("Item 13 — restores the remapped subtree for a `doc.*` output (cache-hit replay)", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    // The cache row holds the REMAPPED subtree (what the fixed snapshot
+    // would have written on a prior miss).
+    findFresh.mockResolvedValue({
+      outputCtx: { documentMetadata: { category: "receipt" } },
+      outputKind: null,
+    });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(namespacedOutputGraph), state);
+
+    // Served from cache — activity never ran, nothing re-written.
+    expect(mockActivityFn).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    // The cached subtree is overlaid back onto ctx under `documentMetadata`,
+    // so a downstream `doc.category` ref resolves correctly.
+    expect(state.ctx.documentMetadata).toEqual({ category: "receipt" });
+  });
+
+  it("Scenario 1 — writes a cache row after a regular activity executes (cache-miss path)", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null); // miss
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ result: { value: 42 } });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(minimalActivityGraph), state);
+
+    // Activity ran exactly once.
+    expect(mockActivityFn).toHaveBeenCalledTimes(1);
+    // Cache lookup happened against the right lineage + node.
+    expect(findFresh).toHaveBeenCalledTimes(1);
+    expect(findFresh).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowLineageId: LINEAGE_ID,
+        nodeId: "lookup",
+      }),
+    );
+    // Cache write happened with the ctx delta the activity produced.
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const upsertCall = upsert.mock.calls[0][0] as {
+      workflowLineageId: string;
+      nodeId: string;
+      configHash: string;
+      inputHash: string;
+      outputCtx: Record<string, unknown>;
+    };
+    expect(upsertCall.workflowLineageId).toBe(LINEAGE_ID);
+    expect(upsertCall.nodeId).toBe("lookup");
+    expect(upsertCall.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(upsertCall.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // outputCtx contains the top-level ctx key the node wrote.
+    expect(upsertCall.outputCtx).toEqual({ lookupResult: { value: 42 } });
+    // ctx has been mutated with the activity's output.
+    expect(state.ctx.lookupResult).toEqual({ value: 42 });
+  });
+
+  it("Scenario 1+2 — cache-hit short-circuits the activity and overlays cached ctx", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue({
+      outputCtx: { lookupResult: { value: 99, fromCache: true } },
+      outputKind: null,
+    });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(minimalActivityGraph), state);
+
+    // Activity NEVER ran — we served from cache.
+    expect(mockActivityFn).not.toHaveBeenCalled();
+    // findFresh was hit for the right lineage.
+    expect(findFresh).toHaveBeenCalledTimes(1);
+    expect(findFresh).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowLineageId: LINEAGE_ID }),
+    );
+    // Nothing to write — upsert is skipped on hit.
+    expect(upsert).not.toHaveBeenCalled();
+    // ctx now reflects the cached output.
+    expect(state.ctx.lookupResult).toEqual({ value: 99, fromCache: true });
+  });
+
+  it("Scenario 2 — every cache call carries the lineageId from state", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ result: 1 });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(makeInput(minimalActivityGraph), state);
+
+    const findFreshArg = findFresh.mock.calls[0][0] as {
+      workflowLineageId: string;
+    };
+    const upsertArg = upsert.mock.calls[0][0] as { workflowLineageId: string };
+    expect(findFreshArg.workflowLineageId).toBe(LINEAGE_ID);
+    expect(upsertArg.workflowLineageId).toBe(LINEAGE_ID);
+  });
+
+  it("Scenario 3 — source-node ctx-merge writes its own cache row at workflow start", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "source-cache", description: "" },
+      entryNodeId: "src",
+      ctx: {
+        payload: { type: "string", defaultValue: "hello" },
+      },
+      nodes: {
+        src: {
+          id: "src",
+          type: "source",
+          label: "API source",
+          sourceType: "source.api",
+          parameters: { fields: [] },
+        },
+      },
+      edges: [],
+    };
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(
+      {
+        graph,
+        workflowVersionId: "wv",
+        initialCtx: { fromBody: "value-1" },
+        configHash: "h",
+        runnerVersion: "1.0.0",
+        workflowLineageId: LINEAGE_ID,
+      },
+      state,
+    );
+
+    // Only the source-node cache row should have been written; no
+    // activity dispatch.
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(mockActivityFn).not.toHaveBeenCalled();
+
+    const upsertCall = upsert.mock.calls[0][0] as {
+      workflowLineageId: string;
+      nodeId: string;
+      configHash: string;
+      inputHash: string;
+      outputCtx: Record<string, unknown>;
+      outputKind: string | null;
+    };
+    expect(upsertCall.workflowLineageId).toBe(LINEAGE_ID);
+    expect(upsertCall.nodeId).toBe("src");
+    expect(upsertCall.configHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(upsertCall.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    // outputCtx is the initial ctx (defaults + initialCtx merged).
+    expect(upsertCall.outputCtx).toMatchObject({
+      payload: "hello",
+      fromBody: "value-1",
+    });
+    // outputKind comes from the source catalog entry.
+    expect(
+      typeof upsertCall.outputKind === "string" ||
+        upsertCall.outputKind === null,
+    ).toBe(true);
+
+    // Source node is marked completed so the main loop doesn't try to
+    // execute it (sources have no executeNode handler).
+    expect(state.completedNodeIds.has("src")).toBe(true);
+  });
+
+  it("Scenario 4 — switch nodes are NOT wrapped by the cache decorator", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null);
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({});
+
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "switch-test", description: "" },
+      entryNodeId: "decide",
+      ctx: {
+        flag: { type: "boolean", defaultValue: false },
+      },
+      nodes: {
+        decide: {
+          id: "decide",
+          type: "switch",
+          label: "Decide",
+          cases: [
+            {
+              condition: {
+                operator: "equals",
+                left: { ref: "ctx.flag" },
+                right: { literal: true },
+              },
+              edgeId: "to-noop",
+            },
+          ],
+          defaultEdge: "to-noop",
+        },
+      },
+      edges: [],
+    };
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(
+      {
+        graph,
+        workflowVersionId: "wv",
+        initialCtx: {},
+        configHash: "h",
+        runnerVersion: "1.0.0",
+        workflowLineageId: LINEAGE_ID,
+      },
+      state,
+    );
+
+    // No activity dispatch + no cache calls for a pure switch graph.
+    expect(mockActivityFn).not.toHaveBeenCalled();
+    expect(findFresh).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    // Switch node ran (selectedEdges populated).
+    expect(state.selectedEdges.get("decide")).toBe("to-noop");
+  });
+
+  it("legacy callers without cacheDeps continue to run uncached (no findFresh / upsert)", async () => {
+    mockActivityFn.mockResolvedValue({ result: { value: 7 } });
+
+    const state = makeFreshState(undefined); // no cacheDeps
+    state.workflowLineageId = null;
+    await runGraphExecution(
+      {
+        graph: minimalActivityGraph,
+        workflowVersionId: "wv",
+        initialCtx: {},
+        configHash: "h",
+        runnerVersion: "1.0.0",
+        // no workflowLineageId
+      },
+      state,
+    );
+
+    expect(mockActivityFn).toHaveBeenCalledTimes(1);
+    expect(state.ctx.lookupResult).toEqual({ value: 7 });
+    // No cache machinery on the legacy path — the `deps` aren't passed,
+    // so there's nothing to assert on cache calls (they didn't happen).
+  });
+});

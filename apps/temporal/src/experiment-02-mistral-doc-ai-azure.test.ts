@@ -2,7 +2,7 @@
  * Experiment 02 — Mistral Document AI on Azure AI Foundry
  *
  * Two-layer test suite for the
- * `docs-md/workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`
+ * `packages/graph-workflow/templates/experiment-02-mistral-doc-ai-azure-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (cheap, no
@@ -36,8 +36,8 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
-  SAMPLE_IMAGE_ABS_PATH,
   seedTestDocument,
+  stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
@@ -63,8 +63,8 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "..",
-  "docs-md",
-  "workflows",
+  "packages",
+  "graph-workflow",
   "templates",
   "experiment-02-mistral-doc-ai-azure-workflow.json",
 );
@@ -437,7 +437,7 @@ describeRuntime(
     function runtimeCtx(documentId: string): Record<string, unknown> {
       return {
         documentId,
-        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        blobKey: stageSampleImage(),
         fileName: "1 81.jpg",
         fileType: "image",
         contentType: "image/jpeg",

@@ -12,6 +12,7 @@ import { AuditService } from "@/audit/audit.service";
 import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
 import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
 import { UsageEventService } from "@/billing/usage-event.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
@@ -55,8 +56,11 @@ describe("TrainingService", () => {
     updateTrainingJob: jest.Mock;
     createTrainedModel: jest.Mock;
     findTrainedModelByModelId: jest.Mock;
+    isModelIdOwnedByAnotherGroup: jest.Mock;
     findAllTrainedModelIds: jest.Mock;
     getNextVersionNumber: jest.Mock;
+    isModelIdUsedByAnotherTemplate: jest.Mock;
+    claimModelId: jest.Mock;
     setActiveTrainedModel: jest.Mock;
     tombstoneTrainedModel: jest.Mock;
     demoteActiveTrainedModels: jest.Mock;
@@ -68,6 +72,8 @@ describe("TrainingService", () => {
   let mockRateVersionSeeder: { getActiveTrainingCosts: jest.Mock };
   let mockPreflightCapCheck: { checkCap: jest.Mock };
   let mockUsageEventService: { recordUsageEvent: jest.Mock };
+  const mockTx = { transactionClient: true };
+  let mockPrisma: { transaction: jest.Mock };
 
   const mockTemplateModel = {
     id: "tm-1",
@@ -181,8 +187,11 @@ describe("TrainingService", () => {
       updateTrainingJob: jest.fn(),
       createTrainedModel: jest.fn(),
       findTrainedModelByModelId: jest.fn(),
+      isModelIdOwnedByAnotherGroup: jest.fn().mockResolvedValue(false),
       findAllTrainedModelIds: jest.fn(),
       getNextVersionNumber: jest.fn().mockResolvedValue(1),
+      isModelIdUsedByAnotherTemplate: jest.fn().mockResolvedValue(false),
+      claimModelId: jest.fn().mockResolvedValue("group-1"),
       setActiveTrainedModel: jest.fn(),
       tombstoneTrainedModel: jest.fn(),
       demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
@@ -205,6 +214,11 @@ describe("TrainingService", () => {
     };
     mockUsageEventService = {
       recordUsageEvent: jest.fn().mockResolvedValue({}),
+    };
+    mockPrisma = {
+      transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
+        fn(mockTx),
+      ),
     };
 
     const mockBlob = {
@@ -259,6 +273,7 @@ describe("TrainingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingService,
+        { provide: PrismaService, useValue: mockPrisma },
         {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
@@ -329,6 +344,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: PrismaService, useValue: mockPrisma },
           {
             provide: AuditService,
             useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
@@ -532,6 +548,66 @@ describe("TrainingService", () => {
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalled();
     });
 
+    /** Sets up a start that passes every check before the job is created. */
+    function givenATemplateReadyToTrain(): void {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument),
+      );
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
+      (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
+    }
+
+    it("claims the model id for the template's group in the transaction that creates the job", async () => {
+      givenATemplateReadyToTrain();
+
+      await service.startTraining("tm-1", { description: "x" }, "actor-1");
+
+      expect(mockPrisma.transaction).toHaveBeenCalledTimes(1);
+      expect(mockTrainingDb.claimModelId).toHaveBeenCalledWith(
+        "custom-model-1",
+        "group-1",
+        mockTx,
+      );
+      expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
+        expect.objectContaining({ target_model_id: "custom-model-1" }),
+        mockTx,
+      );
+    });
+
+    it("refuses to train when another group already holds the model id", async () => {
+      givenATemplateReadyToTrain();
+      mockTrainingDb.claimModelId.mockResolvedValueOnce("group-2");
+
+      await expect(
+        service.startTraining("tm-1", { description: "x" }, "actor-1"),
+      ).rejects.toThrow(ConflictException);
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+    });
+
+    it("refuses to train a version whose model id another template holds", async () => {
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTrainingDb.getNextVersionNumber.mockResolvedValueOnce(2);
+      mockTrainingDb.isModelIdUsedByAnotherTemplate.mockResolvedValueOnce(true);
+
+      await expect(
+        service.startTraining("tm-1", { description: "x" }, "actor-1"),
+      ).rejects.toThrow(ConflictException);
+      expect(
+        mockTrainingDb.isModelIdUsedByAnotherTemplate,
+      ).toHaveBeenCalledWith("custom-model-1-v2", "tm-1", "group-1");
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+      expect(mockAdminClient.path).not.toHaveBeenCalled();
+    });
+
     it("should throw BadRequestException for invalid training data", async () => {
       const dto = {
         description: "Test model",
@@ -594,6 +670,7 @@ describe("TrainingService", () => {
           target_model_id: "custom-model-1-v2",
           target_version: 2,
         }),
+        mockTx,
       );
     });
 
@@ -628,6 +705,7 @@ describe("TrainingService", () => {
           target_model_id: "custom-model-1",
           target_version: 1,
         }),
+        mockTx,
       );
     });
 
@@ -679,6 +757,7 @@ describe("TrainingService", () => {
           build_mode: "neural",
           max_training_hours: 2,
         }),
+        mockTx,
       );
     });
 
@@ -716,6 +795,7 @@ describe("TrainingService", () => {
           build_mode: "template",
           max_training_hours: null,
         }),
+        mockTx,
       );
     });
 
@@ -1126,6 +1206,7 @@ describe("TrainingService", () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: PrismaService, useValue: mockPrisma },
           {
             provide: AuditService,
             useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
@@ -1289,6 +1370,7 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: PrismaService, useValue: mockPrisma },
           {
             provide: AuditService,
             useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
@@ -1424,6 +1506,7 @@ describe("TrainingService", () => {
       const moduleNoCreds: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
+          { provide: PrismaService, useValue: mockPrisma },
           {
             provide: AuditService,
             useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
@@ -1470,6 +1553,20 @@ describe("TrainingService", () => {
       await expect(promise).rejects.toThrow(ServiceUnavailableException);
       await expect(promise).rejects.toThrow(
         "Azure Document Intelligence is not configured",
+      );
+    });
+  });
+
+  describe("isModelIdOwnedByAnotherGroup", () => {
+    it("asks the db service whether another group owns the model id", async () => {
+      mockTrainingDb.isModelIdOwnedByAnotherGroup.mockResolvedValueOnce(true);
+
+      await expect(
+        service.isModelIdOwnedByAnotherGroup("km-invoice-v2", "group-1"),
+      ).resolves.toBe(true);
+      expect(mockTrainingDb.isModelIdOwnedByAnotherGroup).toHaveBeenCalledWith(
+        "km-invoice-v2",
+        "group-1",
       );
     });
   });

@@ -17,14 +17,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import type { AxiosResponse } from "axios";
 import { getPrismaClient } from "../../activities/database-client";
-import { getBlobStorageClient } from "../../blob-storage/blob-storage-client";
+import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
 import type { OCRResult, PreparedFileData } from "../../types";
 import {
@@ -32,12 +29,16 @@ import {
   type CuAnalyzerDefinition,
 } from "./analyzer-schema-builder";
 import {
+  analyzerIdPrefix,
+  assertGroupAnalyzerId,
   type CuAuthMode,
   createCuAxiosInstance,
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
+  groupAnalyzerIdPrefix,
   readEnv,
+  sanitizeAnalyzerId,
   sleep,
 } from "./azure-cu-client";
 import { azureCuDeployAnalyzer } from "./azure-cu-deploy-analyzer";
@@ -47,25 +48,8 @@ import {
 } from "./cu-to-ocr-result";
 import type { CuAnalyzeOperation, CuAnalyzeResult } from "./cu-types";
 
-const DEFAULT_ANALYZER_PREFIX = "di-experiment";
 const DEFAULT_POLL_INTERVAL_MS = 1500;
 const DEFAULT_POLL_MAX_ATTEMPTS = 240; // ~6 min at 1.5 s/poll, well under the activity's 20 m timeout.
-
-async function readBlobData(blobKey: string): Promise<Buffer> {
-  if (path.isAbsolute(blobKey)) {
-    try {
-      return await fs.promises.readFile(blobKey);
-    } catch (_error) {
-      throw new Error(`File not found on disk: "${blobKey}"`);
-    }
-  }
-  const client = getBlobStorageClient();
-  try {
-    return await client.read(validateBlobFilePath(blobKey));
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
-  }
-}
 
 /**
  * Interpret a synchronous 200 analyze response body. It may arrive either as
@@ -99,6 +83,7 @@ interface CuTemplateLoadResult {
 
 async function loadTemplateForAnalyzer(
   templateModelId: string,
+  groupId: string,
   log: ReturnType<typeof createActivityLogger>,
   options: {
     fieldDescriptions?: Record<string, string>;
@@ -109,8 +94,10 @@ async function loadTemplateForAnalyzer(
 ): Promise<CuTemplateLoadResult | null> {
   try {
     const prisma = getPrismaClient();
-    const templateModel = await prisma.templateModel.findUnique({
-      where: { id: templateModelId },
+    // Limited to the run's group: a template model from another group is
+    // treated as not found.
+    const templateModel = await prisma.templateModel.findFirst({
+      where: { id: templateModelId, group_id: groupId },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
 
@@ -203,22 +190,30 @@ function buildMockAnalyzeOperation(
 }
 
 /**
- * CU rejects analyzer IDs that contain `-` (HTTP 400 "InvalidAnalyzerId" /
- * "The 'analyzerId' cannot contain '-'"). Collapse the prefix + template
- * id to lowercase alphanumeric.
+ * The analyzer to run. An explicit id must be an Azure prebuilt analyzer or
+ * one of the group's own. A template analyzer is named after the group and
+ * template, so each group deploys under its own names on the shared resource.
  */
-function sanitizeAnalyzerId(raw: string): string {
-  const sanitized = raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return sanitized || "default";
-}
-
-function defaultAnalyzerIdForTemplate(templateModelId: string): string {
-  const prefix = readEnv("AZURE_CU_ANALYZER_PREFIX") ?? DEFAULT_ANALYZER_PREFIX;
-  return sanitizeAnalyzerId(`${prefix}-${templateModelId}`);
+function resolveAnalyzerId(
+  groupId: string,
+  templateModelId: string | undefined,
+  explicitAnalyzerId: string | undefined,
+): string {
+  const explicit = explicitAnalyzerId?.trim();
+  if (explicit) {
+    if (!explicit.startsWith("prebuilt-")) {
+      assertGroupAnalyzerId(explicit, groupId);
+    }
+    return explicit;
+  }
+  return templateModelId
+    ? `${groupAnalyzerIdPrefix(groupId)}${sanitizeAnalyzerId(templateModelId)}`
+    : `${analyzerIdPrefix()}default`;
 }
 
 export interface AzureCuAnalyzeParams {
   fileData: PreparedFileData;
+  groupId?: string | null;
   /** Labeling template model id; loads `field_schema` to build the CU analyzer. */
   templateModelId?: string;
   /** Optional global instruction string set as the CU analyzer's `description`. */
@@ -236,8 +231,9 @@ export interface AzureCuAnalyzeParams {
    */
   numericFieldsNullable?: boolean;
   /**
-   * Override the analyzer id (defaults to
-   * `${AZURE_CU_ANALYZER_PREFIX}-${templateModelId-sanitized}`).
+   * Override the analyzer id: an Azure `prebuilt-*` analyzer or one of the
+   * group's own (defaults to `{AZURE_CU_ANALYZER_PREFIX}{groupId}{templateModelId}`,
+   * sanitised).
    */
   analyzerId?: string;
   /** Override the base analyzer (defaults to `prebuilt-document`). */
@@ -272,14 +268,18 @@ export async function azureCuAnalyze(
   const startTime = Date.now();
   const useMock = process.env.MOCK_AZURE_CU === "true";
   const requestId = `azure-cu-${randomUUID()}`;
+  const groupId = params.groupId;
+  if (!groupId) {
+    throw new Error(
+      "Azure CU analyze: groupId is required to read the document and its template model.",
+    );
+  }
   const templateModelId = params.templateModelId?.trim();
-  const analyzerId =
-    params.analyzerId?.trim() ??
-    (templateModelId
-      ? defaultAnalyzerIdForTemplate(templateModelId)
-      : sanitizeAnalyzerId(
-          `${readEnv("AZURE_CU_ANALYZER_PREFIX") ?? DEFAULT_ANALYZER_PREFIX}-default`,
-        ));
+  const analyzerId = resolveAnalyzerId(
+    groupId,
+    templateModelId,
+    params.analyzerId,
+  );
 
   log.info("Azure CU analyze start", {
     event: "start",
@@ -340,12 +340,17 @@ export async function azureCuAnalyze(
   let analyzer: CuAnalyzerDefinition | null = null;
   let fieldDefs: CuFieldDefRow[] = [];
   if (templateModelId) {
-    const loaded = await loadTemplateForAnalyzer(templateModelId, log, {
-      fieldDescriptions: params.fieldDescriptions,
-      documentAnnotationPrompt: params.documentAnnotationPrompt,
-      numericFieldsNullable: params.numericFieldsNullable,
-      baseAnalyzerId: params.baseAnalyzerId,
-    });
+    const loaded = await loadTemplateForAnalyzer(
+      templateModelId,
+      groupId,
+      log,
+      {
+        fieldDescriptions: params.fieldDescriptions,
+        documentAnnotationPrompt: params.documentAnnotationPrompt,
+        numericFieldsNullable: params.numericFieldsNullable,
+        baseAnalyzerId: params.baseAnalyzerId,
+      },
+    );
     if (loaded) {
       analyzer = loaded.analyzer;
       fieldDefs = loaded.fieldDefs;
@@ -355,6 +360,7 @@ export async function azureCuAnalyze(
   if (analyzer) {
     await azureCuDeployAnalyzer({
       analyzerId,
+      groupId,
       analyzer,
       endpoint,
       apiKey,
@@ -373,7 +379,7 @@ export async function azureCuAnalyze(
   //    AnalysisInput accepts either `{ url: <public url> }` or
   //    `{ data: <base64>, mimeType: <type> }` — we use the latter so we
   //    don't have to upload to a public URL first.
-  const buffer = await readBlobData(params.fileData.blobKey);
+  const buffer = await readGroupBlob(params.fileData.blobKey, groupId);
   const inline = buildInlineInput(params.fileData.contentType, buffer);
   const submitUrl = cuAnalyzeUrl(analyzerId);
 
@@ -546,6 +552,5 @@ export async function azureCuAnalyze(
 }
 
 export const __testInternals = {
-  defaultAnalyzerIdForTemplate,
   extractInlineResult,
 };

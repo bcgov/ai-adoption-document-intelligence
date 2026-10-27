@@ -7,7 +7,8 @@ export type DocumentStatus =
   | "awaiting_review"
   | "complete"
   | "failed"
-  | "conversion_failed";
+  | "conversion_failed"
+  | "rejected";
 
 export enum RejectionReason {
   INPUT_QUALITY = "INPUT_QUALITY", // Scan unreadable, cutoff, skew
@@ -15,6 +16,26 @@ export enum RejectionReason {
   MODEL_MISMATCH = "MODEL_MISMATCH", // Wrong document type/template
   CONFIDENCE_TOO_LOW = "CONFIDENCE_TOO_LOW", // Confidence too low to trust
   SYSTEMIC_ERROR = "SYSTEMIC_ERROR", // Pipeline bug
+}
+
+/** How each rejection reason reads in the reject dialog and the document viewer. */
+export const REJECTION_REASON_LABELS: Record<RejectionReason, string> = {
+  [RejectionReason.INPUT_QUALITY]:
+    "Input quality (scan unreadable, cutoff, skew)",
+  [RejectionReason.OCR_FAILURE]: "OCR failure (missing fields, hallucinations)",
+  [RejectionReason.MODEL_MISMATCH]:
+    "Model mismatch (wrong document type/template)",
+  [RejectionReason.CONFIDENCE_TOO_LOW]: "Confidence too low (too low to trust)",
+  [RejectionReason.SYSTEMIC_ERROR]: "Systemic error (pipeline bug)",
+};
+
+/** Why and by whom a document was rejected, as the documents list returns it. */
+export interface DocumentRejection {
+  reason: RejectionReason | null;
+  comment: string | null;
+  rejected_at: string | null;
+  /** Email of the reviewer; null when an API key rejected the document. */
+  rejected_by: string | null;
 }
 
 export interface Document {
@@ -50,6 +71,7 @@ export interface Document {
   model_id?: string;
   needsReview?: boolean; // Set by backend when workflow is awaiting review
   workflow_name?: string | null; // Name of the workflow used to process this document
+  rejection?: DocumentRejection | null; // Set on rejected documents
 }
 
 export interface BoundingRegion {
@@ -118,8 +140,6 @@ export interface UploadDocumentPayload {
   original_filename?: string;
   metadata?: Record<string, unknown>;
   model_id: string;
-  /** @deprecated Server accepts workflow_config_id; lineage id is resolved server-side */
-  workflow_id?: string;
   /** WorkflowVersion.id for documents.workflow_config_id FK */
   workflow_config_id?: string;
   group_id: string;

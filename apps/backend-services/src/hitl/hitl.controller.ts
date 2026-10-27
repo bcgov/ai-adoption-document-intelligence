@@ -10,6 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -27,6 +28,7 @@ import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import {
   AnalyticsResponseDto,
   CorrectionsListResponseDto,
@@ -40,6 +42,7 @@ import {
 import { HeartbeatResponseDto } from "./dto/lock.dto";
 import { NextSessionFilterDto } from "./dto/next-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlService } from "./hitl.service";
 
@@ -228,7 +231,11 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_CORRECTION_SUBMIT,
     ]);
-    return this.hitlService.submitCorrections(sessionId, dto);
+    return this.hitlService.submitCorrections(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("sessions/:id/corrections")
@@ -262,7 +269,7 @@ export class HitlController {
     return result;
   }
 
-  @Post("sessions/:id/submit")
+  @Post("sessions/:id/approve")
   @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Approve and complete a review session" })
   @ApiParam({ name: "id", description: "Session ID" })
@@ -284,7 +291,47 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.approveSession(sessionId);
+    return this.hitlService.approveSession(
+      sessionId,
+      req.resolvedIdentity.actorId,
+    );
+  }
+
+  @Post("sessions/:id/reject")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({ summary: "Reject and complete a review session" })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description:
+      "Session rejected and marked complete; the document moves to rejected",
+    type: SessionActionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "rejectionReason is missing or not one of the allowed values",
+  })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "Session is not in progress: already approved, rejected, flagged, or abandoned",
+  })
+  async rejectSession(
+    @Param("id") sessionId: string,
+    @Body() dto: RejectSessionDto,
+    @Req() req: Request,
+  ) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
+      Permission.HITL_APPROVE_DENY,
+    ]);
+    return this.hitlService.rejectSession(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/skip")
@@ -320,7 +367,11 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async flagSession(@Param("id") sessionId: string, @Req() req: Request) {
+  async flagSession(
+    @Param("id") sessionId: string,
+    @Body() dto: FlagSessionDto,
+    @Req() req: Request,
+  ) {
     const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
@@ -328,7 +379,7 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.flagSession(sessionId);
+    return this.hitlService.flagSession(sessionId, dto);
   }
 
   @Post("sessions/:id/heartbeat")

@@ -7,18 +7,36 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { ApplicationFailure } from "@temporalio/common";
 import { BenchmarkCleanupInput, benchmarkCleanup } from "./benchmark-cleanup";
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+function restoreCacheDir(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env.BENCHMARK_CACHE_DIR;
+  } else {
+    process.env.BENCHMARK_CACHE_DIR = value;
+  }
+}
+
 describe("Benchmark Cleanup Activities", () => {
+  const ORIGINAL_CACHE_DIR = process.env.BENCHMARK_CACHE_DIR;
+  let cacheRoot: string;
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "benchmark-cleanup-"));
+    cacheRoot = await fs.mkdtemp(path.join(os.tmpdir(), "benchmark-cleanup-"));
+    process.env.BENCHMARK_CACHE_DIR = cacheRoot;
+    tempDir = path.join(cacheRoot, GROUP);
+    await fs.mkdir(tempDir, { recursive: true });
   });
 
   afterEach(async () => {
+    restoreCacheDir(ORIGINAL_CACHE_DIR);
     try {
-      await fs.rm(tempDir, { recursive: true, force: true });
+      await fs.rm(cacheRoot, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors in test teardown
     }
@@ -33,6 +51,7 @@ describe("Benchmark Cleanup Activities", () => {
       await fs.writeFile(file2, JSON.stringify({ data: "test2" }));
 
       const input: BenchmarkCleanupInput = {
+        groupId: GROUP,
         materializedDatasetPaths: [file1, file2],
         temporaryOutputPaths: [],
       };
@@ -51,6 +70,7 @@ describe("Benchmark Cleanup Activities", () => {
       await fs.writeFile(outputFile2, JSON.stringify({ result: "test2" }));
 
       const input: BenchmarkCleanupInput = {
+        groupId: GROUP,
         materializedDatasetPaths: [],
         temporaryOutputPaths: [outputFile1, outputFile2],
       };
@@ -66,6 +86,7 @@ describe("Benchmark Cleanup Activities", () => {
       const nonExistentFile2 = path.join(tempDir, "does-not-exist-2.json");
 
       const input: BenchmarkCleanupInput = {
+        groupId: GROUP,
         materializedDatasetPaths: [nonExistentFile1],
         temporaryOutputPaths: [nonExistentFile2],
       };
@@ -81,6 +102,7 @@ describe("Benchmark Cleanup Activities", () => {
       await fs.writeFile(nestedFile, JSON.stringify({ data: "nested" }));
 
       const input: BenchmarkCleanupInput = {
+        groupId: GROUP,
         materializedDatasetPaths: [datasetDir],
         temporaryOutputPaths: [],
       };
@@ -88,6 +110,57 @@ describe("Benchmark Cleanup Activities", () => {
       await benchmarkCleanup(input);
 
       await expect(fs.access(datasetDir)).rejects.toThrow();
+    });
+
+    it("leaves paths outside the group's benchmark cache in place", async () => {
+      const otherGroupDir = path.join(cacheRoot, OTHER_GROUP);
+      await fs.mkdir(otherGroupDir, { recursive: true });
+      const otherGroupFile = path.join(otherGroupDir, "output.json");
+      await fs.writeFile(otherGroupFile, "{}");
+      const ownFile = path.join(tempDir, "output.json");
+      await fs.writeFile(ownFile, "{}");
+
+      await expect(
+        benchmarkCleanup({
+          groupId: GROUP,
+          materializedDatasetPaths: [],
+          temporaryOutputPaths: [
+            otherGroupFile,
+            `${tempDir}/../${OTHER_GROUP}`,
+            ownFile,
+          ],
+        }),
+      ).rejects.toThrow(/outside the group's benchmark cache/);
+
+      await expect(fs.access(otherGroupFile)).resolves.toBeUndefined();
+      await expect(fs.access(ownFile)).rejects.toThrow();
+    });
+
+    it("refuses another group's paths with a failure Temporal does not retry", async () => {
+      const failure = await benchmarkCleanup({
+        groupId: GROUP,
+        materializedDatasetPaths: [path.join(cacheRoot, OTHER_GROUP, "ds")],
+        temporaryOutputPaths: [],
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApplicationFailure);
+      expect((failure as ApplicationFailure).type).toBe(
+        "GROUP_SCOPE_VIOLATION",
+      );
+      expect((failure as ApplicationFailure).nonRetryable).toBe(true);
+    });
+
+    it("refuses to clean up without a groupId", async () => {
+      const ownFile = path.join(tempDir, "output.json");
+      await fs.writeFile(ownFile, "{}");
+
+      await expect(
+        benchmarkCleanup({
+          materializedDatasetPaths: [],
+          temporaryOutputPaths: [ownFile],
+        }),
+      ).rejects.toThrow(/groupId is required/);
+      await expect(fs.access(ownFile)).resolves.toBeUndefined();
     });
   });
 });

@@ -32,14 +32,12 @@ The backend services provide a modular, scalable API for:
 - CRUD operations for documents
 - Document status tracking (pre_ocr, ongoing_ocr, completed_ocr, failed)
 - OCR result retrieval and key-value pair extraction
-- Document approval workflow
 - File download endpoints
 - Integration with Temporal workflows and blob storage
 
 **Key Endpoints:**
 - `GET /api/documents` - List all documents with optional filters
 - `GET /api/documents/:id` - Get document details
-- `POST /api/documents/:id/approve` - Approve OCR results
 - `GET /api/documents/:id/file` - Download original file
 - `GET /api/documents/:id/ocr-result` - Get OCR results with key-value pairs
 
@@ -207,7 +205,7 @@ npm install
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the `apps/backend-services/` directory:
+This app reads from a single `.env` file at the repo root (see root [README.md](../../README.md#2-configure-environment)) — there is no `apps/backend-services/.env`. Relevant keys:
 
 ```env
 # Server Configuration
@@ -269,7 +267,58 @@ THROTTLE_AUTH_REFRESH_LIMIT=5       # Max requests per IP per window (default: 5
 API_KEY_MAX_FAILED_ATTEMPTS=20      # Max failed API key validations per IP before 429 (default: 20)
 API_KEY_FAILED_WINDOW_MS=60000      # Tracking window in milliseconds (default: 60 000 = 1 minute)
 API_KEY_SWEEP_INTERVAL_MS=60000     # Cleanup interval for stale records in milliseconds (default: 60 000)
+
+# Phase 6 — Dynamic Nodes
+# URL of the deno-runner sidecar (POST /check at publish time, POST /execute
+# at activity time). Default `http://localhost:9099` for local dev (the
+# port mapped by deployments/local/docker-compose.deno.yml); the cluster
+# stack overrides to `http://deno-runner:9090`.
+DENO_RUNNER_URL=http://localhost:9099
+# Comma-separated allowlist of host patterns that dynamic-node scripts
+# may declare under `@allowNet`. The publish endpoint intersects each
+# script's declared hosts against this list — anything outside is
+# rejected with a `stage: "allowlist"` ParseError. Empty / unset means
+# scripts can only reach the system-managed API_BASE_URL host at runtime.
+DYNAMIC_NODE_ALLOW_NET=
 ```
+
+## Phase 6 — Dynamic Nodes
+
+Dynamic nodes are user-authored TypeScript activities published at runtime
+via the API (POST/PUT `/api/dynamic-nodes`) and executed in a sandboxed
+Deno subprocess. See `docs-md/workflows/DYNAMIC_NODES_DESIGN.md` for
+the full design; the publish/CRUD endpoints live in
+`src/dynamic-nodes/`.
+
+### Ops dependency: `deno-runner` sidecar
+
+The backend NEVER spawns Deno directly. Every `deno check` (publish-time)
+and `deno run` (activity-time, Temporal worker side) call goes through the
+`deno-runner` HTTP service deployed alongside the backend:
+
+- **Local dev**: `deployments/local/docker-compose.deno.yml` runs the
+  sidecar on `http://localhost:9099`. Configure with `DENO_RUNNER_URL`.
+- **OpenShift / kustomize**: `deployments/openshift/kustomize/base/deno-runner/`
+  ships a Service + Deployment + NetworkPolicy on
+  `http://deno-runner:9090`, reachable only from backend-services + worker
+  pods.
+
+If the runner is unreachable, the publish endpoints surface a `503` with
+body `{ code: "DENO_RUNNER_UNAVAILABLE", message }` rather than failing
+silently — the Phase 7 agent (and any human operator) gets a clear retry
+signal.
+
+### Endpoints
+
+| Verb     | Path                          | Story  | Notes                                                          |
+| -------- | ----------------------------- | ------ | -------------------------------------------------------------- |
+| `POST`   | `/api/dynamic-nodes`          | US-165 | Publish v1. 201 success; 400 with `errors[]`; 409 dup slug.    |
+| `PUT`    | `/api/dynamic-nodes/:slug`    | US-166 | Publish v(N+1). 200 success; 404 unknown; 409 NAME_MISMATCH.   |
+| `GET`    | `/api/dynamic-nodes`          | US-167 | List group's non-deleted lineages with `versionCount`.         |
+| `GET`    | `/api/dynamic-nodes/:slug`    | US-167 | Full version history (newest first) + each version's script.  |
+| `DELETE` | `/api/dynamic-nodes/:slug`    | US-167 | Idempotent soft-delete; returns `usedInWorkflowCount`.         |
+
+All five inherit the existing `x-api-key` middleware + group-scoping.
 
 ### 3. Local Services (Docker Compose)
 
@@ -317,7 +366,7 @@ docker compose --profile infra up minio-init
 
 - **Port conflict**: The compose file maps MinIO's internal ports 9000/9001 to host ports 19000/19001. If those are taken, adjust the port mappings in `docker-compose.yml` at the repo root.
 - **Buckets missing**: Check `docker compose logs minio-init` — the init container depends on MinIO's healthcheck and will retry until ready.
-- **Connection refused from app**: Ensure your `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
+- **Connection refused from app**: Ensure the repo-root `.env` has `MINIO_ENDPOINT=http://localhost:19000` (not port 9000).
 
 ### 4. Database Setup
 

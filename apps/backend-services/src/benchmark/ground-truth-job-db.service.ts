@@ -356,6 +356,7 @@ export class GroundTruthJobDbService {
 
   /**
    * Validates that a dataset version exists, is not frozen, and has a storagePrefix.
+   * Includes the owning dataset's group_id.
    *
    * @param versionId - The version ID.
    * @param datasetId - The dataset ID.
@@ -369,20 +370,26 @@ export class GroundTruthJobDbService {
     const client = tx ?? this.prisma;
     return client.datasetVersion.findFirst({
       where: { id: versionId, datasetId },
+      include: { dataset: { select: { group_id: true } } },
     });
   }
 
   /**
-   * Validates that a workflow version exists.
+   * Finds a workflow version whose lineage belongs to the given group.
+   * A workflow version in another group is returned as null (not found).
    *
    * @param workflowVersionId - The workflow version ID.
+   * @param groupId - The group that must own the workflow lineage.
    * @param tx - Optional transaction client.
    */
-  async findWorkflow(workflowVersionId: string, tx?: Prisma.TransactionClient) {
+  async findWorkflow(
+    workflowVersionId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
     const client = tx ?? this.prisma;
-    return client.workflowVersion.findUnique({
-      where: { id: workflowVersionId },
-      include: { lineage: { select: { group_id: true } } },
+    return client.workflowVersion.findFirst({
+      where: { id: workflowVersionId, lineage: { group_id: groupId } },
     });
   }
 

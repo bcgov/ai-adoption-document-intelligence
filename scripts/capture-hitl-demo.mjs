@@ -35,12 +35,12 @@ const REPO_ROOT = resolve(__dirname, "..");
 const OUT_DIR = resolve(REPO_ROOT, "data/hitl-demo");
 const SOURCE_DIR = resolve(REPO_ROOT, "data/datasets/samples-mix/public");
 
-// Load the backend .env so DATABASE_URL / TEST_API_KEY match the running stack,
-// WITHOUT printing any secret values. Mirrors scripts/seed-feature-demos.mjs.
-const BACKEND_ENV = resolve(REPO_ROOT, "apps/backend-services/.env");
-if (existsSync(BACKEND_ENV)) {
+// Load the repo-root .env so DATABASE_URL / TEST_API_KEY match the running stack,
+// WITHOUT printing any secret values. Same loading as scripts/seed-hitl-demo.mjs.
+const ROOT_ENV = resolve(REPO_ROOT, ".env");
+if (existsSync(ROOT_ENV)) {
   try {
-    process.loadEnvFile(BACKEND_ENV);
+    process.loadEnvFile(ROOT_ENV);
   } catch {
     // ignore malformed/partial .env — fall back to shell env + defaults
   }

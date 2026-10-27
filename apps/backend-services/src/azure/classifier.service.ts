@@ -470,18 +470,19 @@ export class ClassifierService {
     classiferName: string,
     groupId: string,
   ) => {
+    const constructedClassifierName = this.getConstructedClassifierName(
+      groupId,
+      classiferName,
+    );
     if (this.azureService.isMockMode()) {
       return {
         status: "202",
         content: buildMockClassificationOperationLocation(
           this.azureService.getEndpoint(),
+          constructedClassifierName,
         ),
       };
     }
-    const constructedClassifierName = this.getConstructedClassifierName(
-      groupId,
-      classiferName,
-    );
     // Read file and encode to base64
     const blobFilePath = validateBlobFilePath(filePath);
     const fileData = await this.blobStorage.read(blobFilePath);
@@ -521,18 +522,19 @@ export class ClassifierService {
     classiferName: string,
     groupId: string,
   ) => {
+    const constructedClassifierName = this.getConstructedClassifierName(
+      groupId,
+      classiferName,
+    );
     if (this.azureService.isMockMode()) {
       return {
         status: "202",
         content: buildMockClassificationOperationLocation(
           this.azureService.getEndpoint(),
+          constructedClassifierName,
         ),
       };
     }
-    const constructedClassifierName = this.getConstructedClassifierName(
-      groupId,
-      classiferName,
-    );
     // Read file and encode to base64
     const base64String = Buffer.from(file.buffer).toString("base64");
     const response = await this.client
@@ -559,6 +561,45 @@ export class ClassifierService {
 
   getConstructedClassifierName = (groupId: string, classifierName: string) => {
     return `${groupId}__${classifierName}`;
+  };
+
+  /**
+   * Reads the classifier named by a classify operation location
+   * (`.../documentClassifiers/{groupId}__{name}/analyzeResults/{resultId}`)
+   * and returns its name when the classifier belongs to `groupId`.
+   *
+   * @param operationLocation The operation location returned when classification was requested.
+   * @param groupId The group the classifier must belong to.
+   * @returns The classifier name, or null when the location names no classifier of the group.
+   */
+  getClassifierNameFromOperationLocation = (
+    operationLocation: string,
+    groupId: string,
+  ): string | null => {
+    let pathname: string;
+    try {
+      pathname = new URL(operationLocation).pathname;
+    } catch {
+      return null;
+    }
+    const match = /\/documentClassifiers\/([^/]+)\/analyzeResults\/[^/]+$/.exec(
+      pathname,
+    );
+    if (!match) {
+      return null;
+    }
+    let classifierId: string;
+    try {
+      classifierId = decodeURIComponent(match[1]);
+    } catch {
+      return null;
+    }
+    const groupPrefix = this.getConstructedClassifierName(groupId, "");
+    if (!classifierId.startsWith(groupPrefix)) {
+      return null;
+    }
+    const name = classifierId.slice(groupPrefix.length);
+    return name.length > 0 ? name : null;
   };
 
   /**

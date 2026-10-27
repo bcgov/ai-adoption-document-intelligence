@@ -21,6 +21,7 @@ jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
 
+import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import { createActivityLogger } from "../logger";
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
@@ -93,15 +94,19 @@ function templateModelWithSchema(
   };
 }
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 describe("enrichResults activity", () => {
   let prismaMock: {
-    templateModel: { findUnique: jest.Mock };
+    templateModel: { findUnique: jest.Mock; findFirst: jest.Mock };
   };
 
   beforeEach(() => {
     prismaMock = {
       templateModel: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
       },
     };
     jest.clearAllMocks();
@@ -135,12 +140,36 @@ describe("enrichResults activity", () => {
     jest.restoreAllMocks();
   });
 
+  describe("catalog contract", () => {
+    // The engine copies result[port] into the variable each output binding
+    // names, so a port the catalog declares but the activity does not return
+    // is written as an empty value, and the next step reads nothing.
+    it("returns every output port the catalog declares for it", async () => {
+      prismaMock.templateModel.findFirst.mockResolvedValue(null);
+      const result = await enrichResults({
+        documentId: "doc-1",
+        groupId: GROUP,
+        ocrResult: minimalOcrResult(),
+        documentType: "missing-tm",
+      });
+      const declared = getActivityCatalogEntry("ocr.enrich")?.outputs.map(
+        (port) => port.name,
+      );
+
+      expect(declared).toContain("ocrResult");
+      expect(Object.keys(result)).toEqual(
+        expect.arrayContaining(declared ?? []),
+      );
+    });
+  });
+
   describe("when template model not found or empty schema", () => {
     it("returns ocrResult unchanged and summary null when template model not found", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue(null);
+      prismaMock.templateModel.findFirst.mockResolvedValue(null);
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "missing-tm",
       };
@@ -149,20 +178,21 @@ describe("enrichResults activity", () => {
 
       expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
-      expect(prismaMock.templateModel.findUnique).toHaveBeenCalledWith({
-        where: { id: "missing-tm" },
+      expect(prismaMock.templateModel.findFirst).toHaveBeenCalledWith({
+        where: { id: "missing-tm", group_id: GROUP },
         include: { field_schema: { orderBy: { display_order: "asc" } } },
       });
     });
 
     it("returns ocrResult unchanged and summary null when field_schema is empty", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "tm-1",
         field_schema: [],
       });
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
       };
@@ -174,13 +204,14 @@ describe("enrichResults activity", () => {
     });
 
     it("returns ocrResult unchanged and summary null when field_schema is null/undefined", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue({
+      prismaMock.templateModel.findFirst.mockResolvedValue({
         id: "tm-1",
         field_schema: null,
       });
       const ocrResult = minimalOcrResult();
       const result = await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
       });
@@ -189,9 +220,56 @@ describe("enrichResults activity", () => {
     });
   });
 
+  describe("group scope", () => {
+    it("treats a template model from another group as not found", async () => {
+      const otherGroupTemplate = {
+        ...templateModelWithSchema([
+          { field_key: "Date", field_type: "date", field_format: null },
+          { field_key: "Amount", field_type: "number", field_format: null },
+        ]),
+        group_id: OTHER_GROUP,
+      };
+      prismaMock.templateModel.findUnique.mockImplementation(
+        async ({ where }: { where: { id: string } }) =>
+          where.id === otherGroupTemplate.id ? otherGroupTemplate : null,
+      );
+      prismaMock.templateModel.findFirst.mockImplementation(
+        async ({ where }: { where: { id: string; group_id?: string } }) =>
+          where.id === otherGroupTemplate.id &&
+          (where.group_id === undefined ||
+            where.group_id === otherGroupTemplate.group_id)
+            ? otherGroupTemplate
+            : null,
+      );
+      const ocrResult = minimalOcrResult();
+
+      const result = await enrichResults({
+        documentId: "doc-1",
+        groupId: GROUP,
+        ocrResult,
+        documentType: "tm-1",
+      });
+
+      expect(result.summary).toBeNull();
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
+    });
+
+    it("refuses to load the template model without a groupId", async () => {
+      await expect(
+        enrichResults({
+          documentId: "doc-1",
+          ocrResult: minimalOcrResult(),
+          documentType: "tm-1",
+        }),
+      ).rejects.toThrow(/groupId is required/);
+      expect(prismaMock.templateModel.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.templateModel.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
   describe("when template model has field_schema (rules only)", () => {
     it("applies rules and returns enriched ocrResult with summary", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([
           { field_key: "Date", field_type: "date", field_format: null },
           { field_key: "Amount", field_type: "number", field_format: null },
@@ -200,6 +278,7 @@ describe("enrichResults activity", () => {
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
       };
@@ -217,17 +296,18 @@ describe("enrichResults activity", () => {
     });
 
     it("uses custom confidenceThreshold when provided", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
       await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
         confidenceThreshold: 0.9,
       });
-      expect(prismaMock.templateModel.findUnique).toHaveBeenCalled();
+      expect(prismaMock.templateModel.findFirst).toHaveBeenCalled();
     });
   });
 
@@ -241,7 +321,7 @@ describe("enrichResults activity", () => {
       delete process.env.AZURE_OPENAI_API_KEY;
       delete process.env.AZURE_OPENAI_DEPLOYMENT;
 
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -249,6 +329,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
         enableLlmEnrichment: true,
@@ -288,7 +369,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_API_KEY = "key";
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -296,6 +377,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
         enableLlmEnrichment: true,
@@ -328,7 +410,7 @@ describe("enrichResults activity", () => {
       process.env.AZURE_OPENAI_API_KEY = "key";
       process.env.AZURE_OPENAI_DEPLOYMENT = "gpt-4o";
 
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const ocrResult = minimalOcrResult();
@@ -336,6 +418,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
         enableLlmEnrichment: true,
@@ -355,12 +438,13 @@ describe("enrichResults activity", () => {
 
   describe("error handling", () => {
     it("on database error returns original ocrResult and summary null", async () => {
-      prismaMock.templateModel.findUnique.mockRejectedValue(
+      prismaMock.templateModel.findFirst.mockRejectedValue(
         new Error("Database connection failed"),
       );
       const ocrResult = minimalOcrResult();
       const params: EnrichResultsParams = {
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult,
         documentType: "tm-1",
       };
@@ -374,11 +458,12 @@ describe("enrichResults activity", () => {
 
   describe("return shape (graph contract)", () => {
     it("returns object with ocrResult and summary keys for output port binding", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
       const result = await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult: minimalOcrResult(),
         documentType: "tm-1",
       });
@@ -394,12 +479,13 @@ describe("enrichResults activity", () => {
 
   describe("alert instrumentation", () => {
     it("logs info with alertType on successful completion", async () => {
-      prismaMock.templateModel.findUnique.mockResolvedValue(
+      prismaMock.templateModel.findFirst.mockResolvedValue(
         templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
       );
 
       await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult: minimalOcrResult(),
         documentType: "tm-1",
       });
@@ -417,12 +503,13 @@ describe("enrichResults activity", () => {
     });
 
     it("logs error with alertType on database error", async () => {
-      prismaMock.templateModel.findUnique.mockRejectedValue(
+      prismaMock.templateModel.findFirst.mockRejectedValue(
         new Error("Database connection failed"),
       );
 
       await enrichResults({
         documentId: "doc-1",
+        groupId: GROUP,
         ocrResult: minimalOcrResult(),
         documentType: "tm-1",
       });

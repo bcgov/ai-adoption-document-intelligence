@@ -15,7 +15,7 @@ The frontend shows each user only the pages their group role can use: it hides s
 
 ## Where the permissions come from
 
-`GET /api/auth/me` returns each of the user's groups with its `role` and `permissions`: the role's list from `RoleClaimsMap` in `apps/backend-services/src/auth/role-permissions.ts`. The permissions are sent as numbers — each value's position in the backend `Permission` enum. The frontend compares them against its own copy of the enum in `apps/frontend/src/auth/permissions.ts`, so both enums must list the same members in the same order.
+`GET /api/auth/me` returns each of the user's groups with its `role` and `permissions`: the role's list from `RoleClaimsMap` in `apps/backend-services/src/auth/role-permissions.ts`. Each permission is sent by name, such as `"DOCUMENT_VIEW"`. The frontend compares the names against its own copy of the enum in `apps/frontend/src/auth/permissions.ts`, so both copies must use the same names, in any order. A page that requires a name the backend never sends stays closed to everyone but system admins.
 
 ## Route configuration
 

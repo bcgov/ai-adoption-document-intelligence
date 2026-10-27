@@ -9,14 +9,15 @@ jest.mock("./database-client", () => ({
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
+const GROUP_ID = "group-1";
+
 describe("upsertOcrResult activity", () => {
   let prismaMock: {
     ocrResult: {
       upsert: jest.Mock;
     };
     document: {
-      update: jest.Mock;
-      findUnique: jest.Mock;
+      updateMany: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -27,8 +28,7 @@ describe("upsertOcrResult activity", () => {
         upsert: jest.fn(),
       },
       document: {
-        update: jest.fn(),
-        findUnique: jest.fn().mockResolvedValue({ id: "doc-1" }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn(prismaMock),
@@ -74,12 +74,12 @@ describe("upsertOcrResult activity", () => {
       id: 1,
       document_id: "doc-1",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-1",
-      status: "extracted",
-    });
 
-    await upsertOcrResult({ documentId: "doc-1", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-1",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: "doc-1" },
@@ -110,8 +110,8 @@ describe("upsertOcrResult activity", () => {
       },
     });
 
-    expect(prismaMock.document.update).toHaveBeenCalledWith({
-      where: { id: "doc-1" },
+    expect(prismaMock.document.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-1", group_id: GROUP_ID },
       data: { status: "extracted" },
     });
   });
@@ -166,12 +166,12 @@ describe("upsertOcrResult activity", () => {
       id: 2,
       document_id: "doc-2",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-2",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "doc-2", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-2",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: "doc-2" },
@@ -253,12 +253,12 @@ describe("upsertOcrResult activity", () => {
       id: 3,
       document_id: "doc-3",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-3",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "doc-3", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-3",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
     const keyValuePairs = upsertCall.update.keyValuePairs;
@@ -326,12 +326,12 @@ describe("upsertOcrResult activity", () => {
       id: 5,
       document_id: "doc-5",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-5",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "doc-5", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-5",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
     expect(upsertCall.update.keyValuePairs).toBe(Prisma.JsonNull);
@@ -392,12 +392,12 @@ describe("upsertOcrResult activity", () => {
       id: 6,
       document_id: "doc-6",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-6",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "doc-6", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-6",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     const upsertCall = prismaMock.ocrResult.upsert.mock.calls[0][0];
     expect(upsertCall.update.content).toMatchObject({
@@ -431,12 +431,12 @@ describe("upsertOcrResult activity", () => {
       id: 4,
       document_id: "doc-4",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-4",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "doc-4", ocrResult });
+    await upsertOcrResult({
+      documentId: "doc-4",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalledWith({
       where: { document_id: "doc-4" },
@@ -462,7 +462,7 @@ describe("upsertOcrResult activity", () => {
     });
   });
 
-  it("skips gracefully on FK constraint violation (P2003 - benchmark mode)", async () => {
+  it("skips without error for a benchmark document id that has no row", async () => {
     const ocrResult: OCRResult = {
       success: true,
       status: "succeeded",
@@ -481,15 +481,16 @@ describe("upsertOcrResult activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    // Document not found — early exit before Prisma upsert
-    prismaMock.document.findUnique.mockResolvedValue(null);
+    prismaMock.document.updateMany.mockResolvedValue({ count: 0 });
 
-    // Should NOT throw — just log and return
     await expect(
-      upsertOcrResult({ documentId: "benchmark-Receipt", ocrResult }),
+      upsertOcrResult({
+        documentId: "benchmark-Receipt",
+        groupId: GROUP_ID,
+        ocrResult,
+      }),
     ).resolves.toBeUndefined();
 
-    // Should NOT have attempted the upsert at all
     expect(prismaMock.ocrResult.upsert).not.toHaveBeenCalled();
   });
 
@@ -512,20 +513,16 @@ describe("upsertOcrResult activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    // Document exists in DB
-    prismaMock.document.findUnique.mockResolvedValue({
-      id: "benchmark-Receipt",
-    });
     prismaMock.ocrResult.upsert.mockResolvedValue({
       id: 1,
       document_id: "benchmark-Receipt",
     });
-    prismaMock.document.update.mockResolvedValue({
-      id: "benchmark-Receipt",
-      status: "completed_ocr",
-    });
 
-    await upsertOcrResult({ documentId: "benchmark-Receipt", ocrResult });
+    await upsertOcrResult({
+      documentId: "benchmark-Receipt",
+      groupId: GROUP_ID,
+      ocrResult,
+    });
 
     expect(prismaMock.ocrResult.upsert).toHaveBeenCalled();
   });
@@ -553,7 +550,65 @@ describe("upsertOcrResult activity", () => {
     prismaMock.ocrResult.upsert.mockRejectedValue(dbError);
 
     await expect(
-      upsertOcrResult({ documentId: "doc-5", ocrResult }),
+      upsertOcrResult({ documentId: "doc-5", groupId: GROUP_ID, ocrResult }),
     ).rejects.toThrow("Database connection failed");
+  });
+  describe("group scope", () => {
+    const ocrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test-apim-id",
+      fileName: "test.pdf",
+      fileType: "pdf",
+      modelId: "prebuilt-layout",
+      extractedText: "Content",
+      pages: [],
+      tables: [],
+      paragraphs: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: "2024-01-01T00:00:00Z",
+    };
+
+    it("writes the OCR result only when the document is in the run's group", async () => {
+      await upsertOcrResult({
+        documentId: "doc-1",
+        groupId: "group-2",
+        ocrResult,
+      });
+
+      expect(prismaMock.document.updateMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.document.updateMany.mock.calls[0][0].where).toEqual({
+        id: "doc-1",
+        group_id: "group-2",
+      });
+      expect(prismaMock.ocrResult.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips the OCR result write when the document is not in the run's group", async () => {
+      prismaMock.document.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        upsertOcrResult({
+          documentId: "doc-in-group-2",
+          groupId: GROUP_ID,
+          ocrResult,
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(prismaMock.ocrResult.upsert).not.toHaveBeenCalled();
+    });
+
+    it("throws when groupId is missing and does not touch the database", async () => {
+      await expect(
+        upsertOcrResult({ documentId: "doc-1", ocrResult }),
+      ).rejects.toThrow("groupId is required");
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.document.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.ocrResult.upsert).not.toHaveBeenCalled();
+    });
   });
 });

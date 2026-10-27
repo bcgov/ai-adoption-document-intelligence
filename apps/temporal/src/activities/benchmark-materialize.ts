@@ -3,16 +3,33 @@ import * as path from "node:path";
 import {
   buildBlobPrefixPath,
   OperationCategory,
-  validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import { ApplicationFailure } from "@temporalio/common";
+import { joinDatasetPath } from "../benchmark-dataset-paths";
 import type { DatasetManifest } from "../benchmark-types";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
+import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
 
 interface MaterializeDatasetParams {
   datasetVersionId: string;
+}
+
+/**
+ * A sample id names files and folders on the worker, so it must be a single
+ * path segment: a non-empty string with no `/`, `\` or NUL that is not `.`
+ * or `..`.
+ */
+function isSafeSampleId(id: unknown): boolean {
+  return (
+    typeof id === "string" &&
+    id.length > 0 &&
+    id !== "." &&
+    id !== ".." &&
+    !/[/\\\0]/.test(id)
+  );
 }
 
 interface MaterializeDatasetResult {
@@ -72,11 +89,11 @@ export async function materializeDataset(
       [storagePrefix],
     );
 
-    // Determine cache directory
-    const cacheBaseDir =
-      process.env.BENCHMARK_CACHE_DIR || "/tmp/benchmark-cache";
+    // Each group's datasets live in their own cache directory, the only
+    // local location readGroupBlob accepts for that group's runs.
+    const groupCacheDir = getGroupBenchmarkCacheDir(groupId);
     const cacheKey = `${datasetId}-${datasetVersionId}`;
-    const materializedPath = path.join(cacheBaseDir, cacheKey);
+    const materializedPath = path.join(groupCacheDir, cacheKey);
 
     log.info("Check cache", {
       event: "check_cache",
@@ -108,12 +125,12 @@ export async function materializeDataset(
       });
     }
 
-    // Ensure cache base directory exists
-    await fs.mkdir(cacheBaseDir, { recursive: true });
+    // Ensure the group's cache directory exists
+    await fs.mkdir(groupCacheDir, { recursive: true });
     await fs.mkdir(materializedPath, { recursive: true });
 
     // Download all files from object storage
-    const blobStorage = getBlobStorageClient();
+    const blobStorage = getGroupBlobStorage(groupId);
 
     log.info("Download start", {
       event: "download_start",
@@ -142,7 +159,7 @@ export async function materializeDataset(
 
         await fs.mkdir(localDir, { recursive: true });
 
-        const data = await blobStorage.read(validateBlobFilePath(key));
+        const data = await blobStorage.read(key);
         // wx flag is exclusive creation. Will fail if already exists.
         // 0x600 permissions restrict to read/write only for the owner
         const fileHandle = await fs.open(localPath, "wx", 0o600);
@@ -172,6 +189,11 @@ export async function materializeDataset(
           /* intentional: best-effort cleanup */
         });
 
+      // A refusal of a key outside the dataset's group fails the same way on
+      // every attempt, so it keeps its non-retryable failure.
+      if (error instanceof ApplicationFailure) {
+        throw error;
+      }
       throw new Error(
         `Dataset download from object storage failed: ${errorMessage}`,
       );
@@ -246,12 +268,19 @@ export async function loadDatasetManifest(
       throw new Error(`Dataset version not found: ${datasetVersionId}`);
     }
 
-    const manifestPath = path.join(
+    const manifestPath = joinDatasetPath(
       materializedPath,
       datasetVersion.manifestPath,
     );
     const manifestContent = await fs.readFile(manifestPath, "utf-8");
     const manifest: DatasetManifest = JSON.parse(manifestContent);
+    for (const sample of manifest.samples) {
+      if (!isSafeSampleId(sample.id)) {
+        throw new Error(
+          `Dataset manifest has an invalid sample id: ${JSON.stringify(sample.id)}`,
+        );
+      }
+    }
 
     log.info("Load dataset manifest complete", {
       event: "complete",

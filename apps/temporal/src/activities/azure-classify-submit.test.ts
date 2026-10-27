@@ -1,7 +1,13 @@
+import type { AzureClassifySubmitParameters } from "@ai-di/graph-workflow";
 import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { azureClassifySubmit } from "./azure-classify-submit";
+import { ApplicationFailure } from "@temporalio/common";
+import type { SameKeys } from "../__testlib__/same-shape";
+import {
+  type AzureClassifySubmitInput,
+  azureClassifySubmit,
+} from "./azure-classify-submit";
 import { getPrismaClient } from "./database-client";
 
 jest.mock("@azure-rest/ai-document-intelligence", () => ({
@@ -274,5 +280,67 @@ describe("azureClassifySubmit activity", () => {
 
       expect(result.documentId).toBe("doc42");
     });
+  });
+
+  describe("limited to the run's group", () => {
+    const GROUP = "clh7z2xk00000356u8e3h1234";
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    it("refuses a blob key from another group when generating a SAS URL", async () => {
+      process.env.BLOB_STORAGE_PROVIDER = "azure";
+      mockGenerateSasUrl.mockResolvedValue(
+        "https://example.test/doc.pdf?sas=1",
+      );
+
+      await expect(
+        azureClassifySubmit({
+          blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+          groupId: GROUP,
+          classifierName: "my-classifier",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockGenerateSasUrl).not.toHaveBeenCalled();
+      expect(mockPath).not.toHaveBeenCalled();
+    });
+
+    it("refuses a blob key from another group when reading the bytes", async () => {
+      await expect(
+        azureClassifySubmit({
+          blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+          groupId: GROUP,
+          classifierName: "my-classifier",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockPath).not.toHaveBeenCalled();
+    });
+
+    it("refuses another group's blob key with a failure Temporal does not retry", async () => {
+      const failure = await azureClassifySubmit({
+        blobKey: `${OTHER_GROUP}/ocr/doc.pdf`,
+        groupId: GROUP,
+        classifierName: "my-classifier",
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApplicationFailure);
+      expect((failure as ApplicationFailure).type).toBe(
+        "GROUP_SCOPE_VIOLATION",
+      );
+      expect((failure as ApplicationFailure).nonRetryable).toBe(true);
+    });
+  });
+});
+
+describe("azureClassifySubmit — catalog parameters", () => {
+  // A saved parameter the catalog entry does not declare is shown in the
+  // settings panel as one the step "no longer uses", with a Remove button.
+  it("declares every parameter the activity takes", () => {
+    const agree: SameKeys<
+      AzureClassifySubmitParameters,
+      Omit<AzureClassifySubmitInput, "blobKey" | "documentId" | "groupId">
+    > = true;
+    expect(agree).toBe(true);
   });
 });

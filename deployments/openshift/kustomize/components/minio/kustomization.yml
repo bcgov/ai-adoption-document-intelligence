@@ -8,7 +8,7 @@ kind: Component
 #
 # Resources defined here:
 #   - PersistentVolumeClaim:  minio                  (RWO, sized via --minio-pvc-size)
-#   - Deployment:             minio                  (single replica, image minio/minio)
+#   - Deployment:             minio                  (single replica, image cgr.dev/chainguard/minio)
 #   - Service:                minio                  (ClusterIP, ports 9000 API and 9001 console)
 #   - Job:                    minio-init             (creates document-blobs and benchmark-outputs buckets)
 #

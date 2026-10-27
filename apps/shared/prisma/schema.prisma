@@ -19,6 +19,7 @@ datasource db {
 enum WorkflowKind {
   primary
   benchmark_candidate
+  library
 }
 
 model Document {
@@ -41,7 +42,6 @@ model Document {
   /// and Temporal execution record have been purged. Null = not yet purged.
   purged_at             DateTime?
   apim_request_id       String?
-  workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
   workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
   workflow_execution_id String?                @unique // Temporal workflow execution ID
   model_id              String                 @default("prebuilt-layout")
@@ -169,7 +169,9 @@ model Actor {
   createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
   updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
   deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
+  apiKeyGroup               Group?                   @relation(name: "ApiKeyGroup")
   reviewSessions            ReviewSession[]
+  fieldCorrections          FieldCorrection[]
   datasets                  Dataset[]
   benchmarkProjects         BenchmarkProject[]
   benchmarkAuditLogs        BenchmarkAuditLog[]
@@ -201,6 +203,7 @@ model WorkflowLineage {
   updated_at           DateTime          @updatedAt
   versions             WorkflowVersion[] @relation("LineageVersions")
   benchmarkCandidateLineages WorkflowLineage[] @relation("LineageSource")
+  chatConversations    ChatConversation[]
 
   @@unique([group_id, slug])
   @@index([group_id])
@@ -330,6 +333,22 @@ model TrainingJob {
   @@map("training_jobs")
 }
 
+/// The group an Azure Document Intelligence model id belongs to on the resource
+/// every group shares. Written when a training starts, and kept when the
+/// template, its trained models or its training jobs are deleted, because the
+/// model can outlive them in Azure (a deleted template's models, or a build
+/// that finishes after its training was cancelled). No foreign key, for the
+/// same reason.
+model ModelOwner {
+  /// Azure model id, lowercase like every id the app mints.
+  model_id   String   @id
+  group_id   String
+  created_at DateTime @default(now())
+
+  @@index([group_id])
+  @@map("model_owners")
+}
+
 model TrainedModel {
   id                String        @id @default(cuid())
   template_model_id String
@@ -401,9 +420,15 @@ model Group {
   updated_at          DateTime                 @updatedAt
   deleted_at          DateTime?
   deleted_by          String?
+  /// The group's durable API-key identity. Created the first time the group
+  /// ever gets an API key and reused by every key issued afterward (including
+  /// after a delete + recreate), so records authored via the API keep a valid
+  /// author even once the key that created them is gone.
+  api_actor_id        String?                  @unique
   creator             Actor                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
   updator             Actor?                   @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
   deleter             Actor?                   @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
+  apiActor            Actor?                   @relation(name: "ApiKeyGroup", fields: [api_actor_id], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]
@@ -417,6 +442,8 @@ model Group {
   confusionProfiles   ConfusionProfile[]
   reference_tables    ReferenceTable[]
   billing_config      GroupBillingConfig?
+  chatConversations   ChatConversation[]
+  internalTokens      InternalToken[]
 
   @@map("group")
 }
@@ -505,6 +532,12 @@ model ReviewSession {
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
+  // Note left when the session was last flagged, shown to whoever works on it next.
+  // Taking the session over keeps it; flagging again replaces it.
+  flag_note    String?
+  /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
+  rejection_reason  RejectionReason?
+  rejection_comment String?
   corrections  FieldCorrection[]
   lock         DocumentLock?
 
@@ -538,8 +571,13 @@ model FieldCorrection {
   original_conf   Float?
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
+  // Actor who made this correction. Null on rows created before this field existed
+  // (session.actor_id is the only historical signal, and it can be reassigned on takeover).
+  actor_id        String?
+  actor           Actor?           @relation(fields: [actor_id], references: [id])
 
   @@index([session_id])
+  @@index([actor_id])
   @@map("field_corrections")
 }
 
@@ -574,8 +612,23 @@ enum LabelingStatus {
 enum ReviewStatus {
   in_progress
   approved
+  rejected
   flagged
   abandoned
+}
+
+/// Why a reviewer rejected a document, chosen from a fixed list in the review workspace.
+enum RejectionReason {
+  /// The scan is unreadable, cut off or skewed.
+  INPUT_QUALITY
+  /// Extraction missed fields or returned values that aren't on the page.
+  OCR_FAILURE
+  /// The document isn't the type or template the model expects.
+  MODEL_MISMATCH
+  /// Confidence is too low to trust the extracted values.
+  CONFIDENCE_TOO_LOW
+  /// A fault in the processing pipeline.
+  SYSTEMIC_ERROR
 }
 
 enum CorrectionAction {
@@ -721,6 +774,8 @@ enum DocumentStatus {
   failed
   /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
   conversion_failed
+  /// A reviewer rejected the document at the human review step; processing stopped there.
+  rejected
 }
 
 // ========== BENCHMARKING MODELS ==========
@@ -997,4 +1052,158 @@ model ReferenceTableRow {
 
   @@index([group_id, table_id])
   @@map("reference_table_rows")
+}
+
+// ========== ACTIVITY OUTPUT CACHE (Phase 4 — try-in-place) ==========
+
+/// Per-(workflow-lineage, node, configHash, inputHash) cache row for activity outputs.
+/// Powers the Phase 4 try-in-place cache decorator (US-132) and the preview-cache
+/// endpoint (US-140). See docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.2.
+model ActivityOutputCache {
+  id                String   @id @default(cuid())
+  workflowLineageId String   @map("workflow_lineage_id")
+  nodeId            String   @map("node_id")
+  configHash        String   @map("config_hash")
+  inputHash         String   @map("input_hash")
+  outputCtx         Json     @map("output_ctx")
+  outputKind        String?  @map("output_kind")
+  createdAt         DateTime @default(now()) @map("created_at")
+  expiresAt         DateTime @map("expires_at")
+
+  @@unique([workflowLineageId, nodeId, configHash, inputHash])
+  @@index([workflowLineageId, nodeId])
+  @@index([expiresAt])
+  @@index([workflowLineageId, createdAt])
+  @@map("activity_output_cache")
+}
+
+// ========== DYNAMIC NODES (Phase 6) ==========
+
+/// Lineage row for a dynamic node. Group-scoped. `headVersionId` is the
+/// movable pointer; publishing always creates a new `DynamicNodeVersion`
+/// and moves the pointer. Soft-delete sets `deletedAt`; pinned versions
+/// of soft-deleted lineages continue to resolve at runtime.
+///
+/// See feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md
+/// §3.3 L20 + docs-md/workflows/DYNAMIC_NODES_DESIGN.md §3.
+model DynamicNode {
+  id             String              @id @default(cuid())
+  groupId        String              @map("group_id")
+  slug           String
+  description    String?
+  ownerUserId    String?             @map("owner_user_id")
+  headVersionId  String?             @unique @map("head_version_id")
+  deletedAt      DateTime?           @map("deleted_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  headVersion    DynamicNodeVersion? @relation("HeadVersion", fields: [headVersionId], references: [id])
+  versions       DynamicNodeVersion[] @relation("Versions")
+
+  @@unique([groupId, slug])
+  @@index([groupId, deletedAt])
+  @@map("dynamic_node")
+}
+
+/// Immutable snapshot of a dynamic-node script. `versionNumber` is
+/// per-lineage starting at 1. `signature` stores the parsed
+/// `DynamicNodeSignature` JSON; `allowNet` is the post-allowlist-intersection
+/// host list (publish-time `@allowNet ∩ DYNAMIC_NODE_ALLOW_NET`).
+///
+/// See feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md
+/// §3.3 L21.
+model DynamicNodeVersion {
+  id                 String      @id @default(cuid())
+  dynamicNodeId      String      @map("dynamic_node_id")
+  versionNumber      Int         @map("version_number")
+  script             String      @db.Text
+  signature          Json
+  allowNet           String[]    @map("allow_net")
+  deterministic      Boolean     @default(false)
+  publishedByUserId  String?     @map("published_by_user_id")
+  publishedAt        DateTime    @default(now()) @map("published_at")
+  dynamicNode        DynamicNode @relation("Versions", fields: [dynamicNodeId], references: [id], onDelete: Cascade)
+  headOf             DynamicNode? @relation("HeadVersion")
+
+  @@unique([dynamicNodeId, versionNumber])
+  @@map("dynamic_node_version")
+}
+
+// ========== AGENT CHAT (Phase 7) ==========
+
+/// Per-user chat conversation with the workflow-builder agent. Optionally
+/// bound to a workflow lineage. Per-user-private (visible only to creator).
+///
+/// See docs-md/workflows/AI_AGENT_DESIGN.md (Phase 7) §4.1.
+model ChatConversation {
+  id             String          @id @default(cuid())
+  workflowId     String?         @map("workflow_id")
+  workflow       WorkflowLineage? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  groupId        String          @map("group_id")
+  group          Group           @relation(fields: [groupId], references: [id])
+  createdBy      String          @map("created_by")
+  provider       String          @default("anthropic")
+  model          String
+  title          String?
+  /// Seeded demo transcript rather than a real user's chat. Demo
+  /// conversations are readable by everyone in their group and are a
+  /// read-only replay — no turn may be appended to one.
+  isDemo         Boolean         @default(false) @map("is_demo")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  lastMessageAt  DateTime        @default(now()) @map("last_message_at")
+  messages       ChatMessage[]
+
+  @@index([workflowId])
+  @@index([groupId, createdBy])
+  @@map("chat_conversation")
+}
+
+/// One row per user turn + one row per assistant turn. Tool calls and
+/// results are embedded as JSON parts inside `content`.
+model ChatMessage {
+  id              String           @id @default(cuid())
+  conversationId  String           @map("conversation_id")
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            String
+  content         Json
+  inputTokens     Int?             @map("input_tokens")
+  outputTokens    Int?             @map("output_tokens")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("chat_message")
+}
+
+// ========== INTERNAL TOKENS ==========
+
+/// Short-lived, group-scoped credential minted server-side — for dynamic-node
+/// callbacks (the worker mints one per `dyn.run` invocation, scoped to the
+/// group owning the running workflow) and agent self-calls (minted from the
+/// already-resolved caller identity). Replaces the shared PLATFORM_API_KEY
+/// design: only a hash of the token is stored, and rows expire on
+/// `expiresAt` (enforced on read; a cleanup sweep deletes expired rows).
+model InternalToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique @map("token_hash")
+  groupId   String   @map("group_id")
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// Minting user, when the token carries one (agent self-calls). No FK:
+  /// actor ids come from JWT/IDIR identities as well as `User` rows, so a
+  /// relation to one table cannot hold them all.
+  userId    String?  @map("user_id")
+  /// What the token was minted for. Free string; current values are
+  /// "dyn-run" (dynamic-node callback) and "agent-self-call".
+  purpose   String
+  /// Set on "dyn-run" tokens: the Temporal run id of the workflow execution
+  /// whose custom step (dynamic node) the token was minted for, and that
+  /// step's slug. Audit events recorded during a call made with the token
+  /// carry both, and the run's `workflow_run_started` event names who
+  /// started it. Null on other tokens.
+  workflowExecutionId String? @map("workflow_execution_id")
+  dynamicNodeSlug     String? @map("dynamic_node_slug")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@index([groupId])
+  @@map("internal_token")
 }

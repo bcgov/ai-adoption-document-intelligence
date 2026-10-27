@@ -26,7 +26,7 @@ model token charges (LLM layer).
 | Analyzer upsert | `PUT /analyzers/{analyzerId}?api-version=2025-11-01` | same; the deploy activity skips PUT when an existing analyzer matches the desired body |
 | Analyze submit | `POST /analyzers/{analyzerId}:analyze?api-version=2025-11-01` body `{ inputs: [{ url: <data-url> }] }` → `202 + Operation-Location` | same; the activity polls `Operation-Location` every 1.5 s until terminal |
 | Analyze poll | `GET /analyzerResults/{request-id}?api-version=2025-11-01` | same |
-| **Analyzer ID constraint** | alphanumeric only | **CU rejects `-` in `analyzerId` with HTTP 400 `InvalidAnalyzerId`. We sanitise `${AZURE_CU_ANALYZER_PREFIX}-${templateModelId}` to lowercase alphanumeric, dropping all separators.** |
+| **Analyzer ID constraint** | alphanumeric only | **CU rejects `-` in `analyzerId` with HTTP 400 `InvalidAnalyzerId`. We sanitise `${AZURE_CU_ANALYZER_PREFIX}-${groupId}-${templateModelId}` to lowercase alphanumeric, dropping all separators.** |
 | **Defaults pre-flight** | required before any analyzer can be deployed | `PATCH /contentunderstanding/defaults` must wire the `gpt-5.2`, `gpt-4.1-mini`, and `text-embedding-3-large` aliases to actual deployment names; without it, PUT analyzer fails with `DefaultsNotSet`. **One-time setup** at the resource level; the iteration script does NOT do this for you. |
 
 ## Analyzer JSON schema vocabulary
@@ -74,20 +74,26 @@ verified during E03's iteration step.
 
 ## Activities
 
-Two activities are registered in all three registries (per
-`ADDING_OCR_PROVIDERS.md`):
-
-- **`azureContentUnderstanding.deployAnalyzer`** — idempotent PUT against
-  `/analyzers/{id}`. GETs first; skips PUT when the deployed body
-  matches. In-memory cache keyed on `analyzerId + bodyHash` short-circuits
-  repeats. Default timeout 2 min, 3 retries.
+One activity is registered in all three registries (per
+`ADDING_OCR_PROVIDERS.md`), and the step catalog describes it, so the
+workflow builder offers it as **Analyze with Content Understanding**:
 
 - **`azureContentUnderstanding.analyze`** — submits one document, polls
-  the operation, returns `{ ocrResult, cuResponse }`. Calls
-  `deployAnalyzer` first when a `templateModelId` is supplied. Default
+  the operation, returns `{ ocrResult, ocrResponse }`. When a
+  `templateModelId` is supplied, it first deploys the analyzer built from the
+  template's fields (below). An explicit `analyzerId` parameter must be an
+  Azure `prebuilt-*` analyzer or one of the group's own analyzers. Default
   timeout 20 min, retry policy **30 attempts × 15 s × 1.5x × 60 s cap**
   (mirrors `mistralAzureOcr.process` because the Foundry RPM quota model
   applies — and the LLM layer can be slower than OCR-only paths).
+
+Deploying is a helper the analyze activity calls directly
+(`azureCuDeployAnalyzer` in `azure-cu-deploy-analyzer.ts`), not an activity a
+workflow can use: an idempotent PUT against `/analyzers/{id}`. It GETs first
+and skips the PUT when the deployed body matches, and an in-memory cache keyed
+on `analyzerId + bodyHash` short-circuits repeats. The CU resource is shared by
+every group, so it only deploys analyzer ids that start with the running
+workflow's group prefix (`{prefix}{groupId}`, sanitised).
 
 Mock mode for tests: set `MOCK_AZURE_CU=true` and the activity returns a
 canned response without hitting the network.
@@ -132,7 +138,9 @@ generative engines. The canonical pattern (E02 standard, applied here):
 - Iteration script:
   [`apps/temporal/scripts/iterate-cu-extraction.ts`](../../apps/temporal/scripts/iterate-cu-extraction.ts)
   hits CU once for one sample and writes a per-field diff so prompt
-  tweaks can be validated without burning a 40-sample run.
+  tweaks can be validated without burning a 40-sample run. It deploys
+  the analyzer under the template model's group prefix, the same id the
+  workflow uses.
 
 ## Engine-internal preprocessing
 

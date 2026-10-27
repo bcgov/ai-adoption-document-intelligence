@@ -25,6 +25,7 @@ import {
 } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
 import { WorkflowService } from "@/workflow/workflow.service";
 
 export interface OcrRequestResponse {
@@ -53,6 +54,36 @@ function readTemplateModelIdFromDocumentMetadata(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** Key names that would reach an object's prototype; never valid ctx keys. */
+const UNSAFE_CTX_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Selects the caller-supplied ctx overrides that a run may apply. A caller
+ * tunes a workflow's declared settings — the ctx keys it declares with a
+ * `defaultValue` — and never the values the server derives from the stored
+ * document (`serverCtx`), whatever the workflow declares.
+ */
+function selectCallerCtxOverrides(
+  config: GraphWorkflowConfig,
+  serverCtx: Record<string, unknown>,
+  ctxOverrides: Record<string, unknown> | undefined,
+): { accepted: Record<string, unknown>; ignoredKeys: string[] } {
+  const declared = config.ctx ?? {};
+  const isOverridable = (key: string): boolean =>
+    !UNSAFE_CTX_KEYS.has(key) &&
+    Object.hasOwn(declared, key) &&
+    declared[key].defaultValue !== undefined &&
+    !Object.hasOwn(serverCtx, key);
+
+  const entries = Object.entries(ctxOverrides ?? {});
+  return {
+    accepted: Object.fromEntries(entries.filter(([key]) => isOverridable(key))),
+    ignoredKeys: entries
+      .filter(([key]) => !isOverridable(key))
+      .map(([key]) => key),
+  };
+}
+
 @Injectable()
 export class OcrService {
   constructor(
@@ -73,13 +104,16 @@ export class OcrService {
   /**
    * Sends a document to Azure for OCR processing via Temporal workflow.
    * @param documentId ID from documents table
-   * @param steps Optional workflow steps configuration
+   * @param ctxOverrides Caller-supplied ctx settings; only the workflow's declared settings apply
+   * @param workflowConfigOverrides Overrides merged into the workflow config when the worker loads it
+   * @param serverSettings Ctx values the server itself chooses for this run, applied after the caller's settings; they never replace the values derived from the stored document
    * @returns New status of document and workflow ID.
    */
   async requestOcr(
     documentId: string,
     ctxOverrides?: Record<string, unknown>,
     workflowConfigOverrides?: Record<string, unknown>,
+    serverSettings?: Record<string, unknown>,
   ): Promise<OcrRequestResponse> {
     this.logger.debug(`Document ID: ${documentId || "N/A"}`);
     // Find filepath of document
@@ -109,9 +143,7 @@ export class OcrService {
       const fileType = "pdf";
       const contentType = "application/pdf";
 
-      // Get workflow_config_id from document if available
-      // This references the Workflow table and contains the workflow configuration
-      // Fallback to legacy workflow_id for backward compatibility during migration
+      // The workflow version the document was uploaded through
       const workflowConfigId = document.workflow_config_id || undefined;
       if (workflowConfigId) {
         this.logger.log(
@@ -123,11 +155,19 @@ export class OcrService {
         );
       }
 
+      const workflowConfig =
+        await this.workflowService.getWorkflowVersionById(workflowConfigId);
+      if (!workflowConfig) {
+        throw new BadRequestException(
+          `Workflow configuration not found: ${workflowConfigId}`,
+        );
+      }
+
       const templateModelId = readTemplateModelIdFromDocumentMetadata(
         document.metadata,
       );
 
-      const initialCtx: Record<string, unknown> = {
+      const serverCtx: Record<string, unknown> = {
         documentId,
         groupId: document.group_id,
         blobKey: document.normalized_file_path,
@@ -142,19 +182,28 @@ export class OcrService {
         documentMetadata: {
           receivedAt: document.created_at.toISOString(),
         },
-        ...(templateModelId !== undefined && { templateModelId }),
-        ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold, templateModelId)
       };
-
-      // Pre-flight cost estimation and cap check
-      const workflowConfig =
-        await this.workflowService.getWorkflowVersionById(workflowConfigId);
-      if (!workflowConfig) {
-        throw new BadRequestException(
-          `Workflow configuration not found: ${workflowConfigId}`,
+      const callerCtx = selectCallerCtxOverrides(
+        workflowConfig.config as GraphWorkflowConfig,
+        serverCtx,
+        ctxOverrides,
+      );
+      if (callerCtx.ignoredKeys.length > 0) {
+        this.logger.warn(
+          `Ignoring ctx overrides for document ${documentId} that are not declared workflow settings: ${callerCtx.ignoredKeys.join(", ")}`,
         );
       }
 
+      // The values derived from the stored document go last, so nothing
+      // spread before them can replace them.
+      const initialCtx: Record<string, unknown> = {
+        ...(templateModelId !== undefined && { templateModelId }),
+        ...callerCtx.accepted,
+        ...serverSettings,
+        ...serverCtx,
+      };
+
+      // Pre-flight cost estimation and cap check
       const costEstimation =
         await this.preflightCostEstimatorService.estimateWorkflowCost(
           workflowConfig.config,
@@ -178,12 +227,16 @@ export class OcrService {
       }
 
       // Start Temporal graph workflow
-      const workflowExecutionId =
+      const { runId: workflowExecutionId } =
         await this.temporalClientService.startGraphWorkflow(
           documentId,
           workflowConfigId,
           initialCtx,
           document.group_id,
+          // Real document processing, not an editor Try. Starting a Try
+          // cancels the workflow's runs labelled "try"; labelling this one
+          // "api" is what keeps a Try from cancelling it mid-way.
+          "api",
           workflowConfigOverrides,
         );
 

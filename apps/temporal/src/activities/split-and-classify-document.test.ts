@@ -11,6 +11,15 @@ import * as splitDocumentModule from "./split-document";
 // Mock the splitDocument function
 jest.mock("./split-document");
 
+const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    read: mockBlobRead,
+    write: mockBlobWrite,
+  }),
+}));
+
 const mockSplitDocument =
   splitDocumentModule.splitDocument as jest.MockedFunction<
     typeof splitDocumentModule.splitDocument
@@ -559,6 +568,30 @@ Page 5 — Pay Stub`;
       expect(result.segments).toHaveLength(2);
       expect(result.segments[0].pageRange).toEqual({ start: 1, end: 4 });
       expect(result.segments[1].pageRange).toEqual({ start: 5, end: 10 });
+    });
+  });
+
+  describe("limited to the run's group", () => {
+    it("refuses a source blob key from another group", async () => {
+      const actualSplitDocument =
+        jest.requireActual<typeof splitDocumentModule>(
+          "./split-document",
+        ).splitDocument;
+      mockSplitDocument.mockImplementation(actualSplitDocument);
+      mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
+
+      const input: SplitAndClassifyInput = {
+        blobKey: "clh7z2xk00000356u8e3h5678/ocr/doc1/original.pdf",
+        groupId: "clh7z2xk00000356u8e3h1234",
+        ocrResult: createMockOcrResult("Page 1 — Monthly Report", 1),
+        documentId: "doc1",
+        keywordPatterns: defaultKeywordPatterns,
+      };
+
+      await expect(splitAndClassifyDocument(input)).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockBlobWrite).not.toHaveBeenCalled();
     });
   });
 });

@@ -79,12 +79,13 @@ jest.mock("pdf-lib", () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-const VALID_BLOB_KEY = "testgroup/ocr/docid/normalized.pdf";
+const GROUP_ID = "testgroup";
+const VALID_BLOB_KEY = `${GROUP_ID}/ocr/docid/normalized.pdf`;
 
 function makeInput(
   overrides: Partial<NormalizeDocumentOrientationInput> = {},
 ): NormalizeDocumentOrientationInput {
-  return { blobKey: VALID_BLOB_KEY, ...overrides };
+  return { blobKey: VALID_BLOB_KEY, groupId: GROUP_ID, ...overrides };
 }
 
 function osdResult(angle: number, confidence = 5.0) {
@@ -268,5 +269,35 @@ describe("normalizeDocumentOrientation", () => {
     await normalizeDocumentOrientation(makeInput());
 
     expect(mockTerminate).toHaveBeenCalledTimes(1);
+  });
+
+  // --- Group scope ---
+
+  describe("limited to the run's group", () => {
+    it("refuses a blob key from another group without reading or writing it", async () => {
+      mockDetect.mockResolvedValue(osdResult(90, 9.0));
+
+      await expect(
+        normalizeDocumentOrientation(
+          makeInput({
+            blobKey: "clh7z2xk00000356u8e3h5678/ocr/docid/normalized.pdf",
+            groupId: "clh7z2xk00000356u8e3h1234",
+          }),
+        ),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(mockBlobWrite).not.toHaveBeenCalled();
+    });
+
+    it("refuses to read when the run has no groupId", async () => {
+      mockDetect.mockResolvedValue(osdResult(0, 9.0));
+
+      await expect(
+        normalizeDocumentOrientation(makeInput({ groupId: "" })),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+    });
   });
 });

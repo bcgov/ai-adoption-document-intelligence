@@ -48,6 +48,7 @@ interface BenchmarkActivities {
     sampleId: string;
   }) => Promise<{ ocrResponse: unknown | null }>;
   "benchmark.flattenPredictionFromRefs": (input: {
+    groupId?: string;
     cleanedResultRef?: OcrPayloadRef;
     ocrResultRef?: OcrPayloadRef;
   }) => Promise<{
@@ -58,9 +59,11 @@ interface BenchmarkActivities {
     predictionData: Record<string, unknown>;
     outputDir: string;
     sampleId: string;
+    groupId?: string;
   }) => Promise<{ predictionPath: string }>;
   "benchmark.persistOcrCache": (input: {
     sourceRunId: string;
+    groupId?: string;
     sampleId: string;
     ocrResponseRef?: OcrPayloadRef;
   }) => Promise<void>;
@@ -148,6 +151,7 @@ export async function benchmarkSampleWorkflow(
   const { predictionData, confidenceData } = await customActivities[
     "benchmark.flattenPredictionFromRefs"
   ]({
+    groupId,
     cleanedResultRef: graphResult.refs?.cleanedResultRef,
     ocrResultRef: graphResult.refs?.ocrResultRef,
   });
@@ -158,11 +162,13 @@ export async function benchmarkSampleWorkflow(
     predictionData,
     outputDir: predictionOutputDir,
     sampleId,
+    groupId,
   });
 
   if (persistOcrCache && graphResult.refs?.ocrResponseRef?.blobPath) {
     await customActivities["benchmark.persistOcrCache"]({
       sourceRunId: persistOcrCache.sourceRunId,
+      groupId,
       sampleId,
       ocrResponseRef: graphResult.refs.ocrResponseRef,
     });

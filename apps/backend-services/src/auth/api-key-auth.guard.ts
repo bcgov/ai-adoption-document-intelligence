@@ -16,6 +16,7 @@ import {
   API_KEY_SWEEP_INTERVAL_MS,
 } from "./auth.config";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
+import { INTERNAL_TOKEN_HEADER } from "./internal-token.service";
 
 /**
  * Tracks failed API key validation attempts per IP within a time window.
@@ -67,6 +68,11 @@ export class ApiKeyAuthGuard implements CanActivate, OnModuleDestroy {
     const apiKey = request.headers["x-api-key"] as string;
 
     if (!apiKey) {
+      // An internal token is the request's credential instead: the
+      // InternalTokenAuthGuard after this one validates it.
+      if (request.headers[INTERNAL_TOKEN_HEADER]) {
+        return true;
+      }
       if (!request.user) {
         throw new UnauthorizedException("Authentication required");
       }

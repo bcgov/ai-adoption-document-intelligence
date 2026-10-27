@@ -37,6 +37,12 @@ export async function enrichResults(
   params: EnrichResultsParams,
 ): Promise<{ ocrResult: OcrPayloadRef; summary: EnrichmentSummary | null }> {
   const { documentId, documentType } = params;
+  const runGroupId = params.groupId;
+  if (!runGroupId) {
+    throw new Error(
+      `groupId is required to load template model "${documentType}"`,
+    );
+  }
   const { ocrResult, groupId } = await resolveOcrResultInput(params);
   const activityName = "enrichResults";
   const log = createActivityLogger(activityName, { documentId });
@@ -53,8 +59,10 @@ export async function enrichResults(
 
   try {
     const prisma = getPrismaClient();
-    const templateModel = await prisma.templateModel.findUnique({
-      where: { id: documentType },
+    // Limited to the run's group: a template model from another group is
+    // treated as not found.
+    const templateModel = await prisma.templateModel.findFirst({
+      where: { id: documentType, group_id: runGroupId },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
 

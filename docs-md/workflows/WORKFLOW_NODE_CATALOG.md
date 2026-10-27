@@ -29,13 +29,13 @@ Azure OCR graphs store **references** in workflow context, not full JSON:
 
 | Context variable (author names this) | Typical default name | Activity port |
 |--------------------------------------|----------------------|---------------|
-| Poll response ref | `ocrResponseRef` | `response` (poll) / `ocrResponse` (extract input) |
+| Poll response ref | `ocrResponseRef` | `ocrResponse` (poll output and extract input) |
 | Structured OCR ref | `ocrResultRef` | `ocrResult` |
 | Cleaned OCR ref | `cleanedResultRef` | `cleanedResult` |
 
 Each value is an `OcrPayloadRef` (`documentId`, `blobPath`, `status`, …). **Poll Until** stop conditions should reference the ref’s status, e.g. `ocrResponseRef.status` not `running`. **Switch** / **transform** expressions use the same `*Ref` names.
 
-Canonical JSON: [`docs-md/workflows/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
+Canonical JSON: [`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
 
 ---
 
@@ -211,8 +211,8 @@ Designer note: simple cases (a single comparison) should look as clean as possib
   - **Type** *(dropdown: text / number / true-false / list / object)*
   - **Required** *(toggle)*
   - **Description** *(short text)*
-- **Timeout** *(duration, required, e.g., `24h`)*
-- **On timeout** *(dropdown, required, default "Fail")*:
+- **Timeout** *(duration, optional, e.g., `24h`)* — Leave blank to wait until the reviewer responds, however long that takes.
+- **On timeout** *(dropdown, required, default "Fail")* — Applies only when a timeout is set:
   - **Fail** — Workflow fails if no response in time.
   - **Continue** — Treat as approved and continue normal flow.
   - **Follow fallback arrow** — Take the fallback outgoing arrow. Selecting this enables an extra outgoing handle on the canvas.
@@ -239,10 +239,9 @@ Designer note: simple cases (a single comparison) should look as clean as possib
   - **File name** *(optional)* — If not provided, derived from the file reference.
   - **File type** *(optional)* — `pdf` or `image`. Auto-detected from extension if not provided.
   - **Content type (MIME)** *(optional)* — Auto-detected if not provided.
+  - **OCR model ID** *(optional)* — Which Azure Document Intelligence model the file is submitted to. Bind it to the same workflow variable as **Wait for OCR Result** and **Extract OCR Result**, so all three use one model; if unbound it defaults to `prebuilt-layout`.
 - **Outputs ("This step produces"):**
   - **Prepared file data** *(required)* — Name for the prepared metadata (becomes available downstream).
-- **Static parameters:**
-  - **OCR model ID** *(text or dropdown, optional, default `prebuilt-layout`)* — Which Azure Document Intelligence model the prepared data should be associated with. The dropdown should include the common Azure prebuilt models.
 
 ---
 
@@ -286,10 +285,9 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 - **Inputs ("This step reads"):**
   - **Request ID** *(required)* — From **Submit OCR**'s output.
   - **Document ID** *(required for blob refs)* — Usually wired from trigger/context (`documentId`).
+  - **OCR model ID** *(optional)* — The same workflow variable **Prepare File** reads, so the result is fetched under the model it was submitted to; if unbound it defaults to `prebuilt-layout`.
 - **Outputs ("This step produces"):**
-  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `response`). Used by the stop condition (`ocrResponseRef.status`).
-- **Static parameters:**
-  - **OCR model ID** *(required, defaults from upstream)*.
+  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `ocrResponse`). Used by the stop condition (`ocrResponseRef.status`).
 - **Wait & Retry settings (preconfigured but editable):**
   - **Stop condition**: pre-filled with "OCR poll response ref status not equals `running`" (`ocrResponseRef.status`) — the user shouldn't normally need to edit this.
   - **Interval between polls** *(default `10s`)*.
@@ -314,11 +312,90 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
   - **Request ID** *(required)*.
   - **File name** *(required)*.
   - **File type** *(required)* — `pdf` or `image`.
-  - **OCR model ID** *(required)*.
+  - **OCR model ID** *(optional)* — The same workflow variable **Prepare File** reads; if unbound it defaults to `prebuilt-layout`.
   - **OCR poll response ref** *(required)* — Context `ocrResponseRef` bound to port `ocrResponse`.
   - **Document ID** *(required for blob refs)*.
 - **Outputs ("This step produces"):**
   - **OCR result ref** *(required)* — Context name (convention: `ocrResultRef`; port `ocrResult`).
+
+---
+
+## 🔍 Analyze with Content Understanding
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, upload-arrow icon
+- **Activity ID (internal):** `azureContentUnderstanding.analyze`
+- **One-line description:** Runs an Azure Content Understanding analyzer on the document and returns a canonical OCR result. Given a template model, it first deploys an analyzer built from the template's fields.
+- **When to use it:** In place of **Submit OCR** → **Wait for OCR Result** → **Extract OCR Result**, when a generative analyzer should extract a labeling template's fields in one step. See [03-content-understanding-OCR.md](03-content-understanding-OCR.md).
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**.
+  - **Template model ID** *(optional)* — Labeling template whose fields the analyzer extracts.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result.
+  - **OCR response** *(required)* — Raw Content Understanding response.
+- **Static parameters:**
+  - **Annotation prompt** *(multi-line text, optional)* — Instruction for the whole document, set as the analyzer's description.
+  - **Field descriptions** *(JSON object, optional)* — A description per field key, attached to that field of the analyzer.
+  - **Blank numbers are null** *(toggle, optional, default off)* — Tells the model to return null, not 0, for a numeric field left blank.
+  - **Analyzer ID** *(text, optional)* — Runs this analyzer instead of one built from the template: an Azure `prebuilt-*` analyzer or one of the group's own.
+  - **Base analyzer** *(text, optional, default `prebuilt-document`)* — The analyzer that one built from the template extends.
+  - **Authentication** *(dropdown, optional, default `subscription-key`)* — `subscription-key` or `bearer`.
+  - **Poll interval (ms)** *(number, optional, default 1500)* and **Maximum checks** *(number, optional, default 240)* — How often, and how many times, the step checks a running analysis.
+
+---
+
+## 🪄 Extract with Vision Model
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, sparkle-document icon
+- **Activity ID (internal):** `vlmDirect.extract`
+- **One-line description:** Sends the document image to an Azure OpenAI vision model, which returns the template's fields as strict JSON.
+- **When to use it:** For image documents, when a vision model should read the template's fields straight from the image with no OCR step. A PDF fails the step.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**. Must be an image.
+  - **Template model ID** *(optional)* — Labeling template whose fields the model fills in.
+  - **Azure OpenAI deployment** *(optional)* — Vision-capable deployment to call; defaults to the worker's configured deployment.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result built from the model's answer.
+  - **Model response** *(required)* — Raw model response, with the parsed fields.
+- **Static parameters:**
+  - **Annotation prompt** *(multi-line text, optional)* — Instruction for the whole document, sent ahead of the field list.
+  - **Field descriptions** *(JSON object, optional)* — A description per field key.
+  - **Blank numbers are null** *(toggle, optional, default on)* — Asks for null, not 0, for a numeric field left blank.
+  - **Max completion tokens** *(number, optional, default 8192)* — Upper limit on the length of the model's answer.
+
+---
+
+## 🪄 Extract with Vision Model and OCR Text
+
+- **Category:** OCR (Azure)
+- **Visual:** Blue, sparkle-document icon
+- **Activity ID (internal):** `vlmOcrHybrid.extract`
+- **One-line description:** Sends the document image and its OCR text from Azure Document Intelligence to an Azure OpenAI vision model, which returns the template's fields as strict JSON.
+- **When to use it:** After **Submit OCR** and **Wait for OCR Result** with markdown output, when the model should read the image with the OCR text beside it.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Prepared file data** *(required)* — Output from **Prepare File**.
+  - **Layout response** *(required)* — OCR response from **Wait for OCR Result** (convention: `ocrResponseRef`), for a document submitted with markdown output.
+  - **Template model ID** *(optional)* — Labeling template whose fields the model fills in.
+  - **Azure OpenAI deployment** *(optional)* — Vision-capable deployment to call; defaults to the worker's configured deployment.
+- **Outputs ("This step produces"):**
+  - **OCR result** *(required)* — Canonical OCR result built from the model's answer.
+  - **Model response** *(required)* — Raw model response, with the parsed fields.
+- **Static parameters:**
+  - The four of **Extract with Vision Model**: **Annotation prompt**, **Field descriptions**, **Blank numbers are null** and **Max completion tokens**.
+  - **Include line positions** *(toggle, optional, default off)* — Prefixes each line of the OCR text with its position on the page.
 
 ---
 
@@ -384,17 +461,17 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
   - **List of corrections (changes)** *(optional)*.
 - **Static parameters:**
   - **Document type** *(dropdown, optional)* — Picks a labeling project; if set, only field-type-appropriate rules apply.
-  - **Confusion profile** *(dropdown, optional)* — Pick a saved profile of rules. Overrides the built-in rules.
-  - **Built-in rules** *(checkbox list)* — Toggle individual rules on/off:
-    - O / o → 0
-    - I / l → 1
-    - S / s → 5
-    - B → 8
-    - G → 6
-    - Z → 2
-    - q → 9
-    - / → 1 *(numbers only; date contexts excluded)*
-  - **Custom confusion map** *(advanced; key→value table, optional)* — Override or extend the built-in map.
+  - **Confusion profile** *(dropdown, optional)* — Pick a saved profile of rules. Replaces the custom map and the built-in rules.
+  - **Enabled rules** and **Disabled rules** *(lists, optional)* — Which built-in rules run; all of them unless some are enabled, minus any disabled:
+    - `oToZero`: O / o → 0
+    - `ilToOne`: I / l → 1
+    - `ssToFive`: S / s → 5
+    - `bToEight`: B → 8
+    - `gToSix`: G → 6
+    - `zToTwo`: Z → 2
+    - `qToNine`: q → 9
+    - `slashToOne`: / → 1 *(numbers only; date contexts excluded)*
+  - **Custom confusion map** *(advanced; key→value table, optional)* — Replaces the built-in rules with this map, so the enabled and disabled rules no longer apply.
   - **Field scope** *(list, optional)* — Restrict to specific fields.
   - **Apply to all fields** *(toggle, default off)* — By default rules apply only to fields likely to be numeric/date; toggle on to apply broadly.
 
@@ -426,12 +503,39 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Comma-thousands removal** *(default on)*
     - **Currency spacing** *(default on)*
   - **Field scope** *(list, optional)*.
+  - **Normalize the full text** *(toggle, default off)* — Also applies the rules to the document's full text, not only its fields.
   - **Empty value handling** *(dropdown, default "Leave as-is")*:
     - **Leave as-is**
     - **Coerce empty fields to blank**
     - **Coerce empty fields to null**
   - **Single-character to zero** *(toggle, default off)* — After the rules/format-spec/semantic steps above, coerces any field value that ends up as a single trimmed character to `"0"` (catches a stray OCR mark misread into a numeric field). With **Document type** loaded, only number-typed schema fields are in scope (string/date/signature keys such as `spouse_name` are never coerced). Without a schema, falls back to field keys following the `applicant_`/`spouse_` income-field naming convention.
     - **Single-character-to-zero fields** *(list, optional)* — Explicit field key allowlist; when set, replaces the schema-type / no-schema key heuristic above.
+
+---
+
+## 🔢 Recover Numeric Zeros from Checkboxes
+
+- **Category:** OCR Cleanup & Correction
+- **Visual:** Teal, broom icon
+- **Activity ID (internal):** `ocr.recoverNumericZerosFromCheckboxes`
+- **One-line description:** Fills in numeric fields Azure left empty because it read a written 0 as a checkbox: in the configured tables, an empty cell with a checkbox mark gets the recovery value (0 by default).
+- **When to use it:** After **Extract OCR Result**, for forms whose amounts sit in table cells, where Azure Document Intelligence reads a handwritten or printed "0" as an empty checkbox.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **OCR result** *(required)* — With its tables and page layout.
+- **Outputs ("This step produces"):**
+  - **Corrected OCR result** *(required)*.
+  - **List of changes** *(optional)* — Each filled-in field, with the strategy that found its table.
+- **Static parameters:**
+  - **Tables** *(JSON list, optional)* — One entry per table. With no tables the step changes nothing. Each entry has:
+    - **find** — The text of the table's first cell (`firstCellTextEquals` or `firstCellTextContains`).
+    - **columns** and **rows** — The field key of a cell is a column's `prefix` plus a row's `suffix`; each column matches a header cell, each row a label in the first column (`…Equals` or `…Contains`).
+    - **recoveryValue** *(default 0)* — The value written into an eligible cell's field.
+    - **cellEligibility** — Tokens stripped before the empty-cell test, whether a checkbox mark must overlap the cell (default yes), and which mark states count.
+    - **fallbackTableFinder** — When the first-cell text misses: find the table by its shape and row labels (`labelAnchor`), or by matching row labels in the page text to table rows (`positionalAnchor`).
 
 ---
 
@@ -512,6 +616,9 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Reason** *(text, required)* — Shown to the reviewer / recorded in the plan.
   - **Default action** *(dropdown, optional, default `skip`)* — Applied to fields no rule matched.
   - **Inferred field keys** *(list of field keys, optional)* — Field keys previously marked as inferred by an upstream correction/enrichment step; backs the **Value was inferred** condition.
+  - **Confidence overrides** *(rule name → threshold, optional)* — Replaces the threshold of a rule's **Confidence below** conditions, so a threshold can be exposed as an overridable workflow parameter without editing the rules.
+
+> The settings panel edits **Rules** and **Confidence overrides** as JSON.
 
 > Does not special-case benchmark document ids — it always evaluates the configured rules. Any benchmark bypass (skipping human review entirely) belongs on the downstream Switch/gate node, the same way `ocr.checkConfidence` handles it.
 
@@ -814,9 +921,9 @@ These activities are registered in the activity registry and usable in workflow 
 
 ---
 
-# Benchmarking (Advanced — usually hidden)
+# Benchmarking and internal activities (not palette nodes)
 
-These nodes are used by the benchmarking subsystem and don't usually appear in user-built workflows. They should be in a collapsed "Advanced" section of the palette, behind a feature flag or admin-only toggle.
+The `benchmark.*` activities belong to the benchmarking subsystem: the benchmark workflows call them directly. They are in neither the backend registry nor the worker's `REGISTERED_ACTIVITY_TYPES`, so a graph node cannot use them and they do not appear in the palette. `getWorkflowGraphConfig` stays registered: every run loads its own configuration through it, and `childWorkflow` nodes use it to load the child's configuration.
 
 | Display name | Activity ID | One-line description |
 |---|---|---|
@@ -833,8 +940,6 @@ These nodes are used by the benchmarking subsystem and don't usually appear in u
 | Benchmark — Flatten Prediction From Refs | `benchmark.flattenPredictionFromRefs` | Build the flat prediction map from OCR blob references for evaluation |
 | Benchmark — Persist Evaluation Details | `benchmark.persistEvaluationDetails` | Persist per-sample evaluation details for run drill-down |
 | Load Workflow Graph Config | `getWorkflowGraphConfig` | Load workflow configuration from database |
-
-These follow the same general settings-panel pattern as other Activities (input/output pickers, parameters, standard error handling) and don't have unique visual requirements beyond the "advanced" tag.
 
 ---
 
@@ -853,6 +958,8 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 | **Keyword pattern editor** (regex with capture group + segment type) | Split & Classify |
 | **Page range list editor** (list of `{ start, end }` items) | Split Document (custom-ranges strategy) |
 | **Confusion map editor** (key→value table; preset toggles plus overrides) | Character Confusion Fix |
+| **JSON editor** (formatted JSON text; saved on blur, and only when it parses to the expected list or object) | Field descriptions (Analyze with Content Understanding, the two vision-model steps); Rules and Confidence overrides (Apply Review Criteria); Tables (Recover Numeric Zeros from Checkboxes) |
+| **Multi-line text** | Annotation prompt (Analyze with Content Understanding, the two vision-model steps) |
 | **Sub-workflow picker** (browse the library of saved workflows with name, description, version) | Sub-workflow node |
 | **Mapping list** (paired-list: left=internal slot name, right=available variable) | Sub-workflow inputs/outputs; activity inputs/outputs |
 | **Field-mapping editor** (visual or JSON, with placeholder expressions like `{{slot.path}}`) | Generic Data Transform |
@@ -880,12 +987,16 @@ Reusable settings-panel widgets that several nodes share. Building these once an
    📤 Submit OCR
    ⌛ Wait for OCR Result   (preset of Wait & Retry)
    📥 Extract OCR Result
+   🔍 Analyze with Content Understanding
+   🪄 Extract with Vision Model
+   🪄 Extract with Vision Model and OCR Text
 
 📂 OCR Cleanup & Correction
    ✨ Cleanup
    🔡 Spellcheck
    🔠 Character Confusion Fix
    🧹 Normalize Fields
+   🔢 Recover Numeric Zeros from Checkboxes
 
 📂 OCR Quality
    ✅ Check Confidence
@@ -909,9 +1020,6 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 
 📂 Data Transformation
    🔄 Generic Data Transform
-
-📂 Benchmarking (Advanced)
-   … (10 nodes, see table above)
 ```
 
 The icons are placeholders — final iconography is the designer's call. Categories and grouping are based on what the system actually does, not on internal code organization.

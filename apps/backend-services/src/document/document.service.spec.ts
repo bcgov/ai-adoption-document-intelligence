@@ -6,6 +6,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
 import { computeContentHash } from "./content-hash.util";
 import { DocumentService } from "./document.service";
@@ -28,8 +29,14 @@ describe("DocumentService", () => {
   let uploadNormalizationLimiter: jest.Mocked<
     Pick<UploadNormalizationLimiter, "run">
   >;
+  let temporalClient: jest.Mocked<
+    Pick<TemporalClientService, "requestWorkflowCancellation">
+  >;
 
   beforeEach(async () => {
+    temporalClient = {
+      requestWorkflowCancellation: jest.fn().mockResolvedValue(false),
+    };
     pdfNormalization = {
       validateForUpload: jest.fn().mockResolvedValue(undefined),
       normalizeToPdf: jest
@@ -43,6 +50,7 @@ describe("DocumentService", () => {
     documentDbService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
+      findDocumentIdsInGroup: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
       findAllDocuments: jest.fn(),
@@ -68,6 +76,7 @@ describe("DocumentService", () => {
           provide: UploadNormalizationLimiter,
           useValue: uploadNormalizationLimiter,
         },
+        { provide: TemporalClientService, useValue: temporalClient },
       ],
     }).compile();
     service = module.get<DocumentService>(DocumentService);
@@ -182,6 +191,39 @@ describe("DocumentService", () => {
       );
 
       expect(writeOrder).toEqual(["original", "normalized"]);
+    });
+
+    // G-020: creation genuinely has no run yet — the run id is stamped on
+    // later, at run-start. Upload must NOT invent one.
+    it("leaves workflow_execution_id null when no run was started (G-020)", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: Record<string, unknown>) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+        "wf-config-1",
+      );
+
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflow_config_id: "wf-config-1",
+          workflow_execution_id: null,
+        }),
+      );
+      expect(documentDbService.updateDocument).not.toHaveBeenCalled();
     });
 
     it("starts PDF normalization before the original blob write finishes", async () => {
@@ -341,7 +383,6 @@ describe("DocumentService", () => {
         source: "ground-truth-generation",
         status: DocumentStatus.pre_ocr,
         apim_request_id: null,
-        workflow_id: null,
         workflow_config_id: "wf-1",
         workflow_execution_id: null,
         model_id: "prebuilt-layout",
@@ -383,7 +424,6 @@ describe("DocumentService", () => {
         source: "api",
         status: DocumentStatus.pre_ocr,
         apim_request_id: null,
-        workflow_id: null,
         workflow_config_id: null,
         workflow_execution_id: null,
         model_id: "prebuilt-layout",
@@ -443,6 +483,26 @@ describe("DocumentService", () => {
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(null);
       const result = await service.findDocument("notfound");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findDocumentIdsInGroup", () => {
+    it("delegates to the db service with the group", async () => {
+      (documentDbService.findDocumentIdsInGroup as jest.Mock).mockResolvedValue(
+        ["doc-1"],
+      );
+
+      const result = await service.findDocumentIdsInGroup(
+        ["doc-1", "doc-2"],
+        "clh7z2xk00000356u8e3h1234",
+      );
+
+      expect(result).toEqual(["doc-1"]);
+      expect(documentDbService.findDocumentIdsInGroup).toHaveBeenCalledWith(
+        ["doc-1", "doc-2"],
+        "clh7z2xk00000356u8e3h1234",
+        undefined,
+      );
     });
   });
 
@@ -511,6 +571,7 @@ describe("DocumentService", () => {
       const result = await service.deleteDocument("notfound");
       expect(result).toBe(false);
       expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
+      expect(temporalClient.requestWorkflowCancellation).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -529,6 +590,7 @@ describe("DocumentService", () => {
       );
       expect(documentDbService.deleteDocument).not.toHaveBeenCalled();
       expect(blobStorage.delete).not.toHaveBeenCalled();
+      expect(temporalClient.requestWorkflowCancellation).not.toHaveBeenCalled();
     });
 
     it("should still return true if blob deletion fails", async () => {
@@ -545,6 +607,49 @@ describe("DocumentService", () => {
       );
       const result = await service.deleteDocument("1");
       expect(result).toBe(true);
+    });
+
+    it("cancels the document's running workflow after deleting the document", async () => {
+      const mockDoc = {
+        id: "1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
+        status: DocumentStatus.awaiting_review,
+      };
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
+      temporalClient.requestWorkflowCancellation.mockResolvedValue(true);
+
+      const result = await service.deleteDocument("1");
+
+      expect(result).toBe(true);
+      expect(temporalClient.requestWorkflowCancellation).toHaveBeenCalledWith(
+        "graph-1",
+      );
+      const deleteOrder = (documentDbService.deleteDocument as jest.Mock).mock
+        .invocationCallOrder[0];
+      const cancelOrder =
+        temporalClient.requestWorkflowCancellation.mock.invocationCallOrder[0];
+      expect(deleteOrder).toBeLessThan(cancelOrder);
+    });
+
+    it("still deletes the document when cancelling its workflow fails", async () => {
+      const mockDoc = {
+        id: "1",
+        file_path: "testgroup1/ocr/documents/1/original.pdf",
+        group_id: "testgroup1",
+        status: DocumentStatus.awaiting_review,
+      };
+      (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
+      (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
+      temporalClient.requestWorkflowCancellation.mockRejectedValue(
+        new Error("Temporal unavailable"),
+      );
+
+      const result = await service.deleteDocument("1");
+
+      expect(result).toBe(true);
+      expect(documentDbService.deleteDocument).toHaveBeenCalledWith("1");
     });
   });
 });

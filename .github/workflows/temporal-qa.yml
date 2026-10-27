@@ -32,6 +32,9 @@ jobs:
         run: npm install --ignore-scripts --no-package-lock
       - name: Build shared packages
         run: npm run build:packages
+      - name: Test blob path package
+        working-directory: packages/blob-storage-paths
+        run: npm test
       - name: Install dependencies (temporal)
         working-directory: apps/temporal
         run: npm install --ignore-scripts --no-package-lock

@@ -202,9 +202,12 @@ export function useClassifier() {
   });
 
   // General async function to get classification result (not a hook)
-  const fetchClassificationResult = async (operationLocation: string) => {
+  const fetchClassificationResult = async (
+    operationLocation: string,
+    groupId: string,
+  ) => {
     const response = await apiService.get<ClassificationResult>(
-      `/azure/classifier/classify?operationLocation=${encodeURIComponent(operationLocation)}`,
+      `/azure/classifier/classify?operationLocation=${encodeURIComponent(operationLocation)}&group_id=${encodeURIComponent(groupId)}`,
     );
     if (response.success && response.data) return response.data;
     throw new Error(response.message || "Failed to get classification result");

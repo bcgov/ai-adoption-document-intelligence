@@ -371,6 +371,13 @@ describe("BenchmarkDefinitionController", () => {
   });
 
   describe("GET /definitions/:definitionId/baseline-history", () => {
+    beforeEach(() => {
+      mockDefinitionService.getDefinitionById.mockResolvedValue({
+        id: "def-1",
+        projectId,
+      });
+    });
+
     it("returns baseline promotion history", async () => {
       const now = new Date();
       mockAuditLogService.queryAuditLogs.mockResolvedValue([
@@ -398,6 +405,10 @@ describe("BenchmarkDefinitionController", () => {
         mockReq,
       );
 
+      expect(mockDefinitionService.getDefinitionById).toHaveBeenCalledWith(
+        projectId,
+        "def-1",
+      );
       expect(mockAuditLogService.queryAuditLogs).toHaveBeenCalledWith({
         action: AuditAction.baseline_promoted,
         entityType: "BenchmarkRun",
@@ -407,6 +418,27 @@ describe("BenchmarkDefinitionController", () => {
       expect(result).toHaveLength(1);
       expect(result[0].runId).toBe("run-1");
       expect(result[0].definitionId).toBe("def-1");
+    });
+
+    it("returns not found when the definition is not in the project", async () => {
+      mockDefinitionService.getDefinitionById.mockRejectedValueOnce(
+        new NotFoundException("Definition not found"),
+      );
+      mockAuditLogService.queryAuditLogs.mockResolvedValue([
+        {
+          id: "log-1",
+          timestamp: new Date(),
+          entityId: "run-1",
+          userId: "user-1",
+          action: AuditAction.baseline_promoted,
+          metadata: { definitionId: "def-elsewhere", projectId: "project-2" },
+        },
+      ]);
+
+      await expect(
+        controller.getBaselineHistory(projectId, "def-elsewhere", mockReq),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockAuditLogService.queryAuditLogs).not.toHaveBeenCalled();
     });
 
     it("returns empty array when no baseline promotions exist", async () => {

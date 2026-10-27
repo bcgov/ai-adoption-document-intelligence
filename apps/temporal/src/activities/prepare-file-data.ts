@@ -1,12 +1,11 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { OcrOutputFormat, PreparedFileData } from "../types";
 
 export interface PrepareFileDataInput {
   documentId: string;
+  groupId?: string | null;
   blobKey: string;
   fileName?: string;
   fileType?: "pdf" | "image";
@@ -14,25 +13,6 @@ export interface PrepareFileDataInput {
   modelId?: string;
   outputFormat?: OcrOutputFormat;
   requestId?: string;
-}
-
-async function readBlobData(blobKey: string): Promise<Buffer> {
-  // If blobKey is an absolute path on disk (e.g. materialized by benchmark),
-  // read directly from the filesystem instead of object storage.
-  if (path.isAbsolute(blobKey)) {
-    try {
-      return await fs.promises.readFile(blobKey);
-    } catch (_error) {
-      throw new Error(`File not found on disk: "${blobKey}"`);
-    }
-  }
-
-  const client = getBlobStorageClient();
-  try {
-    return await client.read(validateBlobFilePath(blobKey));
-  } catch (error) {
-    throw new Error(`Blob not found: "${blobKey}" — ${error}`);
-  }
 }
 
 /**
@@ -63,7 +43,7 @@ export async function prepareFileData(
     );
   }
 
-  const fileBuffer = await readBlobData(blobKey);
+  const fileBuffer = await readGroupBlob(blobKey, input.groupId);
   const fileSize = fileBuffer.length;
 
   const fileName = input.fileName || path.basename(blobKey) || "document";

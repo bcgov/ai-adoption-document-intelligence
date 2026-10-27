@@ -1,26 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
-
-interface OcrField {
-  confidence?: number;
-  value?: string;
-  [key: string]: unknown;
-}
-
-interface OcrResult {
-  fields?: Record<string, OcrField>;
-  [key: string]: unknown;
-}
 
 export interface QueueDocument {
   id: string;
   original_filename: string;
   status: string;
   model_id?: string;
+  workflow_name: string | null;
   created_at: string;
   updated_at: string;
-  ocr_result?: OcrResult;
+  average_confidence: number;
   lock?: {
     reviewer_id: string;
     session_id: string;
@@ -32,6 +27,7 @@ export interface QueueDocument {
     status: string;
     completed_at: string;
     corrections_count: number;
+    flag_note?: string;
   };
 }
 
@@ -43,11 +39,14 @@ interface QueueResponse {
 interface QueueFilters {
   status?: string;
   modelId?: string;
-  maxConfidence?: number;
+  workflowId?: string;
   limit?: number;
   offset?: number;
-  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
+  reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   group_id?: string;
+  search?: string;
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+  sortDir?: "asc" | "desc";
 }
 
 export const useReviewQueue = (filters?: QueueFilters) => {
@@ -61,18 +60,23 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       const params = new URLSearchParams();
       if (filters?.status) params.append("status", filters.status);
       if (filters?.modelId) params.append("modelId", filters.modelId);
-      if (filters?.maxConfidence !== undefined)
-        params.append("maxConfidence", filters.maxConfidence.toString());
+      if (filters?.workflowId) params.append("workflowId", filters.workflowId);
       if (filters?.limit) params.append("limit", filters.limit.toString());
       if (filters?.offset) params.append("offset", filters.offset.toString());
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
+      if (filters?.search) params.append("search", filters.search);
+      if (filters?.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters?.sortDir) params.append("sortDir", filters.sortDir);
       if (activeGroupId) params.append("group_id", activeGroupId);
-
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);
       return response.data || { documents: [], total: 0 };
     },
+    // Keeps showing the previous page's rows while the next page loads, so
+    // paging doesn't flash the whole panel back to the loading state.
+    placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
   });
 
   // Stats cover the whole queue, so they are keyed by group alone: every tab
@@ -92,6 +96,7 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       }>(endpoint);
       return response.data;
     },
+    refetchInterval: 30_000,
   });
 
   const startSessionMutation = useMutation({

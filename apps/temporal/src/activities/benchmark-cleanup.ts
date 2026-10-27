@@ -7,11 +7,19 @@
  */
 
 import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { getGroupBenchmarkCacheDir } from "../blob-storage/read-group-blob";
+import { groupScopeViolation } from "../group-scope-violation";
 
 /**
  * Input for benchmark.cleanup activity
  */
 export interface BenchmarkCleanupInput {
+  /**
+   * Group that owns the run; only paths inside its benchmark cache are removed
+   */
+  groupId?: string;
+
   /**
    * Paths to materialized dataset files to clean up
    */
@@ -37,12 +45,23 @@ export async function benchmarkCleanup(
   input: BenchmarkCleanupInput,
 ): Promise<void> {
   const { materializedDatasetPaths = [], temporaryOutputPaths = [] } = input;
+  if (!input.groupId) {
+    throw new Error("groupId is required to clean up benchmark files");
+  }
+  const groupCacheDir = path.resolve(getGroupBenchmarkCacheDir(input.groupId));
 
+  const refused: string[] = [];
   const errors: string[] = [];
 
   // Clean up materialized dataset files (respecting cache preservation)
   if (materializedDatasetPaths.length > 0) {
     for (const filePath of materializedDatasetPaths) {
+      if (!isInsideDirectory(filePath, groupCacheDir)) {
+        refused.push(
+          `Not deleting ${filePath}: outside the group's benchmark cache`,
+        );
+        continue;
+      }
       try {
         await removeFileOrDirectory(filePath);
       } catch (error) {
@@ -61,6 +80,12 @@ export async function benchmarkCleanup(
   // Clean up temporary per-run output files
   if (temporaryOutputPaths.length > 0) {
     for (const filePath of temporaryOutputPaths) {
+      if (!isInsideDirectory(filePath, groupCacheDir)) {
+        refused.push(
+          `Not deleting ${filePath}: outside the group's benchmark cache`,
+        );
+        continue;
+      }
       try {
         await removeFileOrDirectory(filePath);
       } catch (error) {
@@ -74,6 +99,14 @@ export async function benchmarkCleanup(
     }
   }
 
+  // A path outside the group's cache is refused on every attempt, so the
+  // activity fails without retries once it has cleaned up what it may.
+  if (refused.length > 0) {
+    throw groupScopeViolation(
+      `Cleanup refused paths outside the group's benchmark cache:\n${[...refused, ...errors].join("\n")}`,
+    );
+  }
+
   // If there were any actual deletion errors (not just missing files), throw
   if (errors.length > 0) {
     throw new Error(`Cleanup encountered errors:\n${errors.join("\n")}`);
@@ -83,6 +116,13 @@ export async function benchmarkCleanup(
 // ============================================================================
 // Helper functions
 // ============================================================================
+
+/**
+ * Whether `filePath` resolves to a location strictly inside `directory`
+ */
+function isInsideDirectory(filePath: string, directory: string): boolean {
+  return path.resolve(filePath).startsWith(directory + path.sep);
+}
 
 /**
  * Remove a file or directory (recursively)

@@ -1,0 +1,903 @@
+/**
+ * JSON Schema → Mantine form renderer.
+ *
+ * Walks a JSON Schema (typically produced by Zod 4's `z.toJSONSchema()`)
+ * and renders Mantine widgets. The renderer is intentionally small — it
+ * handles primitives + enums + combobox hints + discriminated unions
+ * (root-level `anyOf` with a shared `const`-valued discriminator) + arrays
+ * of primitives / simple objects. Complex widgets (rule-list editors,
+ * validation-rule editors, condition-tree editors) are written as
+ * hand-rolled overrides elsewhere; this renderer is the default for
+ * everything else.
+ *
+ * See ./types.ts for the supported JSON Schema subset and the `x-*` UI
+ * hint vocabulary.
+ */
+
+import type {
+  ClassificationRule,
+  FieldDescriptor,
+  ValidationRule,
+} from "@ai-di/graph-workflow";
+import {
+  ActionIcon,
+  Autocomplete,
+  Box,
+  Button,
+  Group,
+  JsonInput,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ClassificationRuleEditor,
+  type ConfusionMap,
+  ConfusionMapEditor,
+  DebouncedNumberInput,
+  type KeywordPattern,
+  KeywordPatternEditor,
+  type PageRange,
+  PageRangeListEditor,
+  ValidationRuleEditor,
+} from "../settings/rich-widgets";
+import { FieldListEditor } from "../sources/FieldListEditor";
+import { useDebouncedTextCommit } from "../use-debounced-text-commit";
+import {
+  detectDiscriminatedUnion,
+  isObjectSchema,
+  type JsonSchemaObject,
+  type JsonSchemaProperty,
+} from "./types";
+
+interface JsonSchemaFormProps {
+  schema: JsonSchemaProperty | undefined;
+  /**
+   * Form values. Optional when `readOnly` is true and the renderer should
+   * just preview a schema's shape with no concrete data — common for the
+   * dynamic-node signature-preview pane (US-178).
+   */
+  value?: Record<string, unknown>;
+  /** Required when `readOnly` is false; not used in read-only mode. */
+  onChange?: (next: Record<string, unknown>) => void;
+  /**
+   * When true, every widget renders disabled (read-only). Used by the
+   * dynamic-node SignaturePreviewPane (Phase 6 US-178) so callers can
+   * preview the parsed `paramsSchema` exactly as it'd render in the
+   * settings panel without making it editable.
+   */
+  readOnly?: boolean;
+}
+
+const NOOP_ONCHANGE: (next: Record<string, unknown>) => void = () => undefined;
+
+export function JsonSchemaForm({
+  schema,
+  value,
+  onChange,
+  readOnly,
+}: JsonSchemaFormProps) {
+  const safeValue = value ?? {};
+  const safeOnChange = onChange ?? NOOP_ONCHANGE;
+
+  // Top-level discriminated union (Zod's z.discriminatedUnion → anyOf)
+  const discriminatedUnion = detectDiscriminatedUnion(schema);
+  if (discriminatedUnion) {
+    return (
+      <DiscriminatedUnionRenderer
+        union={discriminatedUnion}
+        value={safeValue}
+        onChange={safeOnChange}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  if (!isObjectSchema(schema)) {
+    return (
+      <Text c="dimmed" size="sm">
+        No parameters to configure.
+      </Text>
+    );
+  }
+
+  return (
+    <ObjectFieldsRenderer
+      schema={schema}
+      value={safeValue}
+      onChange={safeOnChange}
+      readOnly={readOnly}
+    />
+  );
+}
+
+interface ObjectFieldsRendererProps {
+  schema: JsonSchemaObject;
+  value: Record<string, unknown>;
+  onChange: (next: Record<string, unknown>) => void;
+  /** Fields to skip — used by the discriminated-union renderer to omit the discriminator. */
+  skipFields?: ReadonlySet<string>;
+  readOnly?: boolean;
+}
+
+function ObjectFieldsRenderer({
+  schema,
+  value,
+  onChange,
+  skipFields,
+  readOnly,
+}: ObjectFieldsRendererProps) {
+  const required = new Set(schema.required ?? []);
+  const entries = Object.entries(schema.properties).filter(
+    ([name]) => !skipFields?.has(name),
+  );
+
+  if (entries.length === 0) {
+    return (
+      <Text c="dimmed" size="sm">
+        No additional fields.
+      </Text>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {entries.map(([fieldName, fieldSchema]) => (
+        <FieldRenderer
+          key={fieldName}
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          required={required.has(fieldName)}
+          value={value[fieldName]}
+          readOnly={readOnly}
+          onChange={(v) => {
+            const next = { ...value };
+            if (v === undefined) {
+              delete next[fieldName];
+            } else {
+              next[fieldName] = v;
+            }
+            onChange(next);
+          }}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+interface DiscriminatedUnionRendererProps {
+  union: ReturnType<typeof detectDiscriminatedUnion> & object;
+  value: Record<string, unknown>;
+  onChange: (next: Record<string, unknown>) => void;
+  readOnly?: boolean;
+}
+
+function DiscriminatedUnionRenderer({
+  union,
+  value,
+  onChange,
+  readOnly,
+}: DiscriminatedUnionRendererProps) {
+  const discriminatorValue = value[union.discriminator];
+  const activeVariant = union.variants.find(
+    (v) => v.literal === discriminatorValue,
+  );
+
+  const discriminatorSchema =
+    union.variants[0].schema.properties[union.discriminator];
+
+  const data = union.variants.map((v) => ({
+    value: v.literal,
+    label: v.label ?? v.literal,
+  }));
+
+  return (
+    <Stack gap="sm">
+      <Select
+        label={discriminatorSchema?.title ?? union.discriminator}
+        description={discriminatorSchema?.description}
+        data={data}
+        value={
+          typeof discriminatorValue === "string" ? discriminatorValue : null
+        }
+        onChange={(v) => {
+          if (!v) {
+            onChange({});
+            return;
+          }
+          // When the strategy changes, drop any fields that belong to the
+          // previous variant — keep only the new discriminator value.
+          onChange({ [union.discriminator]: v });
+        }}
+        withAsterisk
+        allowDeselect={false}
+        disabled={readOnly}
+      />
+
+      {activeVariant && (
+        <ObjectFieldsRenderer
+          schema={activeVariant.schema}
+          value={value}
+          onChange={onChange}
+          skipFields={new Set([union.discriminator])}
+          readOnly={readOnly}
+        />
+      )}
+    </Stack>
+  );
+}
+
+interface FieldRendererProps {
+  fieldName: string;
+  fieldSchema: JsonSchemaProperty;
+  required: boolean;
+  value: unknown;
+  onChange: (next: unknown) => void;
+  readOnly?: boolean;
+}
+
+function FieldRenderer({
+  fieldName,
+  fieldSchema,
+  required,
+  value,
+  onChange,
+  readOnly,
+}: FieldRendererProps) {
+  const label = fieldSchema.title ?? fieldName;
+  const description = fieldSchema.description;
+  const defaultHint = fieldSchema["x-default"] ?? fieldSchema.default;
+  const placeholder =
+    defaultHint !== undefined ? String(defaultHint) : undefined;
+  const widget = fieldSchema["x-widget"];
+
+  // The free-text branches below draft locally and commit once typing
+  // pauses, on blur, or on unmount; number fields do the same through
+  // `DebouncedNumberInput`. Every commit replaces the node's `parameters` in
+  // the page-level workflow config, which re-resolves bindings and redraws
+  // the canvas, so it happens once per editing burst rather than once per
+  // keystroke. Called unconditionally so hook order is stable across the
+  // schema branches (only the string ones read it).
+  const text = useDebouncedTextCommit(
+    typeof value === "string" ? value : "",
+    (next) => onChange(next === "" ? undefined : next),
+  );
+
+  // ── string + combobox ─────────────────────────────────────────────────
+  if (
+    fieldSchema.type === "string" &&
+    widget === "combobox" &&
+    Array.isArray(fieldSchema["x-options"])
+  ) {
+    return (
+      <Autocomplete
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        data={fieldSchema["x-options"].map(String)}
+        value={text.draft}
+        onChange={text.setDraft}
+        onOptionSubmit={text.commit}
+        onBlur={text.flush}
+        withAsterisk={required}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── string + enum ─────────────────────────────────────────────────────
+  if (fieldSchema.type === "string" && Array.isArray(fieldSchema.enum)) {
+    return (
+      <Select
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        data={fieldSchema.enum.map(String)}
+        value={(value as string | undefined) ?? null}
+        onChange={(v) => onChange(v ?? undefined)}
+        withAsterisk={required}
+        clearable={!required}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── string + x-widget: textarea ───────────────────────────────────────
+  if (fieldSchema.type === "string" && widget === "textarea") {
+    return (
+      <Textarea
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        value={text.draft}
+        onChange={(e) => text.setDraft(e.currentTarget.value)}
+        onBlur={text.flush}
+        autosize
+        minRows={2}
+        maxRows={12}
+        withAsterisk={required}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── plain string ──────────────────────────────────────────────────────
+  if (fieldSchema.type === "string") {
+    return (
+      <TextInput
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        value={text.draft}
+        onChange={(e) => text.setDraft(e.currentTarget.value)}
+        onBlur={text.flush}
+        withAsterisk={required}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── number / integer ──────────────────────────────────────────────────
+  if (fieldSchema.type === "number" || fieldSchema.type === "integer") {
+    return (
+      <DebouncedNumberInput
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        value={typeof value === "number" ? value : undefined}
+        min={fieldSchema.minimum}
+        max={safeNumericMax(fieldSchema.maximum)}
+        step={fieldSchema["x-step"]}
+        decimalScale={fieldSchema.type === "integer" ? 0 : undefined}
+        onCommit={onChange}
+        withAsterisk={required}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── boolean ───────────────────────────────────────────────────────────
+  if (fieldSchema.type === "boolean") {
+    return (
+      <Switch
+        label={label}
+        description={description}
+        // Unset shows the default the step applies, not "off".
+        checked={typeof value === "boolean" ? value : defaultHint === true}
+        onChange={(e) => onChange(e.currentTarget.checked)}
+        disabled={readOnly}
+      />
+    );
+  }
+
+  // ── object / array + x-widget: json ───────────────────────────────────
+  if (
+    widget === "json" &&
+    (fieldSchema.type === "object" || fieldSchema.type === "array")
+  ) {
+    return (
+      <JsonFieldEditor
+        label={label}
+        description={description}
+        required={required}
+        container={fieldSchema.type}
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  // ── array + x-widget: classification-rule-editor ──────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "classification-rule-editor"
+  ) {
+    const rules = Array.isArray(value) ? (value as ClassificationRule[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ClassificationRuleEditor
+          value={rules}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: validation-rule-editor ──────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "validation-rule-editor"
+  ) {
+    const rules = Array.isArray(value) ? (value as ValidationRule[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ValidationRuleEditor
+          value={rules}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── object + x-widget: confusion-map-editor ───────────────────────────
+  if (
+    fieldSchema.type === "object" &&
+    fieldSchema["x-widget"] === "confusion-map-editor"
+  ) {
+    const map =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as ConfusionMap)
+        : {};
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <ConfusionMapEditor
+          value={map}
+          onChange={(next) =>
+            onChange(Object.keys(next).length === 0 ? undefined : next)
+          }
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: keyword-pattern-editor ──────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "keyword-pattern-editor"
+  ) {
+    const patterns = Array.isArray(value) ? (value as KeywordPattern[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <KeywordPatternEditor
+          value={patterns}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: field-list-editor ───────────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "field-list-editor"
+  ) {
+    const fields = Array.isArray(value) ? (value as FieldDescriptor[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <FieldListEditor
+          value={fields}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array + x-widget: page-range-list ─────────────────────────────────
+  if (
+    fieldSchema.type === "array" &&
+    fieldSchema["x-widget"] === "page-range-list"
+  ) {
+    const ranges = Array.isArray(value) ? (value as PageRange[]) : [];
+    return (
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+        <PageRangeListEditor
+          value={ranges}
+          onChange={(next) => onChange(next.length === 0 ? undefined : next)}
+        />
+      </Box>
+    );
+  }
+
+  // ── array ─────────────────────────────────────────────────────────────
+  if (fieldSchema.type === "array" && fieldSchema.items) {
+    return (
+      <ArrayFieldRenderer
+        label={label}
+        description={description}
+        required={required}
+        itemSchema={fieldSchema.items}
+        minItems={fieldSchema.minItems}
+        value={Array.isArray(value) ? value : []}
+        onChange={onChange}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  return (
+    <Text c="red" size="xs">
+      Unsupported field schema for "{fieldName}": {JSON.stringify(fieldSchema)}
+    </Text>
+  );
+}
+
+interface ArrayFieldRendererProps {
+  label: string;
+  description?: string;
+  required: boolean;
+  itemSchema: JsonSchemaProperty;
+  minItems?: number;
+  value: unknown[];
+  onChange: (next: unknown) => void;
+  readOnly?: boolean;
+}
+
+function ArrayFieldRenderer({
+  label,
+  description,
+  required,
+  itemSchema,
+  minItems,
+  value,
+  onChange,
+  readOnly,
+}: ArrayFieldRendererProps) {
+  const items = value;
+  const min = minItems ?? 0;
+
+  const addItem = () => {
+    onChange([...items, defaultValueForSchema(itemSchema)]);
+  };
+
+  const removeItem = (idx: number) => {
+    const next = items.filter((_, i) => i !== idx);
+    onChange(next.length === 0 ? undefined : next);
+  };
+
+  const updateItem = (idx: number, nextItem: unknown) => {
+    const next = items.slice();
+    next[idx] = nextItem;
+    onChange(next);
+  };
+
+  return (
+    <Stack gap={6}>
+      <Box>
+        <Text size="sm" fw={500}>
+          {label}
+          {required ? (
+            <Text component="span" c="red" inherit>
+              {" "}
+              *
+            </Text>
+          ) : null}
+        </Text>
+        {description && (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+      </Box>
+
+      {items.length === 0 && (
+        <Text size="xs" c="dimmed" fs="italic">
+          No items yet — click "Add" to create one.
+        </Text>
+      )}
+
+      <Stack gap="xs">
+        {items.map((item, idx) => (
+          <Paper key={idx} withBorder p="xs" radius="sm">
+            <Group align="flex-start" gap="xs" wrap="nowrap">
+              <Box style={{ flex: 1 }}>
+                {isObjectSchema(itemSchema) ? (
+                  <ObjectFieldsRenderer
+                    schema={itemSchema}
+                    value={(item ?? {}) as Record<string, unknown>}
+                    onChange={(next) => updateItem(idx, next)}
+                    readOnly={readOnly}
+                  />
+                ) : (
+                  <FieldRenderer
+                    fieldName={`${label} ${idx + 1}`}
+                    fieldSchema={itemSchema}
+                    required={true}
+                    value={item}
+                    onChange={(next) => updateItem(idx, next)}
+                    readOnly={readOnly}
+                  />
+                )}
+              </Box>
+              {!readOnly && (
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  onClick={() => removeItem(idx)}
+                  disabled={items.length <= min}
+                  aria-label={`Remove ${singularize(label)} ${idx + 1}`}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              )}
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+
+      {!readOnly && (
+        <Group>
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={addItem}
+          >
+            Add {singularize(label)}
+          </Button>
+        </Group>
+      )}
+    </Stack>
+  );
+}
+
+interface JsonFieldEditorProps {
+  label: string;
+  description?: string;
+  required: boolean;
+  /** What the setting holds: a JSON list or a JSON object. */
+  container: "array" | "object";
+  value: unknown;
+  onChange: (next: unknown) => void;
+  readOnly?: boolean;
+}
+
+type JsonDraft =
+  | { kind: "empty" }
+  | { kind: "value"; value: unknown; text: string }
+  | { kind: "invalid" }
+  | { kind: "wrong-shape" };
+
+function readJsonDraft(text: string, container: "array" | "object"): JsonDraft {
+  if (text.trim() === "") return { kind: "empty" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { kind: "invalid" };
+  }
+  const isList = Array.isArray(parsed);
+  const isObject = typeof parsed === "object" && parsed !== null && !isList;
+  if (container === "array" ? !isList : !isObject) {
+    return { kind: "wrong-shape" };
+  }
+  return { kind: "value", value: parsed, text: formatJson(parsed) };
+}
+
+function formatJson(value: unknown): string {
+  return value === undefined ? "" : JSON.stringify(value, null, 2);
+}
+
+/**
+ * A nested setting with no form widget of its own, such as a list of
+ * structured rules or a free-form map, edited as JSON text. The text is saved
+ * on blur, or when the form is removed first, and only when it parses to the
+ * expected list or object, so a half-typed edit never replaces the saved
+ * value. The step's parameter schema still validates whatever is saved.
+ */
+function JsonFieldEditor({
+  label,
+  description,
+  required,
+  container,
+  value,
+  onChange,
+  readOnly,
+}: JsonFieldEditorProps) {
+  const savedText = formatJson(value);
+  const [draft, setDraft] = useState(savedText);
+  const [shapeError, setShapeError] = useState<string | null>(null);
+  const draftRef = useRef(savedText);
+  /**
+   * The text of the value this editor last saved or was given. A saved value
+   * arriving with this text is the editor's own save coming back; any other
+   * (an undo, an agent write) replaces the draft.
+   */
+  const syncedRef = useRef(savedText);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (savedText === syncedRef.current) return;
+    syncedRef.current = savedText;
+    draftRef.current = savedText;
+    setDraft(savedText);
+    setShapeError(null);
+  }, [savedText]);
+
+  const save = useCallback((): JsonDraft["kind"] => {
+    const read = readJsonDraft(draftRef.current, container);
+    if (read.kind === "invalid" || read.kind === "wrong-shape") {
+      return read.kind;
+    }
+    const nextText = read.kind === "value" ? read.text : "";
+    if (nextText !== syncedRef.current) {
+      syncedRef.current = nextText;
+      onChangeRef.current(read.kind === "value" ? read.value : undefined);
+    }
+    return read.kind;
+  }, [container]);
+
+  // Backstop for the case blur cannot cover: selecting another node removes
+  // the form while an edit is still unsaved.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(
+    () => () => {
+      saveRef.current();
+    },
+    [],
+  );
+
+  const handleBlur = () => {
+    const outcome = save();
+    setShapeError(
+      outcome === "wrong-shape"
+        ? `Expected a JSON ${container === "array" ? "list, [ … ]" : "object, { … }"}. The saved value is unchanged.`
+        : null,
+    );
+    if (outcome === "value" || outcome === "empty") {
+      draftRef.current = syncedRef.current;
+      setDraft(syncedRef.current);
+    }
+  };
+
+  return (
+    <JsonInput
+      label={label}
+      description={description}
+      value={draft}
+      onChange={(next) => {
+        draftRef.current = next;
+        setDraft(next);
+      }}
+      onBlur={handleBlur}
+      validationError="Not valid JSON. The saved value is unchanged."
+      error={shapeError}
+      autosize
+      minRows={3}
+      maxRows={16}
+      withAsterisk={required}
+      disabled={readOnly}
+    />
+  );
+}
+
+function defaultValueForSchema(schema: JsonSchemaProperty): unknown {
+  if (isObjectSchema(schema)) {
+    const out: Record<string, unknown> = {};
+    for (const [name, propSchema] of Object.entries(schema.properties)) {
+      const def = propSchema["x-default"] ?? propSchema.default;
+      if (def !== undefined) {
+        out[name] = def;
+      } else if (
+        propSchema.type === "integer" ||
+        propSchema.type === "number"
+      ) {
+        out[name] = propSchema.minimum ?? 1;
+      } else if (propSchema.type === "string") {
+        out[name] = "";
+      } else if (propSchema.type === "boolean") {
+        out[name] = false;
+      }
+    }
+    return out;
+  }
+  if (schema["x-default"] !== undefined) return schema["x-default"];
+  if (schema.default !== undefined) return schema.default;
+  if (schema.type === "integer" || schema.type === "number") {
+    return schema.minimum ?? 1;
+  }
+  if (schema.type === "string") return "";
+  if (schema.type === "boolean") return false;
+  return undefined;
+}
+
+/**
+ * Zod v4 emits `Number.MAX_SAFE_INTEGER` (9007199254740991) as `maximum` for
+ * unbounded `.int()` schemas. Treat any value at or near that as "no max" so
+ * Mantine NumberInput doesn't get confused.
+ */
+function safeNumericMax(max: number | undefined): number | undefined {
+  if (max === undefined) return undefined;
+  if (max >= Number.MAX_SAFE_INTEGER - 1) return undefined;
+  return max;
+}
+
+function singularize(label: string): string {
+  const trimmed = label.trim();
+  if (/ies$/i.test(trimmed)) return trimmed.replace(/ies$/i, "y");
+  if (/ses$/i.test(trimmed)) return trimmed.slice(0, -2);
+  if (/s$/i.test(trimmed) && !/ss$/i.test(trimmed)) return trimmed.slice(0, -1);
+  return trimmed;
+}

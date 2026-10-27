@@ -17,7 +17,12 @@ export async function checkOcrConfidence(params: {
   requestId?: string;
 }): Promise<{ averageConfidence: number; requiresReview: boolean }> {
   const activityName = "checkOcrConfidence";
-  const { documentId, threshold = 0.95, requestId } = params;
+  const { documentId, groupId, threshold = 0.95, requestId } = params;
+  if (!groupId) {
+    throw new Error(
+      `groupId is required to check OCR confidence for document ${documentId}`,
+    );
+  }
   const { ocrResult } = await resolveOcrResultInput(params);
   const confidenceThreshold = threshold;
   const log = createActivityLogger(activityName, {
@@ -79,14 +84,19 @@ export async function checkOcrConfidence(params: {
     // Update document status if review is required (skip in benchmark: no DB row exists)
     // Note: We keep status as 'ongoing_ocr' since the workflow is still in progress
     // The workflow itself tracks the 'awaiting_review' state separately
+    // Only a document in the run's group is updated; no match is reported
+    // as not found and handled by the catch below.
     if (requiresReview) {
       const prisma = getPrismaClient();
-      await prisma.document.update({
-        where: { id: documentId },
+      const { count } = await prisma.document.updateMany({
+        where: { id: documentId, group_id: groupId },
         data: {
           status: "ongoing_ocr",
         },
       });
+      if (count === 0) {
+        throw new Error(`Document ${documentId} not found`);
+      }
 
       log.info("Check OCR confidence status updated", {
         event: "status_updated",

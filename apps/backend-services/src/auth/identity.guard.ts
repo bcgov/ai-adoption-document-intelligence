@@ -89,6 +89,23 @@ export class IdentityGuard implements CanActivate {
           "API key authentication is not allowed for this endpoint",
         );
       }
+    } else if (request.internalToken) {
+      // Internal-token path (Change W): `InternalTokenAuthGuard` only
+      // attaches `request.internalToken` on endpoints that opted into
+      // machine auth (`allowApiKey: true`), so no re-check is needed here.
+      // The resolved identity is the same group-scoped EDITOR shape the
+      // API-key path produces, so a token can do what the group's API key
+      // can. The actor is the minting identity's actor id when the token
+      // is bound to one (agent self-calls), else a synthetic internal actor
+      // labelled by the token's purpose, so audit rows always name a
+      // responsible party.
+      const { groupId, userId, purpose } = request.internalToken;
+      request.resolvedIdentity = {
+        isSystemAdmin: false,
+        groupRoles: { [groupId]: GroupRole.EDITOR },
+        resolvedGroups: [],
+        actorId: userId ?? `internal:${purpose}`,
+      };
     } else if (request.user?.sub) {
       const userId = request.user.sub;
       // User guaranteed because they would be added during login process
@@ -177,7 +194,10 @@ export class IdentityGuard implements CanActivate {
           throw new BadRequestException("Missing required group identifier");
         }
 
-        if (!request.resolvedIdentity.groupRoles?.[groupId]) {
+        // Object.hasOwn: only the caller's own group entries count as
+        // membership, never a property inherited from Object.prototype.
+        const groupRoles = request.resolvedIdentity.groupRoles;
+        if (!groupRoles || !Object.hasOwn(groupRoles, groupId)) {
           throw new ForbiddenException(
             "User is not a member of the specified group",
           );
@@ -193,7 +213,7 @@ export class IdentityGuard implements CanActivate {
           );
         }
 
-        const usersGroupRole = request.resolvedIdentity.groupRoles[groupId];
+        const usersGroupRole = groupRoles[groupId];
         const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
         if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
           throw new ForbiddenException("Insufficient role within the group");

@@ -103,6 +103,10 @@ export class TrainingController {
     type: TrainingJobDto,
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiConflictResponse({
+    description:
+      "A training job is already in progress for this template, or the model id of its next version is already in use",
+  })
   @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startTraining(

@@ -2,13 +2,11 @@ import { Page } from '@playwright/test';
 import { Permission } from '../../../apps/frontend/src/auth/permissions';
 
 /**
- * Every permission the frontend knows, in the numeric form /api/auth/me sends.
+ * Every permission the frontend knows, by name, as /api/auth/me sends them.
  * The mock user is an ADMIN of the default group, as the seeded test user is,
  * and an ADMIN holds every permission.
  */
-const ALL_PERMISSIONS = Object.values(Permission).filter(
-  (value): value is Permission => typeof value === 'number',
-);
+const ALL_PERMISSIONS = Object.values(Permission);
 
 /**
  * Sets up mock authentication by intercepting the /auth/me endpoint.

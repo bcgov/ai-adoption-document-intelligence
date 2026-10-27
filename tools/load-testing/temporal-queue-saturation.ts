@@ -27,7 +27,7 @@ type HumanGateNode = {
   signal: {
     name: string;
   };
-  timeout: string;
+  timeout?: string;
   onTimeout: "continue";
 };
 

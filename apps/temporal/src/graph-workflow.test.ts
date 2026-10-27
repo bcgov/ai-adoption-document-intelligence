@@ -18,6 +18,7 @@ import {
   getStatus,
   graphWorkflow,
 } from "./graph-workflow";
+import type { NodeRunStatus } from "./graph-workflow-queries";
 import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
@@ -345,14 +346,14 @@ async function runWorkflowWithSignal(
     args: [workflowInput],
   });
 
-  const resultPromise = handle.result();
-  const runPromise = worker.runUntil(resultPromise);
-
-  await handle.signal(signalName, payload);
-
-  const result = (await runPromise) as GraphWorkflowResult;
-  const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
-  return { ...result, ctx: status.ctx };
+  // The query runs inside runUntil: a query needs a polling worker, so it
+  // would hang once the worker has stopped.
+  return worker.runUntil(async () => {
+    await handle.signal(signalName, payload);
+    const result = (await handle.result()) as GraphWorkflowResult;
+    const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+    return { ...result, ctx: status.ctx };
+  });
 }
 
 async function runWorkflowWithoutSignal(
@@ -386,10 +387,13 @@ async function runWorkflowWithoutSignal(
     args: [workflowInput],
   });
 
-  const resultPromise = handle.result();
-  const result = (await worker.runUntil(resultPromise)) as GraphWorkflowResult;
-  const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
-  return { ...result, ctx: status.ctx };
+  // The query runs inside runUntil: a query needs a polling worker, so it
+  // would hang once the worker has stopped.
+  return worker.runUntil(async () => {
+    const result = (await handle.result()) as GraphWorkflowResult;
+    const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+    return { ...result, ctx: status.ctx };
+  });
 }
 
 describe("Graph Workflow", () => {
@@ -554,10 +558,12 @@ describe("Graph Workflow", () => {
     }
 
     it("transitions an in-flight document to `failed` when the workflow fails", async () => {
+      const getStatusCalls: Array<Record<string, unknown>> = [];
       const updateStatusCalls: Array<Record<string, unknown>> = [];
-      const input = makeMockInput(makeFailingGraph(), {
-        documentId: "doc-fail-1",
-      });
+      const input = {
+        ...makeMockInput(makeFailingGraph(), { documentId: "doc-fail-1" }),
+        groupId: "group-1",
+      };
 
       await expect(
         runWorkflow(testEnv, input, "test-failure-status-hook", {
@@ -567,7 +573,11 @@ describe("Graph Workflow", () => {
               nonRetryable: true,
             });
           },
-          "document.getStatus": async () => ({ status: "ongoing_ocr" }),
+          "billing.recordWorkflowLifecycle": async () => ({}),
+          "document.getStatus": async (params: Record<string, unknown>) => {
+            getStatusCalls.push(params);
+            return { status: "ongoing_ocr" };
+          },
           "document.updateStatus": async (params: Record<string, unknown>) => {
             updateStatusCalls.push(params);
             return { success: true };
@@ -575,11 +585,19 @@ describe("Graph Workflow", () => {
         }),
       ).rejects.toThrow();
 
-      expect(
-        updateStatusCalls.some(
-          (c) => c.documentId === "doc-fail-1" && c.status === "failed",
-        ),
-      ).toBe(true);
+      expect(getStatusCalls).toContainEqual(
+        expect.objectContaining({
+          documentId: "doc-fail-1",
+          groupId: "group-1",
+        }),
+      );
+      expect(updateStatusCalls).toContainEqual(
+        expect.objectContaining({
+          documentId: "doc-fail-1",
+          groupId: "group-1",
+          status: "failed",
+        }),
+      );
     });
 
     it("does not clobber a document that already progressed past OCR", async () => {
@@ -605,6 +623,67 @@ describe("Graph Workflow", () => {
       ).rejects.toThrow();
 
       expect(updateStatusCalls.some((c) => c.status === "failed")).toBe(false);
+    });
+  });
+
+  describe("Run group on workflow-level calls", () => {
+    it("passes the run's group to the config load, the node activities and both status hooks", async () => {
+      const graph = makeOverrideProbeGraph();
+      const input = {
+        ...makeMockInput(graph, { documentId: "doc-group-1" }),
+        groupId: "group-1",
+      };
+      const loadConfig = createGetWorkflowGraphConfigHandler(
+        graph,
+        input.workflowVersionId,
+      );
+      const configCalls: Array<Record<string, unknown>> = [];
+      const getStatusCalls: Array<Record<string, unknown>> = [];
+      const updateStatusCalls: Array<Record<string, unknown>> = [];
+
+      const result = await runWorkflow(testEnv, input, "test-run-group", {
+        getWorkflowGraphConfig: async (params: Record<string, unknown>) => {
+          configCalls.push(params);
+          return loadConfig(params as { workflowId: string });
+        },
+        "billing.recordWorkflowLifecycle": async () => ({}),
+        "document.getStatus": async (params: Record<string, unknown>) => {
+          getStatusCalls.push(params);
+          return { status: "extracted" };
+        },
+        "document.updateStatus": async (params: Record<string, unknown>) => {
+          updateStatusCalls.push(params);
+          return { success: true };
+        },
+      });
+
+      expect(result.status).toBe("completed");
+      expect(configCalls).toEqual([
+        expect.objectContaining({ groupId: "group-1" }),
+      ]);
+      expect(updateStatusCalls).toEqual([
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "ongoing_ocr",
+        }),
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "base",
+        }),
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+          status: "complete",
+        }),
+      ]);
+      expect(getStatusCalls).toEqual([
+        expect.objectContaining({
+          documentId: "doc-group-1",
+          groupId: "group-1",
+        }),
+      ]);
     });
   });
 
@@ -955,7 +1034,7 @@ describe("Graph Workflow", () => {
           receivedRequestId = params.apimRequestId as string;
           const status = pollCount < 2 ? "running" : "succeeded";
           pollCount += 1;
-          return { response: { status } };
+          return { ocrResponse: { status } };
         },
       };
 
@@ -973,7 +1052,7 @@ describe("Graph Workflow", () => {
             label: "Poll OCR",
             activityType: "azureOcr.poll",
             inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1012,7 +1091,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when maxAttempts exceeded", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 
@@ -1029,7 +1108,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1068,7 +1147,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when overall timeout elapses", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 
@@ -1085,7 +1164,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1123,8 +1202,19 @@ describe("Graph Workflow", () => {
     });
   });
 
+  // §5.3: the three "continue" paths below (approval-continue, timeout-
+  // continue, timeout-fallback) are skipped because they HANG in the
+  // TestWorkflowEnvironment — the workflow blocks in the humanGate
+  // `condition(() => payload !== null, timeout)` and neither the buffered
+  // signal nor the timer reliably resolves it under this harness (the local
+  // env doesn't time-skip, and the signal ordering deadlocks `runUntil`).
+  // The handler itself (`executeHumanGateNode`) IS exercised: the rejection
+  // path below passes, covering signal delivery + payload→ctx write + the
+  // HUMAN_GATE_REJECTED throw. Re-enabling these requires a time-skipping
+  // TestWorkflowEnvironment + a signal-after-gate-reached barrier — tracked
+  // as follow-up rather than left as a silently-green false positive.
   describe("US-011: HumanGate Node Handler", () => {
-    it.skip("continues on approval and writes payload to ctx", async () => {
+    it("continues on approval and writes payload to ctx", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
@@ -1263,7 +1353,190 @@ describe("Graph Workflow", () => {
       }
     });
 
-    it.skip("continues on timeout when onTimeout is continue", async () => {
+    it("waits past 24h without a timeout and continues on approval", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Approval Test",
+          description: "Test humanGate without a timeout waits, then continues",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+            outputs: [
+              { port: "approved", ctxKey: "approved" },
+              { port: "reviewer", ctxKey: "reviewer" },
+            ],
+          },
+          next: {
+            id: "next",
+            type: "activity",
+            label: "Next Step",
+            activityType: "document.updateStatus",
+            parameters: { status: "approved" },
+          },
+        },
+        edges: [{ id: "e1", source: "gate", target: "next", type: "normal" }],
+        entryNodeId: "gate",
+        ctx: {
+          approved: { type: "boolean" },
+          reviewer: { type: "string" },
+          documentId: { type: "string", defaultValue: "test-doc" },
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        makeMockInput(graph),
+        "test-humangate-no-timeout-approval",
+      );
+
+      const outcome = await worker.runUntil(async () => {
+        await testEnv.sleep("25h");
+        const statusAfterWait = (await handle.describe()).status.name;
+        await handle.signal("humanApproval", {
+          approved: true,
+          reviewer: "alice",
+        });
+        const result = (await handle.result()) as GraphWorkflowResult;
+        const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+        return { statusAfterWait, result, ctx: status.ctx };
+      });
+
+      expect(outcome.statusAfterWait).toBe("RUNNING");
+      expect(outcome.result.status).toBe("completed");
+      expect(outcome.result.completedNodes).toContain("next");
+      expect(outcome.ctx.approved).toBe(true);
+      expect(outcome.ctx.reviewer).toBe("alice");
+    });
+
+    it("fails with HUMAN_GATE_REJECTED on rejection without a timeout", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Rejection Test",
+          description: "Test humanGate without a timeout rejects",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+          },
+        },
+        edges: [],
+        entryNodeId: "gate",
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
+      };
+
+      const input = makeMockInput(graph);
+
+      try {
+        await runWorkflowWithSignal(
+          testEnv,
+          input,
+          "test-humangate-no-timeout-rejection",
+          "humanApproval",
+          { approved: false, reviewer: "bob" },
+        );
+        throw new Error("Expected humanGate to reject");
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const cause = (error as { cause?: { message?: string; type?: string } })
+          .cause;
+        const combined = `${errorMessage} ${cause?.message ?? ""}`;
+        expect(cause?.type ?? combined).toMatch(/HUMAN_GATE_REJECTED/);
+      }
+    });
+
+    it("ends as cancelled when a run waiting without a timeout is cancelled", async () => {
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "HumanGate No Timeout Cancellation Test",
+          description:
+            "Test a waiting humanGate without a timeout is cancelled",
+          version: "1.0.0",
+        },
+        nodes: {
+          gate: {
+            id: "gate",
+            type: "humanGate",
+            label: "Human Review",
+            signal: { name: "humanApproval" },
+            onTimeout: "fail",
+          },
+          next: {
+            id: "next",
+            type: "activity",
+            label: "Next Step",
+            activityType: "document.updateStatus",
+            parameters: { status: "approved" },
+          },
+        },
+        edges: [{ id: "e1", source: "gate", target: "next", type: "normal" }],
+        entryNodeId: "gate",
+        ctx: { documentId: { type: "string", defaultValue: "test-doc" } },
+      };
+
+      const statusUpdates: unknown[] = [];
+      let gateUpdate: Record<string, unknown> | undefined;
+      let gateReachedResolve: (() => void) | undefined;
+      const gateReached = new Promise<void>((resolve) => {
+        gateReachedResolve = resolve;
+      });
+      const activitiesOverride: ActivityMap = {
+        "document.updateStatus": async (params: Record<string, unknown>) => {
+          statusUpdates.push(params.status);
+          if (params.status === "awaiting_review") {
+            gateUpdate = params;
+            gateReachedResolve?.();
+          }
+          return { success: true };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        { ...makeMockInput(graph), groupId: "group-1" },
+        "test-humangate-no-timeout-cancel",
+        activitiesOverride,
+      );
+
+      const outcome = await worker.runUntil(async () => {
+        await gateReached;
+        await testEnv.sleep("1h");
+        const before = (await handle.query("getStatus")) as GraphWorkflowStatus;
+        await handle.cancel();
+        const failure = await handle.result().then(
+          () => undefined,
+          (error: unknown) =>
+            (error as { cause?: { name?: string } }).cause?.name,
+        );
+        const after = (await handle.describe()).status.name;
+        return { before, failure, after };
+      });
+
+      expect(outcome.before.overallStatus).toBe("running");
+      expect(outcome.before.nodeStatuses.gate.status).toBe("running");
+      expect(outcome.failure).toBe("CancelledFailure");
+      expect(outcome.after).toBe("CANCELLED");
+      expect(statusUpdates).not.toContain("approved");
+      expect(gateUpdate).toEqual(
+        expect.objectContaining({ documentId: "test-doc", groupId: "group-1" }),
+      );
+    });
+
+    it("continues on timeout when onTimeout is continue", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
@@ -1304,7 +1577,7 @@ describe("Graph Workflow", () => {
       expect(result.completedNodes).toContain("next");
     });
 
-    it.skip("routes to fallback edge on timeout when onTimeout is fallback", async () => {
+    it("routes to fallback edge on timeout when onTimeout is fallback", async () => {
       const graph: GraphWorkflowConfig = {
         schemaVersion: "1.0",
         metadata: {
@@ -1978,6 +2251,132 @@ describe("Graph Workflow", () => {
     });
   });
 
+  describe("US-135: getNodeStatusesQuery and nodeStatuses map", () => {
+    it("3-node workflow — mid-execution query reports running + post-execution reports succeeded (Scenarios 2 + 4 + 5 + 6a)", async () => {
+      // Two gates: (1) wait for node A's activity to enter; (2) wait
+      // for node C's activity to enter. While node C is in-flight we
+      // can query the workflow and see node A already succeeded, node
+      // C running, and no other entries — this exercises mid-execution
+      // querying + Scenario 5 (untouched nodes absent) in a way that
+      // keeps the worker alive (queries against a completed workflow
+      // need a replay-capable worker, which `runUntil` shuts down).
+      let aStartedResolve: (() => void) | undefined;
+      let cStartedResolve: (() => void) | undefined;
+      let finishCResolve: (() => void) | undefined;
+      const aStarted = new Promise<void>((resolve) => {
+        aStartedResolve = resolve;
+      });
+      const cStarted = new Promise<void>((resolve) => {
+        cStartedResolve = resolve;
+      });
+      const finishC = new Promise<void>((resolve) => {
+        finishCResolve = resolve;
+      });
+
+      const graph: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "NodeRunStatus 3-node Test",
+          description: "Test getNodeStatusesQuery across a 3-node linear graph",
+          version: "1.0.0",
+        },
+        nodes: {
+          a: {
+            id: "a",
+            type: "activity",
+            label: "Node A",
+            activityType: "file.prepare",
+            inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+            outputs: [{ port: "preparedData", ctxKey: "preparedData" }],
+          },
+          b: {
+            id: "b",
+            type: "activity",
+            label: "Node B",
+            activityType: "document.updateStatus",
+            parameters: { status: "middle" },
+          },
+          c: {
+            id: "c",
+            type: "activity",
+            label: "Node C",
+            activityType: "azureOcr.submit",
+            outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+          },
+        },
+        edges: [
+          { id: "e1", source: "a", target: "b", type: "normal" },
+          { id: "e2", source: "b", target: "c", type: "normal" },
+        ],
+        entryNodeId: "a",
+        ctx: {
+          blobKey: { type: "string", defaultValue: "blobs/test.pdf" },
+          preparedData: { type: "object" },
+          apimRequestId: { type: "string" },
+        },
+      };
+
+      const input = makeMockInput(graph);
+      const activitiesOverride: ActivityMap = {
+        "file.prepare": async () => {
+          aStartedResolve?.();
+          return { preparedData: { blobKey: "blobs/test.pdf" } };
+        },
+        "azureOcr.submit": async () => {
+          cStartedResolve?.();
+          await finishC;
+          return { apimRequestId: "req-final" };
+        },
+      };
+
+      const { worker, handle } = await startWorkflowWithWorker(
+        testEnv,
+        input,
+        "test-node-run-statuses-linear",
+        activitiesOverride,
+      );
+
+      const resultPromise = handle.result();
+      const runPromise = worker.runUntil(resultPromise);
+
+      // Wait until node A's activity has fired (so the workflow has
+      // started and the query handler is registered).
+      await aStarted;
+      // Wait until node C's activity is in-flight — by that point A+B
+      // have already succeeded.
+      await cStarted;
+
+      // Scenario 4 + 2 + 5 — query mid-execution: A + B are succeeded,
+      // C is running, no other nodes present.
+      const midStatuses = (await handle.query("getNodeStatuses")) as Record<
+        string,
+        NodeRunStatus
+      >;
+      expect(midStatuses.a).toBeDefined();
+      expect(midStatuses.a.status).toBe("succeeded");
+      expect(midStatuses.a.startedAt).toBeDefined();
+      expect(midStatuses.a.endedAt).toBeDefined();
+      expect(midStatuses.b).toBeDefined();
+      expect(midStatuses.b.status).toBe("succeeded");
+      expect(midStatuses.c).toBeDefined();
+      expect(midStatuses.c.status).toBe("running");
+      expect(midStatuses.c.startedAt).toBeDefined();
+      expect(midStatuses.c.endedAt).toBeUndefined();
+
+      // Release node C so the workflow can complete.
+      if (!finishCResolve) {
+        throw new Error("finishCResolve not set");
+      }
+      finishCResolve();
+
+      const result = await runPromise;
+      expect(result.status).toBe("completed");
+      expect(result.completedNodes).toEqual(
+        expect.arrayContaining(["a", "b", "c"]),
+      );
+    });
+  });
+
   describe("workflowConfigOverrides at load time", () => {
     it("completes when configHash matches merged config (ctx override)", async () => {
       const graph = makeModelIdCtxGraph();
@@ -2033,6 +2432,85 @@ describe("Graph Workflow", () => {
       expect(updateStatusSpy).toHaveBeenCalledWith(
         expect.objectContaining({ status: "overridden" }),
       );
+    });
+  });
+
+  describe("Change A: activity-output cache gated to editor Try runs", () => {
+    // The cache proxy is only wired when BOTH `workflowLineageId` and
+    // `trigger === "try"` are set — production-scope caching is deferred
+    // (Phase 4.x) pending a GDPR review. These tests register spy
+    // implementations for the two cache activities and check whether the
+    // workflow schedules them at all.
+    function makeCacheSpies() {
+      const findFresh = jest.fn().mockResolvedValue(null);
+      const upsert = jest.fn().mockResolvedValue(undefined);
+      return {
+        findFresh,
+        upsert,
+        activities: {
+          "activityOutputCache.findFresh": findFresh,
+          "activityOutputCache.upsert": upsert,
+        } as unknown as ActivityMap,
+      };
+    }
+
+    it("a Try run with a lineage goes through findFresh + upsert", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+        trigger: "try",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-try",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).toHaveBeenCalled();
+      expect(spies.upsert).toHaveBeenCalled();
+    });
+
+    it("a production ('api') run with the SAME lineage bypasses cache reads AND writes", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+        trigger: "api",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-api",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).not.toHaveBeenCalled();
+      expect(spies.upsert).not.toHaveBeenCalled();
+    });
+
+    it("an absent trigger is treated as production — the safe direction", async () => {
+      const spies = makeCacheSpies();
+      const input: TestGraphWorkflowInput = {
+        ...makeMockInput(makeLinearGraph()),
+        workflowLineageId: "wfl-gate-1",
+      };
+
+      const result = await runWorkflow(
+        testEnv,
+        input,
+        "test-cache-gate-untriggered",
+        spies.activities,
+      );
+
+      expect(result.status).toBe("completed");
+      expect(spies.findFresh).not.toHaveBeenCalled();
+      expect(spies.upsert).not.toHaveBeenCalled();
     });
   });
 });

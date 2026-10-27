@@ -6,6 +6,13 @@ import { notifications } from "../../../../ui";
 const HEARTBEAT_INTERVAL_MS = 60_000;
 const IDLE_WARNING_MS = 8 * 60 * 1000;
 
+/** True when a failed request's error body carries HTTP 409 Conflict. */
+const isConflict = (body: unknown): boolean =>
+  typeof body === "object" &&
+  body !== null &&
+  "statusCode" in body &&
+  body.statusCode === 409;
+
 export const useSessionHeartbeat = (
   sessionId: string | undefined,
   queuePath: string,
@@ -43,13 +50,17 @@ export const useSessionHeartbeat = (
     if (!sessionId) return;
 
     const sendHeartbeat = async () => {
-      try {
-        await apiService.post(`/hitl/sessions/${sessionId}/heartbeat`, {});
-      } catch {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/heartbeat`,
+        {},
+      );
+      // A 409 means the lock is gone: it lapsed and the session was reclaimed.
+      // Any other failure may be passing, so the reviewer stays on the page.
+      if (!response.success && isConflict(response.data)) {
         notifications.show({
           title: "Session expired",
           message:
-            "Your session was released due to inactivity. Corrections have been saved.",
+            "Your session was released due to inactivity. Changes you hadn't saved were not kept.",
           color: "red",
           autoClose: 5000,
         });

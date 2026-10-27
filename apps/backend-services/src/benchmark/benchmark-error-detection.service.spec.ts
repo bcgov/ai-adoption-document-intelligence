@@ -338,6 +338,24 @@ describe("BenchmarkErrorDetectionService.getAnalysis", () => {
     expect(findFirst).toHaveBeenCalledTimes(1);
   });
 
+  it("only returns a cached analysis for the project that owns the run", async () => {
+    const { svc, findFirst } = makeService({
+      id: "r1",
+      projectId: "p1",
+      status: "completed",
+      metrics: { perSampleResults: [] },
+    });
+    await svc.getAnalysis("p1", "r1");
+
+    findFirst.mockResolvedValueOnce(null);
+    await expect(svc.getAnalysis("p2", "r1")).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(findFirst).toHaveBeenLastCalledWith({
+      where: { id: "r1", projectId: "p2" },
+    });
+  });
+
   it("invalidate(runId) drops the cache entry", async () => {
     const { svc, findFirst } = makeService({
       id: "r1",

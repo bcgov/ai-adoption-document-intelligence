@@ -116,8 +116,12 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Validate workflow version exists
-    const workflowVersion = await this.jobDb.findWorkflow(workflowVersionId);
+    // Validate the workflow version exists in the dataset's group
+    const groupId = version.dataset.group_id;
+    const workflowVersion = await this.jobDb.findWorkflow(
+      workflowVersionId,
+      groupId,
+    );
 
     if (!workflowVersion) {
       throw new NotFoundException(
@@ -143,10 +147,7 @@ export class GroundTruthGenerationService {
     }
 
     // Load manifest
-    const manifest = await this.loadManifest(
-      version.storagePrefix,
-      workflowVersion.lineage.group_id,
-    );
+    const manifest = await this.loadManifest(version.storagePrefix, groupId);
 
     // Find samples without ground truth
     const samplesWithoutGt = manifest.samples.filter(
@@ -228,7 +229,7 @@ export class GroundTruthGenerationService {
           resource_type: "dataset_version",
           resource_id: versionId,
           actor_id: _userId !== "anonymous" ? _userId : undefined,
-          group_id: workflowVersion.lineage.group_id,
+          group_id: groupId,
           payload: {
             dataset_id: datasetId,
             workflow_version_id: workflowVersionId,
@@ -426,7 +427,6 @@ export class GroundTruthGenerationService {
           source: "ground-truth-generation",
           status: DocumentStatus.conversion_failed,
           apim_request_id: null,
-          workflow_id: null,
           workflow_config_id: null,
           workflow_execution_id: null,
           model_id: modelId,
@@ -467,7 +467,6 @@ export class GroundTruthGenerationService {
         source: "ground-truth-generation",
         status: DocumentStatus.pre_ocr,
         apim_request_id: null,
-        workflow_id: null,
         workflow_config_id: job.workflowVersionId,
         workflow_execution_id: null,
         model_id: modelId,
@@ -487,14 +486,16 @@ export class GroundTruthGenerationService {
         );
       });
 
-      // Start OCR workflow with confidenceThreshold=0 to skip humanGate.
-      // Overrides are merged when the worker loads graph config.
+      // Start OCR workflow with confidenceThreshold=0 to skip humanGate. It is
+      // a server setting, so it applies whether or not the workflow declares a
+      // default for it. Overrides are merged when the worker loads graph config.
       const ocrResult = await this.ocrService.requestOcr(
         documentId,
-        { confidenceThreshold: 0 },
+        undefined,
         jobOverrides && Object.keys(jobOverrides).length > 0
           ? jobOverrides
           : undefined,
+        { confidenceThreshold: 0 },
       );
 
       // Update job with temporal workflow ID

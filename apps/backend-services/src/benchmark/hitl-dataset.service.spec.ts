@@ -54,6 +54,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.72,
         action: CorrectionAction.confirmed,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
       {
         id: "corr-2",
@@ -64,6 +65,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.85,
         action: CorrectionAction.corrected,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
       {
         id: "corr-3",
@@ -74,6 +76,7 @@ describe("HitlDatasetService", () => {
         original_conf: 0.65,
         action: CorrectionAction.deleted,
         created_at: new Date(),
+        actor_id: "actor-1",
       },
     ],
   };
@@ -196,6 +199,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.72,
           action: CorrectionAction.confirmed,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -216,6 +220,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.85,
           action: CorrectionAction.corrected,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -236,6 +241,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.65,
           action: CorrectionAction.deleted,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -253,6 +259,7 @@ describe("HitlDatasetService", () => {
           original_conf: 0.72,
           action: CorrectionAction.flagged,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -270,6 +277,7 @@ describe("HitlDatasetService", () => {
           original_conf: null,
           action: CorrectionAction.flagged,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 
@@ -288,6 +296,7 @@ describe("HitlDatasetService", () => {
           original_conf: null,
           action: CorrectionAction.corrected,
           created_at: new Date(),
+          actor_id: "actor-1",
         },
       ]);
 

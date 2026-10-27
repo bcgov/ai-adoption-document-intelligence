@@ -5,29 +5,13 @@
 import {
   buildBlobFilePath,
   OperationCategory,
-  validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
-import { getPrismaClient } from "./activities/database-client";
-import { getBlobStorageClient } from "./blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "./blob-storage/group-blob-storage";
 import { isOcrPayloadRef, type OcrPayloadRef } from "./ocr-payload-ref-types";
-import type { OCRResponse, OCRResult } from "./types";
+import type { OCRResult } from "./types";
 
 export type { OcrPayloadRef } from "./ocr-payload-ref-types";
 export { isOcrPayloadRef } from "./ocr-payload-ref-types";
-
-export async function resolveGroupId(documentId: string): Promise<string> {
-  const prisma = getPrismaClient();
-  const row = await prisma.document.findUnique({
-    where: { id: documentId },
-    select: { group_id: true },
-  });
-  if (!row?.group_id) {
-    throw new Error(
-      `Cannot resolve groupId for document ${documentId}: document not found`,
-    );
-  }
-  return row.group_id;
-}
 
 export function azureResponseBlobPath(
   groupId: string,
@@ -84,33 +68,47 @@ export async function writeOcrPayloadBlob(
     fileName,
   );
   const body = JSON.stringify(json);
-  const client = getBlobStorageClient();
-  await client.write(validateBlobFilePath(blobPath), Buffer.from(body, "utf8"));
+  await getGroupBlobStorage(groupId).write(blobPath, Buffer.from(body, "utf8"));
   return { blobPath, byteLength: Buffer.byteLength(body, "utf8") };
 }
 
-export async function readOcrPayloadBlob<T = unknown>(
+/**
+ * Reads an OCR payload blob for a workflow running in `groupId`. The ref's
+ * blob path must belong to that group.
+ */
+export async function readOcrPayloadBlobInGroup<T = unknown>(
   ref: OcrPayloadRef,
+  groupId: string | null | undefined,
 ): Promise<T> {
+  if (!groupId) {
+    throw new Error(
+      `groupId is required to read the OCR payload for document ${ref.documentId}`,
+    );
+  }
   if (!ref.blobPath) {
     throw new Error(
       `OCR payload blob path is empty for document ${ref.documentId}`,
     );
   }
-  const client = getBlobStorageClient();
-  const data = await client.read(validateBlobFilePath(ref.blobPath));
+  const data = await getGroupBlobStorage(groupId).read(ref.blobPath);
   return JSON.parse(data.toString("utf8")) as T;
 }
 
-/** Resolve groupId from explicit value or document row. */
+/**
+ * Returns the run's groupId, which the graph engine injects into every
+ * activity. Throws when it is missing rather than deriving a group from
+ * the document id.
+ */
 export async function resolveGroupIdForOcr(
   documentId: string,
   groupId?: string | null,
 ): Promise<string> {
-  if (groupId) {
-    return groupId;
+  if (!groupId) {
+    throw new Error(
+      `groupId is required for OCR payloads of document ${documentId}`,
+    );
   }
-  return resolveGroupId(documentId);
+  return groupId;
 }
 
 /** Require a non-empty document id on activity params (after runner injection). */
@@ -126,21 +124,12 @@ export function requireDocumentId(params: { documentId?: string }): string {
 
 export async function loadOcrResultFromPort(
   value: OCRResult | OcrPayloadRef,
-  _groupId?: string | null,
+  groupId: string | null | undefined,
 ): Promise<OCRResult> {
   if (!isOcrPayloadRef(value)) {
     return value;
   }
-  return readOcrPayloadBlob<OCRResult>(value);
-}
-
-export async function loadOcrResponseFromPort(
-  value: OCRResponse | OcrPayloadRef,
-): Promise<OCRResponse> {
-  if (!isOcrPayloadRef(value)) {
-    return value;
-  }
-  return readOcrPayloadBlob<OCRResponse>(value);
+  return readOcrPayloadBlobInGroup<OCRResult>(value, groupId);
 }
 
 export function makeOcrPayloadRef(

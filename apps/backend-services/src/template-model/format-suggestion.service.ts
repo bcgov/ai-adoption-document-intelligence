@@ -310,6 +310,7 @@ export class FormatSuggestionService {
     // Merge benchmark run mismatch pairs when IDs are provided
     if (benchmarkRunIds && benchmarkRunIds.length > 0) {
       const mismatchPairs = await this.fetchBenchmarkMismatchPairs(
+        templateModel.group_id,
         benchmarkRunIds,
         fieldKeys,
       );
@@ -338,14 +339,21 @@ export class FormatSuggestionService {
 
   /**
    * Extract mismatch pairs from benchmark run perSampleResults.evaluationDetails.
-   * Filters by field keys that belong to the template model.
+   * Filters by field keys that belong to the template model. Only runs whose
+   * benchmark project belongs to the template model's group are read; a run ID
+   * outside the group is skipped, the same as one that does not exist.
    */
   private async fetchBenchmarkMismatchPairs(
+    groupId: string,
     benchmarkRunIds: string[],
     fieldKeys: string[],
   ): Promise<Array<{ fieldKey: string; original: string; corrected: string }>> {
     const runs = await this.prisma.benchmarkRun.findMany({
-      where: { id: { in: benchmarkRunIds }, status: "completed" },
+      where: {
+        id: { in: benchmarkRunIds },
+        status: "completed",
+        project: { group_id: groupId },
+      },
       select: { id: true, metrics: true },
     });
 

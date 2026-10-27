@@ -258,7 +258,11 @@ describe("RetentionDbService", () => {
         expect.objectContaining({
           where: {
             status: {
-              in: [ReviewStatus.approved, ReviewStatus.abandoned],
+              in: [
+                ReviewStatus.approved,
+                ReviewStatus.rejected,
+                ReviewStatus.abandoned,
+              ],
             },
             completed_at: { lt: CUTOFF },
             document: {
@@ -267,6 +271,7 @@ describe("RetentionDbService", () => {
                   DocumentStatus.complete,
                   DocumentStatus.failed,
                   DocumentStatus.conversion_failed,
+                  DocumentStatus.rejected,
                 ],
               },
             },

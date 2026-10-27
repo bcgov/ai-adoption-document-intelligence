@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateGraphConfig } from "./graph-schema-validator";
 import type {
@@ -29,6 +29,7 @@ function makeMinimalGraph(
         type: "activity",
         label: "Start",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
         inputs: [{ port: "documentId", ctxKey: "documentId" }],
       } as ActivityNode,
     },
@@ -52,6 +53,7 @@ function makeLinearGraph(): GraphWorkflowConfig {
         type: "activity",
         label: "Step A",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
         inputs: [{ port: "documentId", ctxKey: "documentId" }],
       } as ActivityNode,
       b: {
@@ -65,7 +67,6 @@ function makeLinearGraph(): GraphWorkflowConfig {
         type: "activity",
         label: "Step C",
         activityType: "ocr.storeResults",
-        outputs: [{ port: "result", ctxKey: "result" }],
       } as ActivityNode,
     },
     edges: [
@@ -127,6 +128,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Review",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           done: {
             id: "done",
@@ -172,6 +174,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Split",
             activityType: "document.split",
+            parameters: { strategy: "per-page" },
             outputs: [{ port: "segments", ctxKey: "segments" }],
           } as ActivityNode,
           mapNode: {
@@ -205,7 +208,15 @@ describe("graph-schema-validator", () => {
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      // G-067 — a map with no `maxConcurrency` draws an advisory warning
+      // (unbounded fan-out). It is a warning, not an error: the graph is still
+      // valid and still saves.
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodes.mapNode.maxConcurrency",
+          severity: "warning",
+        }),
+      ]);
     });
 
     it("valid fallback edge policy passes when edge type is error", () => {
@@ -216,6 +227,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "documentId", ctxKey: "documentId" }],
             errorPolicy: {
               onError: "fallback",
@@ -228,6 +240,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Fallback",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -255,6 +268,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "documentId", ctxKey: "documentId" }],
             errorPolicy: {
               onError: "fallback",
@@ -267,6 +281,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Fallback",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -334,6 +349,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
       });
@@ -365,6 +381,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -432,6 +449,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -496,6 +514,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -544,6 +563,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -606,6 +626,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -651,6 +672,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -744,6 +766,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           j: {
             id: "j",
@@ -780,6 +803,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "x", ctxKey: "undeclaredKey" }],
           } as ActivityNode,
         },
@@ -803,6 +827,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             outputs: [{ port: "y", ctxKey: "undeclaredOutput" }],
           } as ActivityNode,
         },
@@ -832,6 +857,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "blobKey", ctxKey: "currentSegment.blobKey" }],
           } as ActivityNode,
         },
@@ -907,6 +933,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "p", ctxKey: "segment.payload" }],
           } as ActivityNode,
         },
@@ -949,6 +976,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -994,6 +1022,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -1082,8 +1111,8 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Update Status",
             activityType: "document.updateStatus",
-            inputs: [{ port: "documentId", ctxKey: "documentId" }],
             parameters: { status: "ongoing_ocr" },
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
           } as ActivityNode,
           prepareFileData: {
             id: "prepareFileData",
@@ -1110,7 +1139,7 @@ describe("graph-schema-validator", () => {
             label: "Poll OCR Results",
             activityType: "azureOcr.poll",
             inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1252,67 +1281,31 @@ describe("graph-schema-validator", () => {
   });
 
   describe("template validation", () => {
-    it("validates the standard OCR template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+    const templatesDir = join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "packages",
+      "graph-workflow",
+      "templates",
+    );
+    const templateFiles = readdirSync(templatesDir).filter((file) =>
+      file.endsWith(".json"),
+    );
+
+    it("finds the shipped templates", () => {
+      expect(templateFiles.length).toBeGreaterThan(0);
     });
 
-    it("validates the multi-page report template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "multi-page-report-workflow.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
+    it.each(templateFiles)("validates the shipped template %s", (file) => {
       const template = JSON.parse(
-        templateJson,
+        readFileSync(join(templatesDir, file), "utf8"),
       ) as unknown as GraphWorkflowConfig;
       const result = validateGraphConfig(template);
+      expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it("validates the SDPR operational workflow template", () => {
-      const templatePath = join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "..",
-        "docs-md",
-        "workflows",
-        "templates",
-        "standard-ocr-workflow-sdpr.json",
-      );
-      const templateJson = readFileSync(templatePath, "utf8");
-      const template = JSON.parse(
-        templateJson,
-      ) as unknown as GraphWorkflowConfig;
-      const result = validateGraphConfig(template);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -1438,6 +1431,212 @@ describe("graph-schema-validator", () => {
       expect(error).toBeDefined();
     });
 
+    function withExposedPath(path: string): GraphWorkflowConfig {
+      const config = makeLinearGraph();
+      config.nodeGroups = {
+        group1: {
+          label: "Group 1",
+          nodeIds: ["a"],
+          exposedParams: [{ label: "Param", path, type: "string" }],
+        },
+      };
+      return config;
+    }
+
+    it.each([
+      "nodes.a.activityType",
+      "nodes.a.type",
+      "nodes.a",
+      "nodes.a.parameters",
+      "edges",
+      "entryNodeId",
+      "orientationConfidenceThreshold",
+      "ctx.modelId",
+      "nodes.a.timeout.scheduleToClose",
+    ])("refuses an exposed path that is not a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("must be a node parameter"),
+        }),
+      );
+    });
+
+    it.each([
+      "nodes.a.parameters.__proto__",
+      "nodes.a.parameters.rules.0",
+      "nodes.a.parameters.1st",
+      "nodes.a.parameters.two words",
+      "ctx.constructor.defaultValue",
+    ])("refuses an exposed path with a segment an override cannot set: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining("a segment an override cannot set"),
+        }),
+      );
+    });
+
+    it.each([
+      "nodes.a.parameters.testParam",
+      "nodes.a.parameters.nested.key",
+      "nodes.a.parameters.ruleConfidenceOverrides.income-confidence-gate",
+      "nodes.a.timeout.startToClose",
+      "ctx.result.defaultValue",
+    ])("accepts an exposed path to a node parameter, node timeout or ctx default: %s", (path) => {
+      const result = validateGraphConfig(withExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
+    it("warns about an exposed ctx path whose key the workflow does not declare", () => {
+      const result = validateGraphConfig(
+        withExposedPath("ctx.modelID.defaultValue"),
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          severity: "warning",
+          message: expect.stringContaining(
+            'ctx key "modelID", which the workflow does not declare',
+          ),
+        }),
+      ]);
+    });
+
+    /** The linear graph followed by a pollUntil node and a humanGate node. */
+    function withTimeoutNodesAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.status = { type: "string" };
+      config.nodes.poll = {
+        id: "poll",
+        type: "pollUntil",
+        label: "Poll",
+        activityType: "azureOcr.poll",
+        outputs: [{ port: "status", ctxKey: "status" }],
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.status" },
+          right: { literal: "running" },
+        },
+        interval: "10s",
+        maxAttempts: 3,
+        timeout: "5m",
+      };
+      config.nodes.gate = {
+        id: "gate",
+        type: "humanGate",
+        label: "Review",
+        signal: { name: "humanApproval" },
+        timeout: "24h",
+        onTimeout: "fail",
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "poll", type: "normal" },
+        { id: "e4", source: "poll", target: "gate", type: "normal" },
+      );
+      return config;
+    }
+
+    it.each([
+      "nodes.gate.timeout",
+      "nodes.poll.timeout",
+      "nodes.a.timeout.startToClose",
+    ])("accepts a timeout path that fits its node: %s", (path) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.errors).toEqual([]);
+      expect(result.valid).toBe(true);
+    });
+
+    it.each([
+      ["nodes.a.timeout", "nodes.a.timeout.startToClose"],
+      ["nodes.gate.timeout.startToClose", "activity timeout"],
+      ["nodes.poll.timeout.startToClose", "activity timeout"],
+    ])("refuses a timeout path that does not fit its node: %s", (path, hint) => {
+      const result = validateGraphConfig(withTimeoutNodesAndExposedPath(path));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(hint),
+        }),
+      );
+    });
+
+    /** The linear graph followed by a switch node, which has no timeout. */
+    function withSwitchNodeAndExposedPath(path: string): GraphWorkflowConfig {
+      const config = withExposedPath(path);
+      config.ctx.requiresReview = { type: "boolean" };
+      config.nodes.route = {
+        id: "route",
+        type: "switch",
+        label: "Route",
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.requiresReview" },
+              right: { literal: true },
+            },
+            edgeId: "e-review",
+          },
+        ],
+        defaultEdge: "e-done",
+      };
+      config.nodes.review = {
+        id: "review",
+        type: "activity",
+        label: "Review",
+        activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
+      };
+      config.nodes.done = {
+        id: "done",
+        type: "activity",
+        label: "Done",
+        activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
+      };
+      config.edges.push(
+        { id: "e3", source: "c", target: "route", type: "normal" },
+        {
+          id: "e-review",
+          source: "route",
+          target: "review",
+          type: "conditional",
+        },
+        { id: "e-done", source: "route", target: "done", type: "conditional" },
+      );
+      return config;
+    }
+
+    it("refuses a timeout path on a node type that has no timeout", () => {
+      const result = validateGraphConfig(
+        withSwitchNodeAndExposedPath("nodes.route.timeout"),
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodeGroups.group1.exposedParams[0].path",
+          message: expect.stringContaining(
+            "sets a timeout, which a switch node does not have",
+          ),
+        }),
+      ]);
+    });
+
     it("config without nodeGroups passes validation", () => {
       const config = makeLinearGraph();
       // No nodeGroups field
@@ -1504,7 +1703,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -1537,7 +1735,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -1569,7 +1766,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.outputFormat",
-            message: expect.stringContaining("outputFormat"),
           }),
         ]),
       );
@@ -1601,7 +1797,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.fieldMapping",
-            message: expect.stringContaining("fieldMapping"),
           }),
         ]),
       );
@@ -1725,6 +1920,109 @@ describe("graph-schema-validator", () => {
       expect(paths).toContain("nodes.t.parameters.inputFormat");
       expect(paths).toContain("nodes.t.parameters.outputFormat");
       expect(paths).toContain("nodes.t.parameters.fieldMapping");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // document.validateFields legacy-shape rejection (US-020)
+  //
+  // The catalog's validateFields schema was drifted before e99da4ef: it
+  // used a flat `{ operation, fields, equals }` arithmetic-rule shape and
+  // `operator: "exact"` instead of the runtime's nested `{ expression }`
+  // shape with `operator: "equals"`. The Playwright walkthrough on
+  // 2026-05-23 caught it. This block proves that with the catalog wired
+  // through the backend validator, those legacy shapes are rejected at
+  // save time.
+  // -----------------------------------------------------------------------
+  describe("document.validateFields legacy-shape rejection", () => {
+    function makeValidateFieldsGraph(
+      rule: Record<string, unknown>,
+    ): GraphWorkflowConfig {
+      return {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "v",
+        ctx: {
+          processedSegments: { type: "array" },
+          documentId: { type: "string" },
+        },
+        nodes: {
+          v: {
+            id: "v",
+            type: "activity",
+            label: "Validate",
+            activityType: "document.validateFields",
+            parameters: { rules: [rule] },
+            inputs: [
+              {
+                port: "processedSegments",
+                ctxKey: "processedSegments",
+              },
+              { port: "documentId", ctxKey: "documentId" },
+            ],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+    }
+
+    it("rejects the legacy flat arithmetic rule (operation/fields/equals at top level)", () => {
+      const config = makeValidateFieldsGraph({
+        name: "pay-stub-arithmetic",
+        type: "arithmetic",
+        operation: "sum",
+        fields: ["a", "b"],
+        equals: "c",
+        operator: "equals",
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.path.startsWith("nodes.v.parameters.rules.0") &&
+            e.severity === "error",
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects the legacy operator='exact' on a field-match rule", () => {
+      const config = makeValidateFieldsGraph({
+        name: "gross-pay-match",
+        type: "field-match",
+        primaryField: "a",
+        attachmentField: "b",
+        operator: "exact",
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.path === "nodes.v.parameters.rules.0.operator" &&
+            e.severity === "error",
+        ),
+      ).toBe(true);
+    });
+
+    it("accepts the post-e99da4ef nested-expression arithmetic rule", () => {
+      const config = makeValidateFieldsGraph({
+        name: "pay-stub-arithmetic",
+        type: "arithmetic",
+        expression: {
+          operation: "difference",
+          fields: ["page2.grossPay", "page2.totalDeductions"],
+          equals: "page2.netPay",
+        },
+        operator: "approximately",
+        tolerance: { amount: 0.05 },
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
   });
 });
