@@ -1673,14 +1673,29 @@ async function seedTestApiKey() {
       },
     });
   } else {
-    const apiKeyActor = await prisma.actor.create({});
+    // The key acts as the group's durable API actor, as keys made by
+    // ApiKeyDbService.createApiKey do. Deleting a key leaves that actor in
+    // place, so reuse it when the group has one; otherwise create and record it.
+    const group = await prisma.group.findUniqueOrThrow({
+      where: { id: SEED_GROUP_ID },
+      select: { api_actor_id: true },
+    });
+    let apiActorId = group.api_actor_id;
+    if (!apiActorId) {
+      const apiKeyActor = await prisma.actor.create({});
+      await prisma.group.update({
+        where: { id: SEED_GROUP_ID },
+        data: { api_actor_id: apiKeyActor.id },
+      });
+      apiActorId = apiKeyActor.id;
+    }
     await prisma.apiKey.create({
       data: {
         generating_user_id: "test-user",
         key_hash: keyHash,
         key_prefix: keyPrefix,
         group_id: SEED_GROUP_ID,
-        actor_id: apiKeyActor.id,
+        actor_id: apiActorId,
       },
     });
   }
