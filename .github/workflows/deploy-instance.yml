@@ -405,6 +405,7 @@ jobs:
           AUDIT_EVENT_RETENTION_DAYS: ${{ secrets.AUDIT_EVENT_RETENTION_DAYS }}
           BENCHMARK_AUDIT_LOG_RETENTION_DAYS: ${{ secrets.BENCHMARK_AUDIT_LOG_RETENTION_DAYS }}
           REVIEW_SESSION_RETENTION_DAYS: ${{ secrets.REVIEW_SESSION_RETENTION_DAYS }}
+          CHAT_CONVERSATION_RETENTION_DAYS: ${{ secrets.CHAT_CONVERSATION_RETENTION_DAYS }}
           THROTTLE_GLOBAL_TTL_MS: ${{ secrets.THROTTLE_GLOBAL_TTL_MS }}
           THROTTLE_GLOBAL_LIMIT: ${{ secrets.THROTTLE_GLOBAL_LIMIT }}
           THROTTLE_AUTH_TTL_MS: ${{ secrets.THROTTLE_AUTH_TTL_MS }}
@@ -446,6 +447,7 @@ jobs:
             --audit-event-retention-days "${AUDIT_EVENT_RETENTION_DAYS:-}" \
             --benchmark-audit-log-retention-days "${BENCHMARK_AUDIT_LOG_RETENTION_DAYS:-}" \
             --review-session-retention-days "${REVIEW_SESSION_RETENTION_DAYS:-}" \
+            --chat-conversation-retention-days "${CHAT_CONVERSATION_RETENTION_DAYS:-}" \
             --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS:-60000}" \
             --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT:-100}" \
             --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS:-60000}" \
