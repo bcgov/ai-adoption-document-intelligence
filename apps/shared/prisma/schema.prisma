@@ -169,6 +169,7 @@ model Actor {
   createdGroups             Group[]                  @relation(name: "GroupCreatedBy")
   updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
   deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
+  apiKeyGroup               Group?                   @relation(name: "ApiKeyGroup")
   reviewSessions            ReviewSession[]
   fieldCorrections          FieldCorrection[]
   datasets                  Dataset[]
@@ -419,9 +420,15 @@ model Group {
   updated_at          DateTime                 @updatedAt
   deleted_at          DateTime?
   deleted_by          String?
+  /// The group's durable API-key identity. Created the first time the group
+  /// ever gets an API key and reused by every key issued afterward (including
+  /// after a delete + recreate), so records authored via the API keep a valid
+  /// author even once the key that created them is gone.
+  api_actor_id        String?                  @unique
   creator             Actor                    @relation(name: "GroupCreatedBy", fields: [created_by], references: [id])
   updator             Actor?                   @relation(name: "GroupUpdatedBy", fields: [updated_by], references: [id])
   deleter             Actor?                   @relation(name: "GroupDeletedBy", fields: [deleted_by], references: [id])
+  apiActor            Actor?                   @relation(name: "ApiKeyGroup", fields: [api_actor_id], references: [id])
   classifier_models   ClassifierModel[]
   user_groups         UserGroup[]
   membership_requests GroupMembershipRequest[]

@@ -83,17 +83,44 @@ export class ApiKeyDbService {
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
     const apiKeyHelper = async (tx: Prisma.TransactionClient) => {
-      const actor = await tx.actor.create({});
+      const actorId = await this.getOrCreateGroupApiActorId(data.group_id, tx);
       return await tx.apiKey.create({
         data: {
           ...data,
-          actor_id: actor.id,
+          actor_id: actorId,
         },
       });
     };
     return tx
       ? await apiKeyHelper(tx)
       : await this.prisma.$transaction(async (tx) => await apiKeyHelper(tx));
+  }
+
+  /**
+   * Returns the group's durable API-key actor, creating one the first time
+   * the group ever gets a key. Reused across regenerate and delete/recreate
+   * cycles so records authored via the API keep a stable author.
+   * @param groupId - The group ID.
+   * @param tx - Transaction client.
+   * @returns The group's api_actor_id.
+   */
+  private async getOrCreateGroupApiActorId(
+    groupId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<string> {
+    const group = await tx.group.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { api_actor_id: true },
+    });
+    if (group.api_actor_id) {
+      return group.api_actor_id;
+    }
+    const actor = await tx.actor.create({});
+    await tx.group.update({
+      where: { id: groupId },
+      data: { api_actor_id: actor.id },
+    });
+    return actor.id;
   }
 
   async updateApiKey(
@@ -125,7 +152,9 @@ export class ApiKeyDbService {
   }
 
   /**
-   * Deletes a specific API key by its record ID.
+   * Deletes a specific API key by its record ID. The group's api actor is
+   * left in place (it is durable, see getOrCreateGroupApiActorId) so records
+   * it authored keep a valid author.
    * @param id - The API key record UUID.
    * @param tx - Optional transaction client.
    * @returns The deleted ApiKey record.
@@ -134,20 +163,8 @@ export class ApiKeyDbService {
     id: string,
     tx?: Prisma.TransactionClient,
   ): Promise<ApiKey> {
-    const deleteKeyHelper = async (tx: Prisma.TransactionClient) => {
-      const existingKey = await tx.apiKey.findFirstOrThrow({
-        where: { id: id },
-      });
-      const actor = await tx.actor.findFirstOrThrow({
-        where: { id: existingKey.actor_id },
-      });
-      const keyDeleteResult = await tx.apiKey.delete({ where: { id } });
-      await tx.actor.delete({ where: { id: actor.id } });
-      return keyDeleteResult;
-    };
-    return tx
-      ? await deleteKeyHelper(tx)
-      : await this.prisma.$transaction(async (tx) => await deleteKeyHelper(tx));
+    const client = tx ?? this.prisma;
+    return client.apiKey.delete({ where: { id } });
   }
 
   /**

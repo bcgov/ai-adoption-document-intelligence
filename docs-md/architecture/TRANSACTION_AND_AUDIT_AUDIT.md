@@ -133,7 +133,7 @@ Transactional where needed (`createWorkflow`, version append, `promoteCandidateW
 - `group-db.service.ts`: `approveRequestTransaction`, `cancelRequestTransaction`
 - `tables-db.service.ts`: `addColumnAndBackfill`, row upsert batch
 - `benchmark-run-db.service.ts`: `postTemporalStartTransaction`, `promoteRunToBaseline`, `deleteBenchmarkRun`
-- `actor/api-key-db.service.ts`: `createApiKey`, `deleteApiKeyById`
+- `actor/api-key-db.service.ts`: `createApiKey`
 - `training-db.service.ts`: `replaceActiveTrainedModel` (internal only)
 - `ground-truth-job-db.service.ts`: `createManyJobs`, `deleteJobsForVersions`
 - `template-model-db.service.ts`: `replaceDocumentLabels`
