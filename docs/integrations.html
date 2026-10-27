@@ -749,7 +749,7 @@
     </div>
     <div>
         <strong>Base URL</strong><br>
-        All API endpoints in this guide are relative to your backend service URL (e.g. <code>https://your-host:3002</code>). See the <a href="api-reference.html">API Reference</a> for the full OpenAPI specification.
+        All API endpoints in this guide are relative to your environment's API base URL, <code>&lt;DIP_API_URL&gt;</code> in the <a href="integration-tutorial.html">tutorial</a>. Deployed environments serve it over HTTPS on the standard port; a local instance uses <code>http://localhost:3002</code>. See the <a href="api-reference.html">API Reference</a> for the full OpenAPI specification.
     </div>
 </div>
 
@@ -766,7 +766,7 @@
     <div class="card" style="border-left-color: #8b5cf6;">
         <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
         <p>Best for user-facing applications. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
-        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass the access token in the <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass an access token in the <code>Authorization: Bearer &lt;token&gt;</code> header. The token must be issued for DIP's own Keycloak client, to a user who has signed in to the DIP UI at least once.</p>
     </div>
 </div>
 
@@ -794,7 +794,7 @@
         <div class="accordion-content">
             <p>Pass your key in the <code>X-API-Key</code> header on all API calls:</p>
 <pre>curl /api/documents \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
         </div>
     </details>
 </div>
@@ -834,13 +834,13 @@
         <td><code>file_type</code></td>
         <td>enum</td>
         <td>Yes</td>
-        <td><code>pdf</code>, <code>image</code>, or <code>scan</code>. Images are converted to PDF.</td>
+        <td><code>pdf</code>, <code>image</code>, or <code>scan</code>. Use <code>image</code> for JPEG, PNG, TIFF, WebP, GIF or BMP files, which DIP converts to PDF. <code>pdf</code> and <code>scan</code> both expect a PDF file.</td>
     </tr>
     <tr>
         <td><code>workflow_slug</code></td>
         <td>string</td>
-        <td><strong>Effectively yes</strong></td>
-        <td>Stable workflow handle, unique within the group. Without a workflow (<code>workflow_slug</code> or <code>workflow_config_id</code>), processing never starts.</td>
+        <td>Yes*</td>
+        <td>Stable workflow handle, unique within the group. *Send <code>workflow_slug</code> or <code>workflow_config_id</code>. An upload with neither is accepted but never processed: the document stays in <code>ongoing_ocr</code> and can't be deleted.</td>
     </tr>
     <tr>
         <td><code>workflow_version</code></td>
@@ -864,7 +864,7 @@
         <td><code>original_filename</code></td>
         <td>string</td>
         <td>No</td>
-        <td>Original file name. Defaults to <code>&lt;title&gt;.&lt;file_type&gt;</code>.</td>
+        <td>Original file name, including its real extension: <code>/download</code> uses the extension to set the content type. Defaults to <code>&lt;title&gt;.&lt;file_type&gt;</code>, for example <code>Receipt.image</code>, which downloads as <code>application/octet-stream</code>.</td>
     </tr>
     <tr>
         <td><code>metadata</code></td>
@@ -876,7 +876,7 @@
         <td><code>ctx_overrides</code></td>
         <td>object</td>
         <td>No</td>
-        <td>Overrides the workflow's <code>ctx</code> default values for this upload, e.g. <code>{ "confidenceThreshold": 0.8 }</code></td>
+        <td>Sets values of the workflow's declared <code>ctx</code> variables for this upload, as <code>{ "&lt;name&gt;": &lt;value&gt; }</code>. Keys the workflow doesn't declare are ignored, and a variable changes nothing unless the workflow's steps read it, so ask the DIP team which variables your workflow uses. Not reapplied on reprocess.</td>
     </tr>
     <tr>
         <td><code>group_id</code></td>
@@ -885,6 +885,8 @@
         <td>Inferred from the API key. If sent, it must match the key's group.</td>
     </tr>
 </table>
+
+<p>Any other field is rejected with <code>400 property … should not exist</code>.</p>
 
 <div class="accordion-group">
     <details>
@@ -895,13 +897,13 @@ FILE_B64=$(base64 -w 0 invoice.pdf)
 
 # Upload the document
 curl -X POST /api/upload \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{
     \"title\": \"Invoice Q1-2026\",
     \"file\": \"$FILE_B64\",
     \"file_type\": \"pdf\",
-    \"workflow_slug\": \"standard-ocr\",
+    \"workflow_slug\": \"&lt;workflow-slug&gt;\",
     \"model_id\": \"prebuilt-layout\",
     \"original_filename\": \"invoice.pdf\",
     \"metadata\": { \"department\": \"finance\", \"quarter\": \"Q1\" }
@@ -913,9 +915,10 @@ curl -X POST /api/upload \
     "id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
     "title": "Invoice Q1-2026",
     "original_filename": "invoice.pdf",
+    "normalized_file_path": "...",
     "file_type": "pdf",
     "file_size": 245782,
-    "status": "pre_ocr",
+    "status": "ongoing_ocr",
     "created_at": "2026-02-19T10:30:00.000Z"
   }
 }</pre>
@@ -928,13 +931,14 @@ curl -X POST /api/upload \
 <pre>FILE_B64=$(base64 -w 0 receipt.jpg)
 
 curl -X POST /api/upload \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{
     \"title\": \"Expense Receipt\",
     \"file\": \"$FILE_B64\",
     \"file_type\": \"image\",
-    \"workflow_slug\": \"standard-ocr\"
+    \"original_filename\": \"receipt.jpg\",
+    \"workflow_slug\": \"&lt;workflow-slug&gt;\"
   }"</pre>
         </div>
     </details>
@@ -944,7 +948,7 @@ curl -X POST /api/upload \
         <div class="accordion-content">
             <p>Query the available OCR models before uploading:</p>
 <pre>curl /api/models \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
             <p>Response:</p>
 <pre>{
   "models": ["prebuilt-layout", "prebuilt-invoice", "custom-model-v2"]
@@ -962,7 +966,7 @@ curl -X POST /api/upload \
         <summary>Create a workflow configuration (curl example)</summary>
         <div class="accordion-content">
 <pre>curl -X POST /api/workflows \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{
     \"groupId\": \"&lt;group-id&gt;\",
@@ -980,7 +984,7 @@ curl -X POST /api/upload \
             <p><code>groupId</code> is required. The response contains the new <code>workflow</code>, including its <code>id</code> and a <code>slug</code> generated from the name, plus a <code>validation</code> result for the config.</p>
             <p>Then reference it during upload:</p>
 <pre>curl -X POST /api/upload \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{
     \"title\": \"Invoice\",
@@ -999,10 +1003,8 @@ curl -X POST /api/upload \
 
 <div class="card card-gold">
     <h3 style="margin-top:0;">Processing Flow</h3>
-    <p>Documents move through the following statuses:</p>
+    <p>Documents uploaded through the API move through the following statuses:</p>
     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; font-family: monospace; font-size: 0.9rem;">
-        <span class="badge badge-blue">pre_ocr</span>
-        <span style="color: var(--text-secondary);">&rarr;</span>
         <span class="badge badge-blue">ongoing_ocr</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
         <span class="badge badge-gold">extracted</span>
@@ -1031,7 +1033,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>pre_ocr</code></td>
-        <td>Stored, waiting to start</td>
+        <td>Stored, waiting to start. Only uploads made through the workflow builder start here; <code>POST /api/upload</code> starts at <code>ongoing_ocr</code>.</td>
         <td>No</td>
     </tr>
     <tr>
@@ -1041,17 +1043,17 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>extracted</code></td>
-        <td>OCR result stored, workflow continuing</td>
+        <td>OCR result stored, workflow continuing. A workflow that fails after this point leaves the document here.</td>
         <td>No</td>
     </tr>
     <tr>
         <td><code>awaiting_review</code></td>
-        <td>Low confidence. A person must review it in the HITL queue. The result is readable now, and it becomes <code>complete</code> after review (which can take hours or days).</td>
+        <td>Low confidence. A person must review it in the HITL queue, which can take hours or days; it then becomes <code>complete</code> or <code>rejected</code>. The standard OCR workflows store the result before review, so <code>/ocr</code> already returns it; a workflow that stores results after review returns <code>"ocr_result": null</code> until then.</td>
         <td>Yes, for most callers</td>
     </tr>
     <tr>
         <td><code>complete</code></td>
-        <td>Done (OCR and any review)</td>
+        <td>Done (OCR and any review). After a review, <code>/ocr</code> still returns what OCR extracted; see <a href="#reviewer-corrections">Reading Reviewer Corrections</a>.</td>
         <td><strong>Yes</strong></td>
     </tr>
     <tr>
@@ -1090,7 +1092,7 @@ curl -X POST /api/upload \
         <summary>Get one document (curl example)</summary>
         <div class="accordion-content">
 <pre>curl /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4 \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
             <p>Returns the document record, including <code>status</code>.</p>
         </div>
     </details>
@@ -1098,9 +1100,9 @@ curl -X POST /api/upload \
     <details>
         <summary>List documents in a group (curl example)</summary>
         <div class="accordion-content">
-<pre>curl "/api/documents?group_id=&lt;group-id&gt;&amp;source=api&amp;limit=50" \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
-            <p><code>group_id</code> is required. Optional filters include <code>status</code>, <code>source</code>, <code>search</code>, <code>limit</code> (default 50, max 200), and <code>offset</code>.</p>
+<pre>curl "/api/documents?group_id=&lt;group-id&gt;&amp;status=complete&amp;limit=50" \
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
+            <p><code>group_id</code> is required, even with an API key. Optional filters include <code>status</code> (<code>failed</code> also matches <code>conversion_failed</code>), <code>source</code> (<code>api</code> covers everything sent to <code>POST /api/upload</code>, including uploads from the DIP web UI), <code>search</code>, <code>limit</code> (default 50, max 200), and <code>offset</code>.</p>
             <p>Response (paginated):</p>
 <pre>{
   "documents": [
@@ -1132,7 +1134,7 @@ curl -X POST /api/upload \
         <summary>Get OCR results (curl example)</summary>
         <div class="accordion-content">
 <pre>curl /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4/ocr \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
             <p>Response:</p>
 <pre>{
   "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
@@ -1148,9 +1150,10 @@ curl -X POST /api/upload \
     "id": "result-uuid",
     "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
     "keyValuePairs": {
-      "InvoiceNumber": "INV-2026-001",
-      "Date": "2026-01-15",
-      "Total": "$1,234.56"
+      "InvoiceNumber": { "type": "string", "valueString": "INV-2026-001", "content": "INV-2026-001",
+                         "confidence": 0.98, "boundingRegions": [ ... ], "spans": [ ... ] },
+      "Total": { "type": "string", "valueString": "$1,234.56", "content": "$1,234.56",
+                 "confidence": 0.97, "boundingRegions": [ ... ], "spans": [ ... ] }
     },
     "content": {
       "format": "text",
@@ -1160,7 +1163,7 @@ curl -X POST /api/upload \
     "processed_at": "2026-02-19T10:31:15.000Z"
   }
 }</pre>
-            <p>The <code>keyValuePairs</code> object contains the extracted fields. Its structure depends on the model used — custom models return fields defined during training, while prebuilt models return standard fields for their document type. For prebuilt read/layout models, which have no fields to extract, read <code>content.text</code> and <code>content.pages</code> instead. <code>ocr_result</code> is <code>null</code> until a result is stored.</p>
+            <p>The <code>keyValuePairs</code> object contains the extracted fields, each as an object: read <code>valueString</code> for the value and <code>confidence</code> for how sure the model was. Custom models return the fields defined during training. <code>prebuilt-layout</code> returns the key-value pairs it finds on the page, keyed by their labels (for example <code>Date:</code>). <code>prebuilt-read</code> returns text only, with <code>keyValuePairs</code> set to <code>null</code>, so read <code>content.text</code> and <code>content.pages</code>. <code>content.format</code> is <code>text</code>, or <code>markdown</code> when the workflow asks Azure for Markdown output. <code>ocr_result</code> is <code>null</code> until a result is stored.</p>
         </div>
     </details>
 </div>
@@ -1174,7 +1177,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>GET /api/documents/:id/download</code></td>
-        <td>The file exactly as uploaded, with its original type and filename (<code>410</code> if purged by the workflow's retention policy)</td>
+        <td>The file exactly as uploaded, under its <code>original_filename</code>. The content type comes from that name's extension (<code>410</code> if purged by the workflow's retention policy)</td>
     </tr>
     <tr>
         <td><code>GET /api/documents/:id/view</code></td>
@@ -1182,7 +1185,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>POST /api/documents/:id/reprocess</code></td>
-        <td>Re-run a <code>failed</code> document</td>
+        <td>Re-run a document that is <code>failed</code>, or stuck in <code>ongoing_ocr</code> with a workflow. Returns <code>202</code>; the status stays <code>failed</code> until processing restarts, and the upload's <code>ctx_overrides</code> are not reapplied</td>
     </tr>
     <tr>
         <td><code>DELETE /api/documents/:id</code></td>
@@ -1196,8 +1199,8 @@ curl -X POST /api/upload \
         <div class="accordion-content">
 <pre>curl -o invoice.pdf \
   /api/documents/ef2dd8b2-cbed-4b30-a958-3c2484479ca4/download \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
-            <p>Returns the file with appropriate <code>Content-Type</code> and <code>Content-Disposition</code> headers. For an image upload, <code>/download</code> returns the image and <code>/view</code> returns the converted PDF.</p>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
+            <p>Returns the file with a <code>Content-Type</code> based on its filename's extension, and a <code>Content-Disposition</code> header. For an image upload, <code>/download</code> returns the image and <code>/view</code> returns the converted PDF.</p>
         </div>
     </details>
 </div>
@@ -1224,18 +1227,20 @@ curl -X POST /api/upload \
 <p>Reviews follow a session-based model. Starting a session locks the document to the reviewer:</p>
 
 <ol>
-    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with a <code>documentId</code>, or <code>POST /api/hitl/sessions/next?group_id=&lt;group-id&gt;</code> to claim the next eligible document from the queue</li>
-    <li><strong>Keep the lock alive</strong> — <code>POST /api/hitl/sessions/:id/heartbeat</code> extends the lock while the reviewer is working</li>
+    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with a <code>documentId</code>, or <code>POST /api/hitl/sessions/next?group_id=&lt;group-id&gt;</code> to claim the next eligible document from the queue (an empty response means nothing is waiting)</li>
+    <li><strong>Keep the lock alive</strong> — <code>POST /api/hitl/sessions/:id/heartbeat</code> extends the lock while the reviewer is working. Without a heartbeat the lock expires after 10 minutes, and the document goes back to the pending queue, or to the flagged list if the session was reopened from there</li>
     <li><strong>Submit corrections</strong> — <code>POST /api/hitl/sessions/:id/corrections</code> to confirm, correct, flag, or delete extracted fields</li>
     <li><strong>Finish the review</strong> — choose one of:
         <ul>
             <li><code>POST /api/hitl/sessions/:id/approve</code> — approve the document; it becomes <code>complete</code></li>
             <li><code>POST /api/hitl/sessions/:id/reject</code> — reject the document with a <code>rejectionReason</code> (<code>INPUT_QUALITY</code>, <code>OCR_FAILURE</code>, <code>MODEL_MISMATCH</code>, <code>CONFIDENCE_TOO_LOW</code>, or <code>SYSTEMIC_ERROR</code>) and optional <code>comments</code>; it becomes <code>rejected</code></li>
             <li><code>POST /api/hitl/sessions/:id/skip</code> — release the lock and return the document to the pending queue</li>
-            <li><code>POST /api/hitl/sessions/:id/flag</code> — flag the document for priority attention, with an optional <code>note</code>, and return it to the queue</li>
+            <li><code>POST /api/hitl/sessions/:id/flag</code> — flag the session for follow-up, with an optional <code>note</code>. This releases the lock and moves the document from the pending queue to the flagged list (<code>reviewStatus=flagged</code>), and <code>sessions/next</code> doesn't serve it. To pick it up again, call <code>POST /api/hitl/sessions/:id/reopen</code></li>
         </ul>
     </li>
 </ol>
+
+<p>With an API key, every request acts as the same reviewer, so the lock can't keep two of your workers apart. Coordinate them on your side.</p>
 
 <div class="accordion-group">
     <details>
@@ -1243,17 +1248,17 @@ curl -X POST /api/upload \
         <div class="accordion-content">
 <pre># 1. Get the review queue
 curl "/api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=pending" \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"
+  -H "X-API-Key: &lt;your-api-key&gt;"
 
 # 2. Start a review session
 curl -X POST /api/hitl/sessions \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{ \"documentId\": \"ef2dd8b2-...\" }"
 
 # 3. Submit corrections
 curl -X POST /api/hitl/sessions/&lt;session-id&gt;/corrections \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx" \
+  -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   -d "{
     \"corrections\": [
@@ -1268,11 +1273,30 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/corrections \
 
 # 4. Approve the document
 curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
             <p>Each correction's <code>action</code> is one of <code>confirmed</code>, <code>corrected</code>, <code>flagged</code>, or <code>deleted</code>.</p>
         </div>
     </details>
 </div>
+
+<h3 id="reviewer-corrections">Reading Reviewer Corrections</h3>
+
+<p>Approving a review doesn't change the OCR result: <code>GET /api/documents/:id/ocr</code> still returns what OCR extracted. The reviewer's corrections are stored with the review session:</p>
+
+<ol>
+    <li><strong>Find the session</strong> — <code>GET /api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=reviewed</code> lists reviewed documents, each with <code>lastSession.id</code>.</li>
+    <li><strong>Read the corrections</strong> — <code>GET /api/hitl/sessions/&lt;session-id&gt;/corrections</code></li>
+</ol>
+
+<pre>{
+  "sessionId": "&lt;session-id&gt;",
+  "corrections": [
+    { "fieldKey": "Total", "originalValue": "$1,234.50", "correctedValue": "$1,234.56",
+      "action": "corrected", ... }
+  ]
+}</pre>
+
+<p>This response uses camelCase names, unlike the snake_case body you send to <code>POST /api/hitl/sessions/:id/corrections</code>.</p>
 
 <h3>Analytics</h3>
 
@@ -1283,7 +1307,7 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
         <summary>Get HITL analytics (curl example)</summary>
         <div class="accordion-content">
 <pre>curl "/api/hitl/analytics?group_id=&lt;group-id&gt;&amp;startDate=2026-01-01&amp;endDate=2026-02-19" \
-  -H "X-API-Key: dip_xxxxxxxxxxxxxxxxxxxx"</pre>
+  -H "X-API-Key: &lt;your-api-key&gt;"</pre>
         </div>
     </details>
 </div>
