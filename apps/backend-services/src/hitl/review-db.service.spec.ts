@@ -634,6 +634,14 @@ describe("ReviewDbService", () => {
       expect(mockFieldCorrection.findMany).toHaveBeenCalledWith({
         where: { session_id: "session-1" },
         orderBy: { created_at: "asc" },
+        include: {
+          actor: {
+            select: {
+              user: { select: { email: true } },
+              apiKey: { select: { id: true } },
+            },
+          },
+        },
       });
     });
 

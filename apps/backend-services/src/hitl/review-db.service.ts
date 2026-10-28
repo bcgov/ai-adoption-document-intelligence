@@ -27,6 +27,18 @@ export interface ReviewQueueFilters {
   sortDir?: "asc" | "desc";
 }
 
+/** A FieldCorrection row with the actor relation needed to display who made it. */
+export type FieldCorrectionWithActor = Prisma.FieldCorrectionGetPayload<{
+  include: {
+    actor: {
+      select: {
+        user: { select: { email: true } };
+        apiKey: { select: { id: true } };
+      };
+    };
+  };
+}>;
+
 /**
  * What the review queue loads for each document. Only the OCR field payload is
  * selected: `content` holds the full extracted text and page lines, which the
@@ -426,19 +438,28 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds all field corrections for a review session.
+   * Finds all field corrections for a review session, including the author
+   * (user email or api key presence) of each correction.
    * @param sessionId - The review session ID.
    * @returns Array of FieldCorrection records ordered by creation time.
    */
   async findSessionCorrections(
     sessionId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<import("@generated/client").FieldCorrection[]> {
+  ): Promise<FieldCorrectionWithActor[]> {
     const client = tx ?? this.prisma;
     this.logger.debug("Finding corrections for session", { sessionId });
     return client.fieldCorrection.findMany({
       where: { session_id: sessionId },
       orderBy: { created_at: "asc" },
+      include: {
+        actor: {
+          select: {
+            user: { select: { email: true } },
+            apiKey: { select: { id: true } },
+          },
+        },
+      },
     });
   }
 

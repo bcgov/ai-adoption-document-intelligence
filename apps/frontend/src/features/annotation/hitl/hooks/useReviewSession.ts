@@ -224,6 +224,7 @@ export const useReviewSession = (sessionId?: string) => {
           originalConfidence?: number;
           action: string;
           createdAt: string;
+          author: { type: "user" | "api_key" | "unknown"; email?: string };
         }>;
       }>(`/hitl/sessions/${sessionId}/corrections`);
       return response.data?.corrections || [];

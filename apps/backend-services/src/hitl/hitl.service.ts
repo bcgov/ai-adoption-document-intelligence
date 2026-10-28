@@ -33,11 +33,30 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import {
+  type FieldCorrectionWithActor,
   ReviewDbService,
   type ReviewQueueDocument,
   type ReviewQueueFilters,
 } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
+
+/** Who made a correction: a logged-in user, a group's api key, or unrecorded on older rows. */
+export interface CorrectionAuthor {
+  type: "user" | "api_key" | "unknown";
+  email?: string;
+}
+
+function resolveCorrectionAuthor(
+  actor: FieldCorrectionWithActor["actor"],
+): CorrectionAuthor {
+  if (actor?.user?.email) {
+    return { type: "user", email: actor.user.email };
+  }
+  if (actor?.apiKey) {
+    return { type: "api_key" };
+  }
+  return { type: "unknown" };
+}
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
@@ -977,6 +996,7 @@ export class HitlService {
         originalConfidence: c.original_conf,
         action: c.action,
         createdAt: c.created_at,
+        author: resolveCorrectionAuthor(c.actor),
       })),
     };
   }
