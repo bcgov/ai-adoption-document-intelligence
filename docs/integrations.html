@@ -755,7 +755,7 @@
 
 <h2>Authentication</h2>
 
-<p>The platform supports two authentication methods. Use <strong>API Keys</strong> for service-to-service integrations and automated pipelines, or <strong>Bearer Tokens</strong> for user-facing applications that go through the Keycloak SSO login flow.</p>
+<p>The platform supports two authentication methods. Use <strong>API Keys</strong> for integrations: service-to-service calls and automated pipelines. <strong>Bearer Tokens</strong> are how DIP's own web UI signs users in through the Keycloak SSO login flow.</p>
 
 <div class="grid grid-2">
     <div class="card" style="border-left-color: #2E8540;">
@@ -765,8 +765,8 @@
     </div>
     <div class="card" style="border-left-color: #8b5cf6;">
         <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
-        <p>Best for user-facing applications. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
-        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass an access token in the <code>Authorization: Bearer &lt;token&gt;</code> header. The token must be issued for DIP's own Keycloak client.</p>
+        <p>Used by DIP's own web UI. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
+        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. The API also accepts an access token issued for DIP's own Keycloak client in the <code>Authorization: Bearer &lt;token&gt;</code> header. Outside integrations should use an API key.</p>
     </div>
 </div>
 
@@ -793,7 +793,7 @@
         <summary>Using your API Key in requests</summary>
         <div class="accordion-content">
             <p>Pass your key in the <code>X-API-Key</code> header on all API calls:</p>
-<pre>curl /api/documents \
+<pre>curl /api/models \
   -H "X-API-Key: &lt;your-api-key&gt;"</pre>
         </div>
     </details>
@@ -834,7 +834,7 @@
         <td><code>file_type</code></td>
         <td>enum</td>
         <td>Yes</td>
-        <td><code>pdf</code>, <code>image</code>, or <code>scan</code>. Use <code>image</code> for JPEG, PNG, TIFF, WebP, GIF or BMP files, which DIP converts to PDF. <code>pdf</code> and <code>scan</code> both expect a PDF file.</td>
+        <td><code>pdf</code>, <code>image</code>, or <code>scan</code>. Use <code>image</code> for JPEG, PNG, TIFF, WebP or GIF files, which DIP converts to PDF. <code>pdf</code> and <code>scan</code> both expect a PDF file.</td>
     </tr>
     <tr>
         <td><code>workflow_slug</code></td>
@@ -876,7 +876,7 @@
         <td><code>ctx_overrides</code></td>
         <td>object</td>
         <td>No</td>
-        <td>Sets values of the workflow's declared <code>ctx</code> variables for this upload, as <code>{ "&lt;name&gt;": &lt;value&gt; }</code>. Keys the workflow doesn't declare are ignored, and a variable changes nothing unless the workflow's steps read it, so ask the DIP team which variables your workflow uses.</td>
+        <td>Sets values of the <code>ctx</code> variables the workflow declares with a default value, for this upload, as <code>{ "&lt;name&gt;": &lt;value&gt; }</code>. Other keys are ignored, including values DIP sets from the upload itself, such as <code>modelId</code> (use <code>model_id</code>). A variable changes nothing unless the workflow's steps read it, so ask the DIP team which variables your workflow uses.</td>
     </tr>
     <tr>
         <td><code>group_id</code></td>
@@ -892,22 +892,26 @@
     <details>
         <summary>Upload a PDF document (curl example)</summary>
         <div class="accordion-content">
-<pre># Encode a file to base64
+<pre># Encode the file and write the request body to a file
 FILE_B64=$(base64 -w 0 invoice.pdf)
+cat &gt; body.json &lt;&lt;EOF
+{
+  "title": "Invoice Q1-2026",
+  "file": "$FILE_B64",
+  "file_type": "pdf",
+  "workflow_slug": "&lt;workflow-slug&gt;",
+  "model_id": "prebuilt-layout",
+  "original_filename": "invoice.pdf",
+  "metadata": { "department": "finance", "quarter": "Q1" }
+}
+EOF
 
 # Upload the document
 curl -X POST /api/upload \
   -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"title\": \"Invoice Q1-2026\",
-    \"file\": \"$FILE_B64\",
-    \"file_type\": \"pdf\",
-    \"workflow_slug\": \"&lt;workflow-slug&gt;\",
-    \"model_id\": \"prebuilt-layout\",
-    \"original_filename\": \"invoice.pdf\",
-    \"metadata\": { \"department\": \"finance\", \"quarter\": \"Q1\" }
-  }"</pre>
+  --data @body.json</pre>
+            <p>Writing the body to a file avoids shell argument-length limits, which a base64 file over about 96 KB exceeds on Linux.</p>
             <p>Response:</p>
 <pre>{
   "success": true,
@@ -929,17 +933,20 @@ curl -X POST /api/upload \
         <summary>Upload an image document (curl example)</summary>
         <div class="accordion-content">
 <pre>FILE_B64=$(base64 -w 0 receipt.jpg)
+cat &gt; body.json &lt;&lt;EOF
+{
+  "title": "Expense Receipt",
+  "file": "$FILE_B64",
+  "file_type": "image",
+  "original_filename": "receipt.jpg",
+  "workflow_slug": "&lt;workflow-slug&gt;"
+}
+EOF
 
 curl -X POST /api/upload \
   -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"title\": \"Expense Receipt\",
-    \"file\": \"$FILE_B64\",
-    \"file_type\": \"image\",
-    \"original_filename\": \"receipt.jpg\",
-    \"workflow_slug\": \"&lt;workflow-slug&gt;\"
-  }"</pre>
+  --data @body.json</pre>
         </div>
     </details>
 
@@ -957,7 +964,7 @@ curl -X POST /api/upload \
     </details>
 </div>
 
-<h3>Workflow Configuration (Optional)</h3>
+<h3>Creating Your Own Workflow (Optional)</h3>
 
 <p>For advanced processing pipelines, create a workflow configuration using the Workflows API. Workflows are DAG-based graphs with 30+ built-in activities including OCR, validation, classification, HITL routing, and more. Reference the workflow when uploading documents (by <code>workflow_slug</code>, or by <code>workflow_config_id</code>) to route them through your custom pipeline. List the workflows in your group with <code>GET /api/workflows?groupId=&lt;group-id&gt;</code>.</p>
 
@@ -1033,7 +1040,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>pre_ocr</code></td>
-        <td>Stored, waiting to start. Only uploads made through the workflow builder start here; <code>POST /api/upload</code> starts at <code>ongoing_ocr</code>.</td>
+        <td>Stored, waiting to start. Documents sent to <code>POST /api/upload</code> start at <code>ongoing_ocr</code> instead.</td>
         <td>No</td>
     </tr>
     <tr>
@@ -1048,7 +1055,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>awaiting_review</code></td>
-        <td>Low confidence. A person must review it in the HITL queue, which can take hours or days; it then becomes <code>complete</code> or <code>rejected</code>. The standard OCR workflows store the result before review, so <code>/ocr</code> already returns it; a workflow that stores results after review returns <code>"ocr_result": null</code> until then.</td>
+        <td>Low confidence. A person must review it in the HITL queue, which can take hours or days; it then becomes <code>complete</code> or <code>rejected</code>. Workflows built from DIP's Standard OCR templates store the result before review, so <code>/ocr</code> already returns it; a workflow that stores results after review returns <code>"ocr_result": null</code> until then.</td>
         <td>Yes, for most callers</td>
     </tr>
     <tr>
@@ -1063,7 +1070,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>conversion_failed</code></td>
-        <td>The original was stored but could not be converted to PDF (corrupt or password-protected)</td>
+        <td>The original was stored but could not be converted to PDF, for example because it is password-protected</td>
         <td>Yes</td>
     </tr>
     <tr>
@@ -1150,10 +1157,10 @@ curl -X POST /api/upload \
     "id": "result-uuid",
     "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
     "keyValuePairs": {
-      "InvoiceNumber": { "type": "string", "valueString": "INV-2026-001", "content": "INV-2026-001",
-                         "confidence": 0.98, "boundingRegions": [ ... ], "spans": [ ... ] },
-      "Total": { "type": "string", "valueString": "$1,234.56", "content": "$1,234.56",
-                 "confidence": 0.97, "boundingRegions": [ ... ], "spans": [ ... ] }
+      "Invoice No:": { "type": "string", "valueString": "INV-2026-001", "content": "INV-2026-001",
+                       "confidence": 0.98, "boundingRegions": [ ... ], "spans": [ ... ] },
+      "Total:": { "type": "string", "valueString": "$1,234.56", "content": "$1,234.56",
+                  "confidence": 0.97, "boundingRegions": [ ... ], "spans": [ ... ] }
     },
     "content": {
       "format": "text",
@@ -1163,7 +1170,7 @@ curl -X POST /api/upload \
     "processed_at": "2026-02-19T10:31:15.000Z"
   }
 }</pre>
-            <p>The <code>keyValuePairs</code> object contains the extracted fields, each as an object: read <code>valueString</code> for the value and <code>confidence</code> for how sure the model was. Custom models return the fields defined during training. <code>prebuilt-layout</code> returns the key-value pairs it finds on the page, keyed by their labels (for example <code>Date:</code>). <code>prebuilt-read</code> returns text only, with <code>keyValuePairs</code> set to <code>null</code>, so read <code>content.text</code> and <code>content.pages</code>. <code>content.format</code> is <code>text</code>, or <code>markdown</code> when the workflow asks Azure for Markdown output. <code>ocr_result</code> is <code>null</code> until a result is stored.</p>
+            <p>The <code>keyValuePairs</code> object contains the extracted fields, each as an object: read <code>valueString</code> for the value and <code>confidence</code> for how sure the model was. Custom models return the fields defined during training. <code>prebuilt-layout</code> returns the key-value pairs it finds on the page, keyed by their labels (for example <code>Date:</code>). <code>prebuilt-read</code> returns text only, with <code>keyValuePairs</code> set to <code>null</code>, so read <code>content.text</code> and <code>content.pages</code>. <code>content.format</code> is <code>text</code>, or <code>markdown</code> when the workflow asks Azure for Markdown output; the Markdown is then in <code>content.markdown</code>, and <code>content.text</code> stays plain text. <code>ocr_result</code> is <code>null</code> until a result is stored.</p>
         </div>
     </details>
 </div>
@@ -1227,8 +1234,8 @@ curl -X POST /api/upload \
 <p>Reviews follow a session-based model. Starting a session locks the document to the reviewer:</p>
 
 <ol>
-    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with a <code>documentId</code>, or <code>POST /api/hitl/sessions/next?group_id=&lt;group-id&gt;</code> to claim the next eligible document from the queue (an empty response means nothing is waiting)</li>
-    <li><strong>Keep the lock alive</strong> — <code>POST /api/hitl/sessions/:id/heartbeat</code> extends the lock while the reviewer is working. Without a heartbeat the lock expires after 10 minutes, and the document goes back to the pending queue, or to the flagged list if the session was reopened from there</li>
+    <li><strong>Start a session</strong> — <code>POST /api/hitl/sessions</code> with a <code>documentId</code>, or <code>POST /api/hitl/sessions/next?group_id=&lt;group-id&gt;</code> to claim the next eligible document from the queue (a <code>201</code> with an empty body means nothing is waiting)</li>
+    <li><strong>Keep the lock alive</strong> — <code>POST /api/hitl/sessions/:id/heartbeat</code> extends the lock while the reviewer is working. Without a heartbeat the lock expires after 10 minutes, and other reviewers can pick the document up again</li>
     <li><strong>Submit corrections</strong> — <code>POST /api/hitl/sessions/:id/corrections</code> to confirm, correct, flag, or delete extracted fields</li>
     <li><strong>Finish the review</strong> — choose one of:
         <ul>
@@ -1284,7 +1291,7 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
 <p>Approving a review doesn't change the OCR result: <code>GET /api/documents/:id/ocr</code> still returns what OCR extracted. The reviewer's corrections are stored with the review session:</p>
 
 <ol>
-    <li><strong>Find the session</strong> — <code>GET /api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=reviewed</code> lists reviewed documents, each with <code>lastSession.id</code>.</li>
+    <li><strong>Find the session</strong> — <code>GET /api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=reviewed</code> lists approved documents, each with <code>lastSession.id</code>, the approving session.</li>
     <li><strong>Read the corrections</strong> — <code>GET /api/hitl/sessions/&lt;session-id&gt;/corrections</code></li>
 </ol>
 
@@ -1295,6 +1302,8 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
       "action": "corrected", ... }
   ]
 }</pre>
+
+<p>Corrections are listed oldest first, with one entry per change, so for a field corrected more than once the last entry is the current value.</p>
 
 <h3>Analytics</h3>
 

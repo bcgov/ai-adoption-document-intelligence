@@ -28,7 +28,7 @@
             <li><code>&lt;API_KEY&gt;</code>, <code>&lt;GROUP_ID&gt;</code> and <code>&lt;WORKFLOW_SLUG&gt;</code>: the values you get in <a href="#step-1">Step 1</a>.</li>
             <li><code>&lt;DOCUMENT_ID&gt;</code>: the id the upload returns in <a href="#step-4">Step 4</a>.</li>
         </ul>
-        Ask the DIP team for both URLs for each environment (dev, test, prod). Each environment is a <strong>separate instance with its own database</strong>, so API keys, group ids, and workflow slugs from one environment don't work in another. Swagger UI for an environment is at <code>&lt;DIP_API_URL&gt;/api</code>, and the full spec is on the <a href="api-reference.html">API Reference</a> page.
+        Ask the DIP team for both URLs for each environment (dev, test, prod). Each environment is a <strong>separate instance with its own database</strong>, so API keys and group ids from one environment don't work in another, and the DIP team sets up your workflow in each environment separately. Swagger UI for an environment is at <code>&lt;DIP_API_URL&gt;/api</code>, and the full spec is on the <a href="api-reference.html">API Reference</a> page.
     </div>
 </div>
 
@@ -116,8 +116,8 @@
     <li><strong>Sign in</strong> — In a browser, go to <code>&lt;DIP_UI_URL&gt;</code> and sign in with your Keycloak/IDIR account.</li>
     <li><strong>Get into a group</strong> — If your area already has a DIP group, request to join it: open <strong>Groups → All groups</strong> and click <strong>Join</strong>, and a group admin approves the request. If you aren't in any group yet, DIP shows the <strong>Request group membership</strong> page when you sign in. If your area has no group, ask the DIP team to create one. <strong>Only a group <code>ADMIN</code> can create API keys.</strong> If you aren't an admin, ask your group admin to generate the key and share it with you securely.</li>
     <li><strong>Get your workflow slug</strong> — A new group has no workflows. The DIP team sets up the workflow your documents run through and gives you its <code>slug</code>, the name you send with each upload. This is your <code>&lt;WORKFLOW_SLUG&gt;</code>.</li>
-    <li><strong>Generate the key</strong> — Go to <strong>Settings → API key → Generate API key</strong>. <strong>Copy the key right away.</strong> It is shown only once, because DIP stores only a hash. This is your <code>&lt;API_KEY&gt;</code>.</li>
-    <li><strong>Note your group id</strong> — You need it only to list workflows; uploads infer the group from the key. Open <strong>Groups</strong> in the DIP UI and click your group. The id is the last part of the page URL (<code>&lt;DIP_UI_URL&gt;/groups/&lt;GROUP_ID&gt;</code>). It is also returned as <code>groupId</code> when the key is generated. This is your <code>&lt;GROUP_ID&gt;</code>.</li>
+    <li><strong>Generate the key</strong> — If you belong to more than one group, first select this one in the <strong>Active group</strong> selector at the top of the page. Then go to <strong>Settings → API key → Generate API key</strong>. <strong>Copy the key right away.</strong> It is shown only once, because DIP doesn't keep the full key. This is your <code>&lt;API_KEY&gt;</code>.</li>
+    <li><strong>Note your group id</strong> — You need it only to list workflows; uploads infer the group from the key. Open <strong>Groups</strong> in the DIP UI and click your group. The id is the last part of the page URL (<code>&lt;DIP_UI_URL&gt;/groups/&lt;GROUP_ID&gt;</code>). This is your <code>&lt;GROUP_ID&gt;</code>.</li>
     <li><strong>Store the key</strong> — Put it in your application's secret store (for example a vault or a Kubernetes/OpenShift secret). Don't store it in source code.</li>
 </ol>
 
@@ -208,9 +208,9 @@ curl -s -H "x-api-key: &lt;API_KEY&gt;" "&lt;DIP_API_URL&gt;/api/workflows?group
     </div>
 </div>
 
-<p>Find the workflow the DIP team set up for you, and check its <code>slug</code>. Workflows belong to a group, so slugs differ between groups and environments.</p>
+<p>Find the workflow the DIP team set up for you, and check its <code>slug</code>. Workflows belong to a group, so a slug works only with that group's key.</p>
 
-<p>A workflow can declare a default model in <code>config.ctx.modelId.defaultValue</code>, and uploads use it unless you send <code>model_id</code>. If the workflow declares no default, every upload must send <code>model_id</code>. Ask the DIP team which model fits your documents: <code>prebuilt-layout</code> returns the text, the page structure and the key-value pairs it finds, and <code>prebuilt-read</code> returns text only.</p>
+<p>A workflow can declare a default model in <code>config.ctx.modelId.defaultValue</code>, and uploads use it unless you send <code>model_id</code>. If the workflow declares no default, every upload must send <code>model_id</code>. Ask the DIP team which model fits your documents: <code>prebuilt-layout</code> returns the text, the lines on each page and the key-value pairs it finds, and <code>prebuilt-read</code> returns text only.</p>
 
 <!-- ====================================================================== -->
 <h2 id="step-4">Step 4: Upload a Document</h2>
@@ -234,7 +234,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
   --max-time 120 \
   --data @body.json</pre>
 
-<p>Use <code>file_type</code> <code>pdf</code> for PDFs and <code>image</code> for JPEG, PNG, TIFF, WebP, GIF or BMP files, which DIP converts to PDF. Send <code>original_filename</code> with the file's real extension, because <code>/download</code> uses it to set the file type. Add <code>model_id</code> only to use a different model from the workflow's default.</p>
+<p>Use <code>file_type</code> <code>pdf</code> for PDFs and <code>image</code> for JPEG, PNG, TIFF, WebP or GIF files, which DIP converts to PDF. Send <code>original_filename</code> with the file's real extension, because <code>/download</code> uses it to set the file type. Add <code>model_id</code> only to use a different model from the workflow's default.</p>
 
 <p>Response <code>201</code>:</p>
 
@@ -243,7 +243,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
                 "normalized_file_path": "...", "file_type": "pdf", "file_size": 2200,
                 "status": "ongoing_ocr", "created_at": "..." } }</pre>
 
-<p>Processing has already started when the upload returns, so the status is <code>ongoing_ocr</code>. <code>normalized_file_path</code> is DIP's internal storage key, which you don't need.</p>
+<p>The upload starts processing automatically, so the status is already <code>ongoing_ocr</code>. <code>normalized_file_path</code> is DIP's internal storage key, which you don't need.</p>
 
 <div class="alert alert-success">
     <div class="alert-icon">
@@ -300,7 +300,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
     </div>
 </div>
 
-<p>For a document that went through review, <code>/ocr</code> still returns what OCR extracted. The reviewer's corrections are stored separately: see <a href="integrations.html#reviewer-corrections">Reading Reviewer Corrections</a>. While a document is <code>awaiting_review</code>, the standard OCR workflows have already stored the result; a workflow that stores results only after review returns <code>"ocr_result": null</code> until then.</p>
+<p>For a document that went through review, <code>/ocr</code> still returns what OCR extracted. The reviewer's corrections are stored separately: see <a href="integrations.html#reviewer-corrections">Reading Reviewer Corrections</a>. While a document is <code>awaiting_review</code>, workflows built from DIP's Standard OCR templates have already stored the result; a workflow that stores results only after review returns <code>"ocr_result": null</code> until then.</p>
 
 <!-- ====================================================================== -->
 <h2 id="step-7">Step 7: Move It Into Your Service</h2>
@@ -369,8 +369,16 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
         <td>The workflow has no default model, so pass <code>model_id</code>.</td>
     </tr>
     <tr>
+        <td><code>404 Model not found: …</code></td>
+        <td>The model, often the workflow's default, belongs to another group. Pass a <code>model_id</code> your group can use, or ask the DIP team to change the workflow's default.</td>
+    </tr>
+    <tr>
         <td><code>400 The file is not a valid PDF or is corrupted.</code></td>
         <td><code>file_type</code> is <code>pdf</code> or <code>scan</code>, but the file isn't a readable PDF. Send images with <code>file_type</code> <code>image</code>. No document is created.</td>
+    </tr>
+    <tr>
+        <td><code>400 The file is not a valid image…</code> / <code>400 The image format is not supported…</code></td>
+        <td><code>file_type</code> is <code>image</code>, but the file isn't a JPEG, PNG, TIFF, WebP or GIF image. No document is created.</td>
     </tr>
     <tr>
         <td><code>400 property … should not exist</code></td>
@@ -412,7 +420,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
 <div class="card card-gold">
     <ul style="margin: 0;">
         <li>Keep the API key <strong>server-side only</strong>, in a secret store or environment variable. Never put it in front-end code or commit it.</li>
-        <li>The key acts for the <strong>whole group</strong>. Anyone who has it can read, upload, and delete that group's documents.</li>
+        <li>The key acts for the <strong>whole group</strong>, with editor rights. Anyone who has it can read, upload, and delete that group's documents, change its workflows, and approve or reject its reviews.</li>
         <li>Use a separate key and group per environment. Never reuse a production key in dev/test.</li>
         <li>Rotate the key with <strong>Settings → Regenerate key</strong>, then update your secret store. The old key stops working immediately, so plan the switch to avoid downtime.</li>
         <li>Always use HTTPS, and don't turn off certificate verification in your HTTP client.</li>
@@ -431,7 +439,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
         <div class="accordion-content">
             <ul>
                 <li>Use <code>http://localhost:3002</code> as <code>&lt;DIP_API_URL&gt;</code>. The UI is at <code>http://localhost:3000</code>.</li>
-                <li>Seeding the DIP database (<code>npm run db:seed</code>) creates the group <code>seeddefaultgroup</code> with a test API key and sample workflows such as <code>standard-ocr</code>. The key is the value of <code>TEST_API_KEY</code> in the DIP repo's <code>.env</code> when the seed ran, or the development default in <code>apps/shared/prisma/seed.ts</code> if that was unset.</li>
+                <li>Seeding the DIP database (<code>npm run db:seed</code>) creates a group named <code>Default</code> (id <code>seeddefaultgroup</code>) with a test API key and sample workflows such as <code>standard-ocr</code>. The key is the value of <code>TEST_API_KEY</code> in the DIP repo's <code>.env</code> when the seed ran, or the development default in <code>apps/shared/prisma/seed.ts</code> if that was unset.</li>
                 <li>If documents stay at <code>ongoing_ocr</code>, the Temporal worker isn't running. In the DIP repo, run <code>npm run dev:temporal-worker</code>.</li>
                 <li>If uploads fail with <code>table … does not exist</code>, the database is behind on migrations. Run <code>npm run db:migrate</code> in <code>apps/backend-services</code>.</li>
             </ul>
