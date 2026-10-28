@@ -755,20 +755,7 @@
 
 <h2>Authentication</h2>
 
-<p>The platform supports two authentication methods. Use <strong>API Keys</strong> for integrations: service-to-service calls and automated pipelines. <strong>Bearer Tokens</strong> are how DIP's own web UI signs users in through the Keycloak SSO login flow.</p>
-
-<div class="grid grid-2">
-    <div class="card" style="border-left-color: #2E8540;">
-        <h3 style="margin-top:0;">API Key Authentication</h3>
-        <p>Best for automated pipelines, scripts, and service-to-service calls. Pass your key in the <code>X-API-Key</code> header.</p>
-        <p>Generate a key by logging into the platform with your IDIR and navigating to Settings.</p>
-    </div>
-    <div class="card" style="border-left-color: #8b5cf6;">
-        <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
-        <p>Used by DIP's own web UI. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
-        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. The API also accepts an access token issued for DIP's own Keycloak client in the <code>Authorization: Bearer &lt;token&gt;</code> header. Outside integrations should use an API key.</p>
-    </div>
-</div>
+<p>Integrations authenticate with an <strong>API key</strong>, sent in the <code>X-API-Key</code> header on every request. DIP's own web app signs people in through Keycloak, which isn't available to outside applications. The <a href="authentication.html">Authentication</a> page describes how it works.</p>
 
 <h3>Generating an API Key</h3>
 
