@@ -886,13 +886,18 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    // The document goes back to the pending queue, so this session is over:
-    // `abandoned` closes it out and leaves the next reviewer a fresh session
-    // rather than an in_progress row nothing will ever finish.
+    // A session carrying a flag note was handed on from the Flagged tab, so
+    // skipping it goes back to `flagged` with its note and corrections, same
+    // as when its lock expires instead — the document stays put rather than
+    // losing its flagged state. Any other session becomes `abandoned`, which
+    // closes it out and returns the document to the pending queue.
+    const nextStatus = session.flag_note
+      ? ReviewStatus.flagged
+      : ReviewStatus.abandoned;
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: ReviewStatus.abandoned },
+        { status: nextStatus },
         tx,
       );
 
@@ -921,7 +926,10 @@ export class HitlService {
     return {
       id: updated.id,
       status: updated.status,
-      message: "Lock released, document returned to queue",
+      message:
+        nextStatus === ReviewStatus.flagged
+          ? "Lock released, document returned to flagged queue"
+          : "Lock released, document returned to queue",
     };
   }
 

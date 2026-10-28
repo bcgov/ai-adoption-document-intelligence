@@ -1167,6 +1167,32 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
+
+    it("should return to flagged, not abandoned, when the session carries a flag note", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        flag_note: "Needs a second look",
+      } as any);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        flag_note: "Needs a second look",
+      } as any);
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.skipSession("session-1");
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        { status: ReviewStatus.flagged },
+        expect.anything(),
+      );
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.flagged,
+        message: "Lock released, document returned to flagged queue",
+      });
+    });
   });
 
   describe("flagSession", () => {
