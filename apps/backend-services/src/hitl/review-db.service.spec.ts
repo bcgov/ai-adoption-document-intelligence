@@ -623,26 +623,33 @@ describe("ReviewDbService", () => {
     });
   });
 
-  describe("findSessionCorrections", () => {
-    it("should return corrections for a session", async () => {
+  describe("findDocumentCorrections", () => {
+    it("should return corrections for every session on the document", async () => {
       const corrections = [makeFieldCorrection()];
       mockFieldCorrection.findMany.mockResolvedValue(corrections);
 
-      const result = await service.findSessionCorrections("session-1");
+      const result = await service.findDocumentCorrections("doc-1");
 
       expect(result).toEqual(corrections);
       expect(mockFieldCorrection.findMany).toHaveBeenCalledWith({
-        where: { session_id: "session-1" },
+        where: { session: { document_id: "doc-1" } },
         orderBy: { created_at: "asc" },
+        include: {
+          actor: {
+            select: {
+              user: { select: { email: true } },
+              apiKey: { select: { id: true } },
+            },
+          },
+        },
       });
     });
 
     it("should return an empty array when none are found", async () => {
       mockFieldCorrection.findMany.mockResolvedValue([]);
 
-      const result = await service.findSessionCorrections(
-        "session-no-corrections",
-      );
+      const result =
+        await service.findDocumentCorrections("doc-no-corrections");
 
       expect(result).toEqual([]);
     });

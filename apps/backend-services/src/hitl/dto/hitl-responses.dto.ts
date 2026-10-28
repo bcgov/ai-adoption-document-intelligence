@@ -178,6 +178,14 @@ export class ReviewSessionResponseDto {
   flagNote?: string | null;
 }
 
+export class CorrectionAuthorDto {
+  @ApiProperty({ enum: ["user", "api_key", "unknown"] })
+  type!: "user" | "api_key" | "unknown";
+
+  @ApiPropertyOptional()
+  email?: string;
+}
+
 export class CorrectionRecordDto {
   @ApiProperty()
   id!: string;
@@ -199,6 +207,9 @@ export class CorrectionRecordDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty({ type: CorrectionAuthorDto })
+  author!: CorrectionAuthorDto;
 }
 
 export class SubmitCorrectionsResponseDto {

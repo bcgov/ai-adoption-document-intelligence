@@ -119,6 +119,7 @@ describe("HitlService", () => {
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
     actor_id: "actor-1",
+    actor: { user: { email: "reviewer@example.com" }, apiKey: null },
   };
 
   beforeEach(async () => {
@@ -136,7 +137,7 @@ describe("HitlService", () => {
       findReviewSession: jest.fn(),
       updateReviewSession: jest.fn(),
       createFieldCorrection: jest.fn(),
-      findSessionCorrections: jest.fn(),
+      findDocumentCorrections: jest.fn(),
       findActiveLock: jest.fn(),
       acquireDocumentLock: jest.fn(),
       releaseDocumentLock: jest.fn(),
@@ -1166,6 +1167,32 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
+
+    it("should return to flagged, not abandoned, when the session carries a flag note", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        flag_note: "Needs a second look",
+      } as any);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        flag_note: "Needs a second look",
+      } as any);
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.skipSession("session-1");
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        { status: ReviewStatus.flagged },
+        expect.anything(),
+      );
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.flagged,
+        message: "Lock released, document returned to flagged queue",
+      });
+    });
   });
 
   describe("flagSession", () => {
@@ -1254,7 +1281,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.findSessionCorrections.mockResolvedValueOnce(
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce(
         corrections,
       );
 
@@ -1263,8 +1290,8 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
-      expect(mockReviewDbService.findSessionCorrections).toHaveBeenCalledWith(
-        "session-1",
+      expect(mockReviewDbService.findDocumentCorrections).toHaveBeenCalledWith(
+        "doc-1",
       );
 
       expect(result).toEqual({
@@ -1278,6 +1305,7 @@ describe("HitlService", () => {
             originalConfidence: 0.85,
             action: CorrectionAction.CORRECTED,
             createdAt: mockFieldCorrection.created_at,
+            author: { type: "user", email: "reviewer@example.com" },
           },
           {
             id: "correction-2",
@@ -1287,6 +1315,7 @@ describe("HitlService", () => {
             originalConfidence: 0.85,
             action: CorrectionAction.CORRECTED,
             createdAt: mockFieldCorrection.created_at,
+            author: { type: "user", email: "reviewer@example.com" },
           },
         ],
       });
@@ -1299,7 +1328,38 @@ describe("HitlService", () => {
         NotFoundException,
       );
 
-      expect(mockReviewDbService.findSessionCorrections).not.toHaveBeenCalled();
+      expect(
+        mockReviewDbService.findDocumentCorrections,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("should report an api key author when the actor has no user", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
+        {
+          ...mockFieldCorrection,
+          actor: { user: null, apiKey: { id: "k-1" } },
+        },
+      ]);
+
+      const result = await service.getCorrections("session-1");
+
+      expect(result.corrections[0].author).toEqual({ type: "api_key" });
+    });
+
+    it("should report an unknown author when no actor is recorded", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
+        { ...mockFieldCorrection, actor: null },
+      ]);
+
+      const result = await service.getCorrections("session-1");
+
+      expect(result.corrections[0].author).toEqual({ type: "unknown" });
     });
   });
 

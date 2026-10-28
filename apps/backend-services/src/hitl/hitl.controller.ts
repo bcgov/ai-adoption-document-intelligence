@@ -339,7 +339,8 @@ export class HitlController {
   @ApiOperation({ summary: "Skip a review session, releasing the lock" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
-    description: "Lock released, session returned to pending queue",
+    description:
+      "Lock released, document returned to the pending queue, or to the flagged queue if the session carried a flag note",
     type: SessionActionResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })

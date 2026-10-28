@@ -22,7 +22,6 @@ import {
 import {
   Accordion,
   ActionIcon,
-  Alert,
   Button,
   Checkbox,
   Group,
@@ -286,6 +285,7 @@ export const ReviewWorkspacePage: FC = () => {
     isSkipping,
     isFlagging,
     isRejecting,
+    isSubmitting,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
@@ -828,6 +828,33 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   };
 
+  const handleSave = async () => {
+    const payload = unsavedCorrections(correctionMap, corrections);
+    if (payload.length === 0) {
+      notifications.show({
+        title: "Nothing to save",
+        message: "There are no unsaved changes.",
+        color: "gray",
+        autoClose: 2000,
+      });
+      return;
+    }
+
+    try {
+      await submitCorrectionsAsync(payload);
+    } catch (error) {
+      notifyActionFailed("Could not save changes", error);
+      return;
+    }
+
+    notifications.show({
+      title: "Changes saved",
+      message: "Your corrections have been saved.",
+      color: "green",
+      autoClose: 2000,
+    });
+  };
+
   const handleFlag = useCallback(() => {
     setFlagModalOpened(true);
   }, []);
@@ -1137,14 +1164,18 @@ export const ReviewWorkspacePage: FC = () => {
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
         {session.flagNote && (
-          <Alert
-            color="orange"
-            title="Flag note"
-            icon={<IconFlag size={16} />}
-            data-testid="flag-note-banner"
-          >
-            {session.flagNote}
-          </Alert>
+          <Accordion variant="contained" data-testid="flag-note-banner">
+            <Accordion.Item value="flag-note">
+              <Accordion.Control icon={<IconFlag size={16} color="orange" />}>
+                <Text size="sm" fw={600} c="orange">
+                  Flag note
+                </Text>
+              </Accordion.Control>
+              <Accordion.Panel>
+                <Text size="sm">{session.flagNote}</Text>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
@@ -1187,10 +1218,12 @@ export const ReviewWorkspacePage: FC = () => {
             onFlag={handleFlag}
             onSkip={handleSkip}
             onReject={benchmarkMatch ? undefined : handleReject}
+            onSave={handleSave}
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
             isRejecting={isRejecting}
+            isSaving={isSubmitting}
             flagNote={session.flagNote}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}

@@ -33,11 +33,30 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import {
+  type FieldCorrectionWithActor,
   ReviewDbService,
   type ReviewQueueDocument,
   type ReviewQueueFilters,
 } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
+
+/** Who made a correction: a logged-in user, a group's api key, or unrecorded on older rows. */
+export interface CorrectionAuthor {
+  type: "user" | "api_key" | "unknown";
+  email?: string;
+}
+
+function resolveCorrectionAuthor(
+  actor: FieldCorrectionWithActor["actor"],
+): CorrectionAuthor {
+  if (actor?.user?.email) {
+    return { type: "user", email: actor.user.email };
+  }
+  if (actor?.apiKey) {
+    return { type: "api_key" };
+  }
+  return { type: "unknown" };
+}
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
@@ -867,13 +886,18 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    // The document goes back to the pending queue, so this session is over:
-    // `abandoned` closes it out and leaves the next reviewer a fresh session
-    // rather than an in_progress row nothing will ever finish.
+    // A session carrying a flag note was handed on from the Flagged tab, so
+    // skipping it goes back to `flagged` with its note and corrections, same
+    // as when its lock expires instead — the document stays put rather than
+    // losing its flagged state. Any other session becomes `abandoned`, which
+    // closes it out and returns the document to the pending queue.
+    const nextStatus = session.flag_note
+      ? ReviewStatus.flagged
+      : ReviewStatus.abandoned;
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: ReviewStatus.abandoned },
+        { status: nextStatus },
         tx,
       );
 
@@ -902,7 +926,10 @@ export class HitlService {
     return {
       id: updated.id,
       status: updated.status,
-      message: "Lock released, document returned to queue",
+      message:
+        nextStatus === ReviewStatus.flagged
+          ? "Lock released, document returned to flagged queue"
+          : "Lock released, document returned to queue",
     };
   }
 
@@ -965,7 +992,12 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const corrections = await this.reviewDb.findSessionCorrections(sessionId);
+    // History spans every session the document has had, not just this one:
+    // a document that got a fresh session (skip, abandonment, flag handoff)
+    // keeps the corrections made in its earlier sessions.
+    const corrections = await this.reviewDb.findDocumentCorrections(
+      session.document_id,
+    );
 
     return {
       sessionId,
@@ -977,6 +1009,7 @@ export class HitlService {
         originalConfidence: c.original_conf,
         action: c.action,
         createdAt: c.created_at,
+        author: resolveCorrectionAuthor(c.actor),
       })),
     };
   }
