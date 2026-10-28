@@ -992,7 +992,12 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const corrections = await this.reviewDb.findSessionCorrections(sessionId);
+    // History spans every session the document has had, not just this one:
+    // a document that got a fresh session (skip, abandonment, flag handoff)
+    // keeps the corrections made in its earlier sessions.
+    const corrections = await this.reviewDb.findDocumentCorrections(
+      session.document_id,
+    );
 
     return {
       sessionId,

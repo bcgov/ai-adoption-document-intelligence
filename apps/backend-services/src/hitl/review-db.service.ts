@@ -438,19 +438,22 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds all field corrections for a review session, including the author
-   * (user email or api key presence) of each correction.
-   * @param sessionId - The review session ID.
+   * Finds all field corrections for a document, across every review session
+   * it has had, including the author (user email or api key presence) of
+   * each correction. A document can get a new session after its old one ends
+   * without finishing the review (skip, abandonment, flag handoff), so
+   * scoping to one session would hide corrections from earlier sessions.
+   * @param documentId - The document ID.
    * @returns Array of FieldCorrection records ordered by creation time.
    */
-  async findSessionCorrections(
-    sessionId: string,
+  async findDocumentCorrections(
+    documentId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<FieldCorrectionWithActor[]> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding corrections for session", { sessionId });
+    this.logger.debug("Finding corrections for document", { documentId });
     return client.fieldCorrection.findMany({
-      where: { session_id: sessionId },
+      where: { session: { document_id: documentId } },
       orderBy: { created_at: "asc" },
       include: {
         actor: {

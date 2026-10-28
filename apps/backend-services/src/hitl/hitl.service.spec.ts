@@ -137,7 +137,7 @@ describe("HitlService", () => {
       findReviewSession: jest.fn(),
       updateReviewSession: jest.fn(),
       createFieldCorrection: jest.fn(),
-      findSessionCorrections: jest.fn(),
+      findDocumentCorrections: jest.fn(),
       findActiveLock: jest.fn(),
       acquireDocumentLock: jest.fn(),
       releaseDocumentLock: jest.fn(),
@@ -1281,7 +1281,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.findSessionCorrections.mockResolvedValueOnce(
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce(
         corrections,
       );
 
@@ -1290,8 +1290,8 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
-      expect(mockReviewDbService.findSessionCorrections).toHaveBeenCalledWith(
-        "session-1",
+      expect(mockReviewDbService.findDocumentCorrections).toHaveBeenCalledWith(
+        "doc-1",
       );
 
       expect(result).toEqual({
@@ -1328,14 +1328,16 @@ describe("HitlService", () => {
         NotFoundException,
       );
 
-      expect(mockReviewDbService.findSessionCorrections).not.toHaveBeenCalled();
+      expect(
+        mockReviewDbService.findDocumentCorrections,
+      ).not.toHaveBeenCalled();
     });
 
     it("should report an api key author when the actor has no user", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.findSessionCorrections.mockResolvedValueOnce([
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
         {
           ...mockFieldCorrection,
           actor: { user: null, apiKey: { id: "k-1" } },
@@ -1351,7 +1353,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
-      mockReviewDbService.findSessionCorrections.mockResolvedValueOnce([
+      mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
         { ...mockFieldCorrection, actor: null },
       ]);
 
