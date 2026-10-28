@@ -29,7 +29,7 @@
     <div class="card" style="border-left-color: #8b5cf6;">
         <h3 style="margin-top:0;">Bearer Token (SSO)</h3>
         <p>Best for user-facing applications. Uses Keycloak OAuth 2.0 Authorization Code flow. The backend handles all interactions with the identity provider.</p>
-        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass an access token in the <code>Authorization: Bearer &lt;token&gt;</code> header. The token must be issued for DIP's own Keycloak client, to a user who has signed in to the DIP UI at least once.</p>
+        <p>The platform's own frontend uses an HttpOnly session cookie set by the backend. Other clients can pass an access token in the <code>Authorization: Bearer &lt;token&gt;</code> header. The token must be issued for DIP's own Keycloak client.</p>
     </div>
 </div>
 
@@ -104,7 +104,7 @@
         <td><code>workflow_slug</code></td>
         <td>string</td>
         <td>Yes*</td>
-        <td>Stable workflow handle, unique within the group. *Send <code>workflow_slug</code> or <code>workflow_config_id</code>. An upload with neither is accepted but never processed: the document stays in <code>ongoing_ocr</code> and can't be deleted.</td>
+        <td>Stable workflow handle, unique within the group. *Send this or <code>workflow_config_id</code>.</td>
     </tr>
     <tr>
         <td><code>workflow_version</code></td>
@@ -128,7 +128,7 @@
         <td><code>original_filename</code></td>
         <td>string</td>
         <td>No</td>
-        <td>Original file name, including its real extension: <code>/download</code> uses the extension to set the content type. Defaults to <code>&lt;title&gt;.&lt;file_type&gt;</code>, for example <code>Receipt.image</code>, which downloads as <code>application/octet-stream</code>.</td>
+        <td>Original file name, including its real extension: <code>/download</code> uses the extension to set the content type. Defaults to <code>&lt;title&gt;.&lt;file_type&gt;</code>.</td>
     </tr>
     <tr>
         <td><code>metadata</code></td>
@@ -140,7 +140,7 @@
         <td><code>ctx_overrides</code></td>
         <td>object</td>
         <td>No</td>
-        <td>Sets values of the workflow's declared <code>ctx</code> variables for this upload, as <code>{ "&lt;name&gt;": &lt;value&gt; }</code>. Keys the workflow doesn't declare are ignored, and a variable changes nothing unless the workflow's steps read it, so ask the DIP team which variables your workflow uses. Not reapplied on reprocess.</td>
+        <td>Sets values of the workflow's declared <code>ctx</code> variables for this upload, as <code>{ "&lt;name&gt;": &lt;value&gt; }</code>. Keys the workflow doesn't declare are ignored, and a variable changes nothing unless the workflow's steps read it, so ask the DIP team which variables your workflow uses.</td>
     </tr>
     <tr>
         <td><code>group_id</code></td>
@@ -308,7 +308,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>extracted</code></td>
-        <td>OCR result stored, workflow continuing. A workflow that fails after this point leaves the document here.</td>
+        <td>OCR result stored, workflow continuing</td>
         <td>No</td>
     </tr>
     <tr>
@@ -450,7 +450,7 @@ curl -X POST /api/upload \
     </tr>
     <tr>
         <td><code>POST /api/documents/:id/reprocess</code></td>
-        <td>Re-run a document that is <code>failed</code>, or stuck in <code>ongoing_ocr</code> with a workflow. Returns <code>202</code>; the status stays <code>failed</code> until processing restarts, and the upload's <code>ctx_overrides</code> are not reapplied</td>
+        <td>Re-run a document that is <code>failed</code>, or stuck in <code>ongoing_ocr</code>. Returns <code>202</code></td>
     </tr>
     <tr>
         <td><code>DELETE /api/documents/:id</code></td>
@@ -561,8 +561,6 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
       "action": "corrected", ... }
   ]
 }</pre>
-
-<p>This response uses camelCase names, unlike the snake_case body you send to <code>POST /api/hitl/sessions/:id/corrections</code>.</p>
 
 <h3>Analytics</h3>
 

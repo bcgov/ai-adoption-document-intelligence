@@ -263,7 +263,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
 
 <p>Stop polling when <code>status</code> is final: <code>complete</code>, <code>awaiting_review</code>, <code>failed</code>, <code>conversion_failed</code>, or <code>rejected</code>. <code>awaiting_review</code> means the document is waiting for a person in DIP's review queue; it becomes <code>complete</code> or <code>rejected</code> after the review, which can take hours or days. See <a href="integrations.html#document-statuses">Document Statuses</a> for what each status means.</p>
 
-<p>Poll every 3–5 seconds, and always stop after an overall timeout. A single page usually finishes in seconds, but it can take longer when DIP is busy, and a document whose processing fails partway can stay in <code>ongoing_ocr</code> or <code>extracted</code> (see <a href="#troubleshooting">Troubleshooting</a>). Remember that the rate limit is shared per public IP (see <a href="#step-2">Step 2</a>).</p>
+<p>Poll every 3–5 seconds, and always stop after an overall timeout. A single page usually finishes in seconds, but it can take longer when DIP is busy. Remember that the rate limit is shared per public IP (see <a href="#step-2">Step 2</a>).</p>
 
 <!-- ====================================================================== -->
 <h2 id="step-6">Step 6: Get the Result</h2>
@@ -393,8 +393,8 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
         <td>The file was purged per the workflow's retention policy. Use <code>/ocr</code> for the result.</td>
     </tr>
     <tr>
-        <td>Document stays at <code>ongoing_ocr</code> or <code>extracted</code> for a long time</td>
-        <td>Processing stopped partway, for example because the upload named no workflow or the workflow failed after storing results. Send the DIP team the <code>document.id</code>.</td>
+        <td>Document doesn't reach a final status within your timeout</td>
+        <td>Send the DIP team the <code>document.id</code>.</td>
     </tr>
     <tr>
         <td><code>400</code> with a database/Prisma error message</td>
