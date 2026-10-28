@@ -397,12 +397,12 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
         <td>Send the DIP team the <code>document.id</code>.</td>
     </tr>
     <tr>
-        <td><code>400</code> with a database/Prisma error message</td>
-        <td>A DIP-side deployment problem. Report it to the DIP team.</td>
-    </tr>
-    <tr>
         <td>Browser <code>fetch</code> blocked by CORS</td>
         <td>Expected. Call DIP from your backend.</td>
+    </tr>
+    <tr>
+        <td>Any other error</td>
+        <td>Report it to the DIP team with the time of the request and, if you have one, the <code>document.id</code>.</td>
     </tr>
 </table>
 
