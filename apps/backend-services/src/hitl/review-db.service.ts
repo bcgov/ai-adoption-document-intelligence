@@ -381,6 +381,7 @@ export class ReviewDbService {
       flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
+      reopened_from_status?: ReviewStatus | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
@@ -407,6 +408,64 @@ export class ReviewDbService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Records a permanent event on a review session (flagged, rejected, skipped,
+   * approved or reopened). Unlike the denormalized status columns on
+   * ReviewSession, these rows are never overwritten, so a session's history
+   * survives a handoff/reopen cycle.
+   * @param sessionId - The review session the event belongs to.
+   * @param data - The event's type, actor, and optional comment/rejection reason.
+   * @returns The created ReviewSessionEvent record.
+   */
+  async createReviewSessionEvent(
+    sessionId: string,
+    data: {
+      event_type: import("@generated/client").ReviewSessionEventType;
+      actor_id: string;
+      comment?: string | null;
+      rejection_reason?: RejectionReason | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewSessionEvent> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Recording review session event", {
+      sessionId,
+      event_type: data.event_type,
+    });
+    return client.reviewSessionEvent.create({
+      data: {
+        review_session_id: sessionId,
+        ...data,
+      },
+    });
+  }
+
+  /**
+   * Finds all recorded events for a review session, oldest first.
+   * @param sessionId - The review session ID.
+   * @returns Array of ReviewSessionEvent records with the acting reviewer included.
+   */
+  async findSessionEvents(
+    sessionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewSessionEvent & {
+        actor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Finding events for session", { sessionId });
+    return client.reviewSessionEvent.findMany({
+      where: { review_session_id: sessionId },
+      orderBy: { created_at: "asc" },
+      include: {
+        actor: { select: { user: { select: { email: true } } } },
+      },
+    });
   }
 
   /**
@@ -558,7 +617,8 @@ export class ReviewDbService {
 
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
-   * audit event needs, and whether the locked session carries a flag note.
+   * audit event needs, and whether the locked session is a reopened handoff that
+   * should restore to its prior status if it never gets a decision.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
    */
@@ -571,7 +631,7 @@ export class ReviewDbService {
       document_id: string;
       group_id: string;
       workflow_execution_id: string | null;
-      has_flag_note: boolean;
+      reopened_from_status: ReviewStatus | null;
     }>
   > {
     const client = tx ?? this.prisma;
@@ -583,7 +643,7 @@ export class ReviewDbService {
         document: {
           select: { group_id: true, workflow_execution_id: true },
         },
-        session: { select: { flag_note: true } },
+        session: { select: { reopened_from_status: true } },
       },
     });
     return locks.map((lock) => ({
@@ -591,14 +651,14 @@ export class ReviewDbService {
       document_id: lock.document_id,
       group_id: lock.document.group_id,
       workflow_execution_id: lock.document.workflow_execution_id,
-      has_flag_note: lock.session.flag_note !== null,
+      reopened_from_status: lock.session.reopened_from_status,
     }));
   }
 
   /**
-   * Returns in-progress sessions to `flagged`. Sessions in any other status
-   * are left alone, so a session that finished between the scan and this
-   * write keeps its outcome.
+   * Returns in-progress sessions to `flagged`, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
    * @param sessionIds - The sessions to return to flagged.
    * @returns How many sessions were updated.
    */
@@ -609,15 +669,15 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.flagged },
+      data: { status: ReviewStatus.flagged, reopened_from_status: null },
     });
     return result.count;
   }
 
   /**
-   * Marks in-progress sessions as abandoned. Sessions in any other status are
-   * left alone, so a session that finished between the scan and this write
-   * keeps its outcome.
+   * Marks in-progress sessions as abandoned, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
    * @param sessionIds - The sessions to abandon.
    * @returns How many sessions were updated.
    */
@@ -628,7 +688,7 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.abandoned },
+      data: { status: ReviewStatus.abandoned, reopened_from_status: null },
     });
     return result.count;
   }

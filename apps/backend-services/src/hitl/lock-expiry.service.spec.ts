@@ -17,16 +17,16 @@ describe("LockExpiryService", () => {
     document_id: "doc-1",
     group_id: "group-1",
     workflow_execution_id: "wf-1",
-    has_flag_note: false,
+    reopened_from_status: null,
   };
 
-  // A session taken over from the Flagged tab still carries its flag note.
+  // A session taken over from the Flagged tab that never got a decision.
   const expiredHandoffLock = {
     session_id: "session-2",
     document_id: "doc-2",
     group_id: "group-1",
     workflow_execution_id: null,
-    has_flag_note: true,
+    reopened_from_status: ReviewStatus.flagged,
   };
 
   beforeEach(async () => {
@@ -94,7 +94,7 @@ describe("LockExpiryService", () => {
     );
   });
 
-  it("returns a session that carries a flag note to flagged instead of abandoning it", async () => {
+  it("returns an unresolved reopened-from-flagged handoff to flagged instead of abandoning it", async () => {
     reviewDb.findExpiredLocks.mockResolvedValueOnce([
       expiredLock,
       expiredHandoffLock,

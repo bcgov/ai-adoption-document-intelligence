@@ -172,6 +172,7 @@ model Actor {
   apiKeyGroup               Group?                   @relation(name: "ApiKeyGroup")
   reviewSessions            ReviewSession[]
   fieldCorrections          FieldCorrection[]
+  reviewSessionEvents       ReviewSessionEvent[]
   datasets                  Dataset[]
   benchmarkProjects         BenchmarkProject[]
   benchmarkAuditLogs        BenchmarkAuditLog[]
@@ -538,12 +539,40 @@ model ReviewSession {
   /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
   rejection_reason  RejectionReason?
   rejection_comment String?
+  /// Set only while an in_progress session is a reopened handoff (e.g. taken over from
+  /// Flagged): what to restore `status` to if the takeover ends without a decision
+  /// (skip, lock expiry). Cleared once corrections are saved (the takeover produced
+  /// work, so it no longer auto-restores) or once the session reaches a new status.
+  reopened_from_status ReviewStatus?
   corrections  FieldCorrection[]
+  events       ReviewSessionEvent[]
   lock         DocumentLock?
 
   @@index([document_id])
   @@index([status, completed_at])
   @@map("review_sessions")
+}
+
+/// Permanent record of a reviewer action on a session (flag, reject, skip, approve,
+/// reopen). Unlike the denormalized "current state" columns on ReviewSession, which
+/// overwrite on reopen, these rows are never overwritten, so a session's history
+/// survives a handoff cycle.
+model ReviewSessionEvent {
+  id                 String                 @id @default(cuid())
+  review_session_id  String
+  reviewSession      ReviewSession          @relation(fields: [review_session_id], references: [id], onDelete: Cascade)
+  event_type         ReviewSessionEventType
+  actor_id           String
+  actor              Actor                  @relation(fields: [actor_id], references: [id])
+  /// Flag note or rejection comment, depending on event_type.
+  comment            String?
+  /// Only set when event_type = rejected.
+  rejection_reason   RejectionReason?
+  created_at         DateTime               @default(now())
+
+  @@index([review_session_id])
+  @@index([created_at])
+  @@map("review_session_events")
 }
 
 model DocumentLock {
@@ -636,6 +665,14 @@ enum CorrectionAction {
   corrected
   flagged
   deleted
+}
+
+enum ReviewSessionEventType {
+  flagged
+  rejected
+  skipped
+  approved
+  reopened
 }
 
 enum TrainingStatus {

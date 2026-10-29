@@ -1207,19 +1207,19 @@ describe("ReviewDbService", () => {
   });
 
   describe("expired lock handling", () => {
-    it("returns expired locks with the context an audit event needs, and whether the session carries a flag note", async () => {
+    it("returns expired locks with the context an audit event needs, and the session's reopened-from marker", async () => {
       mockDocumentLock.findMany.mockResolvedValue([
         {
           session_id: "session-1",
           document_id: "doc-1",
           document: { group_id: "group-1", workflow_execution_id: "wf-1" },
-          session: { flag_note: null },
+          session: { reopened_from_status: null },
         },
         {
           session_id: "session-2",
           document_id: "doc-2",
           document: { group_id: "group-1", workflow_execution_id: null },
-          session: { flag_note: "Date on page 1 is ambiguous" },
+          session: { reopened_from_status: ReviewStatus.flagged },
         },
       ]);
       const now = new Date("2026-08-25T12:00:00.000Z");
@@ -1232,14 +1232,14 @@ describe("ReviewDbService", () => {
           document_id: "doc-1",
           group_id: "group-1",
           workflow_execution_id: "wf-1",
-          has_flag_note: false,
+          reopened_from_status: null,
         },
         {
           session_id: "session-2",
           document_id: "doc-2",
           group_id: "group-1",
           workflow_execution_id: null,
-          has_flag_note: true,
+          reopened_from_status: ReviewStatus.flagged,
         },
       ]);
       expect(mockDocumentLock.findMany).toHaveBeenCalledWith(
@@ -1247,7 +1247,7 @@ describe("ReviewDbService", () => {
       );
     });
 
-    it("returns only sessions still in progress to flagged", async () => {
+    it("returns only sessions still in progress to flagged, clearing the reopened-from marker", async () => {
       mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.returnSessionsToFlagged(["session-2"]);
@@ -1255,11 +1255,11 @@ describe("ReviewDbService", () => {
       expect(result).toBe(1);
       expect(mockReviewSession.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ["session-2"] }, status: ReviewStatus.in_progress },
-        data: { status: ReviewStatus.flagged },
+        data: { status: ReviewStatus.flagged, reopened_from_status: null },
       });
     });
 
-    it("abandons only sessions still in progress", async () => {
+    it("abandons only sessions still in progress, clearing the reopened-from marker", async () => {
       mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.abandonSessions(["session-1", "session-2"]);
@@ -1270,7 +1270,7 @@ describe("ReviewDbService", () => {
           id: { in: ["session-1", "session-2"] },
           status: ReviewStatus.in_progress,
         },
-        data: { status: ReviewStatus.abandoned },
+        data: { status: ReviewStatus.abandoned, reopened_from_status: null },
       });
     });
 
