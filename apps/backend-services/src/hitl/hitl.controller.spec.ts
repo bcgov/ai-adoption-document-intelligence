@@ -47,6 +47,7 @@ describe("HitlController", () => {
       rejectSession: jest.fn(),
       skipSession: jest.fn(),
       flagSession: jest.fn(),
+      addressFlag: jest.fn(),
       getQueue: jest.fn(),
       getQueueStats: jest.fn(),
       getAnalytics: jest.fn(),
@@ -707,6 +708,61 @@ describe("HitlController", () => {
         controller.flagSession("session-1", dto, req),
       ).rejects.toThrow(NotFoundException);
       expect(hitlService.flagSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addressFlag", () => {
+    it("addresses a flag on the session's document for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          actorId: "actor-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      const mockResult = {
+        id: "flag-1",
+        resolvedAt: new Date(),
+        message: "Flag addressed",
+      };
+      hitlService.addressFlag.mockResolvedValue(mockResult as any);
+      const result = await controller.addressFlag("session-1", "flag-1", req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.addressFlag).toHaveBeenCalledWith(
+        "session-1",
+        "flag-1",
+        "actor-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.addressFlag("session-1", "flag-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.addressFlag).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.addressFlag("session-1", "flag-1", req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.addressFlag).not.toHaveBeenCalled();
     });
   });
 

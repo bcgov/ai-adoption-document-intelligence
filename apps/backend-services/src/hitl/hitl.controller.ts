@@ -366,7 +366,7 @@ export class HitlController {
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
     description:
-      "Lock released, document returned to the pending queue, or to the flagged queue if this was an unresolved handoff from Flagged",
+      "Lock released, document returned to the pending queue, or to the flagged queue if the document still has an active flag",
     type: SessionActionResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })
