@@ -1,5 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
+export class ActiveFlagDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  note!: string | null;
+
+  @ApiProperty()
+  raisedAt!: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: "Email of the reviewer who raised the flag",
+  })
+  raisedBy?: string | null;
+}
+
 export class QueueDocumentOcrDto {
   @ApiProperty({
     description: "Extracted key-value pairs with confidence scores",
@@ -63,6 +81,12 @@ export class QueueDocumentDto {
 
   @ApiPropertyOptional({ type: QueueSessionSummaryDto })
   lastSession?: QueueSessionSummaryDto;
+
+  @ApiProperty({
+    type: [ActiveFlagDto],
+    description: "Flags currently unaddressed on this document",
+  })
+  activeFlags!: ActiveFlagDto[];
 }
 
 export class QueueResponseDto {
@@ -176,6 +200,12 @@ export class ReviewSessionResponseDto {
       "Note captured when the session was flagged, explaining what stopped the previous reviewer",
   })
   flagNote?: string | null;
+
+  @ApiProperty({
+    type: [ActiveFlagDto],
+    description: "Flags currently unaddressed on this session's document",
+  })
+  activeFlags!: ActiveFlagDto[];
 }
 
 export class CorrectionAuthorDto {
@@ -236,7 +266,14 @@ export class ReviewSessionEventRecordDto {
   id!: string;
 
   @ApiProperty({
-    enum: ["flagged", "rejected", "skipped", "approved", "reopened"],
+    enum: [
+      "flagged",
+      "flag_addressed",
+      "rejected",
+      "skipped",
+      "approved",
+      "reopened",
+    ],
   })
   eventType!: string;
 
@@ -258,6 +295,14 @@ export class ReviewSessionEventRecordDto {
     description: "Only set when eventType is 'rejected'",
   })
   rejectionReason?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "The ReviewFlag this event is about, set when eventType is 'flagged' or 'flag_addressed'; links a flag's raised/addressed pair in the timeline",
+  })
+  reviewFlagId?: string | null;
 
   @ApiProperty()
   createdAt!: Date;
@@ -320,6 +365,17 @@ export class ReopenSessionResponseDto {
 
   @ApiProperty()
   status!: string;
+
+  @ApiProperty()
+  message!: string;
+}
+
+export class FlagActionResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  resolvedAt!: Date;
 
   @ApiProperty()
   message!: string;

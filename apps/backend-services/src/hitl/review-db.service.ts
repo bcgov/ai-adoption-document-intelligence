@@ -59,6 +59,10 @@ function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
       orderBy: { started_at: "desc" },
       take: 1,
     },
+    flags: {
+      where: { resolved_at: null },
+      orderBy: { raised_at: "asc" },
+    },
   } satisfies Prisma.DocumentInclude;
 }
 
@@ -381,7 +385,6 @@ export class ReviewDbService {
       flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
-      reopened_from_status?: ReviewStatus | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
@@ -426,6 +429,7 @@ export class ReviewDbService {
       actor_id: string;
       comment?: string | null;
       rejection_reason?: RejectionReason | null;
+      review_flag_id?: string | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").ReviewSessionEvent> {
@@ -617,8 +621,9 @@ export class ReviewDbService {
 
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
-   * audit event needs, and whether the locked session is a reopened handoff that
-   * should restore to its prior status if it never gets a decision.
+   * audit event needs, and whether the locked document still has any active
+   * (unaddressed) flag — the signal for whether an expiring session should
+   * restore to `flagged` instead of `abandoned`.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
    */
@@ -631,7 +636,7 @@ export class ReviewDbService {
       document_id: string;
       group_id: string;
       workflow_execution_id: string | null;
-      reopened_from_status: ReviewStatus | null;
+      hasActiveFlags: boolean;
     }>
   > {
     const client = tx ?? this.prisma;
@@ -641,9 +646,16 @@ export class ReviewDbService {
         session_id: true,
         document_id: true,
         document: {
-          select: { group_id: true, workflow_execution_id: true },
+          select: {
+            group_id: true,
+            workflow_execution_id: true,
+            flags: {
+              where: { resolved_at: null },
+              select: { id: true },
+              take: 1,
+            },
+          },
         },
-        session: { select: { reopened_from_status: true } },
       },
     });
     return locks.map((lock) => ({
@@ -651,14 +663,14 @@ export class ReviewDbService {
       document_id: lock.document_id,
       group_id: lock.document.group_id,
       workflow_execution_id: lock.document.workflow_execution_id,
-      reopened_from_status: lock.session.reopened_from_status,
+      hasActiveFlags: lock.document.flags.length > 0,
     }));
   }
 
   /**
-   * Returns in-progress sessions to `flagged`, clearing the reopened-from marker
-   * now that it has been resolved. Sessions in any other status are left alone,
-   * so a session that finished between the scan and this write keeps its outcome.
+   * Returns in-progress sessions to `flagged`. Sessions in any other status are
+   * left alone, so a session that finished between the scan and this write
+   * keeps its outcome.
    * @param sessionIds - The sessions to return to flagged.
    * @returns How many sessions were updated.
    */
@@ -669,15 +681,15 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.flagged, reopened_from_status: null },
+      data: { status: ReviewStatus.flagged },
     });
     return result.count;
   }
 
   /**
-   * Marks in-progress sessions as abandoned, clearing the reopened-from marker
-   * now that it has been resolved. Sessions in any other status are left alone,
-   * so a session that finished between the scan and this write keeps its outcome.
+   * Marks in-progress sessions as abandoned. Sessions in any other status are
+   * left alone, so a session that finished between the scan and this write
+   * keeps its outcome.
    * @param sessionIds - The sessions to abandon.
    * @returns How many sessions were updated.
    */
@@ -688,9 +700,111 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.abandoned, reopened_from_status: null },
+      data: { status: ReviewStatus.abandoned },
     });
     return result.count;
+  }
+
+  /**
+   * Raises a new flag against a document, independently resolvable without
+   * ending the session that raised it.
+   * @param data - The document, raising session, actor, and optional note.
+   * @returns The created ReviewFlag record.
+   */
+  async createReviewFlag(
+    data: {
+      document_id: string;
+      raised_session_id: string;
+      raised_by: string;
+      note?: string | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag> {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.create({ data });
+  }
+
+  /**
+   * Finds a single flag by ID, regardless of resolution state.
+   * @param flagId - The flag ID.
+   * @returns The ReviewFlag record, or null if not found.
+   */
+  async findReviewFlag(
+    flagId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag | null> {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findUnique({ where: { id: flagId } });
+  }
+
+  /**
+   * Finds every unaddressed flag on a document, oldest first.
+   * @param documentId - The document ID.
+   * @returns Array of unresolved ReviewFlag records with the raising reviewer included.
+   */
+  async findActiveFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewFlag & {
+        raisedActor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findMany({
+      where: { document_id: documentId, resolved_at: null },
+      orderBy: { raised_at: "asc" },
+      include: {
+        raisedActor: { select: { user: { select: { email: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Whether a document currently has any unaddressed flag.
+   * @param documentId - The document ID.
+   * @returns True if at least one unresolved ReviewFlag exists for the document.
+   */
+  async hasActiveFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const flag = await client.reviewFlag.findFirst({
+      where: { document_id: documentId, resolved_at: null },
+      select: { id: true },
+    });
+    return flag !== null;
+  }
+
+  /**
+   * Marks a flag addressed, without ending the session that resolved it.
+   * Only resolves flags that are still unaddressed, so two concurrent address
+   * attempts on the same flag don't both succeed.
+   * @param flagId - The flag to address.
+   * @param sessionId - The session the reviewer was working when they addressed it.
+   * @param actorId - The reviewer addressing the flag.
+   * @returns The updated ReviewFlag, or null if it was already addressed.
+   */
+  async resolveReviewFlag(
+    flagId: string,
+    sessionId: string,
+    actorId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag | null> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewFlag.updateMany({
+      where: { id: flagId, resolved_at: null },
+      data: {
+        resolved_at: new Date(),
+        resolved_by: actorId,
+        resolved_session_id: sessionId,
+      },
+    });
+    if (result.count === 0) return null;
+    return client.reviewFlag.findUnique({ where: { id: flagId } });
   }
 
   /**

@@ -17,16 +17,16 @@ describe("LockExpiryService", () => {
     document_id: "doc-1",
     group_id: "group-1",
     workflow_execution_id: "wf-1",
-    reopened_from_status: null,
+    hasActiveFlags: false,
   };
 
-  // A session taken over from the Flagged tab that never got a decision.
+  // A session on a document with an unaddressed flag that never got a decision.
   const expiredHandoffLock = {
     session_id: "session-2",
     document_id: "doc-2",
     group_id: "group-1",
     workflow_execution_id: null,
-    reopened_from_status: ReviewStatus.flagged,
+    hasActiveFlags: true,
   };
 
   beforeEach(async () => {
@@ -94,7 +94,7 @@ describe("LockExpiryService", () => {
     );
   });
 
-  it("returns an unresolved reopened-from-flagged handoff to flagged instead of abandoning it", async () => {
+  it("returns a session with an active flag to flagged instead of abandoning it", async () => {
     reviewDb.findExpiredLocks.mockResolvedValueOnce([
       expiredLock,
       expiredHandoffLock,

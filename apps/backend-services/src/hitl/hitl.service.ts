@@ -72,6 +72,11 @@ interface DocumentWithOcrResult extends Document {
     flag_note?: string | null;
     corrections?: unknown[];
   }>;
+  flags?: Array<{
+    id: string;
+    note: string | null;
+    raised_at: Date;
+  }>;
 }
 
 interface ReviewSessionWithDocument extends ReviewSession {
@@ -277,6 +282,11 @@ export class HitlService {
               flag_note: doc.review_sessions[0].flag_note ?? undefined,
             }
           : undefined,
+        activeFlags: (doc.flags ?? []).map((flag) => ({
+          id: flag.id,
+          note: flag.note,
+          raisedAt: flag.raised_at,
+        })),
         lock: doc.lock
           ? {
               reviewer_id: doc.lock.reviewer_id,
@@ -604,6 +614,14 @@ export class HitlService {
       fieldDefinitions,
       reviewPlan,
       flagNote: session.flag_note,
+      activeFlags: (
+        await this.reviewDb.findActiveFlags(session.document_id)
+      ).map((flag) => ({
+        id: flag.id,
+        note: flag.note,
+        raisedAt: flag.raised_at,
+        raisedBy: flag.raisedActor?.user?.email ?? null,
+      })),
     };
   }
 
@@ -644,17 +662,9 @@ export class HitlService {
           );
         }
 
-        // Saving corrections during a reopened handoff is the reviewer engaging
-        // with the takeover, so skip/lock-expiry should no longer auto-restore
-        // this session to its prior status (e.g. back to Flagged) if it later
-        // ends without a decision — that would discard the work's context.
-        if (session.reopened_from_status) {
-          await this.reviewDb.updateReviewSession(
-            sessionId,
-            { reopened_from_status: null },
-            tx,
-          );
-        }
+        // Saving corrections during a takeover is the reviewer engaging with it;
+        // whether it later restores to Flagged is governed by whether the document
+        // still has an active flag, not by anything recorded here.
 
         await this.auditService.recordEvent(
           {
@@ -930,15 +940,17 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    const nextStatus =
-      session.reopened_from_status === ReviewStatus.flagged
-        ? ReviewStatus.flagged
-        : ReviewStatus.abandoned;
+    const hasActiveFlags = await this.reviewDb.hasActiveFlags(
+      session.document_id,
+    );
+    const nextStatus = hasActiveFlags
+      ? ReviewStatus.flagged
+      : ReviewStatus.abandoned;
 
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: nextStatus, reopened_from_status: null },
+        { status: nextStatus },
         tx,
       );
 
@@ -997,6 +1009,16 @@ export class HitlService {
     const flagNote = dto.note?.trim() || null;
 
     const updated = await this.prismaService.transaction(async (tx) => {
+      const flag = await this.reviewDb.createReviewFlag(
+        {
+          document_id: session.document_id,
+          raised_session_id: sessionId,
+          raised_by: actorId,
+          note: flagNote,
+        },
+        tx,
+      );
+
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
         { status: ReviewStatus.flagged, flag_note: flagNote },
@@ -1015,6 +1037,7 @@ export class HitlService {
           event_type: ReviewSessionEventType.flagged,
           actor_id: actorId,
           comment: flagNote,
+          review_flag_id: flag.id,
         },
         tx,
       );
@@ -1040,6 +1063,85 @@ export class HitlService {
       id: updated.id,
       status: updated.status,
       message: "Review session flagged",
+    };
+  }
+
+  /**
+   * Marks a flag addressed without ending the session that resolves it.
+   * Addressing the last active flag on a document does not auto-transition
+   * the session; the reviewer still explicitly approves, rejects, or skips.
+   */
+  async addressFlag(sessionId: string, flagId: string, actorId: string) {
+    this.logger.debug(`Addressing flag ${flagId} on session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot address a flag on a session that is ${session.status}`,
+      );
+    }
+
+    const flag = await this.reviewDb.findReviewFlag(flagId);
+    if (!flag || flag.document_id !== session.document_id) {
+      throw new NotFoundException(
+        `Flag ${flagId} not found on this session's document`,
+      );
+    }
+    if (flag.resolved_at) {
+      throw new ConflictException("Flag has already been addressed");
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
+    const resolved = await this.prismaService.transaction(async (tx) => {
+      const updatedFlag = await this.reviewDb.resolveReviewFlag(
+        flagId,
+        sessionId,
+        actorId,
+        tx,
+      );
+      if (!updatedFlag) {
+        throw new ConflictException("Flag has already been addressed");
+      }
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.flag_addressed,
+          actor_id: actorId,
+          review_flag_id: flagId,
+        },
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_flag_addressed",
+          resource_type: "review_flag",
+          resource_id: flagId,
+          actor_id: actorId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id, session_id: sessionId },
+        },
+        tx,
+      );
+
+      return updatedFlag;
+    });
+
+    return {
+      id: resolved.id,
+      resolvedAt: resolved.resolved_at,
+      message: "Flag addressed",
     };
   }
 
@@ -1096,6 +1198,7 @@ export class HitlService {
         actorName: e.actor?.user?.email ?? null,
         comment: e.comment,
         rejectionReason: e.rejection_reason,
+        reviewFlagId: e.review_flag_id,
         createdAt: e.created_at,
       })),
     };
@@ -1215,10 +1318,6 @@ export class HitlService {
           // session makes it the new reviewer's. Corrections already saved keep
           // their own author, and the flag note stays for the new reviewer.
           actor_id: reviewerId,
-          // Only a handoff (reopened from flagged) restores automatically if the
-          // takeover ends without a decision; a reopened ground-truth job keeps
-          // this unset, since that path isn't in scope for the live-state restore.
-          reopened_from_status: isHandoff ? ReviewStatus.flagged : null,
         },
         tx,
       );

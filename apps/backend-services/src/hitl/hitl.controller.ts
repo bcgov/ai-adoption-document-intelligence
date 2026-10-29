@@ -32,6 +32,7 @@ import { FlagSessionDto } from "./dto/flag-session.dto";
 import {
   AnalyticsResponseDto,
   CorrectionsListResponseDto,
+  FlagActionResponseDto,
   QueueResponseDto,
   QueueStatsResponseDto,
   ReopenSessionResponseDto,
@@ -414,6 +415,46 @@ export class HitlController {
     return this.hitlService.flagSession(
       sessionId,
       dto,
+      req.resolvedIdentity.actorId,
+    );
+  }
+
+  @Post("sessions/:id/flags/:flagId/address")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Mark a flag on a session's document addressed, without ending the session",
+  })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiParam({ name: "flagId", description: "Flag ID" })
+  @ApiOkResponse({
+    description: "Flag marked addressed",
+    type: FlagActionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Session not found, or flag not found on this session's document",
+  })
+  @ApiConflictResponse({
+    description:
+      "Session is not in progress, or the flag has already been addressed",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async addressFlag(
+    @Param("id") sessionId: string,
+    @Param("flagId") flagId: string,
+    @Req() req: Request,
+  ) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
+      Permission.HITL_SESSION_PROGRESS,
+    ]);
+    return this.hitlService.addressFlag(
+      sessionId,
+      flagId,
       req.resolvedIdentity.actorId,
     );
   }

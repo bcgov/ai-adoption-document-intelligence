@@ -42,12 +42,21 @@ const mockTemplateModel = {
   findUnique: jest.fn(),
 };
 
+const mockReviewFlag = {
+  create: jest.fn(),
+  findUnique: jest.fn(),
+  findFirst: jest.fn(),
+  findMany: jest.fn(),
+  updateMany: jest.fn(),
+};
+
 const mockPrismaClient = {
   reviewSession: mockReviewSession,
   fieldCorrection: mockFieldCorrection,
   document: mockDocument,
   documentLock: mockDocumentLock,
   templateModel: mockTemplateModel,
+  reviewFlag: mockReviewFlag,
 };
 
 const mockPrismaService = {
@@ -1207,19 +1216,25 @@ describe("ReviewDbService", () => {
   });
 
   describe("expired lock handling", () => {
-    it("returns expired locks with the context an audit event needs, and the session's reopened-from marker", async () => {
+    it("returns expired locks with the context an audit event needs, and whether the document still has an active flag", async () => {
       mockDocumentLock.findMany.mockResolvedValue([
         {
           session_id: "session-1",
           document_id: "doc-1",
-          document: { group_id: "group-1", workflow_execution_id: "wf-1" },
-          session: { reopened_from_status: null },
+          document: {
+            group_id: "group-1",
+            workflow_execution_id: "wf-1",
+            flags: [],
+          },
         },
         {
           session_id: "session-2",
           document_id: "doc-2",
-          document: { group_id: "group-1", workflow_execution_id: null },
-          session: { reopened_from_status: ReviewStatus.flagged },
+          document: {
+            group_id: "group-1",
+            workflow_execution_id: null,
+            flags: [{ id: "flag-1" }],
+          },
         },
       ]);
       const now = new Date("2026-08-25T12:00:00.000Z");
@@ -1232,14 +1247,14 @@ describe("ReviewDbService", () => {
           document_id: "doc-1",
           group_id: "group-1",
           workflow_execution_id: "wf-1",
-          reopened_from_status: null,
+          hasActiveFlags: false,
         },
         {
           session_id: "session-2",
           document_id: "doc-2",
           group_id: "group-1",
           workflow_execution_id: null,
-          reopened_from_status: ReviewStatus.flagged,
+          hasActiveFlags: true,
         },
       ]);
       expect(mockDocumentLock.findMany).toHaveBeenCalledWith(
@@ -1247,7 +1262,7 @@ describe("ReviewDbService", () => {
       );
     });
 
-    it("returns only sessions still in progress to flagged, clearing the reopened-from marker", async () => {
+    it("returns only sessions still in progress to flagged", async () => {
       mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.returnSessionsToFlagged(["session-2"]);
@@ -1255,11 +1270,11 @@ describe("ReviewDbService", () => {
       expect(result).toBe(1);
       expect(mockReviewSession.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ["session-2"] }, status: ReviewStatus.in_progress },
-        data: { status: ReviewStatus.flagged, reopened_from_status: null },
+        data: { status: ReviewStatus.flagged },
       });
     });
 
-    it("abandons only sessions still in progress, clearing the reopened-from marker", async () => {
+    it("abandons only sessions still in progress", async () => {
       mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.abandonSessions(["session-1", "session-2"]);
@@ -1270,7 +1285,7 @@ describe("ReviewDbService", () => {
           id: { in: ["session-1", "session-2"] },
           status: ReviewStatus.in_progress,
         },
-        data: { status: ReviewStatus.abandoned, reopened_from_status: null },
+        data: { status: ReviewStatus.abandoned },
       });
     });
 
@@ -1282,6 +1297,117 @@ describe("ReviewDbService", () => {
       expect(mockDocumentLock.deleteMany).toHaveBeenCalledWith({
         where: { session_id: { in: ["session-1", "session-2"] } },
       });
+    });
+  });
+
+  describe("review flags", () => {
+    it("creates a flag against a document", async () => {
+      const created = {
+        id: "flag-1",
+        document_id: "doc-1",
+        raised_session_id: "session-1",
+        raised_by: "reviewer-1",
+        note: "waiting on legal",
+      };
+      mockReviewFlag.create.mockResolvedValue(created);
+
+      const result = await service.createReviewFlag({
+        document_id: "doc-1",
+        raised_session_id: "session-1",
+        raised_by: "reviewer-1",
+        note: "waiting on legal",
+      });
+
+      expect(result).toBe(created);
+      expect(mockReviewFlag.create).toHaveBeenCalledWith({
+        data: {
+          document_id: "doc-1",
+          raised_session_id: "session-1",
+          raised_by: "reviewer-1",
+          note: "waiting on legal",
+        },
+      });
+    });
+
+    it("finds a flag by ID regardless of resolution state", async () => {
+      mockReviewFlag.findUnique.mockResolvedValue({ id: "flag-1" });
+
+      const result = await service.findReviewFlag("flag-1");
+
+      expect(result).toEqual({ id: "flag-1" });
+      expect(mockReviewFlag.findUnique).toHaveBeenCalledWith({
+        where: { id: "flag-1" },
+      });
+    });
+
+    it("lists unresolved flags for a document, oldest first", async () => {
+      mockReviewFlag.findMany.mockResolvedValue([{ id: "flag-1" }]);
+
+      const result = await service.findActiveFlags("doc-1");
+
+      expect(result).toEqual([{ id: "flag-1" }]);
+      expect(mockReviewFlag.findMany).toHaveBeenCalledWith({
+        where: { document_id: "doc-1", resolved_at: null },
+        orderBy: { raised_at: "asc" },
+        include: {
+          raisedActor: { select: { user: { select: { email: true } } } },
+        },
+      });
+    });
+
+    it("reports whether a document has an active flag", async () => {
+      mockReviewFlag.findFirst.mockResolvedValue({ id: "flag-1" });
+
+      const result = await service.hasActiveFlags("doc-1");
+
+      expect(result).toBe(true);
+      expect(mockReviewFlag.findFirst).toHaveBeenCalledWith({
+        where: { document_id: "doc-1", resolved_at: null },
+        select: { id: true },
+      });
+    });
+
+    it("reports no active flags when none are unresolved", async () => {
+      mockReviewFlag.findFirst.mockResolvedValue(null);
+
+      const result = await service.hasActiveFlags("doc-1");
+
+      expect(result).toBe(false);
+    });
+
+    it("resolves a flag only if it is still unaddressed", async () => {
+      mockReviewFlag.updateMany.mockResolvedValue({ count: 1 });
+      const resolved = { id: "flag-1", resolved_at: new Date() };
+      mockReviewFlag.findUnique.mockResolvedValue(resolved);
+
+      const result = await service.resolveReviewFlag(
+        "flag-1",
+        "session-1",
+        "reviewer-1",
+      );
+
+      expect(result).toBe(resolved);
+      expect(mockReviewFlag.updateMany).toHaveBeenCalledWith({
+        where: { id: "flag-1", resolved_at: null },
+        data: {
+          resolved_at: expect.any(Date),
+          resolved_by: "reviewer-1",
+          resolved_session_id: "session-1",
+        },
+      });
+    });
+
+    it("returns null when the flag was already addressed", async () => {
+      mockReviewFlag.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.resolveReviewFlag(
+        "flag-1",
+        "session-1",
+        "reviewer-1",
+      );
+
+      expect(result).toBeNull();
+      expect(mockReviewFlag.findUnique).not.toHaveBeenCalled();
     });
   });
 });
