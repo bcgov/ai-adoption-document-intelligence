@@ -193,8 +193,12 @@ Returns: Documents with:
 rows — it never queries Temporal. Gated seeded workflows therefore persist OCR
 before pausing: `checkConfidence → persistOcr (ocr.storeResults) → reviewSwitch
 → humanReview`, where the `humanReview` (humanGate) executor sets the document
-to `awaiting_review`. The post-gate `storeResults` node runs the same upsert
-again after the reviewer approves, persisting corrected values. (Before
+to `awaiting_review`. Where a template also has a post-gate `storeResults` node
+(every Standard OCR variant except the base `standard-ocr-workflow.json`), it
+runs the same upsert again after the reviewer approves, with the same extracted
+result. Reviewer corrections are not written into `ocr_results`. They stay in
+`field_corrections` and are read through
+`GET /api/hitl/sessions/:id/corrections`. (Before
 2026-08-01 the templates only stored results after the gate, so paused
 documents never appeared in the queue.)
 

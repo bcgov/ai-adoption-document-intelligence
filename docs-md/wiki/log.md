@@ -177,3 +177,12 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
 - `graph-workflows.md`: the source map names the templates' folder.
+
+## [2026-10-28] ingest | Integration tutorial page, post-gate store wording
+
+- `hitl.md`: the post-gate store writes the extracted result again; reviewer corrections stay in `field_corrections`.
+- `open-questions.md`: the From Zero to Integration tutorial is one of the published guides.
+
+## [2026-10-29] ingest | Post-gate store applies to some templates only
+
+- `hitl.md`: only templates with a post-gate store write the extracted result again; the base Standard OCR template has none.
