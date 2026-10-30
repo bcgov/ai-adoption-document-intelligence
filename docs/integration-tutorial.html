@@ -897,7 +897,7 @@
                 </tr>
                 <tr>
                     <td><strong>Rate limits count your public IP</strong></td>
-                    <td>Each public IP can make about <strong>2,000 requests per minute</strong> to any one endpoint in production, and about <strong>100 per minute</strong> in test. Separately, 20 failed API-key attempts within a minute block that IP for the rest of the minute, valid keys included. If several of your services or pods share one NAT egress IP, <strong>they share these limits</strong>, as do other callers behind the same address.</td>
+                    <td>Each public IP can make about <strong>2,000 requests per minute</strong> to any one endpoint in production, and about <strong>100 per minute</strong> in test. Polling different documents counts as the same endpoint. Separately, 20 failed API-key attempts in a row within a minute block that IP for the rest of the minute, valid keys included. If several of your services or pods share one NAT egress IP, <strong>they share these limits</strong>, as do other callers behind the same address.</td>
                 </tr>
                 <tr>
                     <td><strong>Request size</strong></td>
@@ -942,7 +942,7 @@ curl -s -H "x-api-key: &lt;API_KEY&gt;" "&lt;DIP_API_URL&gt;/api/workflows?group
 
 <p>Find the workflow the DIP team set up for you, and check its <code>slug</code>. Workflows belong to a group, so a slug works only with that group's key.</p>
 
-<p>A workflow can declare a default model in <code>config.ctx.modelId.defaultValue</code>, and uploads use it unless you send <code>model_id</code>. If the workflow declares no default, every upload must send <code>model_id</code>. Ask the DIP team which model fits your documents: <code>prebuilt-layout</code> returns the text, page by page, and the key-value pairs it finds; <code>prebuilt-read</code> returns the same text without key-value pairs.</p>
+<p>A workflow can declare a default model in <code>config.ctx.modelId.defaultValue</code>, and uploads use it unless you send <code>model_id</code>. If the workflow declares no default, every upload must send <code>model_id</code>. Ask the DIP team which model fits your documents: <code>prebuilt-layout</code> returns the text, page by page, and the key-value pairs it finds; <code>prebuilt-read</code> returns the text page by page, without key-value pairs.</p>
 
 <h2 id="step-4">Step 4: Upload a Document</h2>
 
@@ -1077,7 +1077,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
     </tr>
     <tr>
         <td><code>429</code> rate limited</td>
-        <td>Too many requests from your public IP to one endpoint, or 20 failed API keys within a minute; the limits for each environment are in <a href="#step-2">Step 2</a>. Poll less often or spread the load, and fix a wrong key before retrying.</td>
+        <td>Too many requests from your public IP to one endpoint, or 20 failed API keys in a row within a minute; the production and test limits are in <a href="#step-2">Step 2</a>, under <strong>Network and hosting considerations</strong>. Poll less often or spread the load, and fix a wrong key before retrying.</td>
     </tr>
     <tr>
         <td><code>403 group_id does not match the API key's group</code></td>
@@ -1121,7 +1121,7 @@ curl -s -X POST &lt;DIP_API_URL&gt;/api/upload \
     </tr>
     <tr>
         <td><code>504</code> / gateway timeout on upload</td>
-        <td>A large file took longer than the route timeout. The upload may still have gone through: check <code>GET /api/documents?group_id=&lt;GROUP_ID&gt;</code> before you send it again, so you don't create a duplicate. Otherwise retry with a smaller file, or ask the DIP team.</td>
+        <td>A large file took longer than the route timeout. DIP keeps converting it and may still create the document, which appears only once conversion finishes. Wait a few minutes, then check <code>GET /api/documents?group_id=&lt;GROUP_ID&gt;</code> before you send it again, so you don't create a duplicate. Otherwise retry with a smaller file, or ask the DIP team.</td>
     </tr>
     <tr>
         <td><code>410 Gone</code> on <code>/view</code> or <code>/download</code></td>

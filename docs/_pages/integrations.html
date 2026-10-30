@@ -162,7 +162,6 @@ curl -X POST /api/upload \
   -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   --data @body.json</pre>
-            <p>Writing the body to a file avoids the shell's limit on a single argument (128 KB on Linux), which the base64 text of any file over about 96 KB exceeds.</p>
             <p>Response:</p>
 <pre>{
   "success": true,
@@ -343,7 +342,7 @@ curl -X POST /api/upload \
     </div>
     <div>
         <strong>Polling Pattern</strong><br>
-        The platform does not currently support webhooks. Poll <code>GET /api/documents/:id</code> until the status is final, then fetch the result. A reasonable interval is every 3-5 seconds. Rate limits are counted per public IP address; the tutorial's <a href="integration-tutorial.html#step-2">Step 2</a> gives them for each environment.
+        The platform does not currently support webhooks. Poll <code>GET /api/documents/:id</code> until the status is final, then fetch the result. A reasonable interval is every 3-5 seconds. Rate limits are counted per public IP address; the tutorial's <a href="integration-tutorial.html#step-2">Step 2</a> gives the production and test limits, under <strong>Network and hosting considerations</strong>.
     </div>
 </div>
 
@@ -556,7 +555,7 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
 <pre>{
   "sessionId": "&lt;session-id&gt;",
   "corrections": [
-    { "fieldKey": "Total:", "originalValue": "$1,234.50", "correctedValue": "$1,234.56",
+    { "fieldKey": "Invoice No:", "originalValue": "INV-2026-001", "correctedValue": "INV-2026-002",
       "action": "corrected", ... }
   ]
 }</pre>
