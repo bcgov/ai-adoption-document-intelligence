@@ -18,13 +18,13 @@
 <!-- ====================================================================== -->
 <h2>Authentication</h2>
 
-<p>Integrations authenticate with an <strong>API key</strong>, sent in the <code>X-API-Key</code> header on every request. DIP's own web app signs people in through Keycloak, which isn't available to outside applications. The <a href="authentication.html">Authentication</a> page describes how it works.</p>
+<p>Integrations authenticate with an <strong>API key</strong>, sent in the <code>X-API-Key</code> header on every request.</p>
 
 <h3>Generating an API Key</h3>
 
 <ol>
-    <li><strong>Log in with your IDIR</strong> — Open the Document Intelligence frontend and sign in through the Keycloak SSO login page using your IDIR credentials.</li>
-    <li><strong>Navigate to Settings</strong> — Click the <strong>Settings</strong> tab in the left sidebar.</li>
+    <li><strong>Log in with your IDIR</strong> — Open the Document Intelligence frontend and sign in with your IDIR.</li>
+    <li><strong>Navigate to Settings</strong> — If you belong to more than one group, first choose the group in the drop-down at the top of the page. Then click the <strong>Settings</strong> tab in the left sidebar. Only a group <code>ADMIN</code> sees it.</li>
     <li><strong>Generate API Key</strong> — Click the <strong>Generate API key</strong> button. Your new key will be displayed in a modal dialog. Only a group <code>ADMIN</code> can generate, regenerate, or delete the group's key.</li>
     <li><strong>Copy and store the key</strong> — Copy the key immediately and store it securely. The full key is only shown once at creation time.</li>
 </ol>
@@ -144,7 +144,7 @@
         <summary>Upload a PDF document (curl example)</summary>
         <div class="accordion-content">
 <pre># Encode the file and write the request body to a file
-FILE_B64=$(base64 -w 0 invoice.pdf)
+FILE_B64=$(base64 -w 0 invoice.pdf)    # on macOS: FILE_B64=$(base64 -i invoice.pdf)
 cat &gt; body.json &lt;&lt;EOF
 {
   "title": "Invoice Q1-2026",
@@ -162,7 +162,7 @@ curl -X POST /api/upload \
   -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
   --data @body.json</pre>
-            <p>Writing the body to a file avoids shell argument-length limits, which a base64 file over about 96 KB exceeds on Linux.</p>
+            <p>Writing the body to a file avoids the shell's limit on a single argument (128 KB on Linux), which the base64 text of any file over about 96 KB exceeds.</p>
             <p>Response:</p>
 <pre>{
   "success": true,
@@ -183,7 +183,7 @@ curl -X POST /api/upload \
     <details>
         <summary>Upload an image document (curl example)</summary>
         <div class="accordion-content">
-<pre>FILE_B64=$(base64 -w 0 receipt.jpg)
+<pre>FILE_B64=$(base64 -w 0 receipt.jpg)    # on macOS: FILE_B64=$(base64 -i receipt.jpg)
 cat &gt; body.json &lt;&lt;EOF
 {
   "title": "Expense Receipt",
@@ -241,16 +241,21 @@ curl -X POST /api/upload \
   }"</pre>
             <p><code>groupId</code> is required. The response contains the new <code>workflow</code>, including its <code>id</code> and a <code>slug</code> generated from the name, plus a <code>validation</code> result for the config.</p>
             <p>Then reference it during upload:</p>
-<pre>curl -X POST /api/upload \
+<pre>FILE_B64=$(base64 -w 0 invoice.pdf)    # on macOS: FILE_B64=$(base64 -i invoice.pdf)
+cat &gt; body.json &lt;&lt;EOF
+{
+  "title": "Invoice",
+  "file": "$FILE_B64",
+  "file_type": "pdf",
+  "model_id": "prebuilt-layout",
+  "workflow_slug": "&lt;workflow-slug&gt;"
+}
+EOF
+
+curl -X POST /api/upload \
   -H "X-API-Key: &lt;your-api-key&gt;" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"title\": \"Invoice\",
-    \"file\": \"...\",
-    \"file_type\": \"pdf\",
-    \"model_id\": \"prebuilt-layout\",
-    \"workflow_slug\": \"&lt;workflow-slug&gt;\"
-  }"</pre>
+  --data @body.json</pre>
         </div>
     </details>
 </div>
@@ -338,7 +343,7 @@ curl -X POST /api/upload \
     </div>
     <div>
         <strong>Polling Pattern</strong><br>
-        The platform does not currently support webhooks. Poll <code>GET /api/documents/:id</code> until the status is final, then fetch the result. A reasonable interval is every 3-5 seconds. Rate limits are counted per public IP address.
+        The platform does not currently support webhooks. Poll <code>GET /api/documents/:id</code> until the status is final, then fetch the result. A reasonable interval is every 3-5 seconds. Rate limits are counted per public IP address; the tutorial's <a href="integration-tutorial.html#step-2">Step 2</a> gives them for each environment.
     </div>
 </div>
 
@@ -523,7 +528,7 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/corrections \
   -d "{
     \"corrections\": [
       {
-        \"field_key\": \"InvoiceNumber\",
+        \"field_key\": \"Invoice No:\",
         \"original_value\": \"INV-2026-001\",
         \"corrected_value\": \"INV-2026-002\",
         \"action\": \"corrected\"
@@ -551,7 +556,7 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
 <pre>{
   "sessionId": "&lt;session-id&gt;",
   "corrections": [
-    { "fieldKey": "Total", "originalValue": "$1,234.50", "correctedValue": "$1,234.56",
+    { "fieldKey": "Total:", "originalValue": "$1,234.50", "correctedValue": "$1,234.56",
       "action": "corrected", ... }
   ]
 }</pre>
