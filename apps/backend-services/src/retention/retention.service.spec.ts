@@ -304,7 +304,7 @@ describe("DocumentRetentionService", () => {
 // Shared helpers for the simple (DB-only) retention jobs
 // ---------------------------------------------------------------------------
 
-/** Builds shared test cases for any of the three simple retention cron jobs. */
+/** Builds shared test cases for any of the four simple retention cron jobs. */
 function describeSimpleRetentionJob(params: {
   envVar: string;
   label: string;
