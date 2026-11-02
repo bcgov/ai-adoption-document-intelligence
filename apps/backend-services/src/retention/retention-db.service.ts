@@ -164,4 +164,34 @@ export class RetentionDbService {
     });
     return result.count;
   }
+
+  /**
+   * Deletes up to `limit` non-demo chat conversations whose `lastMessageAt`
+   * is before `olderThan`, along with their cascading `chat_message` rows.
+   * Seeded demo conversations (`isDemo`) are never eligible.
+   *
+   * @param olderThan - Delete conversations whose last message predates this timestamp.
+   * @param limit - Maximum rows to delete per call.
+   * @returns Number of conversation rows actually deleted.
+   */
+  async deleteChatConversationsOlderThan(
+    olderThan: Date,
+    limit: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const rows = await tx.chatConversation.findMany({
+      where: {
+        isDemo: false,
+        lastMessageAt: { lt: olderThan },
+      },
+      select: { id: true },
+      orderBy: { lastMessageAt: "asc" },
+      take: limit,
+    });
+    if (rows.length === 0) return 0;
+    const result = await tx.chatConversation.deleteMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+    });
+    return result.count;
+  }
 }

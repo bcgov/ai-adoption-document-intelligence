@@ -19,6 +19,10 @@ const mockTxImpl = {
     findMany: jest.fn().mockResolvedValue([]),
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
+  chatConversation: {
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
 };
 
 const mockTransactionClient = mockTxImpl as unknown as Prisma.TransactionClient;
@@ -297,6 +301,65 @@ describe("RetentionDbService", () => {
         { where: { status: { in: ReviewStatus[] } } },
       ];
       expect(call.where.status.in).not.toContain(ReviewStatus.in_progress);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // deleteChatConversationsOlderThan
+  // -------------------------------------------------------------------------
+
+  describe("deleteChatConversationsOlderThan", () => {
+    it("returns 0 and skips deleteMany when no rows are found", async () => {
+      mockTxImpl.chatConversation.findMany.mockResolvedValue([]);
+
+      const result = await service.deleteChatConversationsOlderThan(
+        CUTOFF,
+        LIMIT,
+        mockTransactionClient,
+      );
+
+      expect(result).toBe(0);
+      expect(mockTxImpl.chatConversation.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("filters on isDemo=false and lastMessageAt, then deletes", async () => {
+      mockTxImpl.chatConversation.findMany.mockResolvedValue([{ id: "c1" }]);
+      mockTxImpl.chatConversation.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.deleteChatConversationsOlderThan(
+        CUTOFF,
+        LIMIT,
+        mockTransactionClient,
+      );
+
+      expect(result).toBe(1);
+      expect(mockTxImpl.chatConversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isDemo: false,
+            lastMessageAt: { lt: CUTOFF },
+          },
+          take: LIMIT,
+        }),
+      );
+      expect(mockTxImpl.chatConversation.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["c1"] } },
+      });
+    });
+
+    it("excludes demo conversations from the filter", async () => {
+      mockTxImpl.chatConversation.findMany.mockResolvedValue([]);
+
+      await service.deleteChatConversationsOlderThan(
+        CUTOFF,
+        LIMIT,
+        mockTransactionClient,
+      );
+
+      const [call] = mockTxImpl.chatConversation.findMany.mock.calls[0] as [
+        { where: { isDemo: boolean } },
+      ];
+      expect(call.where.isDemo).toBe(false);
     });
   });
 });
