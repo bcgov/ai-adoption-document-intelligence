@@ -137,10 +137,16 @@ Seeded demo conversations (`is_demo`) are never eligible, at any age — they ar
 read-only replays shown to every group member, not a real user's chat.
 
 Because chat messages can hold document text, when both janitors are enabled
-this window should be set **no longer than `DOCUMENT_RETENTION_DAYS`**, so a
-chat's copy of a document's text does not outlive the document itself by more
-than the gap between the two janitors' runs. This is not enforced in code —
-it's an operational convention for whoever sets the environment variables.
+this window should be set **no longer than `DOCUMENT_RETENTION_DAYS`**. That
+does not mean a chat's copy of a document's text is deleted along with the
+document. The two windows start on different dates: a document's when it is
+uploaded (`created_at`), a chat's at its last message (`last_message_at`). So a
+chat that kept being used after it quoted a document can still hold that text
+after the document is deleted. For example, with both set to 90 days, a chat
+that quotes a document on the day it is uploaded and is used for another 20
+days keeps that text for 20 days after the document is gone. This is not
+enforced in code — it's an operational convention for whoever sets the
+environment variables.
 
 Runs **daily at 03:00**, in batches.
 
