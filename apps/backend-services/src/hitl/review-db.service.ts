@@ -27,6 +27,18 @@ export interface ReviewQueueFilters {
   sortDir?: "asc" | "desc";
 }
 
+/** A FieldCorrection row with the actor relation needed to display who made it. */
+export type FieldCorrectionWithActor = Prisma.FieldCorrectionGetPayload<{
+  include: {
+    actor: {
+      select: {
+        user: { select: { email: true } };
+        apiKeyGroup: { select: { id: true } };
+      };
+    };
+  };
+}>;
+
 /**
  * What the review queue loads for each document. Only the OCR field payload is
  * selected: `content` holds the full extracted text and page lines, which the
@@ -426,20 +438,57 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds all field corrections for a review session.
-   * @param sessionId - The review session ID.
+   * Finds all field corrections for a document, across every review session
+   * it has had, including the author (user email, or the group's API-key
+   * identity, which outlives the group's keys) of each correction. A document can get a new session after its old one ends
+   * without finishing the review (skip, abandonment, flag handoff), so
+   * scoping to one session would hide corrections from earlier sessions.
+   * @param documentId - The document ID.
    * @returns Array of FieldCorrection records ordered by creation time.
    */
-  async findSessionCorrections(
-    sessionId: string,
+  async findDocumentCorrections(
+    documentId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<import("@generated/client").FieldCorrection[]> {
+  ): Promise<FieldCorrectionWithActor[]> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding corrections for session", { sessionId });
+    this.logger.debug("Finding corrections for document", { documentId });
     return client.fieldCorrection.findMany({
-      where: { session_id: sessionId },
+      where: { session: { document_id: documentId } },
       orderBy: { created_at: "asc" },
+      include: {
+        actor: {
+          select: {
+            user: { select: { email: true } },
+            apiKeyGroup: { select: { id: true } },
+          },
+        },
+      },
     });
+  }
+
+  /**
+   * Counts the field corrections on each document across every review
+   * session it has had, the same rows findDocumentCorrections returns.
+   * @param documentIds - The document IDs.
+   * @returns Correction count per document ID; a document with none is absent.
+   */
+  async countDocumentCorrections(
+    documentIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Map<string, number>> {
+    const client = tx ?? this.prisma;
+    const sessions = await client.reviewSession.findMany({
+      where: { document_id: { in: documentIds } },
+      select: { document_id: true, _count: { select: { corrections: true } } },
+    });
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      counts.set(
+        session.document_id,
+        (counts.get(session.document_id) ?? 0) + session._count.corrections,
+      );
+    }
+    return counts;
   }
 
   /**

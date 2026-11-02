@@ -59,6 +59,7 @@ const mockDocumentService = {
 
 const mockReviewDb = {
   findReviewSession: jest.fn(),
+  findDocumentCorrections: jest.fn(),
 };
 
 const mockOcrService = {
@@ -490,21 +491,28 @@ describe("GroundTruthGenerationService", () => {
         },
       };
 
+      // The approving session saved nothing itself: the correction was saved
+      // in an earlier session of the same document, which the page showed.
       const session = {
-        id: "session-1",
+        id: "session-2",
         document_id: "doc-id-1",
-        corrections: [
-          {
-            field_key: "Date",
-            original_value: "2026-01-01",
-            corrected_value: "2026-01-15",
-            action: CorrectionAction.corrected,
-          },
-        ],
+        corrections: [],
       };
+      const documentCorrections = [
+        {
+          session_id: "session-1",
+          field_key: "Date",
+          original_value: "2026-01-01",
+          corrected_value: "2026-01-15",
+          action: CorrectionAction.corrected,
+        },
+      ];
 
       mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(job);
       mockReviewDb.findReviewSession.mockResolvedValue(session);
+      mockReviewDb.findDocumentCorrections.mockResolvedValue(
+        documentCorrections,
+      );
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
         Date: "2026-01-15",
@@ -533,12 +541,15 @@ describe("GroundTruthGenerationService", () => {
         status: GroundTruthJobStatus.completed,
       });
 
-      await service.completeJob("job-1", "session-1");
+      await service.completeJob("job-1", "session-2");
 
-      // Should build ground truth
+      // Should build ground truth from every correction on the document
+      expect(mockReviewDb.findDocumentCorrections).toHaveBeenCalledWith(
+        "doc-id-1",
+      );
       expect(mockHitlDatasetService.buildGroundTruth).toHaveBeenCalledWith(
         job.document.ocr_result.keyValuePairs,
-        session.corrections,
+        documentCorrections,
       );
 
       // Should write ground truth JSON

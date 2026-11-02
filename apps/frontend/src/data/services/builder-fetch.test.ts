@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noDocumentCookie: Tests causing this warning.
 /**
  * §6.1: builderFetch centralises auth headers + cookies + ApiService's 401
  * refresh/logout for the builder's fetch-based hooks.

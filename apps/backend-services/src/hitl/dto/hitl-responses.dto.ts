@@ -178,6 +178,20 @@ export class ReviewSessionResponseDto {
   flagNote?: string | null;
 }
 
+export class CorrectionAuthorDto {
+  @ApiProperty({
+    enum: ["user", "api_key", "unknown"],
+    description:
+      "user: a signed-in reviewer; api_key: the group's API key, including one since deleted; unknown: saved before authors were recorded",
+  })
+  type!: "user" | "api_key" | "unknown";
+
+  @ApiPropertyOptional({
+    description: "The reviewer's email, when type is user",
+  })
+  email?: string;
+}
+
 export class CorrectionRecordDto {
   @ApiProperty()
   id!: string;
@@ -199,6 +213,12 @@ export class CorrectionRecordDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty({
+    type: CorrectionAuthorDto,
+    description: "Who made the correction",
+  })
+  author!: CorrectionAuthorDto;
 }
 
 export class SubmitCorrectionsResponseDto {

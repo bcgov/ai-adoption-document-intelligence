@@ -29,11 +29,11 @@ A document is eligible for dataset creation when:
 - Status is `complete` (documents transition to `complete` after HITL approval)
 - Has at least one `ReviewSession` with status `approved`
 
-When a document has multiple approved sessions, the most recent one (by `completed_at`) is used.
+When a document has more than one approved session, the most recent one (by `completed_at`) supplies the review session, reviewer and approval time recorded in the sample's metadata.
 
 ## Ground Truth Construction
 
-For each selected document, corrections from the approved review session are applied to the `OcrResult.keyValuePairs`:
+For each selected document, every correction saved on the document, in any of its review sessions, is applied to the `OcrResult.keyValuePairs`, oldest first, so a later correction to a field replaces an earlier one. This is the list the review page shows the approving reviewer, which includes corrections saved in an earlier session that ended without a decision:
 
 | Correction Action | Effect |
 |---|---|
@@ -58,7 +58,7 @@ GET /api/benchmark/datasets/from-hitl/eligible-documents
   &group_id=...   (optional; defaults to all groups the caller can access)
 ```
 
-Returns paginated list of documents with approved HITL sessions, including filename, file type, approval date, reviewer, field count, and correction count.
+Returns paginated list of documents with approved HITL sessions, including filename, file type, approval date, reviewer, field count, and correction count. The correction count covers every session on the document, matching what the export applies.
 
 ### Create dataset from HITL documents
 
