@@ -101,7 +101,7 @@ export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
                 </Text>
               </Stack>
             </Group>
-            {correction.originalValue && correction.correctedValue && (
+            {(correction.originalValue || correction.correctedValue) && (
               <ValueDiff
                 originalValue={correction.originalValue}
                 correctedValue={correction.correctedValue}
