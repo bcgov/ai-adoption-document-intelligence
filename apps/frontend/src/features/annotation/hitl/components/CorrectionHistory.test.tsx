@@ -104,12 +104,12 @@ describe("CorrectionHistory", () => {
     expect(screen.getByTestId("correction-corrected")).toHaveTextContent("—");
   });
 
-  it("shows unknown when no author was recorded", () => {
+  it("says so when no author was recorded", () => {
     render(
       <CorrectionHistory
         corrections={[correction({ author: { type: "unknown" } })]}
       />,
     );
-    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
   });
 });

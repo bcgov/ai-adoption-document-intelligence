@@ -33,7 +33,7 @@ export type FieldCorrectionWithActor = Prisma.FieldCorrectionGetPayload<{
     actor: {
       select: {
         user: { select: { email: true } };
-        apiKey: { select: { id: true } };
+        apiKeyGroup: { select: { id: true } };
       };
     };
   };
@@ -439,8 +439,8 @@ export class ReviewDbService {
 
   /**
    * Finds all field corrections for a document, across every review session
-   * it has had, including the author (user email or api key presence) of
-   * each correction. A document can get a new session after its old one ends
+   * it has had, including the author (user email, or the group's API-key
+   * identity, which outlives the group's keys) of each correction. A document can get a new session after its old one ends
    * without finishing the review (skip, abandonment, flag handoff), so
    * scoping to one session would hide corrections from earlier sessions.
    * @param documentId - The document ID.
@@ -459,7 +459,7 @@ export class ReviewDbService {
         actor: {
           select: {
             user: { select: { email: true } },
-            apiKey: { select: { id: true } },
+            apiKeyGroup: { select: { id: true } },
           },
         },
       },

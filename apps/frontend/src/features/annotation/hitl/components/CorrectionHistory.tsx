@@ -33,7 +33,8 @@ function authorLabel(author: CorrectionAuthor): string {
     case "api_key":
       return "API key";
     default:
-      return "Unknown";
+      // Corrections saved before authors were recorded.
+      return "Not recorded";
   }
 }
 

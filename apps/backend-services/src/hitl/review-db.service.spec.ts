@@ -638,7 +638,7 @@ describe("ReviewDbService", () => {
           actor: {
             select: {
               user: { select: { email: true } },
-              apiKey: { select: { id: true } },
+              apiKeyGroup: { select: { id: true } },
             },
           },
         },
