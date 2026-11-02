@@ -467,6 +467,31 @@ export class ReviewDbService {
   }
 
   /**
+   * Counts the field corrections on each document across every review
+   * session it has had, the same rows findDocumentCorrections returns.
+   * @param documentIds - The document IDs.
+   * @returns Correction count per document ID; a document with none is absent.
+   */
+  async countDocumentCorrections(
+    documentIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Map<string, number>> {
+    const client = tx ?? this.prisma;
+    const sessions = await client.reviewSession.findMany({
+      where: { document_id: { in: documentIds } },
+      select: { document_id: true, _count: { select: { corrections: true } } },
+    });
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      counts.set(
+        session.document_id,
+        (counts.get(session.document_id) ?? 0) + session._count.corrections,
+      );
+    }
+    return counts;
+  }
+
+  /**
    * Acquires a document lock for a reviewer session.
    * @param data - Lock details including document_id, reviewer_id, session_id, and expires_at.
    * @returns The created DocumentLock record.
