@@ -29,6 +29,12 @@ export interface QueueDocument {
     corrections_count: number;
     flag_note?: string;
   };
+  /** Flags currently unaddressed on this document; a document can have several at once. */
+  activeFlags?: Array<{
+    id: string;
+    note: string | null;
+    raisedAt: string;
+  }>;
 }
 
 interface QueueResponse {

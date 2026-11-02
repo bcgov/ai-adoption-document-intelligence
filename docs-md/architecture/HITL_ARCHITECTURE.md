@@ -64,7 +64,7 @@ model ReviewSessionEvent {
 
 // A single resolvable issue raised against a document. Scoped to the
 // document (not the session that raised it), so it survives an abandoned
-// or lock-expired session and keeps being shown until a reviewer addresses
+// or lock-expired session and keeps being shown until a reviewer resolves
 // it - possibly in a later session, without ending that session.
 model ReviewFlag {
   id                  String         @id @default(cuid())
@@ -114,7 +114,7 @@ enum ReviewStatus {
 
 enum ReviewSessionEventType {
   flagged
-  flag_addressed
+  flag_resolved
   rejected
   skipped
   approved
@@ -152,7 +152,7 @@ Document locks prevent concurrent editing:
 - A lock is acquired when a session starts (10-minute TTL)
 - The frontend sends heartbeat requests to extend the lock
 - Locks are released when a session completes (approve/reject/flag/skip)
-- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, ends any still-`in_progress` session, and records a `review_session_expired` audit event whose payload names the session's new status. A session on a document that still has an unaddressed `ReviewFlag` restores to `flagged`; otherwise it becomes `abandoned` like any other session (see [Key Relationships](#key-relationships))
+- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, ends any still-`in_progress` session, and records a `review_session_expired` audit event whose payload names the session's new status. A session on a document that still has an unresolved `ReviewFlag` restores to `flagged`; otherwise it becomes `abandoned` like any other session (see [Key Relationships](#key-relationships))
 - When a heartbeat answers 409 because the lock is gone, the review page says the session was released and returns to the queue; edits not yet saved are lost
 - If the same reviewer starts a session on an already-locked document, the existing session is returned
 - If a different reviewer tries, a `ConflictException` is thrown
@@ -162,8 +162,8 @@ Document locks prevent concurrent editing:
 - **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string. Taking over a flagged session makes it the new reviewer's
 - A **rejected** session also keeps why: `rejection_reason`, one of five fixed reasons (`INPUT_QUALITY`, `OCR_FAILURE`, `MODEL_MISMATCH`, `CONFIDENCE_TOO_LOW`, `SYSTEMIC_ERROR`), and an optional `rejection_comment`
 - A **flagged** session keeps the note left when it was flagged (`flag_note`), and also raises a **`ReviewFlag`** row (see below). Taking the session over keeps the note; flagging it again replaces the session's note and raises another, independent flag
-- **ReviewSessionEvent** is a permanent, append-only log of flag/flag-addressed/reject/skip/approve/reopen actions on a session. Unlike the denormalized columns on `ReviewSession` (`status`, `flag_note`, `rejection_reason`, ...), which a reopen can overwrite, these rows are never updated or deleted except by cascade when the session itself is deleted — so a session's full history of decisions survives a handoff/reopen cycle. `GET /sessions/:id/history` returns them oldest first
-- **ReviewFlag** is the document-scoped, resolvable "issue" raised by a `flagged` session. A document can have several active flags at once, each independently addressable via `POST /sessions/:id/flags/:flagId/address` without ending the session working it — addressing the last active flag does **not** auto-transition the session; the reviewer still explicitly approves, rejects, or skips. A flag is scoped to `document_id` rather than the raising session, so it keeps surfacing across an abandoned/lock-expired session and a fresh one on the same document. `raised_session_id`/`resolved_session_id` record which session raised/addressed it for traceability only; whether a document still needs attention is answered by `resolved_at IS NULL`, not by session status. `ReviewSessionEvent.review_flag_id` links a flag's `flagged` and `flag_addressed` events back to it, without mutating the append-only event log
+- **ReviewSessionEvent** is a permanent, append-only log of flag/flag-resolved/reject/skip/approve/reopen actions on a session. Unlike the denormalized columns on `ReviewSession` (`status`, `flag_note`, `rejection_reason`, ...), which a reopen can overwrite, these rows are never updated or deleted except by cascade when the session itself is deleted — so a session's full history of decisions survives a handoff/reopen cycle. `GET /sessions/:id/history` returns them oldest first
+- **ReviewFlag** is the document-scoped, resolvable "issue" raised by a `flagged` session. A document can have several active flags at once, each independently resolvable via `POST /sessions/:id/flags/:flagId/resolve` without ending the session working it — resolving the last active flag does **not** auto-transition the session; the reviewer still explicitly approves, rejects, or skips. A flag is scoped to `document_id` rather than the raising session, so it keeps surfacing across an abandoned/lock-expired session and a fresh one on the same document. `raised_session_id`/`resolved_session_id` record which session raised/resolved it for traceability only; whether a document still needs attention is answered by `resolved_at IS NULL`, not by session status. `ReviewSessionEvent.review_flag_id` links a flag's `flagged` and `flag_resolved` events back to it, without mutating the append-only event log
 - **FieldCorrection** records are children - one per field interaction. Each records who made it (`actor_id`), so a session that changed hands credits every correction to the right reviewer. Corrections saved before authors were recorded have no `actor_id`. `GET /api/hitl/sessions/:id/corrections` returns corrections for the whole document, not just the session named in the URL: a skipped, abandoned, or lock-expired session can leave a document with more than one `ReviewSession` row, and history must span all of them
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
@@ -196,10 +196,10 @@ final             final                ↓                     active flag
 
 ```
 
-A lapsed lock on a session whose document still has an unaddressed flag ends
+A lapsed lock on a session whose document still has an unresolved flag ends
 it as `flagged` again rather than `abandoned` (see [Transition
-Rules](#transition-rules)). Addressing a flag (`POST
-/sessions/:id/flags/:flagId/address`) never changes `ReviewSession.status` by
+Rules](#transition-rules)). Resolving a flag (`POST
+/sessions/:id/flags/:flagId/resolve`) never changes `ReviewSession.status` by
 itself — it only clears that one flag; the session stays `in_progress` until
 the reviewer explicitly approves, rejects, skips, or it lock-expires.
 
@@ -211,8 +211,8 @@ the reviewer explicitly approves, rejects, skips, or it lock-expires.
 | `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, records an `approved` event, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
 | `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session and on a `rejected` event, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Stores the optional `note` as `flag_note`, raises a new `ReviewFlag` on the document, releases lock, records a `flagged` event (with the note as its comment and `review_flag_id` set); document moves to the Flagged tab, which shows the note |
-| (none) | flag addressed | `POST /sessions/:id/flags/:flagId/address` | Marks one `ReviewFlag` on the session's document resolved (`resolved_at`, `resolved_by`, `resolved_session_id`), records a `flag_addressed` event linked to it. Does **not** change the session's `status` — a session can have several active flags and each is addressed independently without ending the session. 404 if the flag isn't on this session's document; 409 if it was already addressed |
-| `in_progress` | `abandoned` or `flagged` | `POST /sessions/:id/skip` | Releases lock, records a `skipped` event. Restores to `flagged` if the document still has an active (unaddressed) `ReviewFlag`; otherwise `abandoned`, returning the document to the Pending queue. Only an in-progress session can be skipped; skipping a session that already reached a decision answers 409 |
+| (none) | flag resolved | `POST /sessions/:id/flags/:flagId/resolve` | Marks one `ReviewFlag` on the session's document resolved (`resolved_at`, `resolved_by`, `resolved_session_id`), records a `flag_resolved` event linked to it. Does **not** change the session's `status` — a session can have several active flags and each is resolved independently without ending the session. 404 if the flag isn't on this session's document; 409 if it was already resolved |
+| `in_progress` | `abandoned` or `flagged` | `POST /sessions/:id/skip` | Releases lock, records a `skipped` event. Restores to `flagged` if the document still has an active (unresolved) `ReviewFlag`; otherwise `abandoned`, returning the document to the Pending queue. Only an in-progress session can be skipped; skipping a session that already reached a decision answers 409 |
 | `in_progress` | `abandoned` | Lock expiry cron, document has no active flag | Releases lock; document returns to the Pending queue |
 | `in_progress` | `flagged` | Lock expiry cron, document still has an active flag | Releases lock; document returns to the Flagged tab with its note and corrections, for the next reviewer to take |
 | `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over: the session and its lock move to them, the flag note stays, the previous reviewer's corrections stay (still credited to whoever made them), and a `reopened` event is recorded. Whether a later skip/lock-expiry on this session restores to `flagged` now depends solely on whether the document still has an active `ReviewFlag`, not on anything set by this reopen |
@@ -419,13 +419,13 @@ and opens read-only with the note shown as a banner
 ```
 
 The note is meant for whoever picks the document up next, so it stays on the
-session when someone takes it over: the banner stays up while they work, and
-the Flag button carries a marker whose tooltip repeats the note. The flag
-dialog opens with the session's current note, so flagging again can extend it
-or replace it. The `review_session_flagged` audit event records the note as
-well. Each flag call also raises an independent `ReviewFlag` row, so a
-document can accumulate several outstanding flags; they're addressed one at a
-time via `POST /sessions/:id/flags/:flagId/address` and don't require ending
+session when someone takes it over: the active-flags banner stays up while
+they work, and the Flag button carries a badge with the active flag count,
+whose tooltip summarizes them. Each flag call opens a blank dialog and always
+raises a new, independent `ReviewFlag` row — flagging an already-flagged
+document never edits an existing flag, it adds another one — so a document
+can accumulate several outstanding flags; they're resolved one at a
+time via `POST /sessions/:id/flags/:flagId/resolve` and don't require ending
 the session.
 
 #### Skip Path
@@ -436,7 +436,7 @@ POST /api/hitl/sessions/:id/skip
       ↓
 409 if the session is not in_progress (already decided, or not yet claimed)
       ↓
-SELECT EXISTS (unaddressed ReviewFlag for this document)
+SELECT EXISTS (unresolved ReviewFlag for this document)
 UPDATE review_sessions
 SET status = <'flagged' if an active flag exists, else 'abandoned'>
 WHERE id = :id
@@ -448,8 +448,8 @@ starts a fresh session
 ```
 
 A session is restored to Flagged purely because its document still has an
-unaddressed `ReviewFlag` — addressing every flag on the document (via
-`POST /sessions/:id/flags/:flagId/address`) before skipping sends it to
+unresolved `ReviewFlag` — resolving every flag on the document (via
+`POST /sessions/:id/flags/:flagId/resolve`) before skipping sends it to
 `abandoned` instead, since there is nothing left needing another reviewer's
 attention.
 
@@ -469,7 +469,7 @@ attention.
 | `POST` | `/api/hitl/sessions/:id/approve` | Approve session | Yes |
 | `POST` | `/api/hitl/sessions/:id/reject` | Reject session | Yes |
 | `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention, with an optional `note` for the next reviewer; raises an independent `ReviewFlag` on the document | Yes |
-| `POST` | `/api/hitl/sessions/:id/flags/:flagId/address` | Mark one flag on the session's document addressed, without ending the session. 404 if the flag isn't on this session's document; 409 if already addressed or the session isn't in progress | Yes |
+| `POST` | `/api/hitl/sessions/:id/flags/:flagId/resolve` | Mark one flag on the session's document resolved, without ending the session. 404 if the flag isn't on this session's document; 409 if already resolved or the session isn't in progress | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session; restores to Flagged if the document still has an active flag, otherwise returns the document to the queue. 409 if the session is not in progress | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
 | `POST` | `/api/hitl/sessions/:id/reopen` | Take over a flagged session, or reopen a dataset labeling job | Yes |

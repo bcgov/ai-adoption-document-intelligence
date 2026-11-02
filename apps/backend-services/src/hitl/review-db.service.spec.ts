@@ -1375,7 +1375,7 @@ describe("ReviewDbService", () => {
       expect(result).toBe(false);
     });
 
-    it("resolves a flag only if it is still unaddressed", async () => {
+    it("resolves a flag only if it is still unresolved", async () => {
       mockReviewFlag.updateMany.mockResolvedValue({ count: 1 });
       const resolved = { id: "flag-1", resolved_at: new Date() };
       mockReviewFlag.findUnique.mockResolvedValue(resolved);
@@ -1397,7 +1397,7 @@ describe("ReviewDbService", () => {
       });
     });
 
-    it("returns null when the flag was already addressed", async () => {
+    it("returns null when the flag was already resolved", async () => {
       mockReviewFlag.updateMany.mockResolvedValue({ count: 0 });
 
       const result = await service.resolveReviewFlag(

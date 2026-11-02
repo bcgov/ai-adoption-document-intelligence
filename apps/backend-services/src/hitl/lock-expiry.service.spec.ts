@@ -20,7 +20,7 @@ describe("LockExpiryService", () => {
     hasActiveFlags: false,
   };
 
-  // A session on a document with an unaddressed flag that never got a decision.
+  // A session on a document with an unresolved flag that never got a decision.
   const expiredHandoffLock = {
     session_id: "session-2",
     document_id: "doc-2",

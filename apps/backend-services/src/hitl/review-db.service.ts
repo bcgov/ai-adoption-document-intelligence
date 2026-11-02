@@ -622,7 +622,7 @@ export class ReviewDbService {
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
    * audit event needs, and whether the locked document still has any active
-   * (unaddressed) flag — the signal for whether an expiring session should
+   * (unresolved) flag — the signal for whether an expiring session should
    * restore to `flagged` instead of `abandoned`.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
@@ -738,7 +738,7 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds every unaddressed flag on a document, oldest first.
+   * Finds every unresolved flag on a document, oldest first.
    * @param documentId - The document ID.
    * @returns Array of unresolved ReviewFlag records with the raising reviewer included.
    */
@@ -763,7 +763,7 @@ export class ReviewDbService {
   }
 
   /**
-   * Whether a document currently has any unaddressed flag.
+   * Whether a document currently has any unresolved flag.
    * @param documentId - The document ID.
    * @returns True if at least one unresolved ReviewFlag exists for the document.
    */
@@ -780,13 +780,13 @@ export class ReviewDbService {
   }
 
   /**
-   * Marks a flag addressed, without ending the session that resolved it.
-   * Only resolves flags that are still unaddressed, so two concurrent address
+   * Marks a flag resolved, without ending the session that resolved it.
+   * Only resolves flags that are still unresolved, so two concurrent resolve
    * attempts on the same flag don't both succeed.
-   * @param flagId - The flag to address.
-   * @param sessionId - The session the reviewer was working when they addressed it.
-   * @param actorId - The reviewer addressing the flag.
-   * @returns The updated ReviewFlag, or null if it was already addressed.
+   * @param flagId - The flag to resolve.
+   * @param sessionId - The session the reviewer was working when they resolved it.
+   * @param actorId - The reviewer resolving the flag.
+   * @returns The updated ReviewFlag, or null if it was already resolved.
    */
   async resolveReviewFlag(
     flagId: string,

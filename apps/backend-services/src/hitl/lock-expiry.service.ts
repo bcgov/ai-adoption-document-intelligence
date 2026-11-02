@@ -18,7 +18,7 @@ export class LockExpiryService {
   /**
    * Reclaims documents whose reviewer stopped sending heartbeats, and deletes
    * their lock rows. A session on a document that still has an active
-   * (unaddressed) flag restores to `flagged` so the next reviewer can take it.
+   * (unresolved) flag restores to `flagged` so the next reviewer can take it.
    * Any other session becomes `abandoned`, which returns its document to the
    * pending queue.
    */

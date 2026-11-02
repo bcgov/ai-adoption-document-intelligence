@@ -596,8 +596,8 @@ model ReviewSessionEvent {
   comment            String?
   /// Only set when event_type = rejected.
   rejection_reason   RejectionReason?
-  /// Only set when event_type = flagged or flag_addressed: the ReviewFlag the event
-  /// is about, so raised/addressed events for the same flag can be linked in a timeline.
+  /// Only set when event_type = flagged or flag_resolved: the ReviewFlag the event
+  /// is about, so raised/resolved events for the same flag can be linked in a timeline.
   review_flag_id     String?
   reviewFlag         ReviewFlag?            @relation(fields: [review_flag_id], references: [id], onDelete: SetNull)
   created_at         DateTime               @default(now())
@@ -702,7 +702,7 @@ enum CorrectionAction {
 
 enum ReviewSessionEventType {
   flagged
-  flag_addressed
+  flag_resolved
   rejected
   skipped
   approved

@@ -31,6 +31,7 @@ import {
   Tabs,
   Text,
   TextInput,
+  Tooltip,
   UnstyledButton,
 } from "../../../../ui";
 import { useReviewQueue } from "../hooks/useReviewQueue";
@@ -658,7 +659,7 @@ export const ReviewQueuePage: FC = () => {
                     </DataTable.Th>
                     <DataTable.Th>Last reviewer</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
-                    <DataTable.Th>Flag note</DataTable.Th>
+                    <DataTable.Th>Flags</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
@@ -687,10 +688,27 @@ export const ReviewQueuePage: FC = () => {
                           </Badge>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {doc.lastSession?.flag_note ? (
-                            <Text size="sm" style={{ maxWidth: 280 }}>
-                              {doc.lastSession.flag_note}
-                            </Text>
+                          {doc.activeFlags && doc.activeFlags.length > 0 ? (
+                            <Tooltip
+                              multiline
+                              w={280}
+                              label={doc.activeFlags
+                                .map((f) => f.note || "(no note)")
+                                .join("\n")}
+                            >
+                              <Group gap={6} wrap="nowrap">
+                                <Badge color="orange" variant="light" size="sm">
+                                  {doc.activeFlags.length}
+                                </Badge>
+                                <Text
+                                  size="sm"
+                                  style={{ maxWidth: 220 }}
+                                  truncate
+                                >
+                                  {doc.activeFlags[0].note || "(no note)"}
+                                </Text>
+                              </Group>
+                            </Tooltip>
                           ) : (
                             <Text size="sm" c="dimmed">
                               —

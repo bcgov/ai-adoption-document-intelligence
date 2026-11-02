@@ -1,5 +1,6 @@
 import {
   IconArrowLeft,
+  IconCheck,
   IconEye,
   IconEyeOff,
   IconFlag,
@@ -287,6 +288,8 @@ export const ReviewWorkspacePage: FC = () => {
     isRejecting,
     isSubmitting,
     reopenSessionAsync,
+    resolveFlagAsync,
+    isResolvingFlag,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
   const canTakeOver = session?.status === "flagged";
@@ -886,6 +889,23 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   };
 
+  const handleResolveFlag = async (flagId: string) => {
+    try {
+      await resolveFlagAsync(flagId);
+    } catch (error) {
+      notifyActionFailed("Could not resolve flag", error);
+      return;
+    }
+
+    notifications.show({
+      title: "Flag resolved",
+      message:
+        "The session stays open; resolve any remaining flags or make your decision.",
+      color: "green",
+      autoClose: 3000,
+    });
+  };
+
   const handleReject = () => {
     setRejectModalOpened(true);
   };
@@ -1163,19 +1183,68 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
-        {session.flagNote && (
-          <Accordion variant="contained" data-testid="flag-note-banner">
-            <Accordion.Item value="flag-note">
+        {(session.activeFlags?.length ?? 0) > 0 ? (
+          <Accordion
+            variant="contained"
+            data-testid="active-flags-banner"
+            defaultValue="active-flags"
+          >
+            <Accordion.Item value="active-flags">
               <Accordion.Control icon={<IconFlag size={16} color="orange" />}>
                 <Text size="sm" fw={600} c="orange">
-                  Flag note
+                  Active flags ({session.activeFlags!.length})
                 </Text>
               </Accordion.Control>
               <Accordion.Panel>
-                <Text size="sm">{session.flagNote}</Text>
+                <Stack gap="sm">
+                  {session.activeFlags!.map((flag) => (
+                    <Group
+                      key={flag.id}
+                      justify="space-between"
+                      align="flex-start"
+                      wrap="nowrap"
+                    >
+                      <Stack gap={2}>
+                        <Text size="sm">{flag.note || "(no note)"}</Text>
+                        {flag.raisedBy && (
+                          <Text size="xs" c="dimmed">
+                            Raised by {flag.raisedBy}
+                          </Text>
+                        )}
+                      </Stack>
+                      {!readOnly && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="green"
+                          leftSection={<IconCheck size={14} />}
+                          loading={isResolvingFlag}
+                          onClick={() => handleResolveFlag(flag.id)}
+                        >
+                          Resolve
+                        </Button>
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
+        ) : (
+          session.flagNote && (
+            <Accordion variant="contained" data-testid="flag-note-banner">
+              <Accordion.Item value="flag-note">
+                <Accordion.Control icon={<IconFlag size={16} color="orange" />}>
+                  <Text size="sm" fw={600} c="orange">
+                    Flag note
+                  </Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Text size="sm">{session.flagNote}</Text>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
+          )
         )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
@@ -1224,7 +1293,7 @@ export const ReviewWorkspacePage: FC = () => {
             isSkipping={isSkipping}
             isRejecting={isRejecting}
             isSaving={isSubmitting}
-            flagNote={session.flagNote}
+            activeFlagCount={session.activeFlags?.length ?? 0}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1586,7 +1655,7 @@ export const ReviewWorkspacePage: FC = () => {
 
         <FlagNoteModal
           opened={flagModalOpened}
-          initialNote={session.flagNote ?? ""}
+          activeFlagCount={session.activeFlags?.length ?? 0}
           isSubmitting={isFlagging}
           onClose={closeFlagModal}
           onConfirm={handleConfirmFlag}

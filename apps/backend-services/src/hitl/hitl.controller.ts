@@ -419,16 +419,16 @@ export class HitlController {
     );
   }
 
-  @Post("sessions/:id/flags/:flagId/address")
+  @Post("sessions/:id/flags/:flagId/resolve")
   @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
-      "Mark a flag on a session's document addressed, without ending the session",
+      "Mark a flag on a session's document resolved, without ending the session",
   })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiParam({ name: "flagId", description: "Flag ID" })
   @ApiOkResponse({
-    description: "Flag marked addressed",
+    description: "Flag marked resolved",
     type: FlagActionResponseDto,
   })
   @ApiNotFoundResponse({
@@ -437,10 +437,10 @@ export class HitlController {
   })
   @ApiConflictResponse({
     description:
-      "Session is not in progress, or the flag has already been addressed",
+      "Session is not in progress, or the flag has already been resolved",
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async addressFlag(
+  async resolveFlag(
     @Param("id") sessionId: string,
     @Param("flagId") flagId: string,
     @Req() req: Request,
@@ -452,7 +452,7 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.addressFlag(
+    return this.hitlService.resolveFlag(
       sessionId,
       flagId,
       req.resolvedIdentity.actorId,

@@ -35,8 +35,8 @@ interface ReviewToolbarProps {
   isSkipping?: boolean;
   isRejecting?: boolean;
   isSaving?: boolean;
-  /** Note captured from a prior flag on this session, if one exists. */
-  flagNote?: string | null;
+  /** Count of unaddressed flags currently on this document. */
+  activeFlagCount?: number;
   autoAdvance?: boolean;
   onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
@@ -57,7 +57,7 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   isSkipping,
   isRejecting,
   isSaving,
-  flagNote,
+  activeFlagCount,
   autoAdvance,
   onAutoAdvanceToggle,
   viewMode,
@@ -91,7 +91,13 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         >
           Approve
         </Button>
-        <Tooltip label={flagNote ? `Flag note: ${flagNote}` : "Flag document"}>
+        <Tooltip
+          label={
+            activeFlagCount
+              ? `${activeFlagCount} active flag${activeFlagCount === 1 ? "" : "s"}`
+              : "Flag document"
+          }
+        >
           <div style={{ position: "relative", display: "inline-block" }}>
             <Button
               variant="light"
@@ -102,16 +108,17 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
             >
               Flag
             </Button>
-            {flagNote && (
+            {Boolean(activeFlagCount) && (
               <span
-                aria-label="Flag has a note"
+                aria-label={`${activeFlagCount} active flag${activeFlagCount === 1 ? "" : "s"}`}
                 style={{
                   position: "absolute",
                   top: -4,
                   right: -4,
-                  width: 14,
+                  minWidth: 14,
                   height: 14,
-                  borderRadius: "50%",
+                  padding: "0 3px",
+                  borderRadius: 7,
                   background: "var(--mantine-color-red-6, #e03131)",
                   color: "white",
                   fontSize: 10,
@@ -120,7 +127,7 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
                   textAlign: "center",
                 }}
               >
-                !
+                {activeFlagCount}
               </span>
             )}
           </div>

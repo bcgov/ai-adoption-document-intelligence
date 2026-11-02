@@ -84,7 +84,7 @@ export class QueueDocumentDto {
 
   @ApiProperty({
     type: [ActiveFlagDto],
-    description: "Flags currently unaddressed on this document",
+    description: "Flags currently unresolved on this document",
   })
   activeFlags!: ActiveFlagDto[];
 }
@@ -203,7 +203,7 @@ export class ReviewSessionResponseDto {
 
   @ApiProperty({
     type: [ActiveFlagDto],
-    description: "Flags currently unaddressed on this session's document",
+    description: "Flags currently unresolved on this session's document",
   })
   activeFlags!: ActiveFlagDto[];
 }
@@ -268,7 +268,7 @@ export class ReviewSessionEventRecordDto {
   @ApiProperty({
     enum: [
       "flagged",
-      "flag_addressed",
+      "flag_resolved",
       "rejected",
       "skipped",
       "approved",
@@ -300,7 +300,7 @@ export class ReviewSessionEventRecordDto {
     type: String,
     nullable: true,
     description:
-      "The ReviewFlag this event is about, set when eventType is 'flagged' or 'flag_addressed'; links a flag's raised/addressed pair in the timeline",
+      "The ReviewFlag this event is about, set when eventType is 'flagged' or 'flag_resolved'; links a flag's raised/resolved pair in the timeline",
   })
   reviewFlagId?: string | null;
 

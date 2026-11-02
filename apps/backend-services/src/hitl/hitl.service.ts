@@ -1067,12 +1067,12 @@ export class HitlService {
   }
 
   /**
-   * Marks a flag addressed without ending the session that resolves it.
-   * Addressing the last active flag on a document does not auto-transition
+   * Marks a flag resolved without ending the session that resolves it.
+   * Resolving the last active flag on a document does not auto-transition
    * the session; the reviewer still explicitly approves, rejects, or skips.
    */
-  async addressFlag(sessionId: string, flagId: string, actorId: string) {
-    this.logger.debug(`Addressing flag ${flagId} on session: ${sessionId}`);
+  async resolveFlag(sessionId: string, flagId: string, actorId: string) {
+    this.logger.debug(`Resolving flag ${flagId} on session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
@@ -1081,7 +1081,7 @@ export class HitlService {
 
     if (session.status !== ReviewStatus.in_progress) {
       throw new ConflictException(
-        `Cannot address a flag on a session that is ${session.status}`,
+        `Cannot resolve a flag on a session that is ${session.status}`,
       );
     }
 
@@ -1092,7 +1092,7 @@ export class HitlService {
       );
     }
     if (flag.resolved_at) {
-      throw new ConflictException("Flag has already been addressed");
+      throw new ConflictException("Flag has already been resolved");
     }
 
     const doc = session.document as {
@@ -1108,13 +1108,13 @@ export class HitlService {
         tx,
       );
       if (!updatedFlag) {
-        throw new ConflictException("Flag has already been addressed");
+        throw new ConflictException("Flag has already been resolved");
       }
 
       await this.reviewDb.createReviewSessionEvent(
         sessionId,
         {
-          event_type: ReviewSessionEventType.flag_addressed,
+          event_type: ReviewSessionEventType.flag_resolved,
           actor_id: actorId,
           review_flag_id: flagId,
         },
@@ -1123,7 +1123,7 @@ export class HitlService {
 
       await this.auditService.recordEvent(
         {
-          event_type: "review_flag_addressed",
+          event_type: "review_flag_resolved",
           resource_type: "review_flag",
           resource_id: flagId,
           actor_id: actorId,
@@ -1141,7 +1141,7 @@ export class HitlService {
     return {
       id: resolved.id,
       resolvedAt: resolved.resolved_at,
-      message: "Flag addressed",
+      message: "Flag resolved",
     };
   }
 
