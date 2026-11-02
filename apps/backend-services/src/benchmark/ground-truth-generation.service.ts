@@ -681,7 +681,7 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Load the review session with corrections
+    // Load the approving review session
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
@@ -693,10 +693,17 @@ export class GroundTruthGenerationService {
       throw new BadRequestException("OCR result has no extractable fields");
     }
 
+    // The review page shows every correction saved on the document, in any of
+    // its sessions, so the approved values come from that same list rather
+    // than from the approving session alone.
+    const corrections = await this.reviewDb.findDocumentCorrections(
+      session.document_id,
+    );
+
     // Build ground truth using existing HitlDatasetService logic
     const groundTruth = this.hitlDatasetService.buildGroundTruth(
       ocrFields,
-      session.corrections,
+      corrections,
     );
 
     // Write ground truth to dataset storage

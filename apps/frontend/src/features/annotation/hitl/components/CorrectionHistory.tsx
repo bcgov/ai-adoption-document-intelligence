@@ -33,7 +33,8 @@ function authorLabel(author: CorrectionAuthor): string {
     case "api_key":
       return "API key";
     default:
-      return "Unknown";
+      // Corrections saved before authors were recorded.
+      return "Not recorded";
   }
 }
 
@@ -101,7 +102,7 @@ export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
                 </Text>
               </Stack>
             </Group>
-            {correction.originalValue && correction.correctedValue && (
+            {(correction.originalValue || correction.correctedValue) && (
               <ValueDiff
                 originalValue={correction.originalValue}
                 correctedValue={correction.correctedValue}

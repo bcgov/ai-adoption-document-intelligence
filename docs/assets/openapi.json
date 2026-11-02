@@ -7629,7 +7629,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all corrections submitted for the session",
+            "description": "Every correction saved on the session's document, across all of its review sessions, oldest first, each with its author",
             "content": {
               "application/json": {
                 "schema": {
@@ -7653,7 +7653,7 @@
             "api-key": []
           }
         ],
-        "summary": "Get correction history for a session",
+        "summary": "Get the correction history of a session's document",
         "tags": [
           "hitl"
         ]
@@ -7786,7 +7786,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Lock released, session returned to pending queue",
+            "description": "Lock released, document returned to the pending queue, or to the flagged queue if the session carried a flag note",
             "content": {
               "application/json": {
                 "schema": {
@@ -16442,6 +16442,27 @@
           "message"
         ]
       },
+      "CorrectionAuthorDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "api_key",
+              "unknown"
+            ],
+            "description": "user: a signed-in reviewer; api_key: the group's API key, including one since deleted; unknown: saved before authors were recorded"
+          },
+          "email": {
+            "type": "string",
+            "description": "The reviewer's email, when type is user"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
       "CorrectionRecordDto": {
         "type": "object",
         "properties": {
@@ -16466,13 +16487,22 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "author": {
+            "description": "Who made the correction",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CorrectionAuthorDto"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "fieldKey",
           "action",
-          "createdAt"
+          "createdAt",
+          "author"
         ]
       },
       "CorrectionsListResponseDto": {

@@ -76,12 +76,40 @@ describe("CorrectionHistory", () => {
     );
   });
 
-  it("shows unknown when no author was recorded", () => {
+  it("shows the new value when the field had none before", () => {
+    render(
+      <CorrectionHistory
+        corrections={[
+          correction({ originalValue: "", correctedValue: "2026-10-15" }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("correction-original")).toHaveTextContent("—");
+    expect(screen.getByTestId("correction-corrected")).toHaveTextContent(
+      "2026-10-15",
+    );
+  });
+
+  it("shows the old value when the field was cleared", () => {
+    render(
+      <CorrectionHistory
+        corrections={[
+          correction({ originalValue: "PO-7781", correctedValue: "" }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("correction-original")).toHaveTextContent(
+      "PO-7781",
+    );
+    expect(screen.getByTestId("correction-corrected")).toHaveTextContent("—");
+  });
+
+  it("says so when no author was recorded", () => {
     render(
       <CorrectionHistory
         corrections={[correction({ author: { type: "unknown" } })]}
       />,
     );
-    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
   });
 });

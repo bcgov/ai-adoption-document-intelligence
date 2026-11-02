@@ -119,7 +119,7 @@ describe("HitlService", () => {
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
     actor_id: "actor-1",
-    actor: { user: { email: "reviewer@example.com" }, apiKey: null },
+    actor: { user: { email: "reviewer@example.com" }, apiKeyGroup: null },
   };
 
   beforeEach(async () => {
@@ -1471,14 +1471,15 @@ describe("HitlService", () => {
       ).not.toHaveBeenCalled();
     });
 
-    it("should report an api key author when the actor has no user", async () => {
+    it("should report an api key author for the group's API-key identity, even once its key is deleted", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      // No key row is selected at all: the identity alone names the author.
       mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
         {
           ...mockFieldCorrection,
-          actor: { user: null, apiKey: { id: "k-1" } },
+          actor: { user: null, apiKeyGroup: { id: "group-1" } },
         },
       ]);
 

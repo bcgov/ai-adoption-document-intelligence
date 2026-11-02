@@ -638,7 +638,7 @@ describe("ReviewDbService", () => {
           actor: {
             select: {
               user: { select: { email: true } },
-              apiKey: { select: { id: true } },
+              apiKeyGroup: { select: { id: true } },
             },
           },
         },
@@ -652,6 +652,28 @@ describe("ReviewDbService", () => {
         await service.findDocumentCorrections("doc-no-corrections");
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("countDocumentCorrections", () => {
+    it("should add up the corrections from every session on each document", async () => {
+      mockReviewSession.findMany.mockResolvedValue([
+        { document_id: "doc-1", _count: { corrections: 2 } },
+        { document_id: "doc-1", _count: { corrections: 1 } },
+        { document_id: "doc-2", _count: { corrections: 0 } },
+      ]);
+
+      const result = await service.countDocumentCorrections(["doc-1", "doc-2"]);
+
+      expect(result.get("doc-1")).toBe(3);
+      expect(result.get("doc-2")).toBe(0);
+      expect(mockReviewSession.findMany).toHaveBeenCalledWith({
+        where: { document_id: { in: ["doc-1", "doc-2"] } },
+        select: {
+          document_id: true,
+          _count: { select: { corrections: true } },
+        },
+      });
     });
   });
 
