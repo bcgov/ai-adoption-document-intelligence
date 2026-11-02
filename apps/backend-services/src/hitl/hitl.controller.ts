@@ -240,10 +240,13 @@ export class HitlController {
 
   @Get("sessions/:id/corrections")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Get correction history for a session" })
+  @ApiOperation({
+    summary: "Get the correction history of a session's document",
+  })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
-    description: "List of all corrections submitted for the session",
+    description:
+      "Every correction saved on the session's document, across all of its review sessions, oldest first, each with its author",
     type: CorrectionsListResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })

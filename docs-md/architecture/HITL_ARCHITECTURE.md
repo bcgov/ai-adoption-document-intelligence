@@ -245,15 +245,19 @@ Navigate to ReviewWorkspacePage
 
 ### 3. Submit Corrections Flow
 
-The review page keeps the reviewer's edits until they approve, reject or flag
-the document, and each of those first sends the corrections not saved yet.
-Skipping discards them. A session that is reopened, or taken over from another
-reviewer, opens with its saved corrections on the page; only a field whose value
-differs from its last saved correction is sent, so nothing is stored twice or
-credited to the wrong reviewer.
+The review page keeps the reviewer's edits until they press **Save**, or
+approve, reject or flag the document; each of those first sends the corrections
+not saved yet. Save stores them without ending the session. Skipping discards
+edits that were not saved. The page opens with every correction already saved on
+the document, in any of its review sessions; only a field whose value differs
+from its last saved correction is sent, so nothing is stored twice or credited
+to the wrong reviewer. Ground truth for dataset labelling jobs and for datasets
+created from HITL reviews is built from the same list (see
+[ground-truth-generation.md](../extraction/ground-truth-generation.md) and
+[hitl-dataset-creation.md](../extraction/hitl-dataset-creation.md)).
 
 ```
-Reviewer approves, rejects or flags; the page sends its unsaved corrections
+Reviewer saves, approves, rejects or flags; the page sends its unsaved corrections
       ↓
 POST /api/hitl/sessions/:id/corrections
   {
@@ -460,8 +464,9 @@ Each tab's `total` is counted with the same filters, so it matches the documents
 - Inline canvas editing: [CanvasFieldOverlay.tsx](../../apps/frontend/src/features/annotation/hitl/components/CanvasFieldOverlay.tsx) anchors an input under each field's bounding box on the document image, sized to the box and colored by OCR confidence tier ([ConfidenceIndicator.tsx](../../apps/frontend/src/features/annotation/hitl/components/ConfidenceIndicator.tsx)); Tab moves between fields ([useFieldFocus.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useFieldFocus.ts)), F2 toggles the overlay, hover fades it to reveal the source pixels
 - Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
-- Actions: Approve, Reject (with a reason), Flag (with an optional note), Skip
-- Shows a session's flag note as a banner, and marks the Flag button while a note is on the session
+- Actions: Save, Approve, Reject (with a reason), Flag (with an optional note), Skip
+- Shows a session's flag note in a collapsed panel above the toolbar, and marks the Flag button while a note is on the session
+- Correction history: every correction saved on the document, across its sessions, with its author — the reviewer's email, "API key" for a correction made through the group's API key (still so labelled after that key is deleted), or "Not recorded" for corrections saved before authors were recorded — and the old and new values, with a dash for an empty side
 - Supports read-only mode for viewing completed sessions
 
 ### Key Hooks
@@ -663,9 +668,11 @@ The system tracks metrics for:
    - Approves if satisfied → status: `approved`
    - Rejects if the document cannot be used → status: `rejected`
    - Flags if it needs someone else's eyes → status: `flagged`
-   - Skips if cannot complete → status: `abandoned`
-   - Approving, rejecting and flagging save the corrections first; skipping
-     discards them
+   - Skips if cannot complete → status: `abandoned`, or `flagged` when the
+     session carries a flag note
+   - Save stores the corrections without ending the session; approving,
+     rejecting and flagging save them first; skipping discards edits not yet
+     saved
 
 ### Flagging Workflow
 
