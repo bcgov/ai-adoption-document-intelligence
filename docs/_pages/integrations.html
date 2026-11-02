@@ -498,7 +498,7 @@ curl -X POST /api/upload \
         <ul>
             <li><code>POST /api/hitl/sessions/:id/approve</code> — approve the document; it becomes <code>complete</code></li>
             <li><code>POST /api/hitl/sessions/:id/reject</code> — reject the document with a <code>rejectionReason</code> (<code>INPUT_QUALITY</code>, <code>OCR_FAILURE</code>, <code>MODEL_MISMATCH</code>, <code>CONFIDENCE_TOO_LOW</code>, or <code>SYSTEMIC_ERROR</code>) and optional <code>comments</code>; it becomes <code>rejected</code></li>
-            <li><code>POST /api/hitl/sessions/:id/skip</code> — release the lock and return the document to the pending queue</li>
+            <li><code>POST /api/hitl/sessions/:id/skip</code> — release the lock and return the document to the pending queue. A session that was flagged with a note and picked up again with <code>reopen</code> goes back to the flagged list instead, note and corrections included</li>
             <li><code>POST /api/hitl/sessions/:id/flag</code> — flag the session for follow-up, with an optional <code>note</code>. This releases the lock and moves the document from the pending queue to the flagged list (<code>reviewStatus=flagged</code>), and <code>sessions/next</code> doesn't serve it. To pick it up again, call <code>POST /api/hitl/sessions/:id/reopen</code></li>
         </ul>
     </li>
@@ -545,22 +545,22 @@ curl -X POST /api/hitl/sessions/&lt;session-id&gt;/approve \
 
 <h3 id="reviewer-corrections">Reading Reviewer Corrections</h3>
 
-<p>Approving a review doesn't change the OCR result: <code>GET /api/documents/:id/ocr</code> still returns what OCR extracted. The reviewer's corrections are stored with the review session:</p>
+<p>Approving a review doesn't change the OCR result: <code>GET /api/documents/:id/ocr</code> still returns what OCR extracted. The reviewers' corrections are stored separately, and you read them through a review session:</p>
 
 <ol>
     <li><strong>Find the session</strong> — <code>GET /api/hitl/queue?group_id=&lt;group-id&gt;&amp;reviewStatus=reviewed</code> lists approved documents, each with <code>lastSession.id</code>, the approving session.</li>
-    <li><strong>Read the corrections</strong> — <code>GET /api/hitl/sessions/&lt;session-id&gt;/corrections</code></li>
+    <li><strong>Read the corrections</strong> — <code>GET /api/hitl/sessions/&lt;session-id&gt;/corrections</code> returns every correction saved on the document, in any of its review sessions, so corrections a reviewer saved before a session was skipped or timed out are included</li>
 </ol>
 
 <pre>{
   "sessionId": "&lt;session-id&gt;",
   "corrections": [
     { "fieldKey": "Invoice No:", "originalValue": "INV-2026-001", "correctedValue": "INV-2026-002",
-      "action": "corrected", ... }
+      "action": "corrected", "author": { "type": "api_key" }, ... }
   ]
 }</pre>
 
-<p>Corrections are listed oldest first, with one entry per change, so for a field corrected more than once the last entry is the current value.</p>
+<p>Corrections are listed oldest first, with one entry per change, so for a field corrected more than once the last entry is the current value. <code>author</code> says who made each one: <code>user</code> with the reviewer's <code>email</code>, <code>api_key</code> for a correction submitted with your group's API key, as in the example above, or <code>unknown</code> for corrections saved before authors were recorded.</p>
 
 <h3>Analytics</h3>
 
