@@ -1,6 +1,5 @@
 import {
   IconArrowLeft,
-  IconCheck,
   IconEye,
   IconEyeOff,
   IconFlag,
@@ -23,6 +22,7 @@ import {
 import {
   Accordion,
   ActionIcon,
+  Badge,
   Button,
   Checkbox,
   Group,
@@ -33,6 +33,7 @@ import {
   ScrollArea,
   Select,
   Stack,
+  Tabs,
   Text,
   Textarea,
   Tooltip,
@@ -57,6 +58,7 @@ import {
   getConfidenceCanvasColor,
 } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
+import { FlagHistory } from "../components/FlagHistory";
 import { FlagNoteModal } from "../components/FlagNoteModal";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
@@ -1176,6 +1178,20 @@ export const ReviewWorkspacePage: FC = () => {
     );
   }
 
+  const activeFlagCount = session.activeFlags?.length ?? 0;
+  const displayedFlags = [
+    ...(session.activeFlags ?? []).map((flag) => ({
+      ...flag,
+      resolved: false as const,
+      resolvedAt: null,
+      resolvedBy: null,
+    })),
+    ...(session.resolvedFlags ?? []).map((flag) => ({
+      ...flag,
+      resolved: true as const,
+    })),
+  ];
+
   return (
     <KeyboardManager shortcuts={shortcuts}>
       <Stack
@@ -1183,69 +1199,6 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
-        {(session.activeFlags?.length ?? 0) > 0 ? (
-          <Accordion
-            variant="contained"
-            data-testid="active-flags-banner"
-            defaultValue="active-flags"
-          >
-            <Accordion.Item value="active-flags">
-              <Accordion.Control icon={<IconFlag size={16} color="orange" />}>
-                <Text size="sm" fw={600} c="orange">
-                  Active flags ({session.activeFlags!.length})
-                </Text>
-              </Accordion.Control>
-              <Accordion.Panel>
-                <Stack gap="sm">
-                  {session.activeFlags!.map((flag) => (
-                    <Group
-                      key={flag.id}
-                      justify="space-between"
-                      align="flex-start"
-                      wrap="nowrap"
-                    >
-                      <Stack gap={2}>
-                        <Text size="sm">{flag.note || "(no note)"}</Text>
-                        {flag.raisedBy && (
-                          <Text size="xs" c="dimmed">
-                            Raised by {flag.raisedBy}
-                          </Text>
-                        )}
-                      </Stack>
-                      {!readOnly && (
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="green"
-                          leftSection={<IconCheck size={14} />}
-                          loading={isResolvingFlag}
-                          onClick={() => handleResolveFlag(flag.id)}
-                        >
-                          Resolve
-                        </Button>
-                      )}
-                    </Group>
-                  ))}
-                </Stack>
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
-        ) : (
-          session.flagNote && (
-            <Accordion variant="contained" data-testid="flag-note-banner">
-              <Accordion.Item value="flag-note">
-                <Accordion.Control icon={<IconFlag size={16} color="orange" />}>
-                  <Text size="sm" fw={600} c="orange">
-                    Flag note
-                  </Text>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Text size="sm">{session.flagNote}</Text>
-                </Accordion.Panel>
-              </Accordion.Item>
-            </Accordion>
-          )
-        )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
@@ -1293,7 +1246,7 @@ export const ReviewWorkspacePage: FC = () => {
             isSkipping={isSkipping}
             isRejecting={isRejecting}
             isSaving={isSubmitting}
-            activeFlagCount={session.activeFlags?.length ?? 0}
+            activeFlagCount={activeFlagCount}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1480,103 +1433,166 @@ export const ReviewWorkspacePage: FC = () => {
                 flexDirection: "column",
                 overflow: "hidden",
               }}
-              onClick={(e) => {
-                // Deselect when clicking on panel background
-                if (e.target === e.currentTarget) {
-                  setActiveFieldKey(null);
-                }
-              }}
             >
-              {session?.document?.ocr_result?.enrichment_summary != null && (
-                <div style={{ flexShrink: 0 }}>
-                  <EnrichmentSummaryPanel
-                    summary={
-                      session.document.ocr_result
-                        .enrichment_summary as EnrichmentSummary
-                    }
-                    mb="sm"
-                  />
-                </div>
-              )}
-              <Group justify="space-between" mb="sm">
-                <Text
-                  size="sm"
-                  fw={600}
-                  onClick={() => setActiveFieldKey(null)}
-                  style={{ cursor: "pointer" }}
-                >
-                  Fields
-                </Text>
-                {hasReviewPlanFlags && (
-                  <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    onClick={() => setShowFlaggedOnly((v) => !v)}
-                  >
-                    {showFlaggedOnly ? "Show all fields" : "Show flagged only"}
-                  </Button>
-                )}
-              </Group>
-
-              <FieldFilterInput
-                value={fieldFilter}
-                onChange={setFieldFilter}
-                totalCount={flaggedFilteredFields.length}
-                filteredCount={filteredSortedFields.length}
-              />
-
-              <FieldListScrollArea
-                onBackgroundClick={() => setActiveFieldKey(null)}
+              <Tabs
+                defaultValue="fields"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
               >
-                <Stack gap="md">
-                  {filteredSortedFields.map((field) => {
-                    const correction = correctionMap[field.fieldKey];
-                    const displayValue =
-                      correction?.corrected_value ??
-                      enrichmentCorrectedValues.get(field.fieldKey) ??
-                      field.value;
-                    return (
-                      <FieldListItem
-                        key={field.fieldKey}
-                        field={field}
-                        displayValue={displayValue}
-                        isCorrected={
-                          correction?.action === CorrectionAction.CORRECTED
+                <Tabs.List grow style={{ flexShrink: 0 }}>
+                  <Tabs.Tab value="fields">Fields</Tabs.Tab>
+                  <Tabs.Tab
+                    value="flags"
+                    rightSection={
+                      activeFlagCount > 0 ? (
+                        <Badge size="xs" color="orange" circle>
+                          {activeFlagCount}
+                        </Badge>
+                      ) : undefined
+                    }
+                  >
+                    Flags
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="history"
+                    rightSection={
+                      corrections.length > 0 ? (
+                        <Badge size="xs" variant="light" circle>
+                          {corrections.length}
+                        </Badge>
+                      ) : undefined
+                    }
+                  >
+                    History
+                  </Tabs.Tab>
+                </Tabs.List>
+
+                <Tabs.Panel
+                  value="fields"
+                  pt="sm"
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                  }}
+                  onClick={(e) => {
+                    // Deselect when clicking on panel background
+                    if (e.target === e.currentTarget) {
+                      setActiveFieldKey(null);
+                    }
+                  }}
+                >
+                  {session?.document?.ocr_result?.enrichment_summary !=
+                    null && (
+                    <div style={{ flexShrink: 0 }}>
+                      <EnrichmentSummaryPanel
+                        summary={
+                          session.document.ocr_result
+                            .enrichment_summary as EnrichmentSummary
                         }
-                        isActive={field.fieldKey === activeFieldKey}
-                        readOnly={readOnly}
-                        confidenceBorder={getConfidenceBorderColor(
-                          field.confidence,
-                        )}
-                        validator={fieldValidators[field.fieldKey]}
-                        onChange={handleFieldChange}
-                        onSelect={setActiveFieldKey}
-                        onFocusField={focusField}
+                        mb="sm"
                       />
-                    );
-                  })}
-                </Stack>
-              </FieldListScrollArea>
+                    </div>
+                  )}
+                  <Group justify="space-between" mb="sm">
+                    <Text
+                      size="sm"
+                      fw={600}
+                      onClick={() => setActiveFieldKey(null)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      Fields
+                    </Text>
+                    {hasReviewPlanFlags && (
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        onClick={() => setShowFlaggedOnly((v) => !v)}
+                      >
+                        {showFlaggedOnly
+                          ? "Show all fields"
+                          : "Show flagged only"}
+                      </Button>
+                    )}
+                  </Group>
+
+                  <FieldFilterInput
+                    value={fieldFilter}
+                    onChange={setFieldFilter}
+                    totalCount={flaggedFilteredFields.length}
+                    filteredCount={filteredSortedFields.length}
+                  />
+
+                  <FieldListScrollArea
+                    onBackgroundClick={() => setActiveFieldKey(null)}
+                  >
+                    <Stack gap="md">
+                      {filteredSortedFields.map((field) => {
+                        const correction = correctionMap[field.fieldKey];
+                        const displayValue =
+                          correction?.corrected_value ??
+                          enrichmentCorrectedValues.get(field.fieldKey) ??
+                          field.value;
+                        return (
+                          <FieldListItem
+                            key={field.fieldKey}
+                            field={field}
+                            displayValue={displayValue}
+                            isCorrected={
+                              correction?.action === CorrectionAction.CORRECTED
+                            }
+                            isActive={field.fieldKey === activeFieldKey}
+                            readOnly={readOnly}
+                            confidenceBorder={getConfidenceBorderColor(
+                              field.confidence,
+                            )}
+                            validator={fieldValidators[field.fieldKey]}
+                            onChange={handleFieldChange}
+                            onSelect={setActiveFieldKey}
+                            onFocusField={focusField}
+                          />
+                        );
+                      })}
+                    </Stack>
+                  </FieldListScrollArea>
+                </Tabs.Panel>
+
+                <Tabs.Panel
+                  value="flags"
+                  pt="sm"
+                  style={{ flex: 1, minHeight: 0, display: "flex" }}
+                >
+                  <ScrollArea style={{ flex: 1 }} type="auto">
+                    <FlagHistory
+                      flags={displayedFlags}
+                      flagNote={session.flagNote}
+                      readOnly={readOnly}
+                      isResolvingFlag={isResolvingFlag}
+                      onResolve={handleResolveFlag}
+                    />
+                  </ScrollArea>
+                </Tabs.Panel>
+
+                <Tabs.Panel
+                  value="history"
+                  pt="sm"
+                  style={{ flex: 1, minHeight: 0, display: "flex" }}
+                >
+                  <ScrollArea style={{ flex: 1 }} type="auto">
+                    <CorrectionHistory corrections={corrections} />
+                  </ScrollArea>
+                </Tabs.Panel>
+              </Tabs>
             </Paper>
           </Group>
         )}
-
-        <Accordion
-          variant="contained"
-          chevronPosition="left"
-          defaultValue={readOnly ? "history" : null}
-        >
-          <Accordion.Item value="history">
-            <Accordion.Control>
-              <Text fw={600}>Correction history ({corrections.length})</Text>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <ScrollArea.Autosize mah={320} type="auto">
-                <CorrectionHistory corrections={corrections} />
-              </ScrollArea.Autosize>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
 
         <ShortcutsOverlay
           opened={shortcutsOpen}

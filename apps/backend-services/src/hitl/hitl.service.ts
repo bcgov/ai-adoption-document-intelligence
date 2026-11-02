@@ -71,6 +71,7 @@ interface DocumentWithOcrResult extends Document {
     completed_at: Date | null;
     flag_note?: string | null;
     corrections?: unknown[];
+    actor?: { user: { email: string } | null } | null;
   }>;
   flags?: Array<{
     id: string;
@@ -274,7 +275,7 @@ export class HitlService {
         lastSession: doc.review_sessions?.[0]
           ? {
               id: doc.review_sessions[0].id,
-              reviewer_id: doc.review_sessions[0].actor_id,
+              reviewerEmail: doc.review_sessions[0].actor?.user?.email ?? null,
               status: doc.review_sessions[0].status,
               completed_at: doc.review_sessions[0].completed_at,
               corrections_count:
@@ -621,6 +622,16 @@ export class HitlService {
         note: flag.note,
         raisedAt: flag.raised_at,
         raisedBy: flag.raisedActor?.user?.email ?? null,
+      })),
+      resolvedFlags: (
+        await this.reviewDb.findResolvedFlags(session.document_id)
+      ).map((flag) => ({
+        id: flag.id,
+        note: flag.note,
+        raisedAt: flag.raised_at,
+        raisedBy: flag.raisedActor?.user?.email ?? null,
+        resolvedAt: flag.resolved_at as Date,
+        resolvedBy: flag.resolvedActor?.user?.email ?? null,
       })),
     };
   }

@@ -55,6 +55,7 @@ function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
       where: { status: { in: lastSessionStatuses } },
       include: {
         corrections: true,
+        actor: { select: { user: { select: { email: true } } } },
       },
       orderBy: { started_at: "desc" },
       take: 1,
@@ -758,6 +759,33 @@ export class ReviewDbService {
       orderBy: { raised_at: "asc" },
       include: {
         raisedActor: { select: { user: { select: { email: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Finds every resolved flag on a document, oldest first.
+   * @param documentId - The document ID.
+   * @returns Array of resolved ReviewFlag records with the raising and resolving reviewer included.
+   */
+  async findResolvedFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewFlag & {
+        raisedActor: { user: { email: string } | null } | null;
+        resolvedActor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findMany({
+      where: { document_id: documentId, resolved_at: { not: null } },
+      orderBy: { raised_at: "asc" },
+      include: {
+        raisedActor: { select: { user: { select: { email: true } } } },
+        resolvedActor: { select: { user: { select: { email: true } } } },
       },
     });
   }

@@ -149,6 +149,7 @@ describe("HitlService", () => {
       findFieldDefinitionsForDocument: jest.fn().mockResolvedValue([]),
       hasActiveFlags: jest.fn().mockResolvedValue(false),
       findActiveFlags: jest.fn().mockResolvedValue([]),
+      findResolvedFlags: jest.fn().mockResolvedValue([]),
       createReviewFlag: jest.fn(),
       findReviewFlag: jest.fn(),
       resolveReviewFlag: jest.fn(),
@@ -298,6 +299,7 @@ describe("HitlService", () => {
           {
             id: "session-1",
             actor_id: "reviewer-1",
+            actor: { user: { email: "reviewer@example.com" } },
             status: ReviewStatus.in_progress,
             completed_at: null,
             corrections: [mockFieldCorrection],
@@ -313,7 +315,7 @@ describe("HitlService", () => {
 
       expect(result.documents[0].lastSession).toEqual({
         id: "session-1",
-        reviewer_id: "reviewer-1",
+        reviewerEmail: "reviewer@example.com",
         status: ReviewStatus.in_progress,
         completed_at: null,
         corrections_count: 1,
@@ -691,6 +693,7 @@ describe("HitlService", () => {
         corrections: [],
         fieldDefinitions: mockFieldDefs,
         activeFlags: [],
+        resolvedFlags: [],
       });
     });
 

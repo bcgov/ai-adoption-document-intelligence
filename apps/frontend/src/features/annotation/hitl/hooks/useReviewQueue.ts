@@ -23,7 +23,7 @@ export interface QueueDocument {
   } | null;
   lastSession?: {
     id: string;
-    reviewer_id: string;
+    reviewerEmail: string | null;
     status: string;
     completed_at: string;
     corrections_count: number;

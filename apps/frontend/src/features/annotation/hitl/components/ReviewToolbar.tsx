@@ -10,13 +10,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import {
-  Button,
-  Group,
-  IconActionButton,
-  Switch,
-  Tooltip,
-} from "../../../../ui";
+import { Button, Group, IconActionButton, Switch } from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
@@ -57,7 +51,6 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   isSkipping,
   isRejecting,
   isSaving,
-  activeFlagCount,
   autoAdvance,
   onAutoAdvanceToggle,
   viewMode,
@@ -91,47 +84,15 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         >
           Approve
         </Button>
-        <Tooltip
-          label={
-            activeFlagCount
-              ? `${activeFlagCount} active flag${activeFlagCount === 1 ? "" : "s"}`
-              : "Flag document"
-          }
+        <Button
+          variant="light"
+          color="orange"
+          leftSection={<IconFlag size={16} />}
+          onClick={onFlag}
+          loading={isFlagging}
         >
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <Button
-              variant="light"
-              color="orange"
-              leftSection={<IconFlag size={16} />}
-              onClick={onFlag}
-              loading={isFlagging}
-            >
-              Flag
-            </Button>
-            {Boolean(activeFlagCount) && (
-              <span
-                aria-label={`${activeFlagCount} active flag${activeFlagCount === 1 ? "" : "s"}`}
-                style={{
-                  position: "absolute",
-                  top: -4,
-                  right: -4,
-                  minWidth: 14,
-                  height: 14,
-                  padding: "0 3px",
-                  borderRadius: 7,
-                  background: "var(--mantine-color-red-6, #e03131)",
-                  color: "white",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  lineHeight: "14px",
-                  textAlign: "center",
-                }}
-              >
-                {activeFlagCount}
-              </span>
-            )}
-          </div>
-        </Tooltip>
+          Flag
+        </Button>
         {onReject && (
           <Button
             variant="light"

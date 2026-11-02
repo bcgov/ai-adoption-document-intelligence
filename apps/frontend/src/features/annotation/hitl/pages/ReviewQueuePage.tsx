@@ -31,7 +31,6 @@ import {
   Tabs,
   Text,
   TextInput,
-  Tooltip,
   UnstyledButton,
 } from "../../../../ui";
 import { useReviewQueue } from "../hooks/useReviewQueue";
@@ -675,7 +674,7 @@ export const ReviewQueuePage: FC = () => {
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
-                            {doc.lastSession?.reviewer_id || "N/A"}
+                            {doc.lastSession?.reviewerEmail || "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
@@ -689,26 +688,9 @@ export const ReviewQueuePage: FC = () => {
                         </DataTable.Td>
                         <DataTable.Td>
                           {doc.activeFlags && doc.activeFlags.length > 0 ? (
-                            <Tooltip
-                              multiline
-                              w={280}
-                              label={doc.activeFlags
-                                .map((f) => f.note || "(no note)")
-                                .join("\n")}
-                            >
-                              <Group gap={6} wrap="nowrap">
-                                <Badge color="orange" variant="light" size="sm">
-                                  {doc.activeFlags.length}
-                                </Badge>
-                                <Text
-                                  size="sm"
-                                  style={{ maxWidth: 220 }}
-                                  truncate
-                                >
-                                  {doc.activeFlags[0].note || "(no note)"}
-                                </Text>
-                              </Group>
-                            </Tooltip>
+                            <Badge color="orange" variant="light" size="sm">
+                              {doc.activeFlags.length}
+                            </Badge>
                           ) : (
                             <Text size="sm" c="dimmed">
                               —
@@ -800,7 +782,7 @@ export const ReviewQueuePage: FC = () => {
                       </DataTable.Td>
                       <DataTable.Td>
                         <Text size="sm">
-                          {doc.lastSession?.reviewer_id || "N/A"}
+                          {doc.lastSession?.reviewerEmail || "N/A"}
                         </Text>
                       </DataTable.Td>
                       <DataTable.Td>

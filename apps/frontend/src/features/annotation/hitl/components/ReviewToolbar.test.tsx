@@ -37,16 +37,6 @@ describe("ReviewToolbar", () => {
     ).toBeInTheDocument();
   });
 
-  it("marks Flag with a count when the document has active flags", () => {
-    render(
-      <MantineProvider>
-        <ReviewToolbar {...handlers} activeFlagCount={2} />
-      </MantineProvider>,
-    );
-
-    expect(screen.getByLabelText("2 active flags")).toBeInTheDocument();
-  });
-
   it("leaves Flag unmarked when there are no active flags", () => {
     render(
       <MantineProvider>
@@ -54,6 +44,8 @@ describe("ReviewToolbar", () => {
       </MantineProvider>,
     );
 
-    expect(screen.queryByLabelText(/active flags?/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("active-flag-indicator"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -18,6 +18,18 @@ export class ActiveFlagDto {
   raisedBy?: string | null;
 }
 
+export class ResolvedFlagDto extends ActiveFlagDto {
+  @ApiProperty()
+  resolvedAt!: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: "Email of the reviewer who resolved the flag",
+  })
+  resolvedBy?: string | null;
+}
+
 export class QueueDocumentOcrDto {
   @ApiProperty({
     description: "Extracted key-value pairs with confidence scores",
@@ -31,8 +43,12 @@ export class QueueSessionSummaryDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  reviewer_id!: string;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: "Email of the reviewer who worked this session",
+  })
+  reviewerEmail!: string | null;
 
   @ApiProperty()
   status!: string;
@@ -206,6 +222,12 @@ export class ReviewSessionResponseDto {
     description: "Flags currently unresolved on this session's document",
   })
   activeFlags!: ActiveFlagDto[];
+
+  @ApiProperty({
+    type: [ResolvedFlagDto],
+    description: "Flags previously resolved on this session's document",
+  })
+  resolvedFlags!: ResolvedFlagDto[];
 }
 
 export class CorrectionAuthorDto {

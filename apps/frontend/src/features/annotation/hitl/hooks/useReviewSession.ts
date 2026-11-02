@@ -64,12 +64,21 @@ interface ReviewSession {
   reviewPlan?: ReviewPlanEntry[];
   /** Note captured when this session was flagged, shown to whoever opens it next. */
   flagNote?: string | null;
-  /** Flags currently unaddressed on this document; each is resolvable independently of the others. */
+  /** Flags currently unresolved on this document; each is resolvable independently of the others. */
   activeFlags?: Array<{
     id: string;
     note: string | null;
     raisedAt: string;
     raisedBy: string | null;
+  }>;
+  /** Flags previously resolved on this document. */
+  resolvedFlags?: Array<{
+    id: string;
+    note: string | null;
+    raisedAt: string;
+    raisedBy: string | null;
+    resolvedAt: string;
+    resolvedBy: string | null;
   }>;
 }
 
