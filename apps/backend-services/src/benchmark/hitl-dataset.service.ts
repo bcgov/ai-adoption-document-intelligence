@@ -108,6 +108,12 @@ export class HitlDatasetService {
 
     const total = eligible.length;
     const paged = eligible.slice(offset, offset + limit);
+    // The export applies every correction on a document, from any session,
+    // so the count shown before exporting covers the same rows.
+    const correctionCounts =
+      await this.reviewDbService.countDocumentCorrections(
+        paged.map((doc) => doc.id),
+      );
 
     const result: EligibleDocumentDto[] = paged.map((doc) => {
       const approvedSession = doc.review_sessions
@@ -127,7 +133,7 @@ export class HitlDatasetService {
         approvedAt: approvedSession.completed_at ?? new Date(),
         reviewerId: approvedSession.reviewer_id,
         fieldCount,
-        correctionCount: approvedSession.corrections?.length ?? 0,
+        correctionCount: correctionCounts.get(doc.id) ?? 0,
       };
     });
 
@@ -398,13 +404,16 @@ export class HitlDatasetService {
     );
     await this.blobStorage.write(inputBlobKey, normalizedPdfBuffer);
 
+    // The review page showed the approving reviewer every correction saved on
+    // the document, in any of its sessions, so ground truth uses that list.
+    const corrections = await this.reviewDbService.findDocumentCorrections(
+      doc.id,
+    );
+
     // Build ground truth as flat key-value pairs (same format as uploaded
     // ground truth and as predictions produced by buildFlatPredictionMapFromCtx
     // in the Temporal benchmark workflow).
-    const groundTruth = this.buildGroundTruth(
-      ocrFields,
-      approvedSession.corrections,
-    );
+    const groundTruth = this.buildGroundTruth(ocrFields, corrections);
 
     // Write ground truth file
     const gtRelativePath = `ground-truth/${sampleId}.json`;
@@ -430,7 +439,7 @@ export class HitlDatasetService {
         reviewSessionId: approvedSession.id,
         reviewerId: approvedSession.reviewer_id,
         approvedAt: approvedSession.completed_at?.toISOString() ?? null,
-        correctionCount: approvedSession.corrections?.length ?? 0,
+        correctionCount: corrections.length,
       },
     };
   }

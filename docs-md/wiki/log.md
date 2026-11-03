@@ -186,3 +186,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 ## [2026-10-29] ingest | Post-gate store applies to some templates only
 
 - `hitl.md`: only templates with a post-gate store write the extracted result again; the base Standard OCR template has none.
+
+## [2026-11-02] ingest | HITL corrections across sessions, Save, skip back to Flagged
+
+- `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
+- `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
+- `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.

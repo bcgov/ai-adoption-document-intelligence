@@ -44,7 +44,7 @@ DatasetGroundTruthJob
    document or its Temporal workflow ended in a failed state)
 7. Documents appear in dataset-specific HITL queue (NOT production queue)
 8. Reviewer reviews OCR results, makes corrections
-9. On approval: buildGroundTruth() → write to dataset storage → update manifest
+9. On approval: buildGroundTruth() from every correction saved on the document, in any of its review sessions (the list the review page shows) → write to dataset storage → update manifest
 10. Ground truth available for benchmarking
 ```
 

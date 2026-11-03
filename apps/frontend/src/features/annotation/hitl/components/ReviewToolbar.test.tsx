@@ -8,6 +8,7 @@ const handlers = {
   onApprove: vi.fn(),
   onFlag: vi.fn(),
   onSkip: vi.fn(),
+  onSave: vi.fn(),
 };
 
 describe("ReviewToolbar", () => {
