@@ -303,18 +303,21 @@ export class OcrService {
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
-      // Re-throw HTTP exceptions (e.g. HTTP 402 from cap check) without
-      // updating document status — the workflow was never submitted.
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
       this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 
+      // The workflow never started (or failed to start); mark the document
+      // failed so it doesn't stay stuck in a non-terminal status. Idempotent
+      // for paths (e.g. the cap check) that already marked it failed.
       await this.documentService.updateDocument(documentId, {
         status: DocumentStatus.failed,
       });
+
+      // Re-throw HTTP exceptions (e.g. HTTP 402 from cap check) so synchronous
+      // callers see the proper status code.
+      if (error instanceof HttpException) {
+        throw error;
+      }
 
       // Ensure error is a string for the response
       const errorMessage = getErrorMessage(error);
