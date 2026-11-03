@@ -311,7 +311,7 @@ export async function applyReviewCriteria(
       log.error("Apply review criteria: failed to load field schema", {
         event: "schema_load_error",
         documentType,
-        error: err instanceof Error ? err.message : String(err),
+        error: err,
       });
       fieldMap = null;
     }

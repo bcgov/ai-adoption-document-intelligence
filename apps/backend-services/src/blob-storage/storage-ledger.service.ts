@@ -40,7 +40,7 @@ export class StorageLedgerService {
       const err = error as Error;
       this.logger.error(
         `Failed to record storage ledger write for key "${key}": ${err.message}`,
-        { alertType: "storage_ledger_write" },
+        { error, alertType: "storage_ledger_write" },
       );
     }
 
@@ -64,7 +64,7 @@ export class StorageLedgerService {
       const err = error as Error;
       this.logger.error(
         `Failed to record blob write billing for key "${key}": ${err.message}`,
-        { alertType: "blob_write_billing" },
+        { error, alertType: "blob_write_billing" },
       );
     }
   }
@@ -81,7 +81,7 @@ export class StorageLedgerService {
       const err = error as Error;
       this.logger.error(
         `Failed to record storage ledger delete for key "${key}": ${err.message}`,
-        { alertType: "storage_ledger_delete" },
+        { error, alertType: "storage_ledger_delete" },
       );
     }
   }
@@ -99,7 +99,7 @@ export class StorageLedgerService {
       const err = error as Error;
       this.logger.error(
         `Failed to record storage ledger deleteByPrefix for prefix "${prefix}": ${err.message}`,
-        { alertType: "storage_ledger_delete_by_prefix" },
+        { error, alertType: "storage_ledger_delete_by_prefix" },
       );
     }
   }
@@ -135,7 +135,7 @@ export class StorageLedgerService {
       const err = error as Error;
       this.logger.error(
         `Failed to record blob read billing for key "${key}": ${err.message}`,
-        { alertType: "blob_read_billing" },
+        { error, alertType: "blob_read_billing" },
       );
     }
   }

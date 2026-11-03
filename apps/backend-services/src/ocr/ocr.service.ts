@@ -309,8 +309,11 @@ export class OcrService {
         throw error;
       }
 
-      this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(
+        `Error processing document: ${getErrorMessage(error)}`,
+        { error },
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       await this.documentService.updateDocument(documentId, {
         status: DocumentStatus.failed,

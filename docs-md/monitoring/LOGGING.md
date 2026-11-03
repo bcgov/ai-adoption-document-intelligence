@@ -13,6 +13,8 @@ The `@ai-di/shared-logging` package provides structured NDJSON logging used by `
 
 ## Testing
 
+**Stack traces:** every `error`-level entry carries a `stack`. An explicit `stack` in context wins; an `Error` passed as `error`/`err` is serialized (message in that field, trace in `stack`); otherwise the logging call site's stack is captured. `installCrashHandlers(logger)` (called in backend-services and the Temporal worker; ches-adapter has an equivalent) logs uncaught exceptions/unhandled rejections with stack via `uncaughtExceptionMonitor`, without changing Node's crash behaviour. Prefer passing the caught error (`{ error: err }`) so the original trace, not just the call site, is recorded. `npm run lint:error-logging` (`scripts/check-error-logging.js`, also a lefthook pre-commit job) fails when a `logger.error` inside a `catch` block does not pass the caught error or an explicit `stack`; run it with `--fix` to add `{ error: <caughtVar> }` automatically.
+
 The package has a small Jest test suite in `packages/logging/src/logger.test.ts` (plus `logger.no-process.test.ts`).
 
 - **Run tests:** From `packages/logging`: `npm test` (or `npm run test:watch`); from repo root: `npm test -w packages/logging`.
