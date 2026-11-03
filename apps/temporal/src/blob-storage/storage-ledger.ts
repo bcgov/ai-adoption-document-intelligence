@@ -89,7 +89,10 @@ export async function recordLedgerWrite(
     });
   } catch (error: unknown) {
     const err = error as Error;
-    log.error(`Failed to record ledger write for key "${key}": ${err.message}`);
+    log.error(
+      `Failed to record ledger write for key "${key}": ${err.message}`,
+      { error },
+    );
   }
 }
 
@@ -112,6 +115,7 @@ export async function recordLedgerDelete(
     const err = error as Error;
     log.error(
       `Failed to record ledger delete for key "${key}": ${err.message}`,
+      { error },
     );
   }
 }
@@ -170,6 +174,7 @@ export async function recordLedgerRead(
     const err = error as Error;
     log.error(
       `Failed to record blob read billing for key "${key}": ${err.message}`,
+      { error },
     );
   }
 }
