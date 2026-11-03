@@ -285,7 +285,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_FIELDS_CREATE,
+    ]);
     return this.templateModelService.addFields(
       id,
       dto,
@@ -827,7 +829,9 @@ export class TemplateModelController {
     @Param("docId") documentId: string,
   ): Promise<LabelSuggestionDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_SUGGESTIONS,
+    ]);
     const suggestions = await this.labelSuggestionService.suggestLabels(
       id,
       documentId,
@@ -879,7 +883,9 @@ export class TemplateModelController {
     @Req() req: Request,
   ): Promise<SuggestedFieldDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_SUGGESTIONS,
+    ]);
     const suggestions = await this.labelSuggestionService.suggestFields(
       id,
       dto.document_id,

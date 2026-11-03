@@ -887,7 +887,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const dto = {
@@ -911,7 +911,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           actorId: "actor-2",
           isSystemAdmin: false,
-          groupRoles: { "group-2": GroupRole.MEMBER },
+          groupRoles: { "group-2": GroupRole.EDITOR },
         },
       } as unknown as Request;
 
@@ -931,14 +931,14 @@ describe("TemplateModelController", () => {
       resolvedIdentity: {
         actorId: "actor-1",
         isSystemAdmin: false,
-        groupRoles: { "group-1": GroupRole.MEMBER },
+        groupRoles: { "group-1": GroupRole.EDITOR },
       },
     } as unknown as Request;
     const outsiderReq = {
       resolvedIdentity: {
         actorId: "actor-2",
         isSystemAdmin: false,
-        groupRoles: { "group-2": GroupRole.MEMBER },
+        groupRoles: { "group-2": GroupRole.EDITOR },
       },
     } as unknown as Request;
 
