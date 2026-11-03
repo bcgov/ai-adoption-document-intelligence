@@ -708,7 +708,8 @@ The system tracks metrics for:
    - Rejects if the document cannot be used → status: `rejected`
    - Flags if it needs someone else's eyes → status: `flagged`
    - Skips if cannot complete → status: `abandoned`, or `flagged` when the
-     session carries a flag note
+     session was taken over from the Flagged tab and no corrections were saved
+     during the takeover (see [Transition Rules](#transition-rules))
    - Save stores the corrections without ending the session; approving,
      rejecting and flagging save them first; skipping discards edits not yet
      saved
