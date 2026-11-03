@@ -58,7 +58,7 @@
 
 **Files:**
 - Modify: `apps/shared/prisma/schema.prisma` (`model FieldDefinition`)
-- Create: `apps/shared/prisma/migrations/20260918000000_add_field_definition_description/migration.sql`
+- Create: `apps/shared/prisma/migrations/20261103000000_add_field_definition_description/migration.sql`
 - Modify: `apps/backend-services/src/template-model/template-model-db.service.ts` (`createFieldDefinition`, `updateFieldDefinition`)
 - Modify: `apps/backend-services/src/template-model/dto/field-definition.dto.ts`
 - Modify: `apps/backend-services/src/template-model/dto/template-model-responses.dto.ts` (`FieldDefinitionResponseDto`)
@@ -162,7 +162,7 @@ In `apps/shared/prisma/schema.prisma`, `model FieldDefinition`, add the `descrip
   display_order     Int           @default(0)
 ```
 
-Create `apps/shared/prisma/migrations/20260918000000_add_field_definition_description/migration.sql`:
+Create `apps/shared/prisma/migrations/20261103000000_add_field_definition_description/migration.sql`:
 
 ```sql
 -- A plain-English description of each field, used as instructions when an LLM
@@ -175,7 +175,7 @@ Expected: it finishes without errors and regenerates the Prisma client in `apps/
 
 With the local Postgres running, apply the migration:
 Run: `cd apps/backend-services && npm run db:migrate`
-Expected: `Applying migration 20260918000000_add_field_definition_description`, then `All migrations have been successfully applied.`
+Expected: `Applying migration 20261103000000_add_field_definition_description`, then `All migrations have been successfully applied.`
 
 - [ ] **Step 4: Carry the description through the db service**
 
@@ -306,7 +306,7 @@ Expected: exits 0. Fix any remaining `description` omissions the same way.
 
 ```bash
 git add apps/shared/prisma/schema.prisma \
-  apps/shared/prisma/migrations/20260918000000_add_field_definition_description/migration.sql \
+  apps/shared/prisma/migrations/20261103000000_add_field_definition_description/migration.sql \
   apps/backend-services/src/template-model/template-model-db.service.ts \
   apps/backend-services/src/template-model/dto/field-definition.dto.ts \
   apps/backend-services/src/template-model/dto/template-model-responses.dto.ts \
