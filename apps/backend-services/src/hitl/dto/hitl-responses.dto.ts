@@ -253,17 +253,30 @@ export class ReviewSessionEventRecordDto {
   actorId!: string;
 
   @ApiPropertyOptional({
-    description: "Email of the reviewer who performed the action",
+    type: String,
+    nullable: true,
+    description:
+      "Email of the reviewer who performed the action, or null when it was not a signed-in user",
   })
   actorName?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description:
       "Flag note or rejection comment recorded with the event, depending on eventType",
   })
   comment?: string | null;
 
   @ApiPropertyOptional({
+    enum: [
+      "INPUT_QUALITY",
+      "OCR_FAILURE",
+      "MODEL_MISMATCH",
+      "CONFIDENCE_TOO_LOW",
+      "SYSTEMIC_ERROR",
+    ],
+    nullable: true,
     description: "Only set when eventType is 'rejected'",
   })
   rejectionReason?: string | null;
