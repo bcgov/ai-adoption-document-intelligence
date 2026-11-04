@@ -3,6 +3,7 @@ import {
   DocumentStatus,
   Prisma,
   RejectionReason,
+  ReviewSessionEventType,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -1160,6 +1161,157 @@ describe("HitlService", () => {
       expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
         "graph-doc-1",
         expect.objectContaining({ reviewer: "reviewer-2" }),
+      );
+    });
+  });
+
+  describe("approving or rejecting settles open flags", () => {
+    type SessionRow = Awaited<ReturnType<ReviewDbService["findReviewSession"]>>;
+    type OpenFlags = Awaited<ReturnType<ReviewDbService["findActiveFlags"]>>;
+    type ResolvedFlag = Awaited<
+      ReturnType<ReviewDbService["resolveReviewFlag"]>
+    >;
+
+    const openFlag = (id: string) => ({
+      id,
+      document_id: "doc-1",
+      note: `Note on ${id}`,
+      raised_at: new Date("2026-11-01T10:00:00.000Z"),
+      resolved_at: null,
+      raisedActor: { user: { email: "flagger@example.com" } },
+    });
+    const recordEvent = () =>
+      (service as unknown as { auditService: { recordEvent: jest.Mock } })
+        .auditService.recordEvent;
+
+    it("approving resolves each open flag as the approver, in the same transaction", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+        openFlag("flag-2"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockImplementation(
+        async (flagId) => ({ id: flagId }) as unknown as ResolvedFlag,
+      );
+
+      await service.approveSession("session-1", "reviewer-1");
+
+      expect(mockReviewDbService.findActiveFlags).toHaveBeenCalledWith(
+        "doc-1",
+        fakeTx,
+      );
+      for (const flagId of ["flag-1", "flag-2"]) {
+        expect(mockReviewDbService.resolveReviewFlag).toHaveBeenCalledWith(
+          flagId,
+          "session-1",
+          "reviewer-1",
+          fakeTx,
+        );
+        expect(
+          mockReviewDbService.createReviewSessionEvent,
+        ).toHaveBeenCalledWith(
+          "session-1",
+          {
+            event_type: ReviewSessionEventType.flag_resolved,
+            actor_id: "reviewer-1",
+            review_flag_id: flagId,
+          },
+          fakeTx,
+        );
+        expect(recordEvent()).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event_type: "review_flag_resolved",
+            resource_id: flagId,
+            actor_id: "reviewer-1",
+            payload: {
+              document_id: "doc-1",
+              session_id: "session-1",
+              resolved_by_decision: ReviewStatus.approved,
+            },
+          }),
+          fakeTx,
+        );
+      }
+    });
+
+    it("rejecting resolves each open flag as the reviewer who rejected", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockResolvedValueOnce({
+        id: "flag-1",
+      } as unknown as ResolvedFlag);
+
+      await service.rejectSession(
+        "session-1",
+        { rejectionReason: RejectionReason.INPUT_QUALITY },
+        "reviewer-2",
+      );
+
+      expect(mockReviewDbService.resolveReviewFlag).toHaveBeenCalledWith(
+        "flag-1",
+        "session-1",
+        "reviewer-2",
+        fakeTx,
+      );
+      expect(recordEvent()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_flag_resolved",
+          resource_id: "flag-1",
+          actor_id: "reviewer-2",
+          payload: {
+            document_id: "doc-1",
+            session_id: "session-1",
+            resolved_by_decision: ReviewStatus.rejected,
+          },
+        }),
+        fakeTx,
+      );
+    });
+
+    it("records nothing for a flag someone else resolved in the meantime", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockResolvedValueOnce(null);
+
+      await service.approveSession("session-1", "reviewer-1");
+
+      expect(
+        mockReviewDbService.createReviewSessionEvent,
+      ).not.toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          event_type: ReviewSessionEventType.flag_resolved,
+        }),
+        fakeTx,
+      );
+      expect(recordEvent()).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event_type: "review_flag_resolved" }),
+        fakeTx,
       );
     });
   });

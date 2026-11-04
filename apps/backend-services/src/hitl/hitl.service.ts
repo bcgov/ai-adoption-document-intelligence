@@ -749,6 +749,18 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.resolveOpenFlags(
+        sessionId,
+        session.document_id,
+        {
+          decision: ReviewStatus.approved,
+          actorId,
+          groupId: doc.group_id,
+          workflowExecutionId: doc.workflow_execution_id,
+        },
+        tx,
+      );
+
       await this.reviewDb.createReviewSessionEvent(
         sessionId,
         { event_type: ReviewSessionEventType.approved, actor_id: actorId },
@@ -874,6 +886,18 @@ export class HitlService {
       );
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.resolveOpenFlags(
+        sessionId,
+        session.document_id,
+        {
+          decision: ReviewStatus.rejected,
+          actorId,
+          groupId: doc.group_id,
+          workflowExecutionId: doc.workflow_execution_id,
+        },
+        tx,
+      );
 
       await this.reviewDb.createReviewSessionEvent(
         sessionId,
@@ -1075,6 +1099,64 @@ export class HitlService {
       status: updated.status,
       message: "Review session flagged",
     };
+  }
+
+  /**
+   * Approving or rejecting finishes the document, so it also settles any flag
+   * still open on it: each is resolved by the reviewer who made the decision,
+   * in the decision's transaction, with the same `flag_resolved` event and
+   * audit record the Resolve action writes. Without this, a finished document
+   * would keep flags that read as unresolved.
+   */
+  private async resolveOpenFlags(
+    sessionId: string,
+    documentId: string,
+    outcome: {
+      decision: typeof ReviewStatus.approved | typeof ReviewStatus.rejected;
+      actorId: string;
+      groupId?: string;
+      workflowExecutionId?: string;
+    },
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const openFlags = await this.reviewDb.findActiveFlags(documentId, tx);
+    for (const flag of openFlags) {
+      const resolved = await this.reviewDb.resolveReviewFlag(
+        flag.id,
+        sessionId,
+        outcome.actorId,
+        tx,
+      );
+      if (!resolved) continue;
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.flag_resolved,
+          actor_id: outcome.actorId,
+          review_flag_id: flag.id,
+        },
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_flag_resolved",
+          resource_type: "review_flag",
+          resource_id: flag.id,
+          actor_id: outcome.actorId,
+          document_id: documentId,
+          workflow_execution_id: outcome.workflowExecutionId,
+          group_id: outcome.groupId,
+          payload: {
+            document_id: documentId,
+            session_id: sessionId,
+            resolved_by_decision: outcome.decision,
+          },
+        },
+        tx,
+      );
+    }
   }
 
   /**
