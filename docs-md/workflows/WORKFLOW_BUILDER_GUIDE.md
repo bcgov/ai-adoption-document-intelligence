@@ -148,7 +148,7 @@ Runs an entire other workflow as a single step. This is how you build reusable, 
 
 ---
 
-### Poll Until (Wait and Retry)
+### Wait & Retry
 
 **Visual:** Rounded rectangle with a refresh/clock icon, orange
 
@@ -158,16 +158,16 @@ Repeatedly runs an activity until a condition is met. Used when you need to wait
 
 | Field | Description |
 |---|---|
-| Activity type | Which operation to run each poll cycle |
-| Condition | When to stop polling (same condition builder as Switch) |
-| Interval | Time between each poll attempt (e.g., 10 seconds) |
-| Initial delay | (Optional) Wait time before the first poll |
-| Max attempts | (Optional) Maximum number of polls before giving up. Defaults to 100 |
-| Overall timeout | (Optional) Hard time limit for the entire poll cycle |
-| Parameters | Static settings for the polled activity |
+| Activity type | Which operation to run on each check |
+| Condition | When to stop waiting (same condition builder as Switch) |
+| Interval | Time between each check (e.g., 10 seconds) |
+| Initial delay | (Optional) Wait time before the first check |
+| Max attempts | (Optional) Maximum number of checks before giving up. Defaults to 100 |
+| Overall timeout | (Optional) Hard time limit for the entire wait |
+| Parameters | Static settings for the activity being checked |
 | Input/output bindings | Context variable mappings, same as Activity |
 
-**When to use:** Waiting for asynchronous external processes — OCR processing, file conversion, any operation where you submit a request and later check for results.
+**When to use:** Waiting for asynchronous external processes — OCR processing, file conversion, any operation where you start a request and later check for results.
 
 ---
 
@@ -280,55 +280,51 @@ Groups can also expose parameters — this means when someone uses this workflow
 
 ## Activity Catalog
 
-These are the operations available for Activity and Poll Until nodes. They're organized by category.
+These are the operations available for Activity and Wait & Retry nodes. They're organized by category.
+Category names and node display names follow [NODE_RESTRUCTURE_DESIGN.md](NODE_RESTRUCTURE_DESIGN.md).
 
-### File Operations
-
-| Activity | Description |
-|---|---|
-| **Prepare File Data** (`file.prepare`) | Validates and prepares file metadata for processing. Takes file reference, name, type, and content type. Produces prepared data for OCR submission. |
-
-### OCR Processing
+### Extract Text
 
 | Activity | Description |
 |---|---|
-| **Submit to Azure OCR** (`azureOcr.submit`) | Sends a prepared document to Azure Document Intelligence for processing. Produces a request ID for tracking. |
-| **Poll OCR Results** (`azureOcr.poll`) | Checks whether Azure OCR processing has completed. Returns the current status and results when done. Used inside a Poll Until node. |
-| **Extract OCR Results** (`azureOcr.extract`) | Parses the raw Azure response into a structured OCR result with fields, key-value pairs, and confidence scores. |
+| **Prepare File** (`file.prepare`) | Validates and prepares file metadata for processing. Takes file reference, name, type, and content type. Produces prepared data for OCR submission. |
+| **Start OCR** (`azureOcr.submit`) | Sends a prepared document to Azure Document Intelligence for processing. Produces a request ID for tracking. |
+| **Wait for OCR Result** (`azureOcr.poll`) | Checks whether Azure OCR processing has completed. Returns the current status and results when done. Used inside a Wait & Retry node. |
+| **Extract OCR Result** (`azureOcr.extract`) | Parses the raw Azure response into a structured OCR result with fields, key-value pairs, and confidence scores. |
 
-### Post-Processing
+### Post-processing
 
 | Activity | Description |
 |---|---|
-| **Post-OCR Cleanup** (`ocr.cleanup`) | Normalizes and cleans up raw OCR output — fixes whitespace, standardizes formatting. |
+| **Cleanup** (`ocr.cleanup`) | Normalizes and cleans up raw OCR output — fixes whitespace, standardizes formatting. |
 | **Enrich OCR Results** (`ocr.enrich`) | Enriches OCR results using field schemas and optional LLM processing. |
 | **Check Confidence** (`ocr.checkConfidence`) | Calculates average confidence across OCR fields and flags whether the result needs human review based on a configurable threshold. |
 
-### OCR Correction Tools
+### Post-processing — Advanced Tools
 
 | Activity | Description |
 |---|---|
 | **Spellcheck** (`ocr.spellcheck`) | Dictionary-based spellcheck on OCR field values. Configurable language and field scope. |
-| **Character Confusion** (`ocr.characterConfusion`) | Fixes common OCR misreads (O to 0, l to 1, S to 5, etc.) using a confusion map. Configurable map overrides and field scope. |
+| **Character Confusion Fix** (`ocr.characterConfusion`) | Fixes common OCR misreads (O to 0, l to 1, S to 5, etc.) using a confusion map. Configurable map overrides and field scope. |
 | **Normalize Fields** (`ocr.normalizeFields`) | Cleans up field values — whitespace normalization, digit grouping, date separator standardization. Configurable per-rule enable/disable. |
 
-### Document Management
+### Save Results
 
 | Activity | Description |
 |---|---|
-| **Update Status** (`document.updateStatus`) | Updates a document's processing status in the database (e.g., to "ongoing OCR"). |
-| **Store Results** (`ocr.storeResults`) | Saves processed OCR results to the database. |
+| **Update Document Status** (`document.updateStatus`) | Updates a document's processing status in the database (e.g., to "ongoing OCR"). |
+| **Store OCR Results** (`ocr.storeResults`) | Saves processed OCR results to the database. |
 | **Store Rejection** (`document.storeRejection`) | Records rejection data when a document fails processing or review. |
 
-### Multi-Page Document Processing
+### Document Handling
 
 | Activity | Description |
 |---|---|
 | **Split Document** (`document.split`) | Splits a multi-page PDF into segments. Strategies: per-page, boundary detection (automatic header/separator recognition), or fixed page ranges. |
-| **Split and Classify** (`document.splitAndClassify`) | Combines splitting and classification in one step — splits the document based on OCR keyword markers and assigns a document type to each segment. |
+| **Split & Classify** (`document.splitAndClassify`) | Combines splitting and classification in one step — splits the document based on OCR keyword markers and assigns a document type to each segment. |
 | **Classify Document** (`document.classify`) | Classifies a document segment's type using rule-based pattern matching on OCR text. |
 | **Validate Fields** (`document.validateFields`) | Validates fields across related document segments — arithmetic checks (does gross pay minus deductions equal net pay?), cross-document field matching, and array matching. |
-| **Combine Segment Result** (`segment.combineResult`) | Merges segment metadata with its OCR result into a single object for collection by a Join node. |
+| **Merge Segment Results** (`segment.combineResult`) | Merges segment metadata with its OCR result into a single object for collection by a Join node. |
 
 ---
 
@@ -341,7 +337,7 @@ These are common patterns you'll build regularly. The visual builder should make
 The most basic pattern — a straight chain of nodes that process a document from start to finish.
 
 ```
-[ Prepare File ] → [ Submit OCR ] → [ Poll Results ] → [ Extract ] → [ Cleanup ] → [ Store ]
+[ Prepare File ] → [ Start OCR ] → [ Wait for Result ] → [ Extract ] → [ Cleanup ] → [ Store ]
 ```
 
 **Use case:** Standard single-page document OCR.
@@ -365,14 +361,14 @@ The diamond is a Switch node. Both paths converge on the Store node.
 Splits a document, processes each segment in parallel, then collects and validates results.
 
 ```
-[ Prepare ] → [ Submit OCR ] → [ Poll ] → [ Extract ] → [ Split & Classify ]
+[ Prepare ] → [ Start OCR ] → [ Wait ] → [ Extract ] → [ Split & Classify ]
     → ╔═══════════════════════════════════════════════╗
       ║  MAP: For each segment                        ║
       ║  ◇ Route by Type                             ║
       ║    ├─ Monthly Report → [ Child: Standard OCR ]║
       ║    ├─ Pay Stub       → [ Child: Standard OCR ]║
       ║    └─ Bank Record    → [ Child: Standard OCR ]║
-      ║  → [ Combine Result ]                         ║
+      ║  → [ Merge Result ]                            ║
       ╚═══════════════════════════════════════════════╝
     → [ JOIN: Collect All ] → [ Validate Fields ] → [ Store ]
 ```
@@ -394,7 +390,7 @@ Stack multiple correction and normalization steps after OCR extraction.
 Use error connections to route failures to manual handling instead of failing the entire workflow.
 
 ```
-[ Submit OCR ] → [ Poll Results ] → [ Extract ]
+[ Start OCR ] → [ Wait for Result ] → [ Extract ]
                                        │ (error)
                                        └─── ⚡ → [ Human Gate: Manual Entry ]
                                                        │
@@ -428,29 +424,29 @@ For OCR workflows, you'll also typically need:
 
 ### Step 3: Place and Configure Nodes
 
-1. Drag a **Prepare File Data** activity node onto the canvas
+1. Drag a **Prepare File** activity node onto the canvas
    - Bind inputs: `blobKey`, `fileName` from context
    - Bind output: `preparedFileData` to context
 
-2. Drag a **Submit to Azure OCR** activity node and connect it
+2. Drag a **Start OCR** activity node and connect it
    - Bind input: read `preparedFileData` from context
    - Bind output: write `apimRequestId` to context
 
-3. Add a **Poll Until** node for **Poll OCR Results**
+3. Add a **Wait & Retry** node for **Wait for OCR Result**
    - Bind inputs: `apimRequestId`, `documentId`, `modelId`
    - Set condition: stop when `ocrResponseRef.status` is not `running`
    - Set interval: 10 seconds, with a 5-second initial delay
    - Bind output: port `response` → `ocrResponseRef`
 
-4. Add an **Extract OCR Results** activity node
+4. Add an **Extract OCR Result** activity node
    - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`
    - Bind output: port `ocrResult` → `ocrResultRef`
 
-5. Add a **Post-OCR Cleanup** activity node
+5. Add a **Cleanup** activity node
    - Bind `ocrResult` ← `ocrResultRef`, `documentId`
    - Bind output: `cleanedResultRef`
 
-6. Add a **Store Results** activity node
+6. Add a **Store OCR Results** activity node
    - Bind inputs: `documentId`, `cleanedResult` ← `cleanedResultRef`
 
 ### Step 4: Connect the Nodes

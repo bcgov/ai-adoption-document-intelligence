@@ -322,9 +322,9 @@ export function WorkflowPage() {
                 </Text>
 
                 <Stack gap="md">
-                  {/* Update status */}
+                  {/* Update Document Status */}
                   <Switch
-                    label="Update status"
+                    label="Update Document Status"
                     description="Update document status in database"
                     checked={config.steps.updateStatus?.enabled ?? true}
                     onChange={(e) =>
@@ -332,9 +332,9 @@ export function WorkflowPage() {
                     }
                   />
 
-                  {/* Prepare file data */}
+                  {/* Prepare File */}
                   <Switch
-                    label="Prepare file data"
+                    label="Prepare File"
                     description="Validate and prepare file data for OCR"
                     checked={config.steps.prepareFileData?.enabled ?? true}
                     onChange={(e) =>
@@ -345,10 +345,10 @@ export function WorkflowPage() {
                     }
                   />
 
-                  {/* Submit to azure OCR */}
+                  {/* Start OCR */}
                   <Switch
-                    label="Submit to azure OCR"
-                    description="Submit document to azure document intelligence"
+                    label="Start OCR"
+                    description="Submit document to Azure Document Intelligence"
                     checked={config.steps.submitToAzureOCR?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
@@ -361,7 +361,7 @@ export function WorkflowPage() {
                   {/* Update APIM request ID */}
                   <Switch
                     label="Update APIM request ID"
-                    description="Store azure API request ID"
+                    description="Track the submitted OCR request for status updates"
                     checked={config.steps.updateApimRequestId?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
@@ -404,12 +404,12 @@ export function WorkflowPage() {
                     </Stack>
                   </Paper>
 
-                  {/* Poll OCR results */}
+                  {/* Wait for OCR Result */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Poll OCR results"
-                        description="Poll azure API for OCR completion status"
+                        label="Wait for OCR Result"
+                        description="Poll Azure API for OCR completion status"
                         checked={config.steps.pollOCRResults?.enabled ?? true}
                         onChange={(e) =>
                           handleStepToggle(
@@ -467,9 +467,9 @@ export function WorkflowPage() {
                     </Stack>
                   </Paper>
 
-                  {/* Extract OCR results */}
+                  {/* Extract OCR Result */}
                   <Switch
-                    label="Extract OCR results"
+                    label="Extract OCR Result"
                     description="Extract structured data from OCR response"
                     checked={config.steps.extractOCRResults?.enabled ?? true}
                     onChange={(e) =>
@@ -480,9 +480,9 @@ export function WorkflowPage() {
                     }
                   />
 
-                  {/* Post-OCR cleanup */}
+                  {/* Cleanup */}
                   <Switch
-                    label="Post-OCR cleanup"
+                    label="Cleanup"
                     description="Clean up OCR text (unicode fixes, dehyphenation, etc.)"
                     checked={config.steps.postOcrCleanup?.enabled ?? true}
                     onChange={(e) =>
@@ -493,11 +493,11 @@ export function WorkflowPage() {
                     }
                   />
 
-                  {/* Enrich results */}
+                  {/* Enrich OCR Results */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Enrich results"
+                        label="Enrich OCR Results"
                         description="Apply rules and optional LLM enrichment using a document type (template model)"
                         checked={config.steps.enrichResults?.enabled ?? false}
                         onChange={(e) =>
@@ -558,11 +558,11 @@ export function WorkflowPage() {
                     </Stack>
                   </Paper>
 
-                  {/* Check OCR confidence */}
+                  {/* Check Confidence */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Check OCR confidence"
+                        label="Check Confidence"
                         description="Validate OCR confidence threshold"
                         checked={
                           config.steps.checkOcrConfidence?.enabled ?? true
@@ -594,11 +594,11 @@ export function WorkflowPage() {
                     </Stack>
                   </Paper>
 
-                  {/* Human review */}
+                  {/* Require Human Review */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Human review"
+                        label="Require Human Review"
                         description="Require human approval for low-confidence results"
                         checked={config.steps.humanReview?.enabled ?? true}
                         onChange={(e) =>
@@ -629,9 +629,9 @@ export function WorkflowPage() {
                     </Stack>
                   </Paper>
 
-                  {/* Store results */}
+                  {/* Store OCR Results */}
                   <Switch
-                    label="Store results"
+                    label="Store OCR Results"
                     description="Save OCR results to database"
                     checked={config.steps.storeResults?.enabled ?? true}
                     onChange={(e) =>

@@ -377,7 +377,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "updateStatus": {
       "id": "updateStatus",
       "type": "activity",
-      "label": "Update Status",
+      "label": "Update Document Status",
       "activityType": "document.updateStatus",
       "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
       "parameters": { "status": "ongoing_ocr" },
@@ -387,7 +387,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "prepareFileData": {
       "id": "prepareFileData",
       "type": "activity",
-      "label": "Prepare File Data",
+      "label": "Prepare File",
       "activityType": "file.prepare",
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
@@ -405,7 +405,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "submitOcr": {
       "id": "submitOcr",
       "type": "activity",
-      "label": "Submit to Azure OCR",
+      "label": "Start OCR",
       "activityType": "azureOcr.submit",
       "inputs": [{ "port": "fileData", "ctxKey": "preparedFileData" }],
       "outputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
@@ -428,7 +428,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "pollOcrResults": {
       "id": "pollOcrResults",
       "type": "pollUntil",
-      "label": "Poll OCR Results",
+      "label": "Wait for OCR Result",
       "activityType": "azureOcr.poll",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
@@ -448,7 +448,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "extractResults": {
       "id": "extractResults",
       "type": "activity",
-      "label": "Extract OCR Results",
+      "label": "Extract OCR Result",
       "activityType": "azureOcr.extract",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
@@ -464,7 +464,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "postOcrCleanup": {
       "id": "postOcrCleanup",
       "type": "activity",
-      "label": "Post-OCR Cleanup",
+      "label": "Cleanup",
       "activityType": "ocr.cleanup",
       "inputs": [{ "port": "ocrResult", "ctxKey": "ocrResult" }],
       "outputs": [{ "port": "cleanedResult", "ctxKey": "cleanedResult" }],
@@ -474,7 +474,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "checkConfidence": {
       "id": "checkConfidence",
       "type": "activity",
-      "label": "Check OCR Confidence",
+      "label": "Check Confidence",
       "activityType": "ocr.checkConfidence",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
@@ -508,7 +508,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "humanReview": {
       "id": "humanReview",
       "type": "humanGate",
-      "label": "Human Review",
+      "label": "Require Human Review",
       "signal": {
         "name": "humanApproval",
         "payloadSchema": {
@@ -525,7 +525,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
     "storeResults": {
       "id": "storeResults",
       "type": "activity",
-      "label": "Store Results",
+      "label": "Store OCR Results",
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
@@ -578,7 +578,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
     "updateStatus": {
       "id": "updateStatus",
       "type": "activity",
-      "label": "Update Status",
+      "label": "Update Document Status",
       "activityType": "document.updateStatus",
       "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
       "parameters": { "status": "ongoing_ocr" }
@@ -653,7 +653,7 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
     "storeResults": {
       "id": "storeResults",
       "type": "activity",
-      "label": "Store Results",
+      "label": "Store OCR Results",
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
