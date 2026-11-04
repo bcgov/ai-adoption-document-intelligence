@@ -556,9 +556,9 @@ model ReviewSession {
 /// A single flag raised against a document, independently resolvable without ending
 /// the review session that raised or addressed it. Document-scoped (not session-scoped)
 /// because a document can get a fresh session after its old one ends (skip, abandonment,
-/// flag handoff) while an outstanding flag must persist across that boundary. Whether a
-/// document is "flagged" is derived by querying for rows with resolved_at IS NULL, rather
-/// than stored as a denormalized session status.
+/// flag handoff) while an outstanding flag must persist across that boundary. Open rows
+/// (resolved_at IS NULL) decide where a session that ends without a decision goes: back to
+/// flagged while any is open. Approve and Reject resolve any still open.
 model ReviewFlag {
   id                  String         @id @default(cuid())
   document_id         String

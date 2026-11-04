@@ -163,7 +163,7 @@ Document locks prevent concurrent editing:
 - A **rejected** session also keeps why: `rejection_reason`, one of five fixed reasons (`INPUT_QUALITY`, `OCR_FAILURE`, `MODEL_MISMATCH`, `CONFIDENCE_TOO_LOW`, `SYSTEMIC_ERROR`), and an optional `rejection_comment`
 - A **flagged** session keeps the note left when it was flagged (`flag_note`), and also raises a **`ReviewFlag`** row (see below). Taking the session over keeps the note; flagging it again replaces the session's note and raises another, independent flag
 - **ReviewSessionEvent** is a permanent, append-only log of flag/flag-resolved/reject/skip/approve/reopen actions on a session. Unlike the denormalized columns on `ReviewSession` (`status`, `flag_note`, `rejection_reason`, ...), which a reopen can overwrite, these rows are never updated or deleted except by cascade when the session itself is deleted — so a session's full history of decisions survives a handoff/reopen cycle. `GET /sessions/:id/history` returns them oldest first
-- **ReviewFlag** is the document-scoped, resolvable "issue" raised by a `flagged` session. A document can have several active flags at once, each independently resolvable via `POST /sessions/:id/flags/:flagId/resolve` without ending the session working it — resolving the last active flag does **not** auto-transition the session; the reviewer still explicitly approves, rejects, or skips. Approving or rejecting the document resolves any flag still open on it, recorded as resolved by whoever made that decision. A flag is scoped to `document_id` rather than the raising session, so it keeps surfacing across an abandoned/lock-expired session and a fresh one on the same document. `raised_session_id`/`resolved_session_id` record which session raised/resolved it for traceability only; whether a document still needs attention is answered by `resolved_at IS NULL`, not by session status. `ReviewSessionEvent.review_flag_id` links a flag's `flagged` and `flag_resolved` events back to it, without mutating the append-only event log
+- **ReviewFlag** is the document-scoped, resolvable "issue" raised by a `flagged` session. A document can have several active flags at once, each independently resolvable via `POST /sessions/:id/flags/:flagId/resolve` without ending the session working it — resolving the last active flag does **not** auto-transition the session; the reviewer still explicitly approves, rejects, or skips. Approving or rejecting the document resolves any flag still open on it, recorded as resolved by whoever made that decision. A flag is scoped to `document_id` rather than the raising session, so it keeps surfacing across an abandoned/lock-expired session and a fresh one on the same document. `raised_session_id`/`resolved_session_id` record which session raised/resolved it for traceability only. Open flags (`resolved_at IS NULL`) decide where a session goes when it ends without a decision: Skip and a lapsed lock return it to `flagged` while any flag on the document is open. The Flagged tab lists documents whose session is `flagged`, that is, waiting for someone to take them; a document someone has taken is `in_progress` and shows under Claimed, and its flags stay open until they are resolved or the document is approved or rejected. `ReviewSessionEvent.review_flag_id` links a flag's `flagged` and `flag_resolved` events back to it, without mutating the append-only event log
 - **FieldCorrection** records are children - one per field interaction. Each records who made it (`actor_id`), so a session that changed hands credits every correction to the right reviewer. Corrections saved before authors were recorded have no `actor_id`. `GET /api/hitl/sessions/:id/corrections` returns corrections for the whole document, not just the session named in the URL: a skipped, abandoned, or lock-expired session can leave a document with more than one `ReviewSession` row, and history must span all of them
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
@@ -418,8 +418,9 @@ SET status = 'flagged',
     flag_note = :note   (trimmed; blank means no note)
 WHERE id = :id
       ↓
-Lock released; document listed in the Flagged tab with its note,
-and opens read-only with the note shown as a banner
+Lock released; a ReviewFlag holds the note. The document is listed in
+the Flagged tab with its number of open flags, and opens read-only with
+its flags on the Flags tab
 ```
 
 The note is meant for whoever picks the document up next, so it stays on the
@@ -524,7 +525,7 @@ Each tab's `total` is counted with the same filters, so it matches the documents
 ### Key Components
 
 **[ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)**
-- Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states)). The Flagged tab shows each document's flag note
+- Lists the queue in four tabs: Pending, Claimed by you, Flagged and Reviewed (see [Queue States](#queue-states)). The Flagged tab shows each document's last reviewer and its number of open flags
 - Pending and Claimed by you show each document's model, workflow name, average confidence and upload date
 - A filename search, Model and Workflow filters and sortable column headers apply to every tab, and each tab's count follows them. Changing any of them, or the tab, returns to the first page
 - Pages through each tab 50 documents at a time, with numbered pages under the table, as on the Documents page. The pager shows only when a tab holds more than one page, and steps back to the last page if the tab shrinks under the reader
@@ -681,7 +682,7 @@ This allows reviewers to see:
 - When it was reviewed
 - What the outcome was
 - How many corrections were made
-- Why it was flagged, on the Flagged tab
+- How many flags are still open, on the Flagged tab
 
 Which session that is depends on the tab. On Flagged it is the most recent
 `flagged` session and on Reviewed the most recent `approved` one; on the other
@@ -743,9 +744,8 @@ The system tracks metrics for:
    - Approves if satisfied → status: `approved`
    - Rejects if the document cannot be used → status: `rejected`
    - Flags if it needs someone else's eyes → status: `flagged`
-   - Skips if cannot complete → status: `abandoned`, or `flagged` when the
-     session was taken over from the Flagged tab and no corrections were saved
-     during the takeover (see [Transition Rules](#transition-rules))
+   - Skips if cannot complete → status: `abandoned`, or `flagged` while the
+     document still has an open flag (see [Transition Rules](#transition-rules))
    - Save stores the corrections without ending the session; approving,
      rejecting and flagging save them first; skipping discards edits not yet
      saved
@@ -755,13 +755,14 @@ The system tracks metrics for:
 1. Reviewer encounters a case they should not decide
 2. Clicks "Flag" and writes a short note on what stopped them (optional)
 3. System saves the corrections made so far, marks the session `flagged`,
-   keeps the note and releases the lock
-4. Document appears in the Flagged tab with the note, where anyone in the group
-   can open it with **View** and read it along with the corrections already made
+   raises a flag with the note and releases the lock
+4. Document appears in the Flagged tab with its number of open flags; anyone in
+   the group can open it with **View** and read the note on the Flags tab, along
+   with the corrections already made
 5. Whoever picks it up presses **Take** in that view. The session becomes
-   theirs, under their own lock, and the note stays in view while they work
-6. If they flag it again, the dialog opens with the existing note for them to
-   extend or replace
+   theirs, under their own lock, and the flags stay on the Flags tab while they work
+6. If they flag it again, the dialog opens blank and raises a second flag; the
+   first stays open until someone resolves it
 
 ### Analytics Use Case
 
