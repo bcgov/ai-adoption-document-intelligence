@@ -61,6 +61,8 @@ export function writeLabelReport(
     "",
     "Exact: the suggested words are exactly the ground truth. Partial: they overlap it. Wrong: no overlap. Missed: no suggestion. Unverifiable fields (OCR did not read the value back) are left out.",
   ];
+  // The report records this bench run's own results in the git-ignored cache.
+  // codeql[js/http-to-file-access]
   writeFileSync(join(dir, "labels-report.md"), `${lines.join("\n")}\n`);
 }
 
@@ -87,5 +89,7 @@ export function writeFieldReport(
     "|---|---|---|---|---|",
     ...rows,
   ];
+  // The report records this bench run's own results in the git-ignored cache.
+  // codeql[js/http-to-file-access]
   writeFileSync(join(dir, "fields-report.md"), `${lines.join("\n")}\n`);
 }

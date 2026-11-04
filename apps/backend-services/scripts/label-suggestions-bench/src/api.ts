@@ -115,6 +115,8 @@ export class BenchApi {
         "x-api-key": this.settings.apiKey,
         "Content-Type": "application/json",
       },
+      // The bench posts its local cache to the backend named in its own settings.
+      // codeql[js/file-access-to-http]
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
