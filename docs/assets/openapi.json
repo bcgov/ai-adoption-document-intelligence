@@ -7832,7 +7832,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Lock released, document returned to the pending queue, or to the flagged queue if this was an unresolved handoff from Flagged",
+            "description": "Lock released, document returned to the pending queue, or to the flagged queue if the document still has an active flag",
             "content": {
               "application/json": {
                 "schema": {
@@ -7916,6 +7916,64 @@
           }
         ],
         "summary": "Flag a review session as needing priority attention",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/flags/{flagId}/resolve": {
+      "post": {
+        "operationId": "HitlController_resolveFlag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "flagId",
+            "required": true,
+            "in": "path",
+            "description": "Flag ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flag marked resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlagActionResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Session not found, or flag not found on this session's document"
+          },
+          "409": {
+            "description": "Session is not in progress, or the flag has already been resolved"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Mark a flag on a session's document resolved, without ending the session",
         "tags": [
           "hitl"
         ]
@@ -16163,8 +16221,10 @@
           "id": {
             "type": "string"
           },
-          "reviewer_id": {
-            "type": "string"
+          "reviewerEmail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer who worked this session"
           },
           "status": {
             "type": "string"
@@ -16182,9 +16242,33 @@
         },
         "required": [
           "id",
-          "reviewer_id",
           "status",
           "corrections_count"
+        ]
+      },
+      "ActiveFlagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "raisedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "raisedBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer who raised the flag"
+          }
+        },
+        "required": [
+          "id",
+          "raisedAt"
         ]
       },
       "QueueDocumentDto": {
@@ -16220,6 +16304,13 @@
           },
           "lastSession": {
             "$ref": "#/components/schemas/QueueSessionSummaryDto"
+          },
+          "activeFlags": {
+            "description": "Flags currently unresolved on this document",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveFlagDto"
+            }
           }
         },
         "required": [
@@ -16229,7 +16320,8 @@
           "workflow_name",
           "created_at",
           "updated_at",
-          "average_confidence"
+          "average_confidence",
+          "activeFlags"
         ]
       },
       "QueueResponseDto": {
@@ -16349,6 +16441,41 @@
           "ruleName"
         ]
       },
+      "ResolvedFlagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "raisedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "raisedBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer who raised the flag"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resolvedBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer who resolved the flag"
+          }
+        },
+        "required": [
+          "id",
+          "raisedAt",
+          "resolvedAt"
+        ]
+      },
       "ReviewSessionResponseDto": {
         "type": "object",
         "properties": {
@@ -16393,6 +16520,20 @@
             "type": "string",
             "nullable": true,
             "description": "Note captured when the session was flagged, explaining what stopped the previous reviewer"
+          },
+          "activeFlags": {
+            "description": "Flags currently unresolved on this session's document",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveFlagDto"
+            }
+          },
+          "resolvedFlags": {
+            "description": "Flags previously resolved on this session's document",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedFlagDto"
+            }
           }
         },
         "required": [
@@ -16401,7 +16542,9 @@
           "reviewerId",
           "status",
           "startedAt",
-          "document"
+          "document",
+          "activeFlags",
+          "resolvedFlags"
         ]
       },
       "ReviewSessionDto": {
@@ -16582,6 +16725,7 @@
             "type": "string",
             "enum": [
               "flagged",
+              "flag_resolved",
               "rejected",
               "skipped",
               "approved",
@@ -16612,6 +16756,11 @@
             ],
             "nullable": true,
             "description": "Only set when eventType is 'rejected'"
+          },
+          "reviewFlagId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The ReviewFlag this event is about, set when eventType is 'flagged' or 'flag_resolved'; links a flag's raised/resolved pair in the timeline"
           },
           "createdAt": {
             "format": "date-time",
@@ -16697,6 +16846,26 @@
             "description": "Short note on why the session is being flagged, shown to whoever takes it over next"
           }
         }
+      },
+      "FlagActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "resolvedAt",
+          "message"
+        ]
       },
       "HeartbeatResponseDto": {
         "type": "object",
