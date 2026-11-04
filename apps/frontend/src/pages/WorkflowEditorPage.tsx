@@ -54,7 +54,7 @@ const DEFAULT_GRAPH_CONFIG: GraphWorkflowConfig = {
     start: {
       id: "start",
       type: "activity",
-      label: "Prepare file",
+      label: "Prepare File",
       activityType: "file.prepare",
       inputs: [
         { port: "blobKey", ctxKey: "blobKey" },

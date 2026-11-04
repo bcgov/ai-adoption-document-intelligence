@@ -309,7 +309,7 @@ The workflow processes a PDF that contains several different document types stit
        ↓
 [ Wait for OCR to finish ]                 ← Wait & Retry (poll)
        ↓
-[ Extract OCR Results ]                    ← Activity
+[ Extract OCR Result ]                     ← Activity
        ↓
 [ Split & Classify by Keywords ]           ← Activity
        ↓
@@ -322,7 +322,7 @@ The workflow processes a PDF that contains several different document types stit
 ║   └─ default          → [ Sub: Standard OCR ] ─┤
 ║                                                │
 ║                                                ↓
-║                            [ Combine Segment Result ]   ← Activity
+║                            [ Merge Segment Results ]    ← Activity
 ╚═══════════════════════════════════════════════╝
        ↓
 [ Collect All Segment Results ]            ← Collect (Join)
@@ -383,7 +383,7 @@ The current designer mockup has a single generic **Activity** node with the oper
 
 ### Reasons
 
-1. **Each activity has a different configuration shape.** "Submit OCR", "Spellcheck", and "Validate Fields" share almost nothing in their settings panels. A dropdown that completely changes the form below it is jarring and hides the diversity.
+1. **Each activity has a different configuration shape.** "Start OCR", "Spellcheck", and "Validate Fields" share almost nothing in their settings panels. A dropdown that completely changes the form below it is jarring and hides the diversity.
 2. **Discoverability.** When the user opens the palette and types "spell" or browses the "OCR Correction" category, they should see a "Spellcheck" node sitting there. With the dropdown approach they have to first add a generic Activity node and then know to look in a list for the activity they want.
 3. **Visual differentiation.** Different categories of activity (Azure OCR, post-processing, document handling, validation, storage) deserve different colors / icons so users can read a workflow at a glance. With one generic node, every activity looks the same on the canvas.
 4. **Documentation surface.** Each distinct node can have its own description, examples, and inline help. With a generic node + dropdown, this gets crammed into the dropdown's tooltip.
@@ -393,17 +393,18 @@ The visual *shape* (rounded rectangle) and the underlying execution model can st
 
 ### Proposed palette categories
 
-(See [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) for the full list of nodes in each.)
+(See [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) for the full list of nodes in each, and
+[NODE_RESTRUCTURE_DESIGN.md](NODE_RESTRUCTURE_DESIGN.md) for the naming rules and category rationale.)
 
-- **Flow Control** — Switch, Loop, Collect, Sub-workflow, Wait & Retry, Human Gate
-- **File Handling** — Prepare File
-- **OCR (Azure)** — Submit OCR, Wait for OCR Result, Extract OCR Result
-- **OCR Cleanup & Correction** — Cleanup, Spellcheck, Character Confusion Fix, Normalize Fields
-- **OCR Quality** — Check Confidence, Enrich Results
-- **Document Handling** — Split Document, Classify Document, Split & Classify, Combine Segment Result
+- **Input** — Upload Document, Receive via API
+- **Extract Text** — Extract Text (provider preset: Azure Document Intelligence / Mistral); Advanced: Prepare File, Start OCR, Wait for OCR Result, Extract OCR Result, Process with Mistral OCR
+- **Document Handling** — Classify Document, Split & Classify, Select Classified Pages, Combine Classified Pages, Correct Orientation; Advanced: Split Document, Extract Page Range, Merge Segment Results, Load File, Save Page
+- **Post-processing** — Process Extracted Text, Enrich OCR Results; Advanced: Cleanup, Spellcheck, Character Confusion Fix, Normalize Fields, Check Confidence
 - **Validation** — Validate Fields Across Segments
-- **Storage** — Store OCR Results, Store Rejection, Update Document Status
-- **Data Transformation** — Generic Data Transform
+- **Data Transformation** — Transform Data
+- **Reference Data** — Reference Data Lookup
+- **Flow Control** — Switch, Loop, Collect, Sub-workflow, Wait & Retry, Human Gate, Review by Confidence
+- **Save Results** — Store OCR Results; Advanced: Store Rejection, Update Document Status
 - **Benchmarking** (advanced; usually hidden) — Benchmark Evaluate, Aggregate, Cleanup, Update Status, Compare Against Baseline, Write Prediction, Materialize Dataset, Load Dataset Manifest, Load OCR Cache, Persist OCR Cache
 
 ---

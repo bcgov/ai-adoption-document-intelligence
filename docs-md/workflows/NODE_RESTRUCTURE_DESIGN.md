@@ -80,8 +80,8 @@ shows the individual steps for users who need them.
 
 ### Extract Text
 
-Today: up to four nodes in a fixed sequence — **Prepare File**, then **Submit OCR**, then **Wait for
-OCR Result** (a polling loop until the job finishes), then **Extract OCR Result**. With Mistral the
+Today: up to four nodes in a fixed sequence — **Prepare File**, then **Start OCR**, then **Wait for
+OCR Result** (a wait-and-retry loop until the job finishes), then **Extract OCR Result**. With Mistral the
 sequence is shorter — **Prepare File** then **Process with Mistral OCR** — because Mistral processes
 synchronously. Either way, a user placing these has to know the sequence, know that the wait step
 is a loop not a single call, and wire everything together in the right order.
@@ -90,8 +90,8 @@ After: one **Extract Text** block. The provider preset determines which steps ru
 
 ### Classify Document
 
-Today: two nodes in sequence — **Submit Classify**, then **Poll Classify** (waiting until the
-classifier job completes). A user has to place both and wire them together.
+Today: two nodes in sequence — **Start Classification**, then **Check Classification** (waiting until
+the classifier job completes). A user has to place both and wire them together.
 
 After: one **Classify Document** block. Primary setting: which classifier to use.
 
@@ -138,7 +138,7 @@ Every node grouped by where it ends up. **Currently called** shows the real name
 |---|---|---|
 | Default | **Extract Text** *(new composite)* | — |
 | Advanced | Prepare File | FILE HANDLING |
-| Advanced | Submit OCR | OCR (AZURE) |
+| Advanced | Start OCR | OCR (AZURE) |
 | Advanced | Wait for OCR Result | OCR (AZURE) |
 | Advanced | Extract OCR Result | OCR (AZURE) |
 | Advanced | Process with Mistral OCR | OCR (MISTRAL) |
@@ -149,16 +149,16 @@ Every node grouped by where it ends up. **Currently called** shows the real name
 | Default | **Classify Document** *(new composite)* | — |
 | Default | Split & Classify | DOCUMENT HANDLING |
 | Default | Select Classified Pages | DOCUMENT HANDLING |
-| Default | Flatten Classified Documents | DOCUMENT HANDLING |
+| Default | Combine Classified Pages | DOCUMENT HANDLING |
 | Default | Correct Orientation | DOCUMENT HANDLING |
-| Advanced | Submit Classify | OCR (AZURE) |
-| Advanced | Poll Classify | OCR (AZURE) |
+| Advanced | Start Classification | OCR (AZURE) |
+| Advanced | Check Classification | OCR (AZURE) |
 | Advanced | Split Document | DOCUMENT HANDLING |
 | Advanced | Classify Document | DOCUMENT HANDLING |
 | Advanced | Extract Page Range | DOCUMENT HANDLING |
-| Advanced | Combine Segment Result | DOCUMENT HANDLING |
-| Advanced | Read Blob | FILE HANDLING |
-| Advanced | Extract Page to Blob | FILE HANDLING |
+| Advanced | Merge Segment Results | DOCUMENT HANDLING |
+| Advanced | Load File | FILE HANDLING |
+| Advanced | Save Page | FILE HANDLING |
 
 ### Post-processing
 | Visibility | Currently called | Previously in |
@@ -179,7 +179,7 @@ Every node grouped by where it ends up. **Currently called** shows the real name
 ### Data Transformation
 | Visibility | Currently called | Previously in |
 |---|---|---|
-| Default | Generic Data Transform | DATA TRANSFORMATION |
+| Default | Transform Data | DATA TRANSFORMATION |
 
 ### Reference Data
 | Visibility | Currently called | Previously in |
@@ -215,11 +215,11 @@ usable, just not the first thing a user sees.
 
 **Moves to Advanced** (available, not prominent):
 
-- Individual OCR steps: Submit OCR, Wait for OCR Result, Extract OCR Result, Process with Mistral OCR, Prepare File
-- Classifier steps: Submit Classify, Poll Classify
+- Individual OCR steps: Start OCR, Wait for OCR Result, Extract OCR Result, Process with Mistral OCR, Prepare File
+- Classifier steps: Start Classification, Check Classification
 - Correction steps: Cleanup, Normalize Fields, Character Confusion Fix, Spellcheck, Check Confidence
-- Low-level document utilities: Split Document, Classify Document, Extract Page Range, Combine Segment Result
-- Blob and image utilities: Read Blob, Extract Page to Blob
+- Low-level document utilities: Split Document, Classify Document, Extract Page Range, Merge Segment Results
+- File and image utilities: Load File, Save Page
 - Branch-specific storage: Update Document Status, Store Rejection
 
 **Never shown** — Benchmarking activities support internal testing infrastructure and are never

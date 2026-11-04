@@ -3,7 +3,7 @@
 **Audience:** Product designer designing the per-node settings panels for the workflow builder.
 **Purpose:** A complete, plain-language reference of every node available in the workflow builder. Each entry describes what the node does, what category it belongs to, and exactly which fields its settings panel needs to expose.
 
-This is the companion to [WORKFLOW_DESIGN_BRIEF.md](WORKFLOW_DESIGN_BRIEF.md), which describes the overall builder experience and the canvas-level decisions.
+This is the companion to [WORKFLOW_DESIGN_BRIEF.md](WORKFLOW_DESIGN_BRIEF.md), which describes the overall builder experience and the canvas-level decisions. Category names and exposure (Default/Advanced) follow [NODE_RESTRUCTURE_DESIGN.md](NODE_RESTRUCTURE_DESIGN.md).
 
 ---
 
@@ -33,7 +33,7 @@ Azure OCR graphs store **references** in workflow context, not full JSON:
 | Structured OCR ref | `ocrResultRef` | `ocrResult` |
 | Cleaned OCR ref | `cleanedResultRef` | `cleanedResult` |
 
-Each value is an `OcrPayloadRef` (`documentId`, `blobPath`, `status`, …). **Poll Until** stop conditions should reference the ref’s status, e.g. `ocrResponseRef.status` not `running`. **Switch** / **transform** expressions use the same `*Ref` names.
+Each value is an `OcrPayloadRef` (`documentId`, `blobPath`, `status`, …). **Wait & Retry** stop conditions should reference the ref’s status, e.g. `ocrResponseRef.status` not `running`. **Switch** / **transform** expressions use the same `*Ref` names.
 
 Canonical JSON: [`docs-md/workflows/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
 
@@ -169,7 +169,7 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 ---
 
-## ⏱ Wait & Retry (Poll Until)
+## ⏱ Wait & Retry
 
 - **Category:** Flow Control
 - **Visual:** Orange rounded rectangle with a clock/refresh icon
@@ -179,16 +179,16 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 ### Settings panel
 
 - **Label** *(text, required)*
-- **Activity to run on each poll** *(dropdown of all activity types, required)* — Same picker as picking an Activity, but constrained to "polling-friendly" activities. The most common is **Wait for OCR Result** (`azureOcr.poll`).
-- **Stop condition** *(condition builder, required)* — Uses the same condition builder as Switch. The poll continues until this condition is true.
-- **Interval between polls** *(duration, required, e.g., `10s`)*
-- **Initial delay before first poll** *(duration, optional)*
-- **Maximum poll attempts** *(integer, optional, default 100)*
+- **Activity to run on each check** *(dropdown of all activity types, required)* — Same picker as picking an Activity, but constrained to activities designed for repeated checking. The most common is **Wait for OCR Result** (`azureOcr.poll`).
+- **Stop condition** *(condition builder, required)* — Uses the same condition builder as Switch. The check repeats until this condition is true.
+- **Interval between checks** *(duration, required, e.g., `10s`)*
+- **Initial delay before first check** *(duration, optional)*
+- **Maximum check attempts** *(integer, optional, default 100)*
 - **Overall timeout** *(duration, optional)* — Hard cap on total time. Failure if exceeded.
 - **Inputs ("This step reads")** — Same shape as the chosen activity's inputs. Pickers autocomplete from upstream outputs and trigger inputs.
-- **Outputs ("This step produces")** — Same shape as the chosen activity's outputs. Each poll's output is named by the user and becomes available so the stop condition can reference it.
+- **Outputs ("This step produces")** — Same shape as the chosen activity's outputs. Each check's output is named by the user and becomes available so the stop condition can reference it.
 - **Static parameters** — Same as the chosen activity's static parameters.
-- **Standard timeouts, retry policy, error handling** *(applies to each individual poll attempt, not the whole loop)*.
+- **Standard timeouts, retry policy, error handling** *(applies to each individual check, not the whole loop)*.
 
 ---
 
@@ -220,11 +220,11 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 ---
 
-# File Handling
+# Extract Text
 
 ## 📄 Prepare File
 
-- **Category:** File Handling
+- **Category:** Extract Text (Advanced)
 - **Visual:** Blue, file icon
 - **Activity ID (internal):** `file.prepare`
 - **One-line description:** Validates and prepares a file's metadata for further processing.
@@ -246,11 +246,9 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 ---
 
-# OCR (Azure)
+## 📤 Start OCR
 
-## 📤 Submit OCR
-
-- **Category:** OCR (Azure)
+- **Category:** Extract Text (Advanced)
 - **Visual:** Blue, upload-arrow icon
 - **Activity ID (internal):** `azureOcr.submit`
 - **One-line description:** Sends a prepared document to Azure Document Intelligence and returns a tracking ID.
@@ -263,8 +261,8 @@ Designer note: simple cases (a single comparison) should look as clean as possib
   - **Prepared file data** *(required)* — Output from **Prepare File**.
 - **Outputs ("This step produces"):**
   - **Request ID** *(required)* — Name for the Azure tracking ID (becomes available downstream).
-  - **Submission status code** *(optional)* — Name for the HTTP status code (typically 202).
-  - **Submission headers** *(optional, advanced)* — Name for the response headers if needed downstream.
+  - **Request status code** *(optional)* — Name for the HTTP status code (typically 202).
+  - **Request headers** *(optional, advanced)* — Name for the response headers if needed downstream.
 - **Static parameters:**
   - **Locale** *(dropdown, optional, default `en-US`)* — Language hint for OCR.
 
@@ -272,19 +270,19 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 ## ⌛ Wait for OCR Result
 
-- **Category:** OCR (Azure)
-- **Visual:** Orange rounded rectangle with clock icon (this is technically a **Wait & Retry** node configured for OCR polling)
+- **Category:** Extract Text (Advanced)
+- **Visual:** Orange rounded rectangle with clock icon (this is technically a **Wait & Retry** node configured for OCR status checks)
 - **Activity ID (internal):** `azureOcr.poll` *(used inside a Wait & Retry node)*
-- **One-line description:** Waits for Azure OCR to finish, polling at a configurable interval.
-- **When to use it:** Right after **Submit OCR**.
+- **One-line description:** Waits for Azure OCR to finish, checking at a configurable interval.
+- **When to use it:** Right after **Start OCR**.
 
-This is normally exposed as a preconfigured **Wait & Retry** node with the polling activity already chosen. The user only needs to configure the request-ID input, the OCR model, and the polling parameters.
+This is normally exposed as a preconfigured **Wait & Retry** node with the status-check activity already chosen. The user only needs to configure the request-ID input, the OCR model, and the check-interval parameters.
 
 ### Settings panel
 
 - **Standard label, timeouts, retry, error handling.**
 - **Inputs ("This step reads"):**
-  - **Request ID** *(required)* — From **Submit OCR**'s output.
+  - **Request ID** *(required)* — From **Start OCR**'s output.
   - **Document ID** *(required for blob refs)* — Usually wired from trigger/context (`documentId`).
 - **Outputs ("This step produces"):**
   - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `response`). Used by the stop condition (`ocrResponseRef.status`).
@@ -292,7 +290,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
   - **OCR model ID** *(required, defaults from upstream)*.
 - **Wait & Retry settings (preconfigured but editable):**
   - **Stop condition**: pre-filled with "OCR poll response ref status not equals `running`" (`ocrResponseRef.status`) — the user shouldn't normally need to edit this.
-  - **Interval between polls** *(default `10s`)*.
+  - **Interval between checks** *(default `10s`)*.
   - **Initial delay** *(default `5s`)*.
   - **Maximum attempts** *(default `20`)*.
   - **Overall timeout** *(default `10m`)*.
@@ -301,7 +299,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 
 ## 📥 Extract OCR Result
 
-- **Category:** OCR (Azure)
+- **Category:** Extract Text (Advanced)
 - **Visual:** Blue, document icon
 - **Activity ID (internal):** `azureOcr.extract`
 - **One-line description:** Parses the raw Azure response into a structured OCR result with fields, key-value pairs, and confidence scores.
@@ -322,13 +320,13 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 
 ---
 
-# OCR Cleanup & Correction
+# Post-processing
 
 These nodes all read an OCR result, transform it, and write a corrected OCR result back. They can be chained.
 
 ## ✨ Cleanup
 
-- **Category:** OCR Cleanup & Correction
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, sparkle icon
 - **Activity ID (internal):** `ocr.cleanup`
 - **One-line description:** Normalizes the raw OCR text — fixes whitespace, smart quotes, hyphens, dates.
@@ -347,7 +345,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ## 🔡 Spellcheck
 
-- **Category:** OCR Cleanup & Correction
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, abc/spell icon
 - **Activity ID (internal):** `ocr.spellcheck`
 - **One-line description:** Dictionary-based spellcheck on OCR field values.
@@ -369,7 +367,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ## 🔠 Character Confusion Fix
 
-- **Category:** OCR Cleanup & Correction
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, swap-letters icon
 - **Activity ID (internal):** `ocr.characterConfusion`
 - **One-line description:** Fixes common OCR misreads (`O`→`0`, `l`→`1`, `S`→`5`, etc.) using a confusion map.
@@ -402,7 +400,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ## 🧹 Normalize Fields
 
-- **Category:** OCR Cleanup & Correction
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, broom/normalize icon
 - **Activity ID (internal):** `ocr.normalizeFields`
 - **One-line description:** Cleans up field values — whitespace, digit grouping, date separator standardization.
@@ -435,11 +433,9 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ---
 
-# OCR Quality
-
 ## ✅ Check Confidence
 
-- **Category:** OCR Quality
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, gauge icon
 - **Activity ID (internal):** `ocr.checkConfidence`
 - **One-line description:** Calculates average confidence across OCR fields and flags whether the result needs human review.
@@ -462,7 +458,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ## ✨ Enrich OCR Results
 
-- **Category:** OCR Quality
+- **Category:** Post-processing
 - **Visual:** Teal, sparkle-document icon
 - **Activity ID (internal):** `ocr.enrich`
 - **One-line description:** Applies field-schema-driven enrichment, optionally using an LLM to fix low-confidence fields.
@@ -485,7 +481,7 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
 
 ## 🧑‍⚖️ Apply Review Criteria
 
-- **Category:** OCR Quality
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, magnifying-glass-over-checklist icon
 - **Activity ID (internal):** `hitl.applyReviewCriteria`
 - **One-line description:** Decides, field by field, whether a human should review it or it can be auto-skipped, using an author-configured list of rules evaluated against the prediction only (never ground truth).
@@ -521,7 +517,7 @@ See [HITL_REVIEW_CRITERIA.md](../architecture/HITL_REVIEW_CRITERIA.md) for the c
 
 ## 📌 Persist Review Plan
 
-- **Category:** OCR Quality
+- **Category:** Post-processing (Advanced)
 - **Visual:** Teal, pin/bookmark icon
 - **Activity ID (internal):** `document.persistReviewPlan`
 - **One-line description:** Saves the per-field review plan from **Apply Review Criteria** onto the document so the review UI can default to showing only flagged fields.
@@ -647,7 +643,7 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 ---
 
-## ⊕ Combine Segment Result
+## ⊕ Merge Segment Results
 
 - **Category:** Document Handling
 - **Visual:** Indigo, layers icon
@@ -714,11 +710,11 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 ---
 
-# Storage
+# Save Results
 
 ## 💾 Store OCR Results
 
-- **Category:** Storage
+- **Category:** Save Results
 - **Visual:** Slate-gray, save icon
 - **Activity ID (internal):** `ocr.storeResults`
 - **One-line description:** Saves processed OCR results to the database.
@@ -737,7 +733,7 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 ## 📋 Update Document Status
 
-- **Category:** Storage
+- **Category:** Save Results (Advanced)
 - **Visual:** Slate-gray, status-tag icon
 - **Activity ID (internal):** `document.updateStatus`
 - **One-line description:** Updates a document's processing status in the database.
@@ -756,7 +752,7 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 ## ❌ Store Rejection
 
-- **Category:** Storage
+- **Category:** Save Results (Advanced)
 - **Visual:** Slate-gray, no-entry icon
 - **Activity ID (internal):** `document.storeRejection`
 - **One-line description:** Records rejection data when a document fails processing or human review.
@@ -776,13 +772,13 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 # Data Transformation
 
-## 🔄 Generic Data Transform
+## 🔄 Transform Data
 
 - **Category:** Data Transformation
 - **Visual:** Lavender, transform icon
 - **Activity ID (internal):** `data.transform`
-- **One-line description:** Generic transformer — read inputs in JSON / XML / CSV, map fields, and write a new structure in JSON / XML / CSV.
-- **When to use it:** Reformatting data between an OCR result and an external system's expected payload, or vice-versa.
+- **One-line description:** General-purpose transformer — read inputs in JSON / XML / CSV, map fields, and write a new structure in JSON / XML / CSV.
+- **When to use it:** Reformatting data between an OCR result and an external system's expected structure, or vice-versa.
 
 ### Settings panel
 
@@ -805,11 +801,11 @@ These activities are registered in the activity registry and usable in workflow 
 | Display name | Activity ID | One-line description |
 |---|---|---|
 | Get Document Status | `document.getStatus` | Read a document's current status from the database (e.g. for polling loops). |
-| Read Blob | `blob.read` | Read a blob by key from the primary blob store and expose its contents downstream. |
+| Load File | `blob.read` | Read a file by key from the primary file store and expose its contents downstream. |
 | Extract Page Range | `document.extractPageRange` | Extract a page range from a stored PDF into a new blob. |
 | Extract Pages (blob path) | `document.extractToBase64` | Extract a page range and return a `pageBlobPath` blob reference (name is historical — output is a blob path, not inline base64; see [page-extract-blob-path.md](./page-extract-blob-path.md)). |
 | Select Classified Pages | `document.selectClassifiedPages` | Select page ranges from classification results for downstream per-segment processing. |
-| Flatten Classified Documents | `document.flattenClassifiedDocuments` | Flatten per-segment classification results into a single document list. |
+| Combine Classified Pages | `document.flattenClassifiedDocuments` | Combine per-segment classification results into a single document list. |
 | Table Lookup | `tables.lookup` | Query a group-scoped reference data table via a named lookup (see [TABLES.md](../architecture/TABLES.md)). |
 
 ---
@@ -855,7 +851,7 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 | **Confusion map editor** (key→value table; preset toggles plus overrides) | Character Confusion Fix |
 | **Sub-workflow picker** (browse the library of saved workflows with name, description, version) | Sub-workflow node |
 | **Mapping list** (paired-list: left=internal slot name, right=available variable) | Sub-workflow inputs/outputs; activity inputs/outputs |
-| **Field-mapping editor** (visual or JSON, with placeholder expressions like `{{slot.path}}`) | Generic Data Transform |
+| **Field-mapping editor** (visual or JSON, with placeholder expressions like `{{slot.path}}`) | Transform Data |
 | **Schema field-list editor** (name + type + required + description) | Human Gate expected payload |
 | **Retry policy widget** (max attempts + intervals + backoff) | All Activities, Wait & Retry |
 | **Error policy widget** (Fail / Fallback / Skip dropdown; conditionally exposes the fallback handle) | All Activities, Wait & Retry, Human Gate |
@@ -873,42 +869,38 @@ Reusable settings-panel widgets that several nodes share. Building these once an
    ⏱ Wait & Retry
    🙋 Human Gate
 
-📂 File Handling
+📂 Extract Text (Advanced)
    📄 Prepare File
-
-📂 OCR (Azure)
-   📤 Submit OCR
+   📤 Start OCR
    ⌛ Wait for OCR Result   (preset of Wait & Retry)
    📥 Extract OCR Result
 
-📂 OCR Cleanup & Correction
-   ✨ Cleanup
-   🔡 Spellcheck
-   🔠 Character Confusion Fix
-   🧹 Normalize Fields
-
-📂 OCR Quality
-   ✅ Check Confidence
+📂 Post-processing
    ✨ Enrich OCR Results
-   🧑‍⚖️ Apply Review Criteria
-   📌 Persist Review Plan
+   ✅ Check Confidence (Advanced)
+   ✨ Cleanup (Advanced)
+   🔡 Spellcheck (Advanced)
+   🔠 Character Confusion Fix (Advanced)
+   🧹 Normalize Fields (Advanced)
+   🧑‍⚖️ Apply Review Criteria (Advanced)
+   📌 Persist Review Plan (Advanced)
 
 📂 Document Handling
    ✂ Split Document
    🏷 Classify Document
    🔀 Split & Classify
-   ⊕ Combine Segment Result
+   ⊕ Merge Segment Results
 
 📂 Validation
    ✔ Validate Fields
 
-📂 Storage
+📂 Save Results
    💾 Store OCR Results
-   📋 Update Document Status
-   ❌ Store Rejection
+   📋 Update Document Status (Advanced)
+   ❌ Store Rejection (Advanced)
 
 📂 Data Transformation
-   🔄 Generic Data Transform
+   🔄 Transform Data
 
 📂 Benchmarking (Advanced)
    … (10 nodes, see table above)

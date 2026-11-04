@@ -39,7 +39,7 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "map", label: "Map" },
   { value: "join", label: "Join" },
   { value: "childWorkflow", label: "Child workflow" },
-  { value: "pollUntil", label: "Poll until" },
+  { value: "pollUntil", label: "Wait & Retry" },
   { value: "humanGate", label: "Human gate" },
 ];
 
@@ -665,7 +665,7 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
         <>
           <Textarea
             label="XML envelope (optional)"
-            description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
+            description="Wrap the rendered XML in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
             placeholder="<envelope>{{payload}}</envelope>"
             value={xmlEnvelope ?? ""}
             onChange={(e) => {
@@ -783,7 +783,7 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
           style={{ background: "var(--mantine-color-default-hover)" }}
         >
           <Text size="sm" fw={600} mb="xs">
-            Enrich results parameters
+            Enrich OCR Results parameters
           </Text>
           <Stack gap="sm">
             <TextInput
