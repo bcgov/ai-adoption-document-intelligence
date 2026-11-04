@@ -1,6 +1,9 @@
 import {
   CorrectionAction,
   DocumentStatus,
+  Prisma,
+  RejectionReason,
+  ReviewSessionEventType,
   ReviewStatus,
 } from "@generated/client";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -21,6 +24,11 @@ const mockFieldCorrection = {
   create: jest.fn(),
   findMany: jest.fn(),
   deleteMany: jest.fn(),
+};
+
+const mockReviewSessionEvent = {
+  create: jest.fn(),
+  findMany: jest.fn(),
 };
 
 const mockDocument = {
@@ -53,6 +61,7 @@ const mockReviewFlag = {
 const mockPrismaClient = {
   reviewSession: mockReviewSession,
   fieldCorrection: mockFieldCorrection,
+  reviewSessionEvent: mockReviewSessionEvent,
   document: mockDocument,
   documentLock: mockDocumentLock,
   templateModel: mockTemplateModel,
@@ -647,7 +656,7 @@ describe("ReviewDbService", () => {
           actor: {
             select: {
               user: { select: { email: true } },
-              apiKey: { select: { id: true } },
+              apiKeyGroup: { select: { id: true } },
             },
           },
         },
@@ -661,6 +670,101 @@ describe("ReviewDbService", () => {
         await service.findDocumentCorrections("doc-no-corrections");
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("countDocumentCorrections", () => {
+    it("should add up the corrections from every session on each document", async () => {
+      mockReviewSession.findMany.mockResolvedValue([
+        { document_id: "doc-1", _count: { corrections: 2 } },
+        { document_id: "doc-1", _count: { corrections: 1 } },
+        { document_id: "doc-2", _count: { corrections: 0 } },
+      ]);
+
+      const result = await service.countDocumentCorrections(["doc-1", "doc-2"]);
+
+      expect(result.get("doc-1")).toBe(3);
+      expect(result.get("doc-2")).toBe(0);
+      expect(mockReviewSession.findMany).toHaveBeenCalledWith({
+        where: { document_id: { in: ["doc-1", "doc-2"] } },
+        select: {
+          document_id: true,
+          _count: { select: { corrections: true } },
+        },
+      });
+    });
+  });
+
+  describe("createReviewSessionEvent", () => {
+    it("records the event against the session", async () => {
+      const event = {
+        id: "event-1",
+        review_session_id: "session-1",
+        event_type: ReviewSessionEventType.rejected,
+        actor_id: "actor-1",
+        comment: "Wrong form",
+        rejection_reason: RejectionReason.MODEL_MISMATCH,
+        created_at: new Date("2026-10-29T10:00:00.000Z"),
+      };
+      mockReviewSessionEvent.create.mockResolvedValue(event);
+
+      const result = await service.createReviewSessionEvent("session-1", {
+        event_type: ReviewSessionEventType.rejected,
+        actor_id: "actor-1",
+        comment: "Wrong form",
+        rejection_reason: RejectionReason.MODEL_MISMATCH,
+      });
+
+      expect(result).toEqual(event);
+      expect(mockReviewSessionEvent.create).toHaveBeenCalledWith({
+        data: {
+          review_session_id: "session-1",
+          event_type: ReviewSessionEventType.rejected,
+          actor_id: "actor-1",
+          comment: "Wrong form",
+          rejection_reason: RejectionReason.MODEL_MISMATCH,
+        },
+      });
+    });
+
+    it("writes through the transaction client when one is given", async () => {
+      const txCreate = jest.fn().mockResolvedValue({ id: "event-1" });
+      const tx = {
+        reviewSessionEvent: { create: txCreate },
+      } as unknown as Prisma.TransactionClient;
+
+      await service.createReviewSessionEvent(
+        "session-1",
+        { event_type: ReviewSessionEventType.skipped, actor_id: "actor-1" },
+        tx,
+      );
+
+      expect(txCreate).toHaveBeenCalledWith({
+        data: {
+          review_session_id: "session-1",
+          event_type: ReviewSessionEventType.skipped,
+          actor_id: "actor-1",
+        },
+      });
+      expect(mockReviewSessionEvent.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findSessionEvents", () => {
+    it("returns the session's events oldest first, with each actor's email", async () => {
+      const events = [{ id: "event-1" }, { id: "event-2" }];
+      mockReviewSessionEvent.findMany.mockResolvedValue(events);
+
+      const result = await service.findSessionEvents("session-1");
+
+      expect(result).toEqual(events);
+      expect(mockReviewSessionEvent.findMany).toHaveBeenCalledWith({
+        where: { review_session_id: "session-1" },
+        orderBy: { created_at: "asc" },
+        include: {
+          actor: { select: { user: { select: { email: true } } } },
+        },
+      });
     });
   });
 

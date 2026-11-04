@@ -231,10 +231,16 @@ export class ReviewSessionResponseDto {
 }
 
 export class CorrectionAuthorDto {
-  @ApiProperty({ enum: ["user", "api_key", "unknown"] })
+  @ApiProperty({
+    enum: ["user", "api_key", "unknown"],
+    description:
+      "user: a signed-in reviewer; api_key: the group's API key, including one since deleted; unknown: saved before authors were recorded",
+  })
   type!: "user" | "api_key" | "unknown";
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: "The reviewer's email, when type is user",
+  })
   email?: string;
 }
 
@@ -260,7 +266,10 @@ export class CorrectionRecordDto {
   @ApiProperty()
   createdAt!: Date;
 
-  @ApiProperty({ type: CorrectionAuthorDto })
+  @ApiProperty({
+    type: CorrectionAuthorDto,
+    description: "Who made the correction",
+  })
   author!: CorrectionAuthorDto;
 }
 
@@ -303,17 +312,30 @@ export class ReviewSessionEventRecordDto {
   actorId!: string;
 
   @ApiPropertyOptional({
-    description: "Email of the reviewer who performed the action",
+    type: String,
+    nullable: true,
+    description:
+      "Email of the reviewer who performed the action, or null when it was not a signed-in user",
   })
   actorName?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description:
       "Flag note or rejection comment recorded with the event, depending on eventType",
   })
   comment?: string | null;
 
   @ApiPropertyOptional({
+    enum: [
+      "INPUT_QUALITY",
+      "OCR_FAILURE",
+      "MODEL_MISMATCH",
+      "CONFIDENCE_TOO_LOW",
+      "SYSTEMIC_ERROR",
+    ],
+    nullable: true,
     description: "Only set when eventType is 'rejected'",
   })
   rejectionReason?: string | null;

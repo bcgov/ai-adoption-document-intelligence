@@ -177,3 +177,14 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
 - `graph-workflows.md`: the source map names the templates' folder.
+
+## [2026-11-02] ingest | HITL corrections across sessions, Save, skip back to Flagged
+
+- `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
+- `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
+- `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.
+
+## [2026-11-03] maintenance | HITL skip and lock expiry follow the takeover, not the flag note
+
+- `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
+- `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.

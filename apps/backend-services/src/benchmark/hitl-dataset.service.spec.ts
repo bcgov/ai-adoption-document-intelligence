@@ -115,6 +115,10 @@ describe("HitlDatasetService", () => {
   beforeEach(async () => {
     mockReviewDbService = {
       findReviewQueue: jest.fn().mockResolvedValue(mockDocuments),
+      findDocumentCorrections: jest
+        .fn()
+        .mockResolvedValue(mockApprovedSession.corrections),
+      countDocumentCorrections: jest.fn().mockResolvedValue(new Map()),
     };
 
     mockDatasetService = {
@@ -444,6 +448,23 @@ describe("HitlDatasetService", () => {
       );
       expect(result.documents).toHaveLength(0);
     });
+
+    it("should count corrections from every session on the document", async () => {
+      mockReviewDbService.countDocumentCorrections = jest
+        .fn()
+        .mockResolvedValue(new Map([["doc-1", 4]]));
+
+      const result = await service.listEligibleDocuments(
+        { group_id: "test-group" },
+        ["test-group"],
+      );
+
+      expect(mockReviewDbService.countDocumentCorrections).toHaveBeenCalledWith(
+        ["doc-1", "doc-2"],
+      );
+      expect(result.documents[0].correctionCount).toBe(4);
+      expect(result.documents[1].correctionCount).toBe(0);
+    });
   });
 
   describe("createDatasetFromHitl", () => {
@@ -477,6 +498,50 @@ describe("HitlDatasetService", () => {
 
       // Should have read original files
       expect(mockBlobStorage.read).toHaveBeenCalledTimes(2);
+    });
+
+    it("should build ground truth from corrections saved in an earlier session", async () => {
+      // The approving session saved nothing itself; the correction was saved
+      // in an earlier session of the same document, which the page showed.
+      mockReviewDbService.findReviewQueue = jest.fn().mockResolvedValue([
+        {
+          ...mockDocuments[0],
+          review_sessions: [{ ...mockApprovedSession, corrections: [] }],
+        },
+      ]);
+      mockReviewDbService.findDocumentCorrections = jest
+        .fn()
+        .mockResolvedValue([
+          {
+            id: "corr-0",
+            session_id: "session-0",
+            field_key: "total_amount",
+            original_value: "1250.00",
+            corrected_value: "1350.00",
+            original_conf: 0.85,
+            action: CorrectionAction.corrected,
+            created_at: new Date(),
+            actor_id: "actor-1",
+          },
+        ]);
+
+      await service.createDatasetFromHitl(
+        {
+          name: "Test Dataset",
+          documentIds: ["doc-1"],
+          groupId: "test-group",
+        },
+        "user-1",
+      );
+
+      expect(mockReviewDbService.findDocumentCorrections).toHaveBeenCalledWith(
+        "doc-1",
+      );
+      const groundTruthCall = mockBlobStorage.write.mock.calls.find((call) =>
+        String(call[0]).endsWith("ground-truth/invoice-001.json"),
+      );
+      const groundTruth = JSON.parse(groundTruthCall![1].toString());
+      expect(groundTruth.total_amount).toBe("1350.00");
     });
 
     it("should skip documents that are not found", async () => {

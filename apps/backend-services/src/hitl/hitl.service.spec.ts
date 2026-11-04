@@ -121,7 +121,7 @@ describe("HitlService", () => {
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
     actor_id: "actor-1",
-    actor: { user: { email: "reviewer@example.com" }, apiKey: null },
+    actor: { user: { email: "reviewer@example.com" }, apiKeyGroup: null },
   };
 
   beforeEach(async () => {
@@ -946,6 +946,11 @@ describe("HitlService", () => {
         "session-1",
         fakeTx,
       );
+      expect(mockReviewDbService.createReviewSessionEvent).toHaveBeenCalledWith(
+        "session-1",
+        { event_type: ReviewSessionEventType.approved, actor_id: "reviewer-1" },
+        fakeTx,
+      );
 
       expect(result).toEqual({
         id: "session-1",
@@ -1070,7 +1075,7 @@ describe("HitlService", () => {
       );
     });
 
-    it("stores the trimmed comment on the session and in the audit event", async () => {
+    it("stores the trimmed comment on the session, its event and the audit event", async () => {
       const audit = (service as any).auditService.recordEvent as jest.Mock;
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
@@ -1107,6 +1112,16 @@ describe("HitlService", () => {
             comments: "Wrong form: this is a T4, not a monthly report.",
           },
         }),
+        expect.anything(),
+      );
+      expect(mockReviewDbService.createReviewSessionEvent).toHaveBeenCalledWith(
+        "session-1",
+        {
+          event_type: ReviewSessionEventType.rejected,
+          actor_id: "reviewer-1",
+          comment: "Wrong form: this is a T4, not a monthly report.",
+          rejection_reason: RejectionReason.MODEL_MISMATCH,
+        },
         expect.anything(),
       );
     });
@@ -1588,14 +1603,15 @@ describe("HitlService", () => {
       ).not.toHaveBeenCalled();
     });
 
-    it("should report an api key author when the actor has no user", async () => {
+    it("should report an api key author for the group's API-key identity, even once its key is deleted", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      // No key row is selected at all: the identity alone names the author.
       mockReviewDbService.findDocumentCorrections.mockResolvedValueOnce([
         {
           ...mockFieldCorrection,
-          actor: { user: null, apiKey: { id: "k-1" } },
+          actor: { user: null, apiKeyGroup: { id: "group-1" } },
         },
       ]);
 
@@ -1615,6 +1631,102 @@ describe("HitlService", () => {
       const result = await service.getCorrections("session-1");
 
       expect(result.corrections[0].author).toEqual({ type: "unknown" });
+    });
+  });
+
+  describe("getSessionHistory", () => {
+    type SessionEventRows = Awaited<
+      ReturnType<ReviewDbService["findSessionEvents"]>
+    >;
+
+    it("returns the session's events oldest first, with each actor's email", async () => {
+      const flaggedAt = new Date("2026-10-29T10:00:00.000Z");
+      const reopenedAt = new Date("2026-10-29T10:05:00.000Z");
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findSessionEvents.mockResolvedValueOnce([
+        {
+          id: "event-1",
+          review_session_id: "session-1",
+          event_type: ReviewSessionEventType.flagged,
+          actor_id: "actor-1",
+          actor: { user: { email: "first@example.com" } },
+          comment: "Total doesn't match page 2",
+          rejection_reason: null,
+          created_at: flaggedAt,
+        },
+        {
+          id: "event-2",
+          review_session_id: "session-1",
+          event_type: ReviewSessionEventType.reopened,
+          actor_id: "actor-2",
+          actor: { user: { email: "second@example.com" } },
+          comment: null,
+          rejection_reason: null,
+          created_at: reopenedAt,
+        },
+      ] as unknown as SessionEventRows);
+
+      const result = await service.getSessionHistory("session-1");
+
+      expect(mockReviewDbService.findSessionEvents).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(result).toEqual({
+        sessionId: "session-1",
+        events: [
+          {
+            id: "event-1",
+            eventType: ReviewSessionEventType.flagged,
+            actorId: "actor-1",
+            actorName: "first@example.com",
+            comment: "Total doesn't match page 2",
+            rejectionReason: null,
+            createdAt: flaggedAt,
+          },
+          {
+            id: "event-2",
+            eventType: ReviewSessionEventType.reopened,
+            actorId: "actor-2",
+            actorName: "second@example.com",
+            comment: null,
+            rejectionReason: null,
+            createdAt: reopenedAt,
+          },
+        ],
+      });
+    });
+
+    it("leaves actorName null when the actor is not a signed-in user", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findSessionEvents.mockResolvedValueOnce([
+        {
+          id: "event-1",
+          review_session_id: "session-1",
+          event_type: ReviewSessionEventType.skipped,
+          actor_id: "api-key-actor",
+          actor: { user: null },
+          comment: null,
+          rejection_reason: null,
+          created_at: new Date("2026-10-29T10:00:00.000Z"),
+        },
+      ] as unknown as SessionEventRows);
+
+      const result = await service.getSessionHistory("session-1");
+
+      expect(result.events[0].actorName).toBeNull();
+    });
+
+    it("throws NotFoundException when the session does not exist", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(service.getSessionHistory("missing")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockReviewDbService.findSessionEvents).not.toHaveBeenCalled();
     });
   });
 

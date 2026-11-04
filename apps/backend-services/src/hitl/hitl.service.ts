@@ -53,7 +53,9 @@ function resolveCorrectionAuthor(
   if (actor?.user?.email) {
     return { type: "user", email: actor.user.email };
   }
-  if (actor?.apiKey) {
+  // The group's API-key identity outlives its keys, so corrections made
+  // through a key that has since been deleted still name the API key.
+  if (actor?.apiKeyGroup) {
     return { type: "api_key" };
   }
   return { type: "unknown" };

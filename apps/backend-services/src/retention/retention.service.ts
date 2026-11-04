@@ -24,6 +24,9 @@ export const BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR =
   "BENCHMARK_AUDIT_LOG_RETENTION_DAYS";
 /** Env var controlling completed review_sessions retention window (days). */
 export const REVIEW_SESSION_RETENTION_ENV_VAR = "REVIEW_SESSION_RETENTION_DAYS";
+/** Env var controlling non-demo chat_conversation retention window (days). */
+export const CHAT_CONVERSATION_RETENTION_ENV_VAR =
+  "CHAT_CONVERSATION_RETENTION_DAYS";
 
 /** Max documents deleted per run — blob I/O makes per-doc cost non-trivial. */
 const DOCUMENT_BATCH_SIZE = 500;
@@ -59,8 +62,9 @@ const DELETABLE_STATUSES: DocumentStatus[] = [
  *
  * Jobs run in two groups to spread DB pressure:
  *   Every 6 hours (00:00/06:00/12:00/18:00) — documents + blobs
- *   Daily at 02:15/02:30/02:45 — audit_events, benchmark_audit_logs, review_sessions
- *     (each repeats 2,000-row batches until drained or 5 minutes have passed)
+ *   Daily at 02:15/02:30/02:45/03:00 — audit_events, benchmark_audit_logs,
+ *     review_sessions, chat_conversations (each repeats 2,000-row batches
+ *     until drained or 5 minutes have passed)
  */
 @Injectable()
 export class DocumentRetentionService {
@@ -278,6 +282,44 @@ export class DocumentRetentionService {
             actor_id: "retention_system",
             payload: {
               daysRemoved: process.env[REVIEW_SESSION_RETENTION_ENV_VAR],
+            },
+          },
+          tx,
+        );
+      },
+    );
+  }
+
+  /**
+   * Runs daily at 03:00: deletes non-demo `chat_conversations` (and their
+   * cascading `chat_messages`) whose `lastMessageAt` is older than
+   * `CHAT_CONVERSATION_RETENTION_DAYS`. Seeded demo conversations (`isDemo`)
+   * are never eligible, at any age. Skipped when the variable is unset.
+   */
+  @Cron("0 3 * * *")
+  async deleteExpiredChatConversations(): Promise<void> {
+    await this.retentionDb.runWithDatabaseLock(
+      "deleteExpiredChatConversations",
+      async (tx) => {
+        await this.runSimpleRetentionJob(
+          CHAT_CONVERSATION_RETENTION_ENV_VAR,
+          "Chat conversation",
+          (olderThan, limit, tx) =>
+            this.retentionDb.deleteChatConversationsOlderThan(
+              olderThan,
+              limit,
+              tx,
+            ),
+          tx,
+        );
+        await this.auditService.recordEvent(
+          {
+            event_type: "chat_conversation_retention_run",
+            resource_type: "chat_conversation",
+            resource_id: "",
+            actor_id: "retention_system",
+            payload: {
+              daysRemoved: process.env[CHAT_CONVERSATION_RETENTION_ENV_VAR],
             },
           },
           tx,
