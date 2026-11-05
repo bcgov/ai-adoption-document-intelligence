@@ -52,6 +52,23 @@ describe("HealthController", () => {
       );
       expect(mockResponse.json).toHaveBeenCalledWith(mockResult);
     });
+
+    it("should return 503 when the result contains errors", async () => {
+      const mockResult = {
+        status: "healthy" as const,
+        checks: { database: "ok" as const },
+        timestamp: "2026-05-28T17:00:00.000Z",
+        errors: ["Database: Connection refused"],
+      };
+      mockHealthService.checkHealth.mockResolvedValue(mockResult);
+
+      await controller.getHealth(mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith(mockResult);
+    });
   });
 
   describe("getLiveness", () => {
@@ -83,6 +100,23 @@ describe("HealthController", () => {
       const mockResult = {
         status: "unhealthy" as const,
         checks: { database: "error" as const },
+        timestamp: "2026-05-28T17:00:00.000Z",
+        errors: ["Database: Connection timeout"],
+      };
+      mockHealthService.checkHealth.mockResolvedValue(mockResult);
+
+      await controller.getReadiness(mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith(mockResult);
+    });
+
+    it("should return 503 when the result contains errors", async () => {
+      const mockResult = {
+        status: "healthy" as const,
+        checks: { database: "ok" as const },
         timestamp: "2026-05-28T17:00:00.000Z",
         errors: ["Database: Connection timeout"],
       };

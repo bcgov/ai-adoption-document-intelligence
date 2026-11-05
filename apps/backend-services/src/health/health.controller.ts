@@ -14,7 +14,7 @@ export class HealthController {
   async getHealth(@Res() res: Response): Promise<void> {
     const health = await this.healthService.checkHealth();
 
-    if (health.status === "healthy") {
+    if (health.status === "healthy" && !health.errors?.length) {
       res.status(HttpStatus.OK).json(health);
     } else {
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json(health);
@@ -36,7 +36,7 @@ export class HealthController {
     // Checks all dependencies are accessible
     const health = await this.healthService.checkHealth();
 
-    if (health.status === "healthy") {
+    if (health.status === "healthy" && !health.errors?.length) {
       res.status(HttpStatus.OK).json(health);
     } else {
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json(health);
