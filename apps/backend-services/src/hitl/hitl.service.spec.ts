@@ -636,6 +636,50 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.createReviewSession).not.toHaveBeenCalled();
     });
+
+    it.each([
+      DocumentStatus.pre_ocr,
+      DocumentStatus.ongoing_ocr,
+      DocumentStatus.complete,
+      DocumentStatus.rejected,
+      DocumentStatus.failed,
+      DocumentStatus.conversion_failed,
+    ])("should throw ConflictException when document status is %s", async (status) => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce({
+        ...mockDocument,
+        status,
+      });
+
+      await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(mockReviewDbService.findActiveLock).not.toHaveBeenCalled();
+      expect(mockReviewDbService.createReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should allow starting a session when document status is awaiting_review", async () => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce({
+        ...mockDocument,
+        status: DocumentStatus.awaiting_review,
+      });
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+
+      await service.startSession(dto, "reviewer-1");
+
+      expect(mockReviewDbService.createReviewSession).toHaveBeenCalled();
+    });
   });
 
   describe("getSession", () => {
