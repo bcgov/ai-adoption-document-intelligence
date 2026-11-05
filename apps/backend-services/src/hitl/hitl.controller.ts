@@ -69,7 +69,8 @@ export class HitlController {
   })
   @ApiOperation({ summary: "Get review queue with filters" })
   @ApiOkResponse({
-    description: "Paginated list of documents requiring human review",
+    description:
+      "Paginated list of documents requiring human review. Each document's lastSession now reports the reviewer as reviewerEmail (replacing reviewer_id).",
     type: QueueResponseDto,
   })
   async getQueue(@Query() filters: QueueFilterDto, @Req() req: Request) {

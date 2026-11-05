@@ -23,7 +23,7 @@ describe("FlagHistory", () => {
       <FlagHistory
         flags={[]}
         readOnly={false}
-        isResolvingFlag={false}
+        resolvingFlagId={null}
         onResolve={vi.fn()}
       />,
     );
@@ -36,7 +36,7 @@ describe("FlagHistory", () => {
         flags={[]}
         flagNote="Stopped because the image was blurry"
         readOnly={false}
-        isResolvingFlag={false}
+        resolvingFlagId={null}
         onResolve={vi.fn()}
       />,
     );
@@ -51,7 +51,7 @@ describe("FlagHistory", () => {
       <FlagHistory
         flags={[flag()]}
         readOnly={false}
-        isResolvingFlag={false}
+        resolvingFlagId={null}
         onResolve={onResolve}
       />,
     );
@@ -68,11 +68,27 @@ describe("FlagHistory", () => {
       <FlagHistory
         flags={[flag()]}
         readOnly
-        isResolvingFlag={false}
+        resolvingFlagId={null}
         onResolve={vi.fn()}
       />,
     );
     expect(screen.getByRole("button", { name: "Resolve" })).toBeDisabled();
+  });
+
+  it("only shows a loading spinner on the Resolve button for the flag being resolved", () => {
+    const flagOne = flag({ id: "f1" });
+    const flagTwo = flag({ id: "f2", note: "Second flag" });
+    render(
+      <FlagHistory
+        flags={[flagOne, flagTwo]}
+        readOnly={false}
+        resolvingFlagId="f1"
+        onResolve={vi.fn()}
+      />,
+    );
+    const buttons = screen.getAllByRole("button", { name: "Resolve" });
+    expect(buttons[0]).toHaveAttribute("data-pending", "true");
+    expect(buttons[1]).not.toHaveAttribute("data-pending", "true");
   });
 
   it("shows a resolved flag as a disabled Resolved button with who/when", () => {
@@ -86,7 +102,7 @@ describe("FlagHistory", () => {
           }),
         ]}
         readOnly={false}
-        isResolvingFlag={false}
+        resolvingFlagId={null}
         onResolve={vi.fn()}
       />,
     );

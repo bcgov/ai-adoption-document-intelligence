@@ -29,7 +29,7 @@ interface ReviewToolbarProps {
   isSkipping?: boolean;
   isRejecting?: boolean;
   isSaving?: boolean;
-  /** Count of unaddressed flags currently on this document. */
+  /** Count of unresolved flags currently on this document. */
   activeFlagCount?: number;
   autoAdvance?: boolean;
   onAutoAdvanceToggle?: () => void;

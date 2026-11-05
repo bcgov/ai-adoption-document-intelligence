@@ -289,6 +289,8 @@ export const useReviewSession = (sessionId?: string) => {
     reopenSessionAsync: reopenSessionMutation.mutateAsync,
     resolveFlag: resolveFlagMutation.mutate,
     resolveFlagAsync: resolveFlagMutation.mutateAsync,
-    isResolvingFlag: resolveFlagMutation.isPending,
+    resolvingFlagId: resolveFlagMutation.isPending
+      ? resolveFlagMutation.variables
+      : null,
   };
 };

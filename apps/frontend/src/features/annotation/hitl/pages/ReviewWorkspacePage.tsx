@@ -291,7 +291,7 @@ export const ReviewWorkspacePage: FC = () => {
     isSubmitting,
     reopenSessionAsync,
     resolveFlagAsync,
-    isResolvingFlag,
+    resolvingFlagId,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
   const canTakeOver = session?.status === "flagged";
@@ -323,6 +323,7 @@ export const ReviewWorkspacePage: FC = () => {
     >
   >({});
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<string | null>("fields");
   const [fieldFilter, setFieldFilter] = useState("");
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [viewMode, setViewMode] = useState<"document" | "snippet">("document");
@@ -955,6 +956,10 @@ export const ReviewWorkspacePage: FC = () => {
       // existing behavior (focus the matching sidebar input).
       const active = document.activeElement as HTMLElement | null;
       const fromOverlay = !!active?.dataset?.overlayFieldKey;
+      // The Flags/History panels hide the field list and sidebar inputs, so
+      // focus() on them is a no-op; switch back to Fields so navigation lands
+      // somewhere visible.
+      setRightPanelTab("fields");
 
       const currentIndex = filteredSortedFields.findIndex(
         (f) => f.fieldKey === activeFieldKey,
@@ -1435,7 +1440,8 @@ export const ReviewWorkspacePage: FC = () => {
               }}
             >
               <Tabs
-                defaultValue="fields"
+                value={rightPanelTab}
+                onChange={setRightPanelTab}
                 style={{
                   flex: 1,
                   minHeight: 0,
@@ -1574,7 +1580,7 @@ export const ReviewWorkspacePage: FC = () => {
                       flags={displayedFlags}
                       flagNote={session.flagNote}
                       readOnly={readOnly}
-                      isResolvingFlag={isResolvingFlag}
+                      resolvingFlagId={resolvingFlagId}
                       onResolve={handleResolveFlag}
                     />
                   </ScrollArea>

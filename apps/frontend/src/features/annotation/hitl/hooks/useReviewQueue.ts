@@ -29,7 +29,7 @@ export interface QueueDocument {
     corrections_count: number;
     flag_note?: string;
   };
-  /** Flags currently unaddressed on this document; a document can have several at once. */
+  /** Flags currently unresolved on this document; a document can have several at once. */
   activeFlags?: Array<{
     id: string;
     note: string | null;

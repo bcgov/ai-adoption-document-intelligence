@@ -16,7 +16,7 @@ interface FlagHistoryProps {
   flags: ReviewFlag[];
   flagNote?: string | null;
   readOnly: boolean;
-  isResolvingFlag: boolean;
+  resolvingFlagId: string | null;
   onResolve: (flagId: string) => void;
 }
 
@@ -24,7 +24,7 @@ export const FlagHistory: FC<FlagHistoryProps> = ({
   flags,
   flagNote,
   readOnly,
-  isResolvingFlag,
+  resolvingFlagId,
   onResolve,
 }) => {
   if (flags.length === 0) {
@@ -67,7 +67,7 @@ export const FlagHistory: FC<FlagHistoryProps> = ({
                   position: "relative",
                   marginLeft: "auto",
                 }}
-                loading={isResolvingFlag}
+                loading={resolvingFlagId === flag.id}
                 onClick={() => onResolve(flag.id)}
               >
                 {flag.resolved ? "Resolved" : "Resolve"}

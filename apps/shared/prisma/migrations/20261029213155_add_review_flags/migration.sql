@@ -5,7 +5,7 @@
 
 */
 -- AlterEnum
-ALTER TYPE "ReviewSessionEventType" ADD VALUE 'flag_addressed';
+ALTER TYPE "ReviewSessionEventType" ADD VALUE 'flag_resolved';
 
 -- AlterTable
 ALTER TABLE "review_session_events" ADD COLUMN     "review_flag_id" TEXT;
