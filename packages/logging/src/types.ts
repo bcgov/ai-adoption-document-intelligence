@@ -24,7 +24,7 @@ export interface LogContext {
   event?: string;
   durationMs?: number;
   status?: string;
-  error?: string;
+  error?: unknown;
   stack?: string;
   /**
    * When set, the metrics hook (if wired) will increment the appropriate

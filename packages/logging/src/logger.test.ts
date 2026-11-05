@@ -399,4 +399,44 @@ describe("createLogger", () => {
       expect(hook).toHaveBeenCalledWith("warn", "x");
     });
   });
+
+  describe("error stack attachment", () => {
+    function errorLine(fn: (log: ReturnType<typeof createLogger>) => void) {
+      const out = captureStdout();
+      try {
+        fn(createLogger(SERVICE));
+      } finally {
+        out.restore();
+      }
+      return JSON.parse(out.lines[0]) as Record<string, unknown>;
+    }
+
+    it("captures the call-site stack when none is provided", () => {
+      const entry = errorLine((log) => log.error("boom"));
+      expect(typeof entry.stack).toBe("string");
+      expect(entry.stack).toContain("logger.test");
+    });
+
+    it("keeps an explicit stack", () => {
+      const entry = errorLine((log) => log.error("boom", { stack: "custom" }));
+      expect(entry.stack).toBe("custom");
+    });
+
+    it("serializes an Error passed as context.error with its stack", () => {
+      const err = new Error("kaput");
+      const entry = errorLine((log) => log.error("boom", { error: err }));
+      expect(entry.error).toBe("kaput");
+      expect(entry.stack).toBe(err.stack);
+    });
+
+    it("does not add a stack to non-error levels", () => {
+      const out = captureStdout();
+      try {
+        createLogger(SERVICE).warn("careful");
+      } finally {
+        out.restore();
+      }
+      expect(JSON.parse(out.lines[0]).stack).toBeUndefined();
+    });
+  });
 });

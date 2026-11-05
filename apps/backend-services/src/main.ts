@@ -3,7 +3,7 @@
 // Loads the repo-root .env. MUST remain first import.
 import "./env-loader";
 
-import { createLogger } from "@ai-di/shared-logging";
+import { createLogger, installCrashHandlers } from "@ai-di/shared-logging";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
@@ -15,6 +15,7 @@ import { AppModule } from "./app.module";
 import { applyTrustProxy } from "./trust-proxy";
 
 const logger = createLogger("backend-services");
+installCrashHandlers(logger);
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -123,4 +124,10 @@ async function bootstrap(): Promise<void> {
   logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
 }
 
-bootstrap();
+bootstrap().catch((err: unknown) => {
+  logger.error("Backend services failed to start", {
+    event: "fatal_error",
+    error: err,
+  });
+  process.exit(1);
+});

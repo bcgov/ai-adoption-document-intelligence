@@ -44,7 +44,7 @@ describe("HealthService", () => {
         "Health check - database failed",
         {
           category: "health",
-          error: "Connection refused",
+          error: expect.objectContaining({ message: "Connection refused" }),
           errorCode: undefined,
           databaseUrl:
             "postgresql://postgres:***@localhost:5432/ai_doc_intelligence?schema=public",
