@@ -10,8 +10,9 @@ Map of the GitHub Actions workflows in `.github/workflows/`. Deployment mechanic
 | Frontend Quality Assurance | `frontend-qa.yml` | Lint, type-check, and tests for `apps/frontend` |
 | Temporal Quality Assurance | `temporal-qa.yml` | Lint, type-check, and tests for `apps/temporal` |
 | Wiki Check | `wiki-check.yml` | `npm run docs:wiki:check` — only when `docs-md/wiki/**` or the validator changes |
+| Pull request title | `pr-title.yml` | The title is a conventional commit (`feat`, `fix`, `docs`, and the other types in the workflow). A scope is optional |
 
-All QA workflows also support `workflow_dispatch`. Local equivalents run as lefthook pre-commit hooks (`lefthook.yml`): per-app biome lint + `tsc --noEmit`, scoped to matching staged files.
+The app QA workflows and Wiki Check also support `workflow_dispatch`. The title check runs when a pull request is opened or its title changes. Local equivalents of the app checks run as lefthook pre-commit hooks (`lefthook.yml`): per-app biome lint + `tsc --noEmit`, scoped to matching staged files.
 
 ## Security scanning (PRs and pushes to `main`/`develop`)
 
