@@ -42,8 +42,8 @@ git push -u origin HEAD
 
 4. **Draft the PR:**
 
-- Title format: `JIRA_BOARD-NUMBER: short title` (e.g. `AI-1296: Add repo wiki`)
-- Summary links the Jira ticket when known
+- Title format: a conventional commit, for example `fix: require a permission on the suggestion endpoints`. Types that bump a release are `feat`, `fix`, `perf`, and `revert`. The others do not.
+- Summary links the HCAP issue when known, for example `[HCAP-138](https://citz-ocio-es.atlassian.net/browse/HCAP-138)`
 - Changes summarize **all** commits on the branch, not only the latest
 - Testing lists what was run or how to verify
 - Checklist matches `.github/PULL_REQUEST_TEMPLATE.md`
@@ -51,10 +51,10 @@ git push -u origin HEAD
 5. **Create the PR:**
 
 ```bash
-gh pr create --base develop --title "AI-###: Title" --body "$(cat <<'EOF'
+gh pr create --base develop --title "ci: short description" --body "$(cat <<'EOF'
 ## Summary
 
-[AI-###](https://citz-do.atlassian.net/browse/AI-###)
+[HCAP-###](https://citz-ocio-es.atlassian.net/browse/HCAP-###)
 
 Brief description of why this change exists.
 
