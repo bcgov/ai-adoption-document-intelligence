@@ -515,6 +515,7 @@ export class BenchmarkRunService {
     } catch (error) {
       this.logger.error(
         `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+        { error },
       );
     }
 
@@ -556,6 +557,7 @@ export class BenchmarkRunService {
     } catch (error) {
       this.logger.error(
         `Failed to cancel Temporal workflow: ${getErrorMessage(error)}`,
+        { error },
       );
       // Continue anyway to update the database status
     }
@@ -959,6 +961,7 @@ export class BenchmarkRunService {
     } catch (error) {
       this.logger.error(
         `Failed to create audit log: ${error instanceof Error ? error.message : String(error)}`,
+        { error },
       );
     }
 

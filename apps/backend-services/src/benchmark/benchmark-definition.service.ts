@@ -1236,6 +1236,7 @@ export class BenchmarkDefinitionService {
     } catch (error) {
       this.logger.error(
         `Failed to get schedule info for ${definition.scheduleId}: ${getErrorMessage(error)}`,
+        { error },
       );
       return null;
     }

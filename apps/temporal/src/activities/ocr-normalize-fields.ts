@@ -526,7 +526,7 @@ export async function normalizeOcrFields(
       log.error("Normalize fields: failed to load field schema", {
         event: "schema_load_error",
         documentType,
-        error: err instanceof Error ? err.message : String(err),
+        error: err,
       });
       fieldMap = null;
     }

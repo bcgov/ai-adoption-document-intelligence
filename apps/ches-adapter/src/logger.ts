@@ -12,12 +12,25 @@ function write(
   message: string,
   context?: Record<string, unknown>,
 ): void {
+  const stack: { stack?: string } =
+    level === "error" && typeof context?.stack !== "string"
+      ? { stack: new Error(message).stack }
+      : {};
+  const serialized: Record<string, unknown> = { ...context };
+  const err = serialized.error;
+  if (err instanceof Error) {
+    serialized.error = err.message;
+    if (typeof context?.stack !== "string" && err.stack) {
+      stack.stack = err.stack;
+    }
+  }
   const entry = JSON.stringify({
     timestamp: new Date().toISOString(),
     level,
     service: "ches-adapter",
     message,
-    ...context,
+    ...stack,
+    ...serialized,
   });
   process.stdout.write(entry + "\n");
 }
