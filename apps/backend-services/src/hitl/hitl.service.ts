@@ -465,6 +465,17 @@ export class HitlService {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
 
+    // Reviewable only once OCR has produced results to review, and before a
+    // decision (approve/reject) has already been made
+    if (
+      document.status !== DocumentStatus.extracted &&
+      document.status !== DocumentStatus.awaiting_review
+    ) {
+      throw new ConflictException(
+        `Document ${dto.documentId} is not reviewable in its current status (${document.status})`,
+      );
+    }
+
     // Check for existing lock
     const existingLock = await this.reviewDb.findActiveLock(dto.documentId);
     if (existingLock) {

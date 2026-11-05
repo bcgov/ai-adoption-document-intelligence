@@ -168,6 +168,10 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Document not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "Document is locked by another reviewer's in-progress session, or is not currently reviewable (OCR not yet complete, or review already decided: approved/rejected/failed)",
+  })
   async startSession(@Body() dto: ReviewSessionDto, @Req() req: Request) {
     const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
