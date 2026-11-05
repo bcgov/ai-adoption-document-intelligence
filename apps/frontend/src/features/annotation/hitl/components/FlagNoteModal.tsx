@@ -3,34 +3,37 @@ import { Button, Group, Modal, Stack, Text, Textarea } from "../../../../ui";
 
 interface FlagNoteModalProps {
   opened: boolean;
-  initialNote: string;
+  activeFlagCount: number;
   isSubmitting: boolean;
   onClose: () => void;
   onConfirm: (note: string) => void;
 }
 
-// Keeps the note draft in local state so typing doesn't re-render the workspace page.
+// Always opens blank: flagging raises a new, independent flag rather than editing an existing one.
 export const FlagNoteModal: FC<FlagNoteModalProps> = ({
   opened,
-  initialNote,
+  activeFlagCount,
   isSubmitting,
   onClose,
   onConfirm,
 }) => {
-  const [note, setNote] = useState(initialNote);
+  const [note, setNote] = useState("");
 
   useEffect(() => {
     if (opened) {
-      setNote(initialNote);
+      setNote("");
     }
-  }, [opened, initialNote]);
+  }, [opened]);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Flag document">
+    <Modal opened={opened} onClose={onClose} title="Add a flag">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
-          Flagging returns this document to the queue without a lock. Add a
-          short note so the next reviewer knows what stopped you.
+          {activeFlagCount > 0
+            ? `This document already has ${activeFlagCount} active flag${
+                activeFlagCount === 1 ? "" : "s"
+              }. This adds another, independently resolvable flag rather than replacing them.`
+            : "Flagging returns this document to the queue without a lock. Add a short note so the next reviewer knows what stopped you."}
         </Text>
 
         <Textarea
@@ -55,7 +58,7 @@ export const FlagNoteModal: FC<FlagNoteModalProps> = ({
             onClick={() => onConfirm(note)}
             loading={isSubmitting}
           >
-            Flag document
+            Add flag
           </Button>
         </Group>
       </Stack>

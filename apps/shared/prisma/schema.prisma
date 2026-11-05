@@ -54,6 +54,7 @@ model Document {
   group_id              String
   group                 Group                  @relation(fields: [group_id], references: [id])
   workflowVersion       WorkflowVersion?       @relation(fields: [workflow_config_id], references: [id], onDelete: SetNull)
+  flags                 ReviewFlag[]
 
   @@index([group_id])
   @@index([group_id, content_hash])
@@ -173,6 +174,8 @@ model Actor {
   reviewSessions            ReviewSession[]
   fieldCorrections          FieldCorrection[]
   reviewSessionEvents       ReviewSessionEvent[]
+  flagsRaised               ReviewFlag[]             @relation(name: "FlagRaisedByActor")
+  flagsResolved             ReviewFlag[]             @relation(name: "FlagResolvedByActor")
   datasets                  Dataset[]
   benchmarkProjects         BenchmarkProject[]
   benchmarkAuditLogs        BenchmarkAuditLog[]
@@ -541,18 +544,43 @@ model ReviewSession {
   /// Set only on a rejected session: the reviewer's chosen reason and optional comment.
   rejection_reason  RejectionReason?
   rejection_comment String?
-  /// Set only while an in_progress session is a reopened handoff (e.g. taken over from
-  /// Flagged): what to restore `status` to if the takeover ends without a decision
-  /// (skip, lock expiry). Cleared once corrections are saved (the takeover produced
-  /// work, so it no longer auto-restores) or once the session reaches a new status.
-  reopened_from_status ReviewStatus?
   corrections  FieldCorrection[]
   events       ReviewSessionEvent[]
   lock         DocumentLock?
+  flagsRaised  ReviewFlag[]      @relation(name: "FlagRaisedInSession")
+  flagsResolved ReviewFlag[]     @relation(name: "FlagResolvedInSession")
 
   @@index([document_id])
   @@index([status, completed_at])
   @@map("review_sessions")
+}
+
+/// A single flag raised against a document, independently resolvable without ending
+/// the review session that raised or addressed it. Document-scoped (not session-scoped)
+/// because a document can get a fresh session after its old one ends (skip, abandonment,
+/// flag handoff) while an outstanding flag must persist across that boundary. Open rows
+/// (resolved_at IS NULL) decide where a session that ends without a decision goes: back to
+/// flagged while any is open. Approve and Reject resolve any still open.
+model ReviewFlag {
+  id                  String         @id @default(cuid())
+  document_id         String
+  document            Document       @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  raised_session_id   String
+  raisedSession       ReviewSession  @relation(name: "FlagRaisedInSession", fields: [raised_session_id], references: [id], onDelete: Cascade)
+  raised_by           String
+  raisedActor         Actor          @relation(name: "FlagRaisedByActor", fields: [raised_by], references: [id])
+  note                String?
+  raised_at           DateTime       @default(now())
+  resolved_session_id String?
+  resolvedSession     ReviewSession? @relation(name: "FlagResolvedInSession", fields: [resolved_session_id], references: [id], onDelete: SetNull)
+  resolved_by         String?
+  resolvedActor       Actor?         @relation(name: "FlagResolvedByActor", fields: [resolved_by], references: [id])
+  resolved_at         DateTime?
+  events              ReviewSessionEvent[]
+
+  @@index([document_id, resolved_at])
+  @@index([raised_session_id])
+  @@map("review_flags")
 }
 
 /// Permanent record of a reviewer action on a session (flag, reject, skip, approve,
@@ -570,10 +598,15 @@ model ReviewSessionEvent {
   comment            String?
   /// Only set when event_type = rejected.
   rejection_reason   RejectionReason?
+  /// Only set when event_type = flagged or flag_resolved: the ReviewFlag the event
+  /// is about, so raised/resolved events for the same flag can be linked in a timeline.
+  review_flag_id     String?
+  reviewFlag         ReviewFlag?            @relation(fields: [review_flag_id], references: [id], onDelete: SetNull)
   created_at         DateTime               @default(now())
 
   @@index([review_session_id])
   @@index([created_at])
+  @@index([review_flag_id])
   @@map("review_session_events")
 }
 
@@ -671,6 +704,7 @@ enum CorrectionAction {
 
 enum ReviewSessionEventType {
   flagged
+  flag_resolved
   rejected
   skipped
   approved

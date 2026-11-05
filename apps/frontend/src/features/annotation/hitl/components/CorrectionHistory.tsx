@@ -1,4 +1,4 @@
-import { IconArrowRight } from "@tabler/icons-react";
+import { IconArrowDown } from "@tabler/icons-react";
 import { FC } from "react";
 import { Badge, Card, Group, Stack, Text } from "../../../../ui";
 
@@ -46,25 +46,33 @@ function ValueDiff({
   correctedValue?: string;
 }) {
   return (
-    <Group gap="xs" align="center" wrap="nowrap">
+    <Stack gap="xs" align="center">
       {originalValue !== undefined && (
-        <Card withBorder radius="sm" style={{ flex: 1, padding: "0em 1em" }}>
+        <Card
+          withBorder
+          radius="sm"
+          style={{ flex: 1, padding: "0em 1em", width: "100%" }}
+        >
           <Text size="sm" data-testid="correction-original">
             {originalValue || "—"}
           </Text>
         </Card>
       )}
       {originalValue !== undefined && correctedValue !== undefined && (
-        <IconArrowRight size={16} style={{ flexShrink: 0 }} />
+        <IconArrowDown size={16} style={{ flexShrink: 0 }} />
       )}
       {correctedValue !== undefined && (
-        <Card withBorder radius="sm" style={{ flex: 1, padding: "0em 1em" }}>
+        <Card
+          withBorder
+          radius="sm"
+          style={{ flex: 1, padding: "0em 1em", width: "100%" }}
+        >
           <Text size="sm" fw={600} data-testid="correction-corrected">
             {correctedValue || "—"}
           </Text>
         </Card>
       )}
-    </Group>
+    </Stack>
   );
 }
 
@@ -86,21 +94,13 @@ export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
       {corrections.map((correction) => (
         <Card key={correction.id} withBorder padding="md">
           <Stack gap={4}>
-            <Group gap="xs" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap" align="start">
               <Badge color={ACTION_COLORS[correction.action] || "gray"}>
                 {correction.action}
               </Badge>
-              <Text size="sm" fw={600} ml={30}>
+              <Text size="sm" fw={600} ml={30} mt={0}>
                 {correction.fieldKey}
               </Text>
-              <Stack gap={0} ml={"auto"} align="end">
-                <Text size="xs" c="dimmed" mb={0}>
-                  {authorLabel(correction.author)}
-                </Text>
-                <Text size="xs" c="dimmed" mb={0} mt={0}>
-                  {new Date(correction.createdAt).toLocaleString()}
-                </Text>
-              </Stack>
             </Group>
             {(correction.originalValue || correction.correctedValue) && (
               <ValueDiff
@@ -108,6 +108,14 @@ export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
                 correctedValue={correction.correctedValue}
               />
             )}
+            <Stack gap={0} mr={"auto"} align="start">
+              <Text size="xs" c="dimmed" mb={0}>
+                {authorLabel(correction.author)}
+              </Text>
+              <Text size="xs" c="dimmed" mb={0} mt={0}>
+                {new Date(correction.createdAt).toLocaleString()}
+              </Text>
+            </Stack>
           </Stack>
         </Card>
       ))}

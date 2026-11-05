@@ -64,6 +64,22 @@ interface ReviewSession {
   reviewPlan?: ReviewPlanEntry[];
   /** Note captured when this session was flagged, shown to whoever opens it next. */
   flagNote?: string | null;
+  /** Flags currently unresolved on this document; each is resolvable independently of the others. */
+  activeFlags?: Array<{
+    id: string;
+    note: string | null;
+    raisedAt: string;
+    raisedBy: string | null;
+  }>;
+  /** Flags previously resolved on this document. */
+  resolvedFlags?: Array<{
+    id: string;
+    note: string | null;
+    raisedAt: string;
+    raisedBy: string | null;
+    resolvedAt: string;
+    resolvedBy: string | null;
+  }>;
 }
 
 interface CorrectionDto {
@@ -194,6 +210,21 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
+  const resolveFlagMutation = useMutation({
+    mutationFn: async (flagId: string) => {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/flags/${flagId}/resolve`,
+        {},
+      );
+      if (!response.success) throw new Error(response.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+    },
+  });
+
   const reopenSessionMutation = useMutation({
     mutationFn: async (targetSessionId: string) => {
       const response = await apiService.post(
@@ -256,5 +287,10 @@ export const useReviewSession = (sessionId?: string) => {
     deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
     reopenSession: reopenSessionMutation.mutate,
     reopenSessionAsync: reopenSessionMutation.mutateAsync,
+    resolveFlag: resolveFlagMutation.mutate,
+    resolveFlagAsync: resolveFlagMutation.mutateAsync,
+    resolvingFlagId: resolveFlagMutation.isPending
+      ? resolveFlagMutation.variables
+      : null,
   };
 };

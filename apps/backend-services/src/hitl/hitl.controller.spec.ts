@@ -47,6 +47,7 @@ describe("HitlController", () => {
       rejectSession: jest.fn(),
       skipSession: jest.fn(),
       flagSession: jest.fn(),
+      resolveFlag: jest.fn(),
       getQueue: jest.fn(),
       getQueueStats: jest.fn(),
       getAnalytics: jest.fn(),
@@ -707,6 +708,61 @@ describe("HitlController", () => {
         controller.flagSession("session-1", dto, req),
       ).rejects.toThrow(NotFoundException);
       expect(hitlService.flagSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resolveFlag", () => {
+    it("resolves a flag on the session's document for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          actorId: "actor-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      const mockResult = {
+        id: "flag-1",
+        resolvedAt: new Date(),
+        message: "Flag resolved",
+      };
+      hitlService.resolveFlag.mockResolvedValue(mockResult as any);
+      const result = await controller.resolveFlag("session-1", "flag-1", req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.resolveFlag).toHaveBeenCalledWith(
+        "session-1",
+        "flag-1",
+        "actor-1",
+      );
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.resolveFlag("session-1", "flag-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.resolveFlag).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.REVIEWER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.resolveFlag("session-1", "flag-1", req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.resolveFlag).not.toHaveBeenCalled();
     });
   });
 

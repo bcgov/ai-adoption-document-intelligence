@@ -23,12 +23,18 @@ export interface QueueDocument {
   } | null;
   lastSession?: {
     id: string;
-    reviewer_id: string;
+    reviewerEmail: string | null;
     status: string;
     completed_at: string;
     corrections_count: number;
     flag_note?: string;
   };
+  /** Flags currently unresolved on this document; a document can have several at once. */
+  activeFlags?: Array<{
+    id: string;
+    note: string | null;
+    raisedAt: string;
+  }>;
 }
 
 interface QueueResponse {
