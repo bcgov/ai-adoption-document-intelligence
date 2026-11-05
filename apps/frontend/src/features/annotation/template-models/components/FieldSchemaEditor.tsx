@@ -7,6 +7,7 @@ import {
   Select,
   Stack,
   Text,
+  Textarea,
   TextInput,
 } from "../../../../ui";
 import { FieldDefinition, FieldType } from "../../core/types/field";
@@ -19,6 +20,7 @@ interface FieldSchemaEditorProps {
     field_type: FieldType;
     field_format?: string;
     format_spec?: string;
+    description: string;
     display_order?: number;
   }) => void;
   initialValue?: FieldDefinition | null;
@@ -95,12 +97,14 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
   const [customCanonicalize, setCustomCanonicalize] = useState("");
   const [formatPattern, setFormatPattern] = useState("");
   const [displayTemplate, setDisplayTemplate] = useState("");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     if (opened) {
       setFieldKey(initialValue?.fieldKey || "");
       setFieldType(initialValue?.fieldType || FieldType.STRING);
       setFieldFormat(initialValue?.fieldFormat || "");
+      setDescription(initialValue?.description || "");
 
       const parsed = parseFormatSpec(initialValue?.formatSpec);
       setCanonicalizePreset(parsed.canonicalizePreset);
@@ -142,6 +146,7 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
       field_type: fieldType,
       field_format: fieldFormat.trim() || undefined,
       format_spec: formatSpec,
+      description: description.trim(),
     });
   };
 
@@ -161,6 +166,13 @@ export const FieldSchemaEditor: FC<FieldSchemaEditorProps> = ({
           data={fieldTypeOptions}
           value={fieldType}
           onChange={(value) => setFieldType(value as FieldType)}
+        />
+        <Textarea
+          label="Description"
+          description="One sentence on what the field is and where it sits on the form. Used when suggesting fields and labels."
+          placeholder="Date the applicant signed, next to their signature"
+          value={description}
+          onChange={(event) => setDescription(event.currentTarget.value)}
         />
         <TextInput
           label="Field format"

@@ -317,6 +317,36 @@ function createBcdsMocksInternal() {
     <span data-testid="bcds-tag">{children}</span>
   ));
 
+  /** BC DS `Tag` renders only inside `TagGroup` + `TagList` (React Aria collection); see BcdsTagChip. */
+  const mockBcdsTagGroup = vi.fn(({ children }: { children?: ReactNode }) => (
+    <div data-testid="bcds-tag-group">{children}</div>
+  ));
+
+  const mockBcdsTagList = vi.fn(
+    ({
+      items,
+    }: {
+      items?: {
+        id?: string;
+        textValue?: string;
+        color?: string;
+        size?: string;
+        tagStyle?: string;
+        icon?: ReactNode;
+      }[];
+    }) => (
+      <>
+        {items?.map((item) => {
+          return (
+            <span key={item.id ?? item.textValue} data-testid="bcds-tag">
+              {item.textValue}
+            </span>
+          );
+        })}
+      </>
+    ),
+  );
+
   return {
     mockBcdsButton,
     mockBcdsLink,
@@ -339,6 +369,8 @@ function createBcdsMocksInternal() {
     mockBcdsTooltip,
     mockBcdsTooltipTrigger,
     mockBcdsTag,
+    mockBcdsTagGroup,
+    mockBcdsTagList,
   };
 }
 
@@ -405,6 +437,10 @@ export function buildBcdsModuleMock(mocks: BcdsMocks) {
     ) => mocks.mockBcdsTooltipTrigger(props),
     Tag: (props: Parameters<typeof mocks.mockBcdsTag>[0]) =>
       mocks.mockBcdsTag(props),
+    TagGroup: (props: Parameters<typeof mocks.mockBcdsTagGroup>[0]) =>
+      mocks.mockBcdsTagGroup(props),
+    TagList: (props: Parameters<typeof mocks.mockBcdsTagList>[0]) =>
+      mocks.mockBcdsTagList(props),
   };
 }
 

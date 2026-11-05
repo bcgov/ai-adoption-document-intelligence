@@ -123,6 +123,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Created `docs-md/operations/BACKUP_RPO_RTO.md` recording the RPO, recovery window and RTO implied by PR #238's backup settings (weekly fulls, 4-hour incrementals, 2-full count retention).
 
+## [2026-09-19] ingest | Label suggestions move from rules to an LLM
+
+- `architecture/TEMPLATE_MODELS.md`: documented the `label-suggestions/` module (tagged-text rendering, the Azure OpenAI call, ref resolution), the bulk field-create and field-suggestion endpoints, the optional `FieldDefinition.description` column, and the new Field schema "Suggest fields" UI. The rule-based `suggestion.service.ts` this replaces is gone from the tree and the doc.
+- `extraction.md`: added a Design Notes bullet distinguishing label/field suggestions (one-shot, per-document) from the confusion-profile/format-suggestion feedback loops next to it.
+
 ## [2026-09-29] ingest | Frontend route permissions and the reviewer role
 
 - `auth/FRONTEND_ROUTE_PERMISSIONS.md`: new — `appRoutes` in `routes.config.tsx`, `GroupPermissionGuard`, sidebar filtering, `HomeRedirect` landing pages, and the numeric permission list `/api/auth/me` sends.
