@@ -39,10 +39,26 @@ model ReviewSession {
   started_at   DateTime          @default(now())
   completed_at DateTime?
   flag_note    String?
+  reopened_from_status ReviewStatus?
   corrections  FieldCorrection[]
+  events       ReviewSessionEvent[]
   lock         DocumentLock?
 
   @@map("review_sessions")
+}
+
+model ReviewSessionEvent {
+  id                 String                 @id @default(cuid())
+  review_session_id  String
+  reviewSession      ReviewSession          @relation(fields: [review_session_id], references: [id], onDelete: Cascade)
+  event_type         ReviewSessionEventType
+  actor_id           String
+  actor              Actor                  @relation(fields: [actor_id], references: [id])
+  comment            String?
+  rejection_reason   RejectionReason?
+  created_at         DateTime               @default(now())
+
+  @@map("review_session_events")
 }
 
 model FieldCorrection {
@@ -67,6 +83,14 @@ enum ReviewStatus {
   rejected
   flagged
   abandoned
+}
+
+enum ReviewSessionEventType {
+  flagged
+  rejected
+  skipped
+  approved
+  reopened
 }
 
 enum CorrectionAction {
@@ -100,7 +124,7 @@ Document locks prevent concurrent editing:
 - A lock is acquired when a session starts (10-minute TTL)
 - The frontend sends heartbeat requests to extend the lock
 - Locks are released when a session completes (approve/reject/flag/skip)
-- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, ends any still-`in_progress` session, and records a `review_session_expired` audit event whose payload names the session's new status. A session that carries a flag note goes back to `flagged`, so a document taken over from the Flagged tab returns there with its note and corrections; any other session becomes `abandoned`
+- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, ends any still-`in_progress` session, and records a `review_session_expired` audit event whose payload names the session's new status. A session reopened from `flagged` (a handoff) that never got a decision restores to `flagged`, unless corrections were saved during the takeover (see [Key Relationships](#key-relationships)), in which case it becomes `abandoned` like any other session
 - When a heartbeat answers 409 because the lock is gone, the review page says the session was released and returns to the queue; edits not yet saved are lost
 - If the same reviewer starts a session on an already-locked document, the existing session is returned
 - If a different reviewer tries, a `ConflictException` is thrown
@@ -110,7 +134,9 @@ Document locks prevent concurrent editing:
 - **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string. Taking over a flagged session makes it the new reviewer's
 - A **rejected** session also keeps why: `rejection_reason`, one of five fixed reasons (`INPUT_QUALITY`, `OCR_FAILURE`, `MODEL_MISMATCH`, `CONFIDENCE_TOO_LOW`, `SYSTEMIC_ERROR`), and an optional `rejection_comment`
 - A **flagged** session keeps the note left when it was flagged (`flag_note`). Taking the session over keeps the note; flagging it again replaces it
-- **FieldCorrection** records are children - one per field interaction. Each records who made it (`actor_id`), so a session that changed hands credits every correction to the right reviewer. Corrections saved before authors were recorded have no `actor_id`
+- **ReviewSessionEvent** is a permanent, append-only log of flag/reject/skip/approve/reopen actions on a session. Unlike the denormalized columns on `ReviewSession` (`status`, `flag_note`, `rejection_reason`, ...), which a reopen can overwrite, these rows are never updated or deleted except by cascade when the session itself is deleted — so a session's full history of decisions survives a handoff/reopen cycle. `GET /sessions/:id/history` returns them oldest first
+- **`reopened_from_status`** is a nullable marker set only while an in-progress session is a reopened handoff from `flagged` (`reopenSession` sets it, never for the dataset-labeling reopen path). It records what to restore `status` to if the takeover ends without a decision (skip, lock expiry). Saving any correction during the takeover (`POST /sessions/:id/corrections`) clears it, since that means the reviewer engaged with the takeover rather than just viewing it — a later skip or lock expiry then falls through to `abandoned` like a normal session, instead of restoring to `flagged`
+- **FieldCorrection** records are children - one per field interaction. Each records who made it (`actor_id`), so a session that changed hands credits every correction to the right reviewer. Corrections saved before authors were recorded have no `actor_id`. `GET /api/hitl/sessions/:id/corrections` returns corrections for the whole document, not just the session named in the URL: a skipped, abandoned, or lock-expired session can leave a document with more than one `ReviewSession` row, and history must span all of them
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
 - Sessions track duration via `started_at` and `completed_at` timestamps
@@ -124,35 +150,40 @@ Document locks prevent concurrent editing:
       ↓
   in_progress (initial state)
       ↓
-   ┌──┴──────────────┬──────────────────┬──────────────────┬────────────────────┐
-   ↓                 ↓                  ↓                  ↓                    ↓
-approved          rejected           flagged           abandoned            abandoned
-(terminal)       (terminal)         (terminal)        (skip, terminal)     (lock expired)
-   ↓                 ↓                  ↓                  ↓                    ↓
-releases lock   releases lock      releases lock      releases lock        lock deleted
-   ↓                 ↓                  ↓                  ↓                    ↓
-final             final           Flagged tab,      back to Pending      back to Pending
-                                  view-only + Take
-                   ↓
-              in_progress
+   ┌──┴──────────────┬──────────────────┬──────────────────────────┐
+   ↓                 ↓                  ↓                          ↓
+approved          rejected           flagged                   abandoned
+(terminal)       (terminal)         (terminal)                 (terminal)
+   ↓                 ↓          (flag, or skip/lock-expiry        ↓
+releases lock   releases lock    on an unresolved handoff)    skip or lock expiry,
+   ↓                 ↓                  ↓                     not an unresolved handoff
+final             final           releases lock /                 ↓
+                                  lock deleted                releases lock /
+                                       ↓                      lock deleted
+                                  Flagged tab,                     ↓
+                                  view-only + Take            back to Pending
+                                       ↓
+                                  in_progress
+
 ```
 
-A lapsed lock on a session that carries a flag note ends it as `flagged`
-rather than `abandoned` (see [Transition Rules](#transition-rules)).
+A lapsed lock on a session reopened from `flagged` ends it as `flagged`
+again rather than `abandoned`, unless corrections were saved during the
+takeover (see [Transition Rules](#transition-rules)).
 
 ### Transition Rules
 
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
-| `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
-| `in_progress` | `flagged` | `POST /sessions/:id/flag` | Stores the optional `note` as `flag_note`, releases lock; document moves to the Flagged tab, which shows the note |
-| `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
-| `in_progress` | `abandoned` | Lock expiry cron, session has no flag note | Releases lock; document returns to the Pending queue |
-| `in_progress` | `flagged` | Lock expiry cron, session carries a flag note | Releases lock; document returns to the Flagged tab with its note and corrections, for the next reviewer to take |
-| `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over: the session and its lock move to them, the flag note stays, and the previous reviewer's corrections stay, still credited to whoever made them |
-| `approved` | `in_progress` | `POST /sessions/:id/reopen` | Dataset labeling only, and only while the dataset version is unfrozen. Clears `completed_at`, re-acquires lock, sets document `awaiting_review` |
+| `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, records an `approved` event, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, stores the required `rejectionReason` and optional comment on the session and on a `rejected` event, marks the document `rejected`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false`. Only an in-progress session can be rejected; rejecting twice answers 409 |
+| `in_progress` | `flagged` | `POST /sessions/:id/flag` | Stores the optional `note` as `flag_note`, releases lock, records a `flagged` event with the note as its comment; document moves to the Flagged tab, which shows the note |
+| `in_progress` | `abandoned` or `flagged` | `POST /sessions/:id/skip` | Releases lock, records a `skipped` event. Restores to `flagged` if this was an unresolved handoff from Flagged (`reopened_from_status` still set); otherwise `abandoned`, returning the document to the Pending queue. Only an in-progress session can be skipped; skipping a session that already reached a decision answers 409 |
+| `in_progress` | `abandoned` | Lock expiry cron, not an unresolved handoff | Releases lock; document returns to the Pending queue |
+| `in_progress` | `flagged` | Lock expiry cron, unresolved handoff from Flagged | Releases lock; document returns to the Flagged tab with its note and corrections, for the next reviewer to take |
+| `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over: the session and its lock move to them, the flag note stays, the previous reviewer's corrections stay (still credited to whoever made them), `reopened_from_status` is set to `flagged`, and a `reopened` event is recorded |
+| `approved` | `in_progress` | `POST /sessions/:id/reopen` | Dataset labeling only, and only while the dataset version is unfrozen. Clears `completed_at`, re-acquires lock, sets document `awaiting_review`, records a `reopened` event. `reopened_from_status` is left unset: an unresolved skip or lock expiry on this path ends as `abandoned`, not restored |
 
 **Important**: approving a document review is final. It signals the workflow
 parked at the `humanGate`, which then runs every node after the gate, and no
@@ -239,15 +270,19 @@ Navigate to ReviewWorkspacePage
 
 ### 3. Submit Corrections Flow
 
-The review page keeps the reviewer's edits until they approve, reject or flag
-the document, and each of those first sends the corrections not saved yet.
-Skipping discards them. A session that is reopened, or taken over from another
-reviewer, opens with its saved corrections on the page; only a field whose value
-differs from its last saved correction is sent, so nothing is stored twice or
-credited to the wrong reviewer.
+The review page keeps the reviewer's edits until they press **Save**, or
+approve, reject or flag the document; each of those first sends the corrections
+not saved yet. Save stores them without ending the session. Skipping discards
+edits that were not saved. The page opens with every correction already saved on
+the document, in any of its review sessions; only a field whose value differs
+from its last saved correction is sent, so nothing is stored twice or credited
+to the wrong reviewer. Ground truth for dataset labelling jobs and for datasets
+created from HITL reviews is built from the same list (see
+[ground-truth-generation.md](../extraction/ground-truth-generation.md) and
+[hitl-dataset-creation.md](../extraction/hitl-dataset-creation.md)).
 
 ```
-Reviewer approves, rejects or flags; the page sends its unsaved corrections
+Reviewer saves, approves, rejects or flags; the page sends its unsaved corrections
       ↓
 POST /api/hitl/sessions/:id/corrections
   {
@@ -366,13 +401,26 @@ User clicks "Skip"
       ↓
 POST /api/hitl/sessions/:id/skip
       ↓
+409 if the session is not in_progress (already decided, or not yet claimed)
+      ↓
 UPDATE review_sessions
-SET status = 'abandoned'
+SET status = CASE WHEN reopened_from_status = 'flagged'
+               THEN 'flagged' ELSE 'abandoned' END,
+    reopened_from_status = null
 WHERE id = :id
       ↓
-Lock released; document returns to the Pending queue, and the next
-reviewer to open it starts a fresh session
+Lock released, a `skipped` event recorded; a fresh claim restores to the
+Flagged tab if this was an unresolved handoff from Flagged, otherwise the
+document returns to the Pending queue and the next reviewer to open it
+starts a fresh session
 ```
+
+A handoff that only got viewed, then skipped, restores to Flagged: the
+reviewer never engaged with it, so the original flag's priority signal should
+still stand. A handoff where the reviewer saved corrections before skipping
+falls through to `abandoned` instead — saving a correction clears
+`reopened_from_status` (see [Key Relationships](#key-relationships)), since
+that work means the takeover is no longer just a pass-through.
 
 ## API Endpoints
 
@@ -385,11 +433,12 @@ reviewer to open it starts a fresh session
 | `GET` | `/api/hitl/sessions/:id` | Get session details | Yes |
 | `POST` | `/api/hitl/sessions/:id/corrections` | Submit field corrections | Yes |
 | `GET` | `/api/hitl/sessions/:id/corrections` | Get correction history | Yes |
+| `GET` | `/api/hitl/sessions/:id/history` | Get the permanent flag/reject/skip/approve/reopen event history for the session | Yes |
 | `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
 | `POST` | `/api/hitl/sessions/:id/approve` | Approve session | Yes |
 | `POST` | `/api/hitl/sessions/:id/reject` | Reject session | Yes |
 | `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention, with an optional `note` for the next reviewer | Yes |
-| `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
+| `POST` | `/api/hitl/sessions/:id/skip` | Skip session; restores to Flagged if this was an unresolved handoff from Flagged, otherwise returns the document to the queue. 409 if the session is not in progress | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
 | `POST` | `/api/hitl/sessions/:id/reopen` | Take over a flagged session, or reopen a dataset labeling job | Yes |
 
@@ -454,8 +503,9 @@ Each tab's `total` is counted with the same filters, so it matches the documents
 - Inline canvas editing: [CanvasFieldOverlay.tsx](../../apps/frontend/src/features/annotation/hitl/components/CanvasFieldOverlay.tsx) anchors an input under each field's bounding box on the document image, sized to the box and colored by OCR confidence tier ([ConfidenceIndicator.tsx](../../apps/frontend/src/features/annotation/hitl/components/ConfidenceIndicator.tsx)); Tab moves between fields ([useFieldFocus.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useFieldFocus.ts)), F2 toggles the overlay, hover fades it to reveal the source pixels
 - Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
-- Actions: Approve, Reject (with a reason), Flag (with an optional note), Skip
-- Shows a session's flag note as a banner, and marks the Flag button while a note is on the session
+- Actions: Save, Approve, Reject (with a reason), Flag (with an optional note), Skip
+- Shows a session's flag note in a collapsed panel above the toolbar, and marks the Flag button while a note is on the session
+- Correction history: every correction saved on the document, across its sessions, with its author — the reviewer's email, "API key" for a correction made through the group's API key (still so labelled after that key is deleted), or "Not recorded" for corrections saved before authors were recorded — and the old and new values, with a dash for an empty side
 - Supports read-only mode for viewing completed sessions
 
 ### Key Hooks
@@ -657,9 +707,12 @@ The system tracks metrics for:
    - Approves if satisfied → status: `approved`
    - Rejects if the document cannot be used → status: `rejected`
    - Flags if it needs someone else's eyes → status: `flagged`
-   - Skips if cannot complete → status: `abandoned`
-   - Approving, rejecting and flagging save the corrections first; skipping
-     discards them
+   - Skips if cannot complete → status: `abandoned`, or `flagged` when the
+     session was taken over from the Flagged tab and no corrections were saved
+     during the takeover (see [Transition Rules](#transition-rules))
+   - Save stores the corrections without ending the session; approving,
+     rejecting and flagging save them first; skipping discards edits not yet
+     saved
 
 ### Flagging Workflow
 

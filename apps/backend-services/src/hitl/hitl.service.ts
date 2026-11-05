@@ -6,6 +6,7 @@ import {
   OcrResult,
   Prisma,
   ReviewSession,
+  ReviewSessionEventType,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -33,11 +34,32 @@ import {
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
 import {
+  type FieldCorrectionWithActor,
   ReviewDbService,
   type ReviewQueueDocument,
   type ReviewQueueFilters,
 } from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
+
+/** Who made a correction: a logged-in user, a group's api key, or unrecorded on older rows. */
+export interface CorrectionAuthor {
+  type: "user" | "api_key" | "unknown";
+  email?: string;
+}
+
+function resolveCorrectionAuthor(
+  actor: FieldCorrectionWithActor["actor"],
+): CorrectionAuthor {
+  if (actor?.user?.email) {
+    return { type: "user", email: actor.user.email };
+  }
+  // The group's API-key identity outlives its keys, so corrections made
+  // through a key that has since been deleted still name the API key.
+  if (actor?.apiKeyGroup) {
+    return { type: "api_key" };
+  }
+  return { type: "unknown" };
+}
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
@@ -432,6 +454,17 @@ export class HitlService {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
     }
 
+    // Reviewable only once OCR has produced results to review, and before a
+    // decision (approve/reject) has already been made
+    if (
+      document.status !== DocumentStatus.extracted &&
+      document.status !== DocumentStatus.awaiting_review
+    ) {
+      throw new ConflictException(
+        `Document ${dto.documentId} is not reviewable in its current status (${document.status})`,
+      );
+    }
+
     // Check for existing lock
     const existingLock = await this.reviewDb.findActiveLock(dto.documentId);
     if (existingLock) {
@@ -624,6 +657,18 @@ export class HitlService {
           );
         }
 
+        // Saving corrections during a reopened handoff is the reviewer engaging
+        // with the takeover, so skip/lock-expiry should no longer auto-restore
+        // this session to its prior status (e.g. back to Flagged) if it later
+        // ends without a decision — that would discard the work's context.
+        if (session.reopened_from_status) {
+          await this.reviewDb.updateReviewSession(
+            sessionId,
+            { reopened_from_status: null },
+            tx,
+          );
+        }
+
         await this.auditService.recordEvent(
           {
             event_type: "review_corrections_submitted",
@@ -695,6 +740,12 @@ export class HitlService {
       );
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.approved, actor_id: actorId },
+        tx,
+      );
 
       await this.auditService.recordEvent(
         {
@@ -816,6 +867,17 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.rejected,
+          actor_id: actorId,
+          comment: rejectionComment,
+          rejection_reason: dto.rejectionReason,
+        },
+        tx,
+      );
+
       await this.auditService.recordEvent(
         {
           event_type: "review_session_rejected",
@@ -854,7 +916,15 @@ export class HitlService {
     };
   }
 
-  async skipSession(sessionId: string) {
+  /**
+   * Skips a session the reviewer is currently working on. A session reopened
+   * from `flagged` (a handoff) restores to `flagged` for the next reviewer,
+   * unless corrections were saved during the takeover (see submitCorrections),
+   * in which case it is `abandoned` like any other skip. A session that is not
+   * `in_progress` cannot be skipped: it has already reached a decision, or
+   * nothing has claimed it yet.
+   */
+  async skipSession(sessionId: string, actorId: string) {
     this.logger.debug(`Skipping session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -862,18 +932,26 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot skip a session that is ${session.status}`,
+      );
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
 
-    // The document goes back to the pending queue, so this session is over:
-    // `abandoned` closes it out and leaves the next reviewer a fresh session
-    // rather than an in_progress row nothing will ever finish.
+    const nextStatus =
+      session.reopened_from_status === ReviewStatus.flagged
+        ? ReviewStatus.flagged
+        : ReviewStatus.abandoned;
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        { status: ReviewStatus.abandoned },
+        { status: nextStatus, reopened_from_status: null },
         tx,
       );
 
@@ -883,15 +961,22 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.skipped, actor_id: actorId },
+        tx,
+      );
+
       await this.auditService.recordEvent(
         {
           event_type: "review_session_skipped",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id },
+          payload: { document_id: session.document_id, status: nextStatus },
         },
         tx,
       );
@@ -902,11 +987,14 @@ export class HitlService {
     return {
       id: updated.id,
       status: updated.status,
-      message: "Lock released, document returned to queue",
+      message:
+        nextStatus === ReviewStatus.flagged
+          ? "Lock released, document returned to flagged queue"
+          : "Lock released, document returned to queue",
     };
   }
 
-  async flagSession(sessionId: string, dto: FlagSessionDto) {
+  async flagSession(sessionId: string, dto: FlagSessionDto, actorId: string) {
     this.logger.debug(`Flagging session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -934,11 +1022,22 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.flagged,
+          actor_id: actorId,
+          comment: flagNote,
+        },
+        tx,
+      );
+
       await this.auditService.recordEvent(
         {
           event_type: "review_session_flagged",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
@@ -965,7 +1064,12 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const corrections = await this.reviewDb.findSessionCorrections(sessionId);
+    // History spans every session the document has had, not just this one:
+    // a document that got a fresh session (skip, abandonment, flag handoff)
+    // keeps the corrections made in its earlier sessions.
+    const corrections = await this.reviewDb.findDocumentCorrections(
+      session.document_id,
+    );
 
     return {
       sessionId,
@@ -977,6 +1081,35 @@ export class HitlService {
         originalConfidence: c.original_conf,
         action: c.action,
         createdAt: c.created_at,
+        author: resolveCorrectionAuthor(c.actor),
+      })),
+    };
+  }
+
+  /**
+   * Gets the permanent history of actions (flag, reject, skip, approve,
+   * reopen) recorded against a review session, oldest first.
+   */
+  async getSessionHistory(sessionId: string) {
+    this.logger.debug(`Getting history for session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    const events = await this.reviewDb.findSessionEvents(sessionId);
+
+    return {
+      sessionId,
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.event_type,
+        actorId: e.actor_id,
+        actorName: e.actor?.user?.email ?? null,
+        comment: e.comment,
+        rejectionReason: e.rejection_reason,
+        createdAt: e.created_at,
       })),
     };
   }
@@ -1095,6 +1228,10 @@ export class HitlService {
           // session makes it the new reviewer's. Corrections already saved keep
           // their own author, and the flag note stays for the new reviewer.
           actor_id: reviewerId,
+          // Only a handoff (reopened from flagged) restores automatically if the
+          // takeover ends without a decision; a reopened ground-truth job keeps
+          // this unset, since that path isn't in scope for the live-state restore.
+          reopened_from_status: isHandoff ? ReviewStatus.flagged : null,
         },
         tx,
       );
@@ -1112,6 +1249,12 @@ export class HitlService {
           session_id: sessionId,
           expires_at: new Date(Date.now() + lockTtlMs),
         },
+        tx,
+      );
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.reopened, actor_id: reviewerId },
         tx,
       );
 

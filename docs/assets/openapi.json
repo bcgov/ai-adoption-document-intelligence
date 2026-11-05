@@ -7629,7 +7629,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List of all corrections submitted for the session",
+            "description": "Every correction saved on the session's document, across all of its review sessions, oldest first, each with its author",
             "content": {
               "application/json": {
                 "schema": {
@@ -7653,7 +7653,53 @@
             "api-key": []
           }
         ],
-        "summary": "Get correction history for a session",
+        "summary": "Get the correction history of a session's document",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/history": {
+      "get": {
+        "operationId": "HitlController_getSessionHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flag/reject/skip/approve/reopen events recorded for the session, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSessionHistoryResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get the permanent action history for a review session",
         "tags": [
           "hitl"
         ]
@@ -7786,7 +7832,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Lock released, session returned to pending queue",
+            "description": "Lock released, document returned to the pending queue, or to the flagged queue if this was an unresolved handoff from Flagged",
             "content": {
               "application/json": {
                 "schema": {
@@ -7800,6 +7846,9 @@
           },
           "404": {
             "description": "Session not found"
+          },
+          "409": {
+            "description": "Session is not in progress and cannot be skipped"
           }
         },
         "security": [
@@ -16442,6 +16491,27 @@
           "message"
         ]
       },
+      "CorrectionAuthorDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "api_key",
+              "unknown"
+            ],
+            "description": "user: a signed-in reviewer; api_key: the group's API key, including one since deleted; unknown: saved before authors were recorded"
+          },
+          "email": {
+            "type": "string",
+            "description": "The reviewer's email, when type is user"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
       "CorrectionRecordDto": {
         "type": "object",
         "properties": {
@@ -16466,13 +16536,22 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "author": {
+            "description": "Who made the correction",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CorrectionAuthorDto"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "fieldKey",
           "action",
-          "createdAt"
+          "createdAt",
+          "author"
         ]
       },
       "CorrectionsListResponseDto": {
@@ -16491,6 +16570,78 @@
         "required": [
           "sessionId",
           "corrections"
+        ]
+      },
+      "ReviewSessionEventRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "flagged",
+              "rejected",
+              "skipped",
+              "approved",
+              "reopened"
+            ]
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email of the reviewer who performed the action, or null when it was not a signed-in user"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "description": "Flag note or rejection comment recorded with the event, depending on eventType"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "enum": [
+              "INPUT_QUALITY",
+              "OCR_FAILURE",
+              "MODEL_MISMATCH",
+              "CONFIDENCE_TOO_LOW",
+              "SYSTEMIC_ERROR"
+            ],
+            "nullable": true,
+            "description": "Only set when eventType is 'rejected'"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "eventType",
+          "actorId",
+          "createdAt"
+        ]
+      },
+      "ReviewSessionHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "events": {
+            "description": "Permanent record of flag/reject/skip/approve/reopen actions on this session, oldest first. Unlike corrections, these rows are never overwritten by a later reopen.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewSessionEventRecordDto"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "events"
         ]
       },
       "SessionActionResponseDto": {

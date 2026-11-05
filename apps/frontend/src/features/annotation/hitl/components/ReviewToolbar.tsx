@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconArrowsSort,
   IconCheck,
+  IconDeviceFloppy,
   IconFlag,
   IconLayoutGrid,
   IconPhoto,
@@ -27,10 +28,13 @@ interface ReviewToolbarProps {
   /** Omit to hide Reject, as when labelling a dataset: there is no workflow to reject. */
   onReject?: () => void;
   onSkip: () => void;
+  /** Persists in-progress corrections without approving, flagging, rejecting or skipping. */
+  onSave: () => void;
   isApproving?: boolean;
   isFlagging?: boolean;
   isSkipping?: boolean;
   isRejecting?: boolean;
+  isSaving?: boolean;
   /** Note captured from a prior flag on this session, if one exists. */
   flagNote?: string | null;
   autoAdvance?: boolean;
@@ -47,10 +51,12 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   onFlag,
   onReject,
   onSkip,
+  onSave,
   isApproving,
   isFlagging,
   isSkipping,
   isRejecting,
+  isSaving,
   flagNote,
   autoAdvance,
   onAutoAdvanceToggle,
@@ -69,6 +75,14 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
           onClick={onBack}
         >
           Back
+        </Button>
+        <Button
+          variant="default"
+          leftSection={<IconDeviceFloppy size={16} />}
+          onClick={onSave}
+          loading={isSaving}
+        >
+          Save
         </Button>
         <Button
           leftSection={<IconCheck size={16} />}

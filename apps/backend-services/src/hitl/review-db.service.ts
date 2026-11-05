@@ -27,6 +27,18 @@ export interface ReviewQueueFilters {
   sortDir?: "asc" | "desc";
 }
 
+/** A FieldCorrection row with the actor relation needed to display who made it. */
+export type FieldCorrectionWithActor = Prisma.FieldCorrectionGetPayload<{
+  include: {
+    actor: {
+      select: {
+        user: { select: { email: true } };
+        apiKeyGroup: { select: { id: true } };
+      };
+    };
+  };
+}>;
+
 /**
  * What the review queue loads for each document. Only the OCR field payload is
  * selected: `content` holds the full extracted text and page lines, which the
@@ -369,6 +381,7 @@ export class ReviewDbService {
       flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
+      reopened_from_status?: ReviewStatus | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
@@ -395,6 +408,64 @@ export class ReviewDbService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Records a permanent event on a review session (flagged, rejected, skipped,
+   * approved or reopened). Unlike the denormalized status columns on
+   * ReviewSession, these rows are never overwritten, so a session's history
+   * survives a handoff/reopen cycle.
+   * @param sessionId - The review session the event belongs to.
+   * @param data - The event's type, actor, and optional comment/rejection reason.
+   * @returns The created ReviewSessionEvent record.
+   */
+  async createReviewSessionEvent(
+    sessionId: string,
+    data: {
+      event_type: import("@generated/client").ReviewSessionEventType;
+      actor_id: string;
+      comment?: string | null;
+      rejection_reason?: RejectionReason | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewSessionEvent> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Recording review session event", {
+      sessionId,
+      event_type: data.event_type,
+    });
+    return client.reviewSessionEvent.create({
+      data: {
+        review_session_id: sessionId,
+        ...data,
+      },
+    });
+  }
+
+  /**
+   * Finds all recorded events for a review session, oldest first.
+   * @param sessionId - The review session ID.
+   * @returns Array of ReviewSessionEvent records with the acting reviewer included.
+   */
+  async findSessionEvents(
+    sessionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewSessionEvent & {
+        actor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Finding events for session", { sessionId });
+    return client.reviewSessionEvent.findMany({
+      where: { review_session_id: sessionId },
+      orderBy: { created_at: "asc" },
+      include: {
+        actor: { select: { user: { select: { email: true } } } },
+      },
+    });
   }
 
   /**
@@ -426,20 +497,57 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds all field corrections for a review session.
-   * @param sessionId - The review session ID.
+   * Finds all field corrections for a document, across every review session
+   * it has had, including the author (user email, or the group's API-key
+   * identity, which outlives the group's keys) of each correction. A document can get a new session after its old one ends
+   * without finishing the review (skip, abandonment, flag handoff), so
+   * scoping to one session would hide corrections from earlier sessions.
+   * @param documentId - The document ID.
    * @returns Array of FieldCorrection records ordered by creation time.
    */
-  async findSessionCorrections(
-    sessionId: string,
+  async findDocumentCorrections(
+    documentId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<import("@generated/client").FieldCorrection[]> {
+  ): Promise<FieldCorrectionWithActor[]> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding corrections for session", { sessionId });
+    this.logger.debug("Finding corrections for document", { documentId });
     return client.fieldCorrection.findMany({
-      where: { session_id: sessionId },
+      where: { session: { document_id: documentId } },
       orderBy: { created_at: "asc" },
+      include: {
+        actor: {
+          select: {
+            user: { select: { email: true } },
+            apiKeyGroup: { select: { id: true } },
+          },
+        },
+      },
     });
+  }
+
+  /**
+   * Counts the field corrections on each document across every review
+   * session it has had, the same rows findDocumentCorrections returns.
+   * @param documentIds - The document IDs.
+   * @returns Correction count per document ID; a document with none is absent.
+   */
+  async countDocumentCorrections(
+    documentIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Map<string, number>> {
+    const client = tx ?? this.prisma;
+    const sessions = await client.reviewSession.findMany({
+      where: { document_id: { in: documentIds } },
+      select: { document_id: true, _count: { select: { corrections: true } } },
+    });
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      counts.set(
+        session.document_id,
+        (counts.get(session.document_id) ?? 0) + session._count.corrections,
+      );
+    }
+    return counts;
   }
 
   /**
@@ -534,7 +642,8 @@ export class ReviewDbService {
 
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
-   * audit event needs, and whether the locked session carries a flag note.
+   * audit event needs, and whether the locked session is a reopened handoff that
+   * should restore to its prior status if it never gets a decision.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
    */
@@ -547,7 +656,7 @@ export class ReviewDbService {
       document_id: string;
       group_id: string;
       workflow_execution_id: string | null;
-      has_flag_note: boolean;
+      reopened_from_status: ReviewStatus | null;
     }>
   > {
     const client = tx ?? this.prisma;
@@ -559,7 +668,7 @@ export class ReviewDbService {
         document: {
           select: { group_id: true, workflow_execution_id: true },
         },
-        session: { select: { flag_note: true } },
+        session: { select: { reopened_from_status: true } },
       },
     });
     return locks.map((lock) => ({
@@ -567,14 +676,14 @@ export class ReviewDbService {
       document_id: lock.document_id,
       group_id: lock.document.group_id,
       workflow_execution_id: lock.document.workflow_execution_id,
-      has_flag_note: lock.session.flag_note !== null,
+      reopened_from_status: lock.session.reopened_from_status,
     }));
   }
 
   /**
-   * Returns in-progress sessions to `flagged`. Sessions in any other status
-   * are left alone, so a session that finished between the scan and this
-   * write keeps its outcome.
+   * Returns in-progress sessions to `flagged`, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
    * @param sessionIds - The sessions to return to flagged.
    * @returns How many sessions were updated.
    */
@@ -585,15 +694,15 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.flagged },
+      data: { status: ReviewStatus.flagged, reopened_from_status: null },
     });
     return result.count;
   }
 
   /**
-   * Marks in-progress sessions as abandoned. Sessions in any other status are
-   * left alone, so a session that finished between the scan and this write
-   * keeps its outcome.
+   * Marks in-progress sessions as abandoned, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
    * @param sessionIds - The sessions to abandon.
    * @returns How many sessions were updated.
    */
@@ -604,7 +713,7 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.abandoned },
+      data: { status: ReviewStatus.abandoned, reopened_from_status: null },
     });
     return result.count;
   }

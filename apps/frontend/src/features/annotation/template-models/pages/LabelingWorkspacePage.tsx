@@ -444,6 +444,17 @@ export const LabelingWorkspacePage: FC = () => {
     setWordAssignments(nextAssignments);
   };
 
+  const showSuggestionLoadError = (error: unknown) => {
+    notifications.show({
+      title: "Failed to load suggestions",
+      message:
+        error instanceof Error
+          ? error.message
+          : "An error occurred while loading suggestions.",
+      color: "red",
+    });
+  };
+
   const handleLoadSuggestions = async () => {
     try {
       const suggestions = await loadSuggestionsAsync();
@@ -454,14 +465,7 @@ export const LabelingWorkspacePage: FC = () => {
         color: "blue",
       });
     } catch (error) {
-      notifications.show({
-        title: "Failed to load suggestions",
-        message:
-          error instanceof Error
-            ? error.message
-            : "An error occurred while loading suggestions.",
-        color: "red",
-      });
+      showSuggestionLoadError(error);
     }
   };
 
@@ -493,7 +497,7 @@ export const LabelingWorkspacePage: FC = () => {
         const suggestions = await loadSuggestionsAsync();
         applySuggestionsToAssignments(suggestions);
       } catch (error) {
-        void error;
+        showSuggestionLoadError(error);
       } finally {
         setAutoSuggestionApplied(true);
       }

@@ -233,8 +233,9 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 | `AUDIT_EVENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `audit_events` rows are deleted. Confirm statutory retention requirements before setting this in a regulated environment. |
 | `BENCHMARK_AUDIT_LOG_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `benchmark_audit_logs` rows are deleted. |
 | `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `approved`, `rejected` or `abandoned` `review_sessions` are deleted, once their document has finished processing, along with their cascading `field_corrections` (reviewer edits read by confusion profiles, HITL aggregation and format suggestions). `in_progress` and `flagged` sessions are never deleted. |
+| `CHAT_CONVERSATION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which non-demo workflow-builder `chat_conversations` whose last message (`lastMessageAt`) is older than the window are deleted, along with their cascading `chat_messages`. Seeded demo conversations (`isDemo`) are never deleted. Because chat messages can embed tool results containing document text (OCR text, extraction results), this window should be set no longer than `DOCUMENT_RETENTION_DAYS` when both are enabled. |
 
-All four janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
+All five janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
 
 For the document janitor: deletion cascades from the `documents` row to `ocr_results`, `review_sessions`, `field_corrections`, and `document_locks`. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review`, or `extracted` are never deleted at any age.
 
