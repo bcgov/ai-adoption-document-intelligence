@@ -27,6 +27,7 @@ This skill manages the HTML documentation site at `docs/`.
 | benchmarking-technical.html | BENCHMARKINGTECHNICAL | Benchmarking Architecture |
 | diagrams.html | DIAGRAMS | Diagrams |
 | integrations.html | INTEGRATIONS | Integrations |
+| integration-tutorial.html | INTEGRATIONTUTORIAL | From Zero to Integration |
 
 ## Workflows
 
