@@ -119,10 +119,15 @@ export class UploadController {
           workflowVersion: uploadDto.workflow_version,
           workflowConfigId: uploadDto.workflow_config_id,
         });
+      if (!workflowConfigId) {
+        throw new BadRequestException(
+          "workflow_slug or workflow_config_id is required",
+        );
+      }
 
       // Default model_id from the workflow's ctx.modelId.defaultValue when not provided.
       let modelId: string | undefined = uploadDto.model_id;
-      if (!modelId && workflowConfigId) {
+      if (!modelId) {
         modelId =
           (await this.workflowService.getModelIdDefault(
             workflowConfigId,
