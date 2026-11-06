@@ -6,8 +6,7 @@
       "component": "ai-adoption-document-intelligence",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
-      "bump-minor-pre-major": true,
-      "release-as": "0.1.0"
+      "bump-minor-pre-major": true
     }
   },
   "changelog-sections": [
