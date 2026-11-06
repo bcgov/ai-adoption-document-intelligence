@@ -1,12 +1,16 @@
-<!--  
-PR Title format:  
-JIRA_BOARD_ABBREVIATION-JIRA_TASK_NUMBER: TITLE_OF_JIRA_TASK  
-Example: AI-700: A great ticket                                       
--->  
+<!--
+PR title format:
+type: short description
+Example: fix: require a permission on the suggestion endpoints
+
+Types that bump a release: feat, fix, perf, revert
+Types that do not: docs, style, refactor, test, build, ci, chore
+A breaking change puts a ! after the type, or a BREAKING CHANGE footer.
+-->
 
 ## Summary
 
-[AI-###](https://citz-do.atlassian.net/browse/AI-###)
+[HCAP-###](https://citz-ocio-es.atlassian.net/browse/HCAP-###)
 
 ## Changes
 

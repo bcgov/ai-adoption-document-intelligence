@@ -123,6 +123,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Created `docs-md/operations/BACKUP_RPO_RTO.md` recording the RPO, recovery window and RTO implied by PR #238's backup settings (weekly fulls, 4-hour incrementals, 2-full count retention).
 
+## [2026-09-19] ingest | Label suggestions move from rules to an LLM
+
+- `architecture/TEMPLATE_MODELS.md`: documented the `label-suggestions/` module (tagged-text rendering, the Azure OpenAI call, ref resolution), the bulk field-create and field-suggestion endpoints, the optional `FieldDefinition.description` column, and the new Field schema "Suggest fields" UI. The rule-based `suggestion.service.ts` this replaces is gone from the tree and the doc.
+- `extraction.md`: added a Design Notes bullet distinguishing label/field suggestions (one-shot, per-document) from the confusion-profile/format-suggestion feedback loops next to it.
+
 ## [2026-09-29] ingest | Frontend route permissions and the reviewer role
 
 - `auth/FRONTEND_ROUTE_PERMISSIONS.md`: new — `appRoutes` in `routes.config.tsx`, `GroupPermissionGuard`, sidebar filtering, `HomeRedirect` landing pages, and the numeric permission list `/api/auth/me` sends.
@@ -183,3 +188,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
 - `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
 - `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.
+
+## [2026-11-03] maintenance | HITL skip and lock expiry follow the takeover, not the flag note
+
+- `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
+- `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.

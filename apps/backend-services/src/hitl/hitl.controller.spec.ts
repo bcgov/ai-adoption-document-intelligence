@@ -42,6 +42,7 @@ describe("HitlController", () => {
       getSession: jest.fn(),
       submitCorrections: jest.fn(),
       getCorrections: jest.fn(),
+      getSessionHistory: jest.fn(),
       approveSession: jest.fn(),
       rejectSession: jest.fn(),
       skipSession: jest.fn(),
@@ -420,6 +421,51 @@ describe("HitlController", () => {
     });
   });
 
+  describe("getSessionHistory", () => {
+    it("returns the session's action history for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.EDITOR },
+        },
+      } as unknown as Request;
+      const mockResult = { sessionId: "session-1", events: [] };
+      hitlService.getSessionHistory.mockResolvedValue(mockResult as any);
+      const result = await controller.getSessionHistory("session-1", req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.getSessionHistory).toHaveBeenCalledWith("session-1");
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.getSessionHistory("session-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.getSessionHistory).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.EDITOR },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.getSessionHistory("session-1", req),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("approveSession", () => {
     it("approves session for a group member, as the caller", async () => {
       const req = {
@@ -548,7 +594,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          actorId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -563,7 +609,7 @@ describe("HitlController", () => {
       expect(result).toEqual(mockResult);
       expect(hitlService.skipSession).toHaveBeenCalledWith(
         "session-1",
-        "user-1",
+        "actor-1",
       );
     });
 
@@ -614,7 +660,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          actorId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.REVIEWER },
         },
@@ -630,7 +676,7 @@ describe("HitlController", () => {
       expect(hitlService.flagSession).toHaveBeenCalledWith(
         "session-1",
         dto,
-        "user-1",
+        "actor-1",
       );
     });
 

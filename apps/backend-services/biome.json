@@ -1,6 +1,14 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": ["../../biome.json"],
+  "files": {
+    "includes": [
+      "!!**/dist",
+      "!!**/node_modules",
+      "!!package.json",
+      "!!scripts/label-suggestions-bench/.cache"
+    ]
+  },
   "javascript": {
     "parser": {
       "unsafeParameterDecoratorsEnabled": true
