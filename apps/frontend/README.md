@@ -210,7 +210,6 @@ VITE_API_BASE_URL=
 
 # Application Configuration
 VITE_APP_NAME=Document Intelligence Platform
-VITE_APP_VERSION=1.0.0
 ```
 
 **Configuration Notes:**
