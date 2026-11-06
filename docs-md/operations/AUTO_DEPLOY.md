@@ -4,6 +4,8 @@
 
 The `Deploy Instance` workflow (`.github/workflows/deploy-instance.yml`) builds images and deploys them to an OpenShift instance. A commit landing on `develop` deploys the shared test instance automatically. Production is deployed only by a manual run of the workflow from `main` with the `prod` environment selected; a push to `main` does not deploy.
 
+The test frontend header shows the deployed commit. When that commit contains a release tag, the header shows the tag as well.
+
 | Target | Started by | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
 |---|---|---|---|---|---|---|
 | Test | Push to `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |

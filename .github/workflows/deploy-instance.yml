@@ -248,6 +248,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-instance-${{ matrix.service }}-
 
+      - name: Resolve the version shown in the app
+        id: app-build
+        if: matrix.service == 'frontend'
+        run: |
+          set -euo pipefail
+          # The header shows this commit. A release tag is added only when
+          # this commit contains one. There is no tag yet, so the header
+          # shows the commit on its own.
+          COMMIT="${GITHUB_SHA::8}"
+          VERSION=""
+          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+            git fetch --unshallow origin
+          fi
+          git fetch --tags --force origin
+          TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            VERSION="$TAG"
+          fi
+          echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Compute image tags
         id: tags
         run: |
@@ -271,6 +292,8 @@ jobs:
             VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
             VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
             VITE_APP_NAME=${{ secrets.VITE_APP_NAME }}
+            VITE_APP_VERSION=${{ steps.app-build.outputs.version }}
+            VITE_APP_COMMIT=${{ steps.app-build.outputs.commit }}
             VITE_ENV=${{ secrets.VITE_ENV }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
