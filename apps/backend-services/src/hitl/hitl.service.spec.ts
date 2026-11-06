@@ -1191,6 +1191,19 @@ describe("HitlService", () => {
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
 
+    it("should throw ConflictException if the session is already finished", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+
+      await expect(
+        service.skipSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
     it("should return to flagged, not abandoned, when the session carries a flag note", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce({
         ...mockReviewSession,
@@ -1289,6 +1302,19 @@ describe("HitlService", () => {
       await expect(
         service.flagSession("non-existent", {}, "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException if the session is already finished", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(
+        service.flagSession("session-1", {}, "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });

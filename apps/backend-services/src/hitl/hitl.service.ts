@@ -899,6 +899,12 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot skip a session that is ${session.status}`,
+      );
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
@@ -960,6 +966,12 @@ export class HitlService {
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot flag a session that is ${session.status}`,
+      );
     }
 
     const doc = session.document as {
