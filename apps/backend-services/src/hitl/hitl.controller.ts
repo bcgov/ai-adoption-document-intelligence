@@ -444,7 +444,7 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.heartbeat(sessionId);
+    return this.hitlService.heartbeat(sessionId, req.resolvedIdentity.actorId);
   }
 
   @Delete("sessions/:id/corrections/:correctionId")

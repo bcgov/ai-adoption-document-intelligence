@@ -715,6 +715,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -723,7 +724,7 @@ describe("HitlController", () => {
       hitlService.heartbeat.mockResolvedValue(mockResult);
       const result = await controller.heartbeat("session-1", req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.heartbeat).toHaveBeenCalledWith("session-1");
+      expect(hitlService.heartbeat).toHaveBeenCalledWith("session-1", "user-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {

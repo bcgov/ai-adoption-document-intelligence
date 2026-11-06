@@ -141,7 +141,7 @@ describe("HitlService", () => {
       findDocumentCorrections: jest.fn(),
       findSessionEvents: jest.fn(),
       createReviewSessionEvent: jest.fn(),
-      findActiveLock: jest.fn(),
+      findActiveLock: jest.fn().mockResolvedValue(mockDocumentLock),
       acquireDocumentLock: jest.fn(),
       releaseDocumentLock: jest.fn(),
       refreshLockHeartbeat: jest.fn(),
@@ -604,6 +604,25 @@ describe("HitlService", () => {
       expect(result.id).toBe("session-1");
     });
 
+    it("should throw ConflictException when two reviewers race to start and lose the atomic claim", async () => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      // Both reviewers pass this check before either has claimed the lock.
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      // The other reviewer's claim won the race.
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(null);
+
+      await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
     it("should throw ConflictException when different reviewer has lock", async () => {
       const dto: ReviewSessionDto = {
         documentId: "doc-1",
@@ -672,6 +691,9 @@ describe("HitlService", () => {
         status: DocumentStatus.awaiting_review,
       });
       mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock as any,
+      );
       mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
@@ -1221,6 +1243,10 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-2",
+      });
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...mockReviewSession,
         status: ReviewStatus.rejected,
@@ -1463,6 +1489,19 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
+
+    it("should throw ConflictException if the session is already finished", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(
+        service.flagSession("session-1", {}, "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
   });
 
   describe("getCorrections", () => {
@@ -1699,10 +1738,11 @@ describe("HitlService", () => {
     it("should refresh lock and return new expiry", async () => {
       mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(true);
 
-      const result = await service.heartbeat("session-1");
+      const result = await service.heartbeat("session-1", "reviewer-1");
 
       expect(mockReviewDbService.refreshLockHeartbeat).toHaveBeenCalledWith(
         "session-1",
+        "reviewer-1",
         expect.any(Date),
       );
       expect(result.ok).toBe(true);
@@ -1712,8 +1752,22 @@ describe("HitlService", () => {
     it("should throw ConflictException when lock is expired or not found", async () => {
       mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(false);
 
-      await expect(service.heartbeat("session-1")).rejects.toThrow(
-        ConflictException,
+      await expect(
+        service.heartbeat("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should throw ConflictException when another reviewer holds the lock", async () => {
+      mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(false);
+
+      await expect(
+        service.heartbeat("session-1", "other-reviewer"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.refreshLockHeartbeat).toHaveBeenCalledWith(
+        "session-1",
+        "other-reviewer",
+        expect.any(Date),
       );
     });
   });
@@ -1728,6 +1782,7 @@ describe("HitlService", () => {
       const result = await service.deleteCorrection(
         "session-1",
         "correction-1",
+        "reviewer-1",
       );
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
@@ -1744,7 +1799,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
-        service.deleteCorrection("session-1", "correction-1"),
+        service.deleteCorrection("session-1", "correction-1", "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1755,7 +1810,7 @@ describe("HitlService", () => {
       mockReviewDbService.deleteCorrection.mockResolvedValueOnce(false);
 
       await expect(
-        service.deleteCorrection("session-1", "correction-1"),
+        service.deleteCorrection("session-1", "correction-1", "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1792,6 +1847,10 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-2",
+      });
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession() as any,
       );
@@ -1943,6 +2002,31 @@ describe("HitlService", () => {
       await expect(
         service.reopenSession("session-1", "other-reviewer"),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("should throw ConflictException when two reviewers race to take over a flagged session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        completed_at: null,
+        document: { ...mockDocumentWithOcr, groundTruthJob: null },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      // Both reviewers pass this check before either has claimed the lock.
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...flaggedSession,
+        status: ReviewStatus.in_progress,
+      } as any);
+      // The other reviewer's claim won the race.
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(null);
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should let another reviewer take over a flagged session", async () => {
