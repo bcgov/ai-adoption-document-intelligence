@@ -356,7 +356,10 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.skipSession(sessionId);
+    return this.hitlService.skipSession(
+      sessionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/flag")
@@ -383,7 +386,11 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.flagSession(sessionId, dto);
+    return this.hitlService.flagSession(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/heartbeat")
@@ -405,7 +412,7 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.heartbeat(sessionId);
+    return this.hitlService.heartbeat(sessionId, req.resolvedIdentity.actorId);
   }
 
   @Delete("sessions/:id/corrections/:correctionId")

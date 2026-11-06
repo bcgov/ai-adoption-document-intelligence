@@ -548,6 +548,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -560,7 +561,10 @@ describe("HitlController", () => {
       hitlService.skipSession.mockResolvedValue(mockResult as any);
       const result = await controller.skipSession("session-1", req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.skipSession).toHaveBeenCalledWith("session-1");
+      expect(hitlService.skipSession).toHaveBeenCalledWith(
+        "session-1",
+        "user-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -610,6 +614,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.REVIEWER },
         },
@@ -622,7 +627,11 @@ describe("HitlController", () => {
       hitlService.flagSession.mockResolvedValue(mockResult as any);
       const result = await controller.flagSession("session-1", dto, req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.flagSession).toHaveBeenCalledWith("session-1", dto);
+      expect(hitlService.flagSession).toHaveBeenCalledWith(
+        "session-1",
+        dto,
+        "user-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -660,6 +669,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.EDITOR },
         },
@@ -668,7 +678,7 @@ describe("HitlController", () => {
       hitlService.heartbeat.mockResolvedValue(mockResult);
       const result = await controller.heartbeat("session-1", req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.heartbeat).toHaveBeenCalledWith("session-1");
+      expect(hitlService.heartbeat).toHaveBeenCalledWith("session-1", "user-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
