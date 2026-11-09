@@ -2,6 +2,20 @@
 
 Shared rules for coding agents working in this repository. See also `CLAUDE.md` for the full contributor rule set.
 
+## Pull requests and releases
+
+A pull request title is `type: HCAP-### short description`. The HCAP key is uppercase. A lowercase key does not sync to Jira. A scope is optional. The title check allows `feat`, `fix`, `perf`, `revert`, `docs`, `style`, `refactor`, `test`, `build`, `ci`, and `chore`.
+
+`feat` is what you added. `fix` is what you repaired. Use `chore` when none of the other types fit. Example: `feat: HCAP-145 show the deployed commit in the header`.
+
+Name the branch `feature/HCAP-###-short-slug`, with the key in uppercase. The type belongs on the pull request title, not the branch. Develop accepts a squash merge only, so the pull request title becomes the commit.
+
+One product version covers the whole repository. Day-to-day work merges to `develop`. A push to `develop` updates the test environment and does not create a version. A release is cut from `main`. The tag is `vMAJOR.MINOR.PATCH`, and the first release is `v0.1.0`.
+
+`feat` raises the second number. `fix` raises the third. Before `1.0.0`, a breaking change raises the second number. Mark a breaking change with `!` after the type, or with a `BREAKING CHANGE` footer. `docs`, `style`, `refactor`, `test`, `build`, `ci`, and `chore` do not open a release. `perf` and `revert` are valid titles. They can appear in a changelog, and they do not open a release on their own.
+
+The Jira version uses the release number with no leading `v`, so tag `v0.1.0` is Jira version `0.1.0`. Put the tickets for the next bundle on an unreleased Jira version while the work is open. When the GitHub tag exists, mark that Jira version released on the day of the tag. The release workflow details are in `docs-md/operations/CI_WORKFLOWS.md`.
+
 ## Skills
 
 Use these skills when the task matches their triggers. Full instructions live under `.claude/skills/`.
