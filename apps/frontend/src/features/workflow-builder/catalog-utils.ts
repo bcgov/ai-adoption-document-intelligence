@@ -189,6 +189,8 @@ interface UserFacingCatalogEntry {
   description: string;
   iconHint: string;
   colorHint: string;
+  /** Granular step shown only in the palette's Advanced section. */
+  advanced: boolean;
 }
 
 /**
@@ -212,6 +214,7 @@ export function getCatalogByCategory(): Record<
       description: entry.description,
       iconHint: entry.iconHint,
       colorHint: entry.colorHint,
+      advanced: entry.advanced === true,
     });
   }
   for (const list of Object.values(grouped)) {

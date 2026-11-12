@@ -232,3 +232,43 @@ describe("executeActivityNode — tenant groupId injection", () => {
     );
   });
 });
+
+describe("executeActivityNode — start-to-close timeout", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockActivityFn.mockResolvedValue({});
+  });
+
+  const timeoutUsed = (): string =>
+    (
+      mockProxyActivities.mock.calls[0] as unknown as [
+        { startToCloseTimeout: string },
+      ]
+    )[0].startToCloseTimeout;
+
+  it("uses the catalog default for composite activities", async () => {
+    await executeNode(
+      makeActivityNode({ activityType: "azureOcr.analyze" }),
+      graphConfig as never,
+      makeState(),
+    );
+    expect(timeoutUsed()).toBe("15m");
+  });
+
+  it("lets the node override the catalog default", async () => {
+    await executeNode(
+      makeActivityNode({
+        activityType: "azureOcr.analyze",
+        timeout: { startToClose: "30m" },
+      }),
+      graphConfig as never,
+      makeState(),
+    );
+    expect(timeoutUsed()).toBe("30m");
+  });
+
+  it("falls back to 2m when neither is set", async () => {
+    await executeNode(makeActivityNode(), graphConfig as never, makeState());
+    expect(timeoutUsed()).toBe("2m");
+  });
+});

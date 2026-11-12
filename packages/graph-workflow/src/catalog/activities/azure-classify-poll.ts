@@ -10,6 +10,7 @@ export const azureClassifyPollCatalogEntry: ActivityCatalogEntry = {
   description:
     "Polls Azure Document Intelligence for classifier results, mapping detected documents to page ranges by label.",
   iconHint: "hourglass",
+  advanced: true,
   colorHint: "teal",
   inputs: [
     {
