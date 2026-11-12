@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Azure Extract Text and Classify (One-Step Nodes)",
+    "description": "Extracts text from an uploaded file with the one-step Extract Text (Azure) node, saves the result so it appears in the app, then classifies the file with the one-step Classify Document (Azure) node. Works from the upload page and from the editor's upload source.",
+    "tags": [
+      "azure-ocr",
+      "azure-classifier",
+      "simplified"
+    ]
+  },
+  "entryNodeId": "upload",
+  "ctx": {
+    "documentId": {
+      "type": "string",
+      "description": "Document identifier injected by the run"
+    },
+    "ocrResult": {
+      "type": "object",
+      "description": "Structured OCR result produced by Extract Text (Azure)"
+    },
+    "labeledDocuments": {
+      "type": "object",
+      "description": "Classification result: Record<label, { confidence, pageRange }[]>"
+    },
+    "blobKey": {
+      "kind": "Document",
+      "description": "Blob key of the file: written by the File upload source (editor Try run) or supplied by the upload page"
+    }
+  },
+  "nodes": {
+    "upload": {
+      "id": "upload",
+      "type": "source",
+      "label": "File upload",
+      "inputs": [],
+      "sourceType": "source.upload",
+      "parameters": {
+        "ctxKey": "blobKey"
+      }
+    },
+    "extractText": {
+      "id": "extractText",
+      "type": "activity",
+      "label": "Extract Text (Azure)",
+      "activityType": "azureOcr.analyze",
+      "inputs": [
+        {
+          "port": "blobKey",
+          "ctxKey": "blobKey"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        }
+      ]
+    },
+    "storeOcr": {
+      "id": "storeOcr",
+      "type": "activity",
+      "label": "Save OCR Result",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    },
+    "classifyDocument": {
+      "id": "classifyDocument",
+      "type": "activity",
+      "label": "Classify Document (Azure)",
+      "activityType": "azureClassify.analyze",
+      "inputs": [
+        {
+          "port": "blobKey",
+          "ctxKey": "blobKey"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "labeledDocuments",
+          "ctxKey": "labeledDocuments"
+        }
+      ],
+      "parameters": {
+        "classifierName": "<SELECT_IN_UI>"
+      }
+    }
+  },
+  "edges": [
+    {
+      "id": "e0",
+      "source": "upload",
+      "target": "extractText",
+      "type": "normal"
+    },
+    {
+      "id": "e1",
+      "source": "extractText",
+      "target": "storeOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e2",
+      "source": "storeOcr",
+      "target": "classifyDocument",
+      "type": "normal"
+    }
+  ]
+}
