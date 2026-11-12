@@ -1,12 +1,19 @@
-<!--  
-PR Title format:  
-JIRA_BOARD_ABBREVIATION-JIRA_TASK_NUMBER: TITLE_OF_JIRA_TASK  
-Example: AI-700: A great ticket                                       
--->  
+<!--
+Title: type: HCAP-### short description
+The HCAP key is uppercase. Example: feat: HCAP-145 show the deployed commit in the header
+
+feat is what you added. fix is what you repaired. Use chore when none of the other types fit.
+feat raises the second number. fix raises the third.
+docs, style, refactor, test, build, ci, and chore do not open a release.
+Before 1.0.0, a breaking change raises the second number. Mark it with ! after the type, or a BREAKING CHANGE footer.
+
+Branch: feature/HCAP-###-short-slug
+Develop squash-merges, so this title becomes the commit.
+-->
 
 ## Summary
 
-[AI-###](https://citz-do.atlassian.net/browse/AI-###)
+[HCAP-###](https://citz-ocio-es.atlassian.net/browse/HCAP-###)
 
 ## Changes
 

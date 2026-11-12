@@ -30,11 +30,11 @@ export class LabelSuggestionDto {
   bounding_box!: BoundingBoxDto;
 
   @ApiProperty({
-    description: "Suggestion source type",
-    enum: ["keyValuePair", "selectionMarkOrder", "tableCellToWords"],
+    description: "Where the suggestion came from",
+    enum: ["llm"],
   })
   @IsString()
-  source_type!: "keyValuePair" | "selectionMarkOrder" | "tableCellToWords";
+  source_type!: "llm";
 
   @ApiPropertyOptional({ description: "Suggestion confidence score" })
   @IsOptional()

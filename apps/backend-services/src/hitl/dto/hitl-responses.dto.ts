@@ -240,6 +240,63 @@ export class CorrectionsListResponseDto {
   corrections!: CorrectionRecordDto[];
 }
 
+export class ReviewSessionEventRecordDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({
+    enum: ["flagged", "rejected", "skipped", "approved", "reopened"],
+  })
+  eventType!: string;
+
+  @ApiProperty()
+  actorId!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Email of the reviewer who performed the action, or null when it was not a signed-in user",
+  })
+  actorName?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Flag note or rejection comment recorded with the event, depending on eventType",
+  })
+  comment?: string | null;
+
+  @ApiPropertyOptional({
+    enum: [
+      "INPUT_QUALITY",
+      "OCR_FAILURE",
+      "MODEL_MISMATCH",
+      "CONFIDENCE_TOO_LOW",
+      "SYSTEMIC_ERROR",
+    ],
+    nullable: true,
+    description: "Only set when eventType is 'rejected'",
+  })
+  rejectionReason?: string | null;
+
+  @ApiProperty()
+  createdAt!: Date;
+}
+
+export class ReviewSessionHistoryResponseDto {
+  @ApiProperty()
+  sessionId!: string;
+
+  @ApiProperty({
+    type: [ReviewSessionEventRecordDto],
+    description:
+      "Permanent record of flag/reject/skip/approve/reopen actions on this session, oldest first. Unlike corrections, these rows are never overwritten by a later reopen.",
+  })
+  events!: ReviewSessionEventRecordDto[];
+}
+
 export class SessionActionResponseDto {
   @ApiProperty()
   id!: string;

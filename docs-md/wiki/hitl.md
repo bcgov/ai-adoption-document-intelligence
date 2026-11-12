@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-11-02
+updated: 2026-11-03
 canonical_sources:
   - docs-md/architecture/HITL_ARCHITECTURE.md
   - docs-md/architecture/HITL_REVIEW_CRITERIA.md
@@ -36,10 +36,10 @@ HITL routes low-confidence or review-required document results to humans. It is 
 - A demo/reset seed exists for local review-queue demos without paid OCR: `npm run demo:reset` — see `docs-md/extraction/HITL_DEMO_RESET.md`.
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record. Each records who made it, so a session that changed hands still credits every correction correctly.
-- A session ends in one of four states: `approved`, `rejected` (the document moves to the `rejected` status, and the session keeps the reason and comment), `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped or lapsed session that carries a flag note goes back to `flagged` instead. An abandoned document returns to the Pending queue and the next reviewer gets a fresh session, which opens with the corrections already saved on the document; the history, and ground truth for datasets, span all of a document's sessions.
+- A session ends in one of four states: `approved`, `rejected` (the document moves to the `rejected` status, and the session keeps the reason and comment), `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped or lapsed session that was taken over from the Flagged tab goes back to `flagged` instead, unless corrections were saved during the takeover (transition rules in `docs-md/architecture/HITL_ARCHITECTURE.md`). An abandoned document returns to the Pending queue and the next reviewer gets a fresh session, which opens with the corrections already saved on the document; the history, and ground truth for datasets, span all of a document's sessions.
 - Flagging is a hand-off, not an ending: the flag carries an optional note for the next reviewer, the Flagged tab opens a document read-only without a lock, and **Take** in that view hands the same session to the reader under their own lock, corrections, note and all. Editing always holds a lock.
 - Approving is final. It signals the workflow parked at the `humanGate`, which then runs every node after the gate, so there is nothing to return to and no undo. Rejecting is final too: the reject call marks the document `rejected` itself, and the workflow's failure hook leaves that status alone. A dataset labeling job is the exception: it drives nothing downstream and its original reviewer can reopen it until the dataset version is frozen.
-- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry. A session that carries a flag note goes back to `flagged` instead, so a taken-over document keeps its hand-off.
+- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry. A session taken over from the Flagged tab goes back to `flagged` instead, on the same rule as Skip, so an untouched hand-off keeps its place.
 - Queue statistics are database counts over the whole queue, not a summary of the page in view.
 
 ## Related Topics

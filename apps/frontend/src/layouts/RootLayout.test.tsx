@@ -145,6 +145,16 @@ describe("the agent chat entry point is scoped to the workflow routes", () => {
     expect(screen.queryByTestId("agent-chat-drawer")).toBeNull();
   });
 
+  it("shows the deployed commit in the header", () => {
+    renderLayoutAt("/documents");
+    expect(screen.getByTestId("running-build").textContent).toMatch(
+      /[0-9a-f]{8}/,
+    );
+    expect(screen.getByTestId("running-build").textContent).not.toContain(
+      "1.0.0",
+    );
+  });
+
   it("renders the icon and the drawer on the workflow editor route", () => {
     renderLayoutAt("/workflows/abc123/edit");
     expect(screen.getByTestId("agent-chat-icon")).toBeInTheDocument();
