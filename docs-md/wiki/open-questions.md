@@ -5,7 +5,7 @@ Use this page for contradictions, drift candidates, and ownership gaps that shou
 ## Current Questions
 
 - Should historical or audit folders (`docs-md/archive/temp/`, `docs/superpowers/`, old feature specs) be promoted, archived, or linked as historical context after implementation is complete? **Partially addressed:** see `docs-md/archive/README.md` for index and stale-pattern warnings; per-feature archive policy still TBD.
-- ~~Which docs from `docs-md/` should eventually be published through the generated `docs/` site, and which should remain repo-only?~~ Partially resolved: selected guides (benchmarking, authentication, integrations) are published via `docs/_pages/`; implementation docs and the repo wiki remain in `docs-md/` (wiki HTML is generated at deploy, not committed). Revisit when adding new public pages.
+- ~~Which docs from `docs-md/` should eventually be published through the generated `docs/` site, and which should remain repo-only?~~ Partially resolved: selected guides (benchmarking, authentication, integrations, and the From Zero to Integration tutorial) are published via `docs/_pages/`; implementation docs and the repo wiki remain in `docs-md/` (wiki HTML is generated at deploy, not committed). Revisit when adding new public pages.
 - ~~Should the wiki validator become a CI check after the team has used it for a few PRs?~~ Resolved: `.github/workflows/wiki-check.yml` runs `npm run docs:wiki:check` on PRs to `main` and `develop`.
 
 ## Documentation Ownership
