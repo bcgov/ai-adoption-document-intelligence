@@ -11,13 +11,19 @@ Two engines are wired today:
 | Lifecycle | 3 activities: `azureOcr.submit` / `poll` / `extract` | 1 activity: `mistralOcr.process` |
 | API style | Async (poll-based, via SDK long-running operation) | Sync HTTP POST |
 | Auth | `api-key` header (`@azure-rest/ai-document-intelligence` SDK) | `Bearer <key>` (axios) |
-| Endpoint | `process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` (today routed through APIM) | Hardcoded `https://api.mistral.ai/v1/ocr` |
+| Endpoint | `AI_HUB_ENDPOINT` tenant base URL; the SDK appends the Document Intelligence path | Public: hardcoded `https://api.mistral.ai/v1/ocr`; Azure: `AI_HUB_ENDPOINT` plus `/providers/mistral/azure/ocr` |
 | Field schema | DB `FieldDefinition[]` → trained model fields (training-time) | DB `FieldDefinition[]` → `document_annotation_format` (request-time) |
 | Mock flag | `MOCK_AZURE_OCR=true` | `MOCK_MISTRAL_OCR=true` |
 | Result mapper | `extract-ocr-results.ts` (uses SDK response shape) | `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts` |
 | Provider folder | None (activities live under `apps/temporal/src/activities/`) | `apps/temporal/src/ocr-providers/mistral/` |
 
-Neither engine implements a shared `OcrProvider` interface — they're independent activities producing the canonical `OCRResult` type.
+These provider activities do not implement a shared `OcrProvider` interface —
+they remain independent activities producing the canonical `OCRResult` type.
+
+The Temporal Document Intelligence, Azure Mistral, and VLM activities share
+`AI_HUB_ENDPOINT` and `AI_HUB_API_KEY`, authenticating with the `api-key`
+header. Model/deployment and API-version settings remain separate. The native
+public Mistral transport remains independent and uses `MISTRAL_API_KEY`.
 
 ## Decision: defer formalizing the interface
 
@@ -37,16 +43,36 @@ Each item is checked against both Azure DI and Mistral. ✅ = handled correctly 
 | 4 | Confidence values 0–1 | ✅ DI native 0–1 | ✅ from `word_confidence_scores`; falls back to `average_page_confidence_score` (default 0.95 if missing) |
 | 5 | Bounding-box coords | ✅ inches from top-left at API `2024-11-30`, populated on `OCRResult.pages[].words[].polygon` | ⚠️ Mistral mapper sets `polygon: []` for words synthesized from markdown; only word-level scores are populated. Bbox-aware downstream consumers (e.g. layout-aware VLM hybrid in E05) won't get spatial info from Mistral. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
 | 6 | Page indexing convention | ✅ 1-indexed in `OCRResult.pages[].pageNumber` | ✅ same |
-| 7 | Auth & endpoint via env vars | ✅ `AZURE_DOCUMENT_INTELLIGENCE_*` vars; endpoint normalized (trailing slash stripped) | ✅ `MISTRAL_API_KEY`; URL hardcoded |
+| 7 | Auth & endpoint via env vars | ✅ `AI_HUB_ENDPOINT` + `AI_HUB_API_KEY`; endpoint normalized (trailing slash stripped) | ✅ Public `MISTRAL_API_KEY`; Azure Mistral uses shared `AI_HUB_*` config |
 | 8 | Workflow graph definition | ✅ existing template-model workflows in seed | ✅ existing Mistral workflow in seed |
 | 9 | Engine-internal preprocessing | ✅ DI handles deskew/rotate/denoise; documented | ⚠️ Mistral's internal preprocessing isn't documented in the codebase. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
 | 10 | Test coverage | ✅ unit tests for mappers + activity | ✅ unit tests for mappers + activity |
 | 11 | Benchmark integration | ✅ runs through `BenchmarkRun` flow today | ✅ runs through `BenchmarkRun` flow today |
 | 12 | Cost/usage telemetry | 🆕 Not recorded today — neither provider populates usage on `BenchmarkRun.metrics`. **Each new engine in E02–E05 records its own; revisit cross-engine normalization after E05 lands.** | 🆕 Same. |
 
-### Gaps fixed on the parent branch
+### Configuration boundary
 
-None. All gaps either are documentation-only (item 9) or are scoped to the experiment branch most affected (items 5, 12). The parent stays narrow.
+The current Document Intelligence, Azure Mistral, and VLM clients share the AI
+Hub endpoint and subscription key. Older endpoint/key names in experiment
+history are not runtime fallbacks. Public Mistral remains separate, using
+`MISTRAL_API_KEY`; deployment and API-version settings remain independent.
+
+### Test-tenant smoke evidence
+
+On 2026-11-12, one synthetic public sample was sent through each active Hub
+provider using the existing iteration runners: `synth-full (1)` for DI plus
+GPT vision, and `synth-full (3)` for Azure Mistral. These are compatibility
+smokes, not an accuracy benchmark or evidence of production readiness.
+
+| Provider | Result |
+|---|---|
+| Document Intelligence | `prebuilt-layout` succeeded for one page; the Hub operation URL passed origin/tenant-path validation before polling; 5,005 markdown characters returned. |
+| Azure Mistral | HTTP 200 from `mistral-document-ai-2512`; one annotated page and all 76 schema fields returned; 12.5 s. |
+| GPT vision | `gpt-5.6-sol` returned valid strict-schema JSON with all 76 field and quote keys, no additional properties; 17,309 total tokens and 28.7 s. The request used API version `2024-10-21` from the process environment. One sample matched 64/76 ground-truth fields, which is not an accuracy estimate. |
+
+No live Content Understanding or production checks were performed. Mistral
+reported `pages_processed_annotation: 1` and `pages_processed: 0`; its
+annotation-specific count is the relevant usage signal for this response.
 
 ### TODOs propagated to experiment briefs
 

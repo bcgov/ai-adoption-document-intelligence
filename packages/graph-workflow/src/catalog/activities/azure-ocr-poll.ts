@@ -21,7 +21,14 @@ export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
     {
       name: "apimRequestId",
       label: "APIM request ID",
-      description: "Azure request ID returned by Submit OCR.",
+      description: "Gateway correlation ID returned by Submit OCR.",
+      required: true,
+      kind: "RequestId",
+    },
+    {
+      name: "analyzeResultId",
+      label: "Analyze result ID",
+      description: "Document Intelligence result ID returned by Submit OCR.",
       required: true,
       kind: "RequestId",
     },

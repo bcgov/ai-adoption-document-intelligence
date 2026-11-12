@@ -107,16 +107,21 @@ The deploy script uses these to create the `<instance>-artifactory-pull` docker-
 | `VITE_SSO_REALM` | No | Frontend SSO realm (build arg) |
 | `VITE_SSO_CLIENT_ID` | No | Frontend SSO client ID (build arg) |
 
-### Azure Document Intelligence
+### AI Hub (Document Intelligence, Azure Mistral, and GPT vision)
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
-| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | No | Azure Document Intelligence API endpoint |
-| `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Yes | Azure Document Intelligence API key |
+| `AI_HUB_ENDPOINT` | No | AI Hub tenant base URL, including its tenant prefix and without a provider/service suffix |
+| `AI_HUB_API_KEY` | Yes | AI Hub APIM subscription key; injected into backend-services and temporal-worker, never the frontend |
 | `AZURE_DOC_INTELLIGENCE_MODELS` | No | Comma-separated allowed model IDs |
 | `DOCUMENT_INTELLIGENCE_MODE` | No | `live` (default) or `mock`; mock avoids live Azure for classification polling and labeling OCR and returns **503** for template/classifier training — use only on disposable environments |
 
 See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `mock`.
+
+Document Intelligence, Azure Mistral Document AI, and GPT vision share these
+two settings. Each client appends its own service path to the tenant base URL.
+The deployment and API-version settings remain separate. The public Mistral
+API continues to use `MISTRAL_API_KEY` instead.
 
 ### Blob Storage
 
@@ -147,6 +152,11 @@ Repointing the endpoint moves all of those at once. Setting the four in an env
 file is enough: `scripts/oc-deploy-instance.sh` and
 `.github/workflows/deploy-instance.yml` write the key into both per-instance
 Secrets and the other three into both ConfigMaps.
+
+GPT vision calls use the shared `AI_HUB_ENDPOINT` and `AI_HUB_API_KEY` instead
+of this endpoint/key pair. They continue to use the deployment and API-version
+settings below; the approved validation workflow selects `gpt-5.6-sol` through
+its workflow input.
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
@@ -274,7 +284,7 @@ The deploy script creates per-instance OpenShift Secrets from values in the env 
 
 Created by the deploy script with keys:
 - `SSO_CLIENT_SECRET`
-- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+- `AI_HUB_API_KEY`
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`
 - `AZURE_STORAGE_ACCOUNT_KEY`
@@ -288,7 +298,7 @@ as not configured.
 ### `<instance>-temporal-worker-secrets`
 
 Created by the deploy script with keys:
-- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+- `AI_HUB_API_KEY`
 - `AZURE_OPENAI_API_KEY`
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`

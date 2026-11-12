@@ -72,8 +72,8 @@ describe("TemplateModelOcrService", () => {
     const mockConfig = {
       get: jest.fn((key: string) => {
         const config: Record<string, string> = {
-          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
-          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+          AI_HUB_ENDPOINT: "https://test.api.com",
+          AI_HUB_API_KEY: "test-api-key",
         };
         return config[key];
       }),

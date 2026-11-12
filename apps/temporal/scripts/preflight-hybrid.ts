@@ -5,9 +5,8 @@
  * before the first paid call:
  *
  *   1. Env vars present:
- *        AZURE_OPENAI_ENDPOINT / API_KEY / API_VERSION (defaulted) /
- *        DEPLOYMENT (or override on CLI),
- *        AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT / API_KEY,
+ *        AI_HUB_ENDPOINT / AI_HUB_API_KEY,
+ *        API_VERSION (defaulted) / DEPLOYMENT (or override on CLI),
  *        TEST_API_KEY.
  *   2. AZURE_OPENAI_API_VERSION is recent enough for strict-mode
  *      structured outputs (≥ 2024-12-01-preview).
@@ -26,7 +25,7 @@
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts [deployment-name]
  *
- *   default deployment: $AZURE_OPENAI_DEPLOYMENT or "gpt-5.4"
+ *   default deployment: gpt-5.6-sol
  */
 
 import "../src/env-loader";
@@ -85,30 +84,27 @@ function compareApiVersion(
 }
 
 async function checkEnvVars(): Promise<{
-  aoaiEndpoint: string | undefined;
-  aoaiApiKey: string | undefined;
+  hubEndpoint: string | undefined;
+  hubApiKey: string | undefined;
   aoaiApiVersion: string;
   aoaiDeployment: string;
-  diEndpoint: string | undefined;
-  diApiKey: string | undefined;
 }> {
-  const aoaiEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const aoaiApiKey = process.env.AZURE_OPENAI_API_KEY;
+  const hubEndpoint = process.env.AI_HUB_ENDPOINT?.trim().replace(/\/+$/, "");
+  const hubApiKey = process.env.AI_HUB_API_KEY?.trim();
   const aoaiApiVersion =
     process.env.AZURE_OPENAI_API_VERSION ?? MIN_API_VERSION;
   const cliDeployment = process.argv[2];
-  const aoaiDeployment =
-    cliDeployment ?? process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-5.4";
+  const aoaiDeployment = cliDeployment ?? "gpt-5.6-sol";
 
   record(
-    "AZURE_OPENAI_ENDPOINT set",
-    !!aoaiEndpoint,
-    aoaiEndpoint ? `→ ${maskEndpoint(aoaiEndpoint)}` : "missing",
+    "AI_HUB_ENDPOINT set",
+    !!hubEndpoint,
+    hubEndpoint ? `→ ${maskEndpoint(hubEndpoint)}` : "missing",
   );
   record(
-    "AZURE_OPENAI_API_KEY set",
-    !!aoaiApiKey,
-    aoaiApiKey ? "(redacted)" : "missing",
+    "AI_HUB_API_KEY set",
+    !!hubApiKey,
+    hubApiKey ? "(redacted)" : "missing",
   );
   const cmp = compareApiVersion(aoaiApiVersion, MIN_API_VERSION);
   record(
@@ -120,20 +116,7 @@ async function checkEnvVars(): Promise<{
         ? `${aoaiApiVersion} is older than ${MIN_API_VERSION}; strict-mode structured outputs need at least the December 2024 preview`
         : `unparseable: "${aoaiApiVersion}"`,
   );
-  record("AZURE_OPENAI_DEPLOYMENT chosen", true, aoaiDeployment);
-
-  const diEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const diApiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-  record(
-    "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT set",
-    !!diEndpoint,
-    diEndpoint ? `→ ${maskEndpoint(diEndpoint)}` : "missing",
-  );
-  record(
-    "AZURE_DOCUMENT_INTELLIGENCE_API_KEY set",
-    !!diApiKey,
-    diApiKey ? "(redacted)" : "missing",
-  );
+  record("GPT vision deployment chosen", true, aoaiDeployment);
 
   const testApiKey = process.env.TEST_API_KEY;
   record(
@@ -143,12 +126,10 @@ async function checkEnvVars(): Promise<{
   );
 
   return {
-    aoaiEndpoint,
-    aoaiApiKey,
+    hubEndpoint,
+    hubApiKey,
     aoaiApiVersion,
     aoaiDeployment,
-    diEndpoint,
-    diApiKey,
   };
 }
 
@@ -169,7 +150,6 @@ async function probeDi(opts: {
       {
         headers: {
           "Content-Type": "application/json",
-          "Ocp-Apim-Subscription-Key": opts.apiKey,
           "api-key": opts.apiKey,
         },
         timeout: 60_000,
@@ -214,7 +194,6 @@ async function probeDi(opts: {
     try {
       const resp = await axios.get(operationLocation, {
         headers: {
-          "Ocp-Apim-Subscription-Key": opts.apiKey,
           "api-key": opts.apiKey,
         },
         timeout: 30_000,
@@ -404,24 +383,28 @@ async function checkDb(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log("E05 preflight (VLM + OCR hybrid, gpt-5.4 default)\n");
+  console.log("E05 preflight (VLM + OCR hybrid, gpt-5.6-sol default)\n");
   const env = await checkEnvVars();
   console.log("");
-  if (env.diEndpoint && env.diApiKey) {
-    await probeDi({ endpoint: env.diEndpoint, apiKey: env.diApiKey });
+  if (env.hubEndpoint && env.hubApiKey) {
+    await probeDi({ endpoint: env.hubEndpoint, apiKey: env.hubApiKey });
   } else {
-    record("Azure DI probe", false, "skipped — DI endpoint or key missing");
+    record("Azure DI probe", false, "skipped — AI Hub endpoint or key missing");
   }
   console.log("");
-  if (env.aoaiEndpoint && env.aoaiApiKey) {
+  if (env.hubEndpoint && env.hubApiKey) {
     await probeDeployment({
-      endpoint: env.aoaiEndpoint,
-      apiKey: env.aoaiApiKey,
+      endpoint: env.hubEndpoint,
+      apiKey: env.hubApiKey,
       apiVersion: env.aoaiApiVersion,
       deployment: env.aoaiDeployment,
     });
   } else {
-    record(`VLM deployment probe`, false, "skipped — endpoint or key missing");
+    record(
+      `VLM deployment probe`,
+      false,
+      "skipped — AI Hub endpoint or key missing",
+    );
   }
   console.log("");
   await checkDb();

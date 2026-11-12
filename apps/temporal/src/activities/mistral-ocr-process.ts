@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
+import { readAiHubConfig } from "../ai-hub-config";
 import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
@@ -383,30 +384,9 @@ export async function mistralOcrProcess(
   let apiKey: string;
   let timeoutMs: number;
   if (isAzure) {
-    const endpoint = process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT?.trim();
-    const key = process.env.MISTRAL_DOC_AI_AZURE_KEY;
-    if (!endpoint) {
-      log.error("Mistral Azure OCR: missing endpoint", {
-        event: "error",
-        error: "missing_endpoint",
-        durationMs: Date.now() - startTime,
-      });
-      throw new Error(
-        "Mistral Azure Foundry endpoint not configured. Set MISTRAL_DOC_AI_AZURE_ENDPOINT environment variable.",
-      );
-    }
-    if (!key) {
-      log.error("Mistral Azure OCR: missing API key", {
-        event: "error",
-        error: "missing_credentials",
-        durationMs: Date.now() - startTime,
-      });
-      throw new Error(
-        "Mistral Azure Foundry API key not configured. Set MISTRAL_DOC_AI_AZURE_KEY environment variable.",
-      );
-    }
-    url = buildAzureOcrUrl(endpoint);
-    apiKey = key;
+    const config = readAiHubConfig();
+    url = buildAzureOcrUrl(config.endpoint);
+    apiKey = config.apiKey;
     timeoutMs = 900_000;
   } else {
     const key = process.env.MISTRAL_API_KEY;
@@ -485,7 +465,9 @@ export async function mistralOcrProcess(
 
     const { data } = await axios.post<MistralOcrApiResponse>(url, requestBody, {
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...(isAzure
+          ? { "api-key": apiKey }
+          : { Authorization: `Bearer ${apiKey}` }),
         "Content-Type": "application/json",
       },
       timeout: timeoutMs,

@@ -225,7 +225,10 @@ export type { PreparedFileData } from "@ai-di/graph-workflow";
 
 export interface SubmissionResult {
   statusCode: number;
+  /** Gateway correlation ID, retained for audit/logging. */
   apimRequestId: string;
+  /** Document Intelligence analyze-result ID used by poll/extract requests. */
+  analyzeResultId: string;
   headers: Record<string, string | string[]>;
 }
 

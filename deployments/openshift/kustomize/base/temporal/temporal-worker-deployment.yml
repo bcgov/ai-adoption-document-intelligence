@@ -55,16 +55,16 @@ spec:
                 configMapKeyRef:
                   name: temporal-worker-config
                   key: TEMPORAL_TASK_QUEUE
-            - name: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+            - name: AI_HUB_ENDPOINT
               valueFrom:
                 configMapKeyRef:
                   name: temporal-worker-config
-                  key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
-            - name: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+                  key: AI_HUB_ENDPOINT
+            - name: AI_HUB_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: temporal-worker-secrets
-                  key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+                  key: AI_HUB_API_KEY
             - name: MOCK_AZURE_OCR
               valueFrom:
                 configMapKeyRef:

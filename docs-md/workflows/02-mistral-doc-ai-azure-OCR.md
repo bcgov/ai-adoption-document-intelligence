@@ -13,16 +13,27 @@ For the public-API engine see [`MISTRAL_OCR.md`](MISTRAL_OCR.md).
 
 | File | Purpose |
 |---|---|
-| [`apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts`](../../apps/temporal/src/ocr-providers/mistral-azure/mistral-azure-ocr-process.ts) | The Temporal activity. Single HTTP call to the Foundry OCR endpoint. |
+| [`apps/temporal/src/activities/mistral-ocr-process.ts`](../../apps/temporal/src/activities/mistral-ocr-process.ts) | The Temporal activity. Single HTTP call to the AI Hub OCR endpoint. |
 | [`apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`](../../apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts) | Shared mapper (Mistral OCR JSON → canonical `OCRResult`). Patched in E02 to populate per-word/per-line polygons when bbox data is present. |
 | [`apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`](../../apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts) | Shared field-schema → `document_annotation_format` converter. |
 | [`packages/graph-workflow/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../packages/graph-workflow/templates/experiment-02-mistral-doc-ai-azure-workflow.json) | The workflow template (`prepareFileData` → `mistralAzureOcr.process` → `ocr.cleanup` → `ocr.checkConfidence` → review-switch → `humanReview`/`storeResults`). |
 
 ## Endpoint
 
-The Foundry deployment exposes the same Mistral OCR API contract on a
-different URL/auth. The activity composes the URL from
-`MISTRAL_DOC_AI_AZURE_ENDPOINT` and the constant path:
+The current Azure Mistral client uses the shared AI Hub tenant configuration:
+
+```
+POST {AI_HUB_ENDPOINT}/providers/mistral/azure/ocr
+api-key: <AI_HUB_API_KEY>
+Content-Type: application/json
+```
+
+The public Mistral transport remains separate and uses `MISTRAL_API_KEY` with
+bearer authentication. The following request details describe the original E02
+Foundry setup and are retained as experiment history, not current app config.
+
+The old activity composed the URL from `MISTRAL_DOC_AI_AZURE_ENDPOINT` and the
+constant path:
 
 ```
 POST {MISTRAL_DOC_AI_AZURE_ENDPOINT}/providers/mistral/azure/ocr
@@ -40,7 +51,7 @@ The user's deployment in this experiment is `mistral-document-ai-2512` on
 `mistral-document-ai-2512` when the document's stored `model_id` is not a
 Mistral deployment name (see `resolveMistralAzureDeploymentId`).
 
-## Auth header — Bearer, not `api-key`
+## Historical auth details (superseded)
 
 Foundry's "models" data plane supports both `api-key` and
 `Authorization: Bearer <key>`. The Mistral Document AI route specifically

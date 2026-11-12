@@ -4,7 +4,7 @@
  * Reads the editable global prompt and per-field descriptions from
  * `experiments/results/05-vlm-ocr-hybrid/iteration/`, runs Azure DI
  * `prebuilt-layout` to get markdown, then sends image + OCR markdown to
- * the chosen Azure OpenAI deployment with the strict-mode JSON Schema.
+ * the chosen GPT vision deployment through the AI Hub with the strict-mode JSON Schema.
  * Compares the prediction against ground truth and writes:
  *
  *   - last-request.json     (system/user messages, schema, deployment, ocr md)
@@ -14,8 +14,7 @@
  *
  * Pattern lifted from `iterate-vlm-extraction.ts`. Calls the engines
  * directly (not through Temporal) to avoid worker reload churn during
- * tuning. ~12–28 s per call at gpt-5.4 capacity 100 (DI ~1–3 s + VLM
- * ~10–25 s).
+ * tuning. Latency depends on the selected deployment.
  *
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "synth-full (1)" [deployment]
@@ -25,7 +24,9 @@ import "../src/env-loader";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
+import { getAnalyzeResultId } from "../src/activities/azure-ocr-operation-location";
 import { getPrismaClient } from "../src/activities/database-client";
+import { readAiHubConfig } from "../src/ai-hub-config";
 import type { TemplateFieldType } from "../src/ocr-providers/vlm-direct/vlm-prompt-builder";
 import type { VlmExtractionResponse } from "../src/ocr-providers/vlm-direct/vlm-types";
 import { ocrLayoutToMarkdown } from "../src/ocr-providers/vlm-ocr-hybrid/ocr-to-markdown";
@@ -35,7 +36,7 @@ import type { OCRResponse } from "../src/types";
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "synth-full (1)";
 const DEFAULT_API_VERSION = "2024-12-01-preview";
-const DEFAULT_DEPLOYMENT = "gpt-5.4";
+const DEFAULT_DEPLOYMENT = "gpt-5.6-sol";
 const DEFAULT_MAX_COMPLETION_TOKENS = 8192;
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -225,7 +226,6 @@ async function callDiPrebuiltLayout(opts: {
     {
       headers: {
         "Content-Type": "application/json",
-        "Ocp-Apim-Subscription-Key": opts.apiKey,
         "api-key": opts.apiKey,
       },
       timeout: 120_000,
@@ -247,11 +247,12 @@ async function callDiPrebuiltLayout(opts: {
   if (!operationLocation) {
     throw new Error("DI prebuilt-layout submit missing operation-location.");
   }
+  const analyzeResultId = getAnalyzeResultId(operationLocation, opts.endpoint);
+  const pollUrl = `${base}/documentintelligence/documentModels/prebuilt-layout/analyzeResults/${encodeURIComponent(analyzeResultId)}?api-version=2024-11-30`;
   for (let attempt = 0; attempt < 120; attempt++) {
     if (attempt > 0) await sleep(1500);
-    const poll = await axios.get(operationLocation, {
+    const poll = await axios.get(pollUrl, {
       headers: {
-        "Ocp-Apim-Subscription-Key": opts.apiKey,
         "api-key": opts.apiKey,
       },
       timeout: 60_000,
@@ -281,25 +282,10 @@ async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;
   const cliDeployment = process.argv[3];
 
-  const aoaiEndpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/+$/, "");
-  const aoaiApiKey = process.env.AZURE_OPENAI_API_KEY;
+  const { endpoint: hubEndpoint, apiKey: hubApiKey } = readAiHubConfig();
   const apiVersion =
     process.env.AZURE_OPENAI_API_VERSION ?? DEFAULT_API_VERSION;
-  const deployment =
-    cliDeployment ?? process.env.AZURE_OPENAI_DEPLOYMENT ?? DEFAULT_DEPLOYMENT;
-  if (!aoaiEndpoint || !aoaiApiKey) {
-    throw new Error(
-      "AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set in the environment.",
-    );
-  }
-  const diEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const diApiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-  if (!diEndpoint || !diApiKey) {
-    throw new Error(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY must be set in the environment.",
-    );
-  }
-
+  const deployment = cliDeployment ?? DEFAULT_DEPLOYMENT;
   const jpgPath = findSampleFile(sampleId, "jpg");
   const jsonPath = findSampleFile(sampleId, "json");
   const buffer = await fs.promises.readFile(jpgPath);
@@ -332,8 +318,8 @@ async function main(): Promise<void> {
   console.log(`→ DI prebuilt-layout for sample: ${sampleId}`);
   const { layoutResponse, durationMs: ocrDurationMs } =
     await callDiPrebuiltLayout({
-      endpoint: diEndpoint,
-      apiKey: diApiKey,
+      endpoint: hubEndpoint,
+      apiKey: hubApiKey,
       base64: inlineBase64,
     });
   const ocrMarkdown = ocrLayoutToMarkdown(layoutResponse, {
@@ -381,7 +367,7 @@ async function main(): Promise<void> {
     JSON.stringify(requestForDisk, null, 2),
   );
 
-  const url = `${aoaiEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${apiVersion}`;
+  const url = `${hubEndpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${apiVersion}`;
   const payload = {
     messages: [
       { role: "system" as const, content: request.systemPrompt },
@@ -413,7 +399,7 @@ async function main(): Promise<void> {
   const resp = await axios.post(url, payload, {
     headers: {
       "Content-Type": "application/json",
-      "api-key": aoaiApiKey,
+      "api-key": hubApiKey,
     },
     timeout: 600_000,
     validateStatus: () => true,

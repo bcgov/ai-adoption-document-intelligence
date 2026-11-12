@@ -336,6 +336,9 @@
     "apimRequestId": {
       "type": "string"
     },
+    "analyzeResultId": {
+      "type": "string"
+    },
     "ocrResponseRef": {
       "type": "object"
     },
@@ -424,6 +427,10 @@
         {
           "port": "apimRequestId",
           "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "analyzeResultId",
+          "ctxKey": "analyzeResultId"
         }
       ],
       "timeout": {
@@ -469,6 +476,10 @@
           "ctxKey": "apimRequestId"
         },
         {
+          "port": "analyzeResultId",
+          "ctxKey": "analyzeResultId"
+        },
+        {
           "port": "modelId",
           "ctxKey": "modelId"
         },
@@ -506,6 +517,10 @@
         {
           "port": "apimRequestId",
           "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "analyzeResultId",
+          "ctxKey": "analyzeResultId"
         },
         {
           "port": "ocrResponse",

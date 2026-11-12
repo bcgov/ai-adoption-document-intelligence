@@ -70,8 +70,9 @@ describe("OcrService", () => {
           useValue: {
             get: jest.fn((key: string) => {
               const config: Record<string, string> = {
-                AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.azure.com",
-                AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-key",
+                AI_HUB_ENDPOINT:
+                  "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+                AI_HUB_API_KEY: "test-key",
               };
               return config[key];
             }),

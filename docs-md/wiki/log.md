@@ -183,3 +183,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
 - `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
 - `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.
+
+## [2026-11-12] ingest | Shared AI Hub provider configuration
+
+- Updated extraction routing after Document Intelligence, Azure Mistral, and VLM adopted shared AI Hub endpoint/key settings.
+- Linked the canonical environment and provider-architecture documentation; native public Mistral credentials remain separate.

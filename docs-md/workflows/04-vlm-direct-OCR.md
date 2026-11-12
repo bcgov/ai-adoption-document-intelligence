@@ -107,11 +107,15 @@ Not produced. `pages[].words[].polygon` and `pages[].lines[].polygon` are emitte
 
 ## Auth & endpoint env vars
 
+The E04 benchmark and its `gpt-5.4` results are historical. The current VLM
+client sends requests through the shared AI Hub tenant; use `gpt-5.6-sol` for
+the approved validation via the workflow input.
+
 | Var | Required | Notes |
 |---|---|---|
-| `AZURE_OPENAI_ENDPOINT` | yes | resource hostname; for E04 must point at the eastus2 `strukalex-8338-resource` (the resource hosting `gpt-5.4`). |
-| `AZURE_OPENAI_API_KEY` | yes | API key for the same resource. |
-| `AZURE_OPENAI_DEPLOYMENT` | yes (or pass `params.azureOpenAiDeployment`) | deployment name. E04 default: `gpt-5.4`. |
+| `AI_HUB_ENDPOINT` | yes | AI Hub tenant base URL, including its tenant prefix and without a provider/service suffix. |
+| `AI_HUB_API_KEY` | yes | AI Hub APIM subscription key, sent in the `api-key` header. |
+| `params.azureOpenAiDeployment` | yes | Workflow deployment override; use `gpt-5.6-sol` for the approved validation. |
 | `AZURE_OPENAI_API_VERSION` | no | defaults to `2024-12-01-preview` (December 2024 strict-mode-capable preview). |
 | `MOCK_VLM_DIRECT` | no | when `true`, returns a canned all-empty response without making HTTP calls (useful for tests). |
 

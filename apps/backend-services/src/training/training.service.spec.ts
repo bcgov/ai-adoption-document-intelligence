@@ -261,8 +261,8 @@ describe("TrainingService", () => {
     const mockConfig = {
       get: jest.fn((key: string, defaultValue?: number) => {
         const config: Record<string, string | number> = {
-          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
-          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+          AI_HUB_ENDPOINT: "https://test.api.com",
+          AI_HUB_API_KEY: "test-api-key",
           TRAINING_MIN_DOCUMENTS: 5,
           TRAINING_SAS_EXPIRY_DAYS: 7,
         };
@@ -1194,8 +1194,8 @@ describe("TrainingService", () => {
         get: jest.fn((key: string, defaultValue?: number) => {
           if (key === "DOCUMENT_INTELLIGENCE_MODE") return "mock";
           const config: Record<string, string | number> = {
-            AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
-            AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+            AI_HUB_ENDPOINT: "https://test.api.com",
+            AI_HUB_API_KEY: "test-api-key",
             TRAINING_MIN_DOCUMENTS: 5,
             TRAINING_SAS_EXPIRY_DAYS: 7,
           };

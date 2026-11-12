@@ -1,12 +1,17 @@
 # E05 — VLM + OCR hybrid provider
 
+The benchmark descriptions and `gpt-5.4` results below record the original
+experiment. Current GPT vision and Document Intelligence traffic use the
+shared AI Hub endpoint/key; the approved live validation selects
+`gpt-5.6-sol` through the workflow input.
+
 The `vlm-ocr-hybrid` provider folder at
 [`apps/temporal/src/ocr-providers/vlm-ocr-hybrid/`](../../apps/temporal/src/ocr-providers/vlm-ocr-hybrid/)
 implements a two-leg hybrid extraction:
 
 1. **Azure DI prebuilt-layout** (`azureOcr.readPlain`) — markdown +
    per-line/per-word polygons. No template, no field extraction.
-2. **Azure OpenAI chat-completions** (`vlmOcrHybrid.extract`) — sends
+2. **GPT vision chat-completions** (`vlmOcrHybrid.extract`) — sends
    the document image AND the OCR markdown with a strict-mode JSON
    Schema response_format. The system prompt instructs the model to
    prefer the image when image and OCR text disagree.
@@ -38,15 +43,15 @@ in roughly 2× the wallclock of VLM-direct (DI ~5 s + VLM ~17 s).
 
 | | Azure DI prebuilt-layout | E05 hybrid |
 |---|---|---|
-| Base URL | `https://<resource>.cognitiveservices.azure.com/documentintelligence/...` | E05 reuses `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` (per-developer; APIM or direct) |
+| Base URL | `AI_HUB_ENDPOINT` tenant base plus the Document Intelligence SDK service path | E05 uses the shared AI Hub tenant |
 | API version | `2024-11-30` | same |
 | Auth | `api-key: <key>` header | same |
 | Request | `POST /documentModels/prebuilt-layout:analyze?outputContentFormat=markdown` | base64-inlined body |
-| Response | 202 + `operation-location` header | sync wrapper polls until terminal |
+| Response | 202 + `operation-location` header | sync wrapper polls by the analyze-result ID; gateway `apim-request-id` remains a separate correlation ID |
 | Markdown surface | `analyzeResult.content` (markdown string) | fed verbatim into the VLM prompt |
 | Bbox surface | `analyzeResult.pages[*].words[*].polygon` (inches, top-left origin) | re-emitted on `OCRResult.pages[*].words[*].polygon` |
 
-### Leg 2 — Azure OpenAI chat-completions
+### Leg 2 — GPT vision chat-completions
 
 Identical to E04 — see [E04's provider doc](04-vlm-direct-OCR.md) for
 endpoint shape. The only differences are:
@@ -141,14 +146,14 @@ them." E05 closes that gap.
 
 ## Env vars
 
-- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` (DI; reused from E01)
-- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` (DI; reused from E01)
-- `AZURE_OPENAI_ENDPOINT` (Azure OpenAI; reused from E04)
-- `AZURE_OPENAI_API_KEY` (Azure OpenAI; reused from E04)
+- `AI_HUB_ENDPOINT` (shared tenant base for DI and GPT vision)
+- `AI_HUB_API_KEY` (shared Hub subscription key)
+- Workflow input `azureOpenAiDeployment` (set to `gpt-5.6-sol` for the approved validation)
 - `AZURE_OPENAI_DEPLOYMENT` (defaults to `gpt-5.4`; overrideable per-run via `params.azureOpenAiDeployment`)
 - `AZURE_OPENAI_API_VERSION` (defaults to `2024-12-01-preview`; required for strict-mode structured outputs)
 
-No new env vars introduced by E05.
+The Azure OpenAI deployment and API-version settings remain separate from the
+shared Hub endpoint and key.
 
 ## Iteration kit
 

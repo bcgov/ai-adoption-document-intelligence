@@ -17,8 +17,9 @@ function required(activityType: string, portName: string): boolean {
 describe("Azure OCR runtime-derived inputs are optional", () => {
   it("azureOcr.poll.modelId is optional (runtime defaults to prebuilt-layout)", () => {
     expect(required("azureOcr.poll", "modelId")).toBe(false);
-    // apimRequestId is genuinely required (and auto-wires by name).
+    // Both request identifiers are returned by Submit OCR and auto-wire by name.
     expect(required("azureOcr.poll", "apimRequestId")).toBe(true);
+    expect(required("azureOcr.poll", "analyzeResultId")).toBe(true);
   });
 
   it("azureOcr.extract modelId/fileName/fileType are optional", () => {
@@ -26,5 +27,6 @@ describe("Azure OCR runtime-derived inputs are optional", () => {
     expect(required("azureOcr.extract", "fileName")).toBe(false);
     expect(required("azureOcr.extract", "fileType")).toBe(false);
     expect(required("azureOcr.extract", "apimRequestId")).toBe(true);
+    expect(required("azureOcr.extract", "analyzeResultId")).toBe(false);
   });
 });

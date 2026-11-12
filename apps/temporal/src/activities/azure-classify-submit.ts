@@ -3,6 +3,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { readAiHubConfig } from "../ai-hub-config";
 import {
   getGroupBlobStorage,
   validateGroupBlobKey,
@@ -66,14 +67,7 @@ export async function azureClassifySubmit(
     );
   }
 
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-
-  if (!endpoint || !apiKey) {
-    throw new Error(
-      "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY.",
-    );
-  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   const constructedClassifierName = `${groupId}__${classifierName}`;
 

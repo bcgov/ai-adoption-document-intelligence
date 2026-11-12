@@ -107,8 +107,8 @@ describe("TrainingPollerService", () => {
     const mockConfig = {
       get: jest.fn((key: string, defaultValue?: number) => {
         const config: Record<string, string | number> = {
-          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.api.com",
-          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+          AI_HUB_ENDPOINT: "https://test.api.com",
+          AI_HUB_API_KEY: "test-api-key",
           TRAINING_POLL_INTERVAL_SECONDS: 10,
         };
         return config[key] ?? defaultValue;

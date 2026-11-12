@@ -25,7 +25,7 @@ names or values.
 | Key                                   | GitHub env `prod`                     | OpenShift `bcgov-di-backend-services-secrets` | OpenShift `bcgov-di-temporal-worker-secrets` | Local file                          |
 | ------------------------------------- | ------------------------------------- | --------------------------------------------- | -------------------------------------------- | ----------------------------------- |
 | `SSO_CLIENT_SECRET`                   | ✓                                     | ✓                                             |                                              |                                     |
-| `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | ✓                                     | ✓                                             | ✓                                            |                                     |
+| `AI_HUB_API_KEY`                      | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_CONNECTION_STRING`     | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_ACCOUNT_NAME`          | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_ACCOUNT_KEY`           | ✓                                     | ✓                                             | ✓                                            |                                     |
@@ -128,7 +128,7 @@ and `bcgov-di-temporal-worker-secrets` — from the single line in your file. Bo
 deployments are restarted. The duplication is deliberate: `backend-services`
 hosts the workflow chat agent, AI format suggestion and benchmark
 recommendations, the worker hosts LLM enrichment, and the repo keeps one Secret
-per deployment (`AZURE_DOCUMENT_INTELLIGENCE_API_KEY` and the `AZURE_STORAGE_*`
+per deployment (`AI_HUB_API_KEY` and the `AZURE_STORAGE_*`
 keys are duplicated the same way). There is still only **one** value to rotate.
 
 **On an instance deployed before this key was added to the backend Secret**, the

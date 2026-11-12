@@ -51,12 +51,8 @@ export class AzureService {
       return;
     }
 
-    this.endpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    )!;
-    this.apiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    )!;
+    this.endpoint = this.configService.get<string>("AI_HUB_ENDPOINT")!;
+    this.apiKey = this.configService.get<string>("AI_HUB_API_KEY")!;
 
     this.client = DocumentIntelligence(
       this.endpoint,

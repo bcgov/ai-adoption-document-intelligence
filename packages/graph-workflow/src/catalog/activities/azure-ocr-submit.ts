@@ -1,9 +1,8 @@
 /**
  * Catalog entry for `azureOcr.submit`.
  *
- * Sends a prepared document to Azure Document Intelligence and returns a
- * tracking ID. Typically follows `file.prepare` and precedes a Wait & Retry
- * (poll) node for `azureOcr.poll`.
+ * Sends a prepared document to Document Intelligence and returns separate
+ * gateway-correlation and analyze-result IDs.
  *
  * See docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md → "Submit OCR".
  */
@@ -59,7 +58,14 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
     {
       name: "apimRequestId",
       label: "Request ID",
-      description: "Azure tracking ID for this submission.",
+      description: "Gateway correlation ID for logging and document tracking.",
+      required: true,
+      kind: "RequestId",
+    },
+    {
+      name: "analyzeResultId",
+      label: "Analyze result ID",
+      description: "Document Intelligence result ID used by poll and extract.",
       required: true,
       kind: "RequestId",
     },

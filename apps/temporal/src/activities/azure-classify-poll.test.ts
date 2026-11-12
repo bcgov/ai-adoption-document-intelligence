@@ -57,9 +57,9 @@ describe("azureClassifyPoll activity", () => {
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-        "https://test.cognitiveservices.azure.com",
-      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+      AI_HUB_ENDPOINT:
+        "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+      AI_HUB_API_KEY: "test-api-key",
     };
 
     documentIntelligenceMock.mockReturnValue({
@@ -313,7 +313,7 @@ describe("azureClassifyPoll activity", () => {
       await azureClassifyPoll(BASE_INPUT);
 
       expect(documentIntelligenceMock).toHaveBeenCalledWith(
-        "https://test.cognitiveservices.azure.com",
+        "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
         expect.any(Object),
         expect.any(Object),
       );

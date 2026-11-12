@@ -46,6 +46,9 @@ const mockPath = jest.fn(() => ({ post: mockPost }));
 
 const GROUP = "clh7z2xk00000356u8e3h1234";
 const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+const AI_HUB_ENDPOINT = "https://test.aihub.gov.bc.ca/sdpr-invoice-automation";
+const operationLocation = (resultId: string, modelId = "prebuilt-layout") =>
+  `${AI_HUB_ENDPOINT}/documentintelligence/documentModels/${modelId}/analyzeResults/${resultId}?api-version=2024-11-30`;
 
 describe("submitToAzureOCR activity", () => {
   const originalEnv = process.env;
@@ -54,9 +57,8 @@ describe("submitToAzureOCR activity", () => {
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-        "https://test.cognitiveservices.azure.com",
-      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+      AI_HUB_ENDPOINT,
+      AI_HUB_API_KEY: "test-api-key",
     };
     mockBlobRead.mockResolvedValue(Buffer.from("test file content"));
     mockModelOwnerFindFirst.mockResolvedValue(null);
@@ -99,6 +101,7 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-123",
+        "operation-location": operationLocation("result-123"),
       },
       body: {},
     };
@@ -116,9 +119,10 @@ describe("submitToAzureOCR activity", () => {
 
     expect(result.statusCode).toBe(202);
     expect(result.apimRequestId).toBe("test-request-id-123");
+    expect(result.analyzeResultId).toBe("result-123");
     expect(result.headers).toHaveProperty("apim-request-id");
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
-      "https://test.cognitiveservices.azure.com",
+      AI_HUB_ENDPOINT,
       { key: "test-api-key" },
       {
         credentials: {
@@ -140,11 +144,49 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
+  it.each([
+    [
+      "relative URL",
+      "/documentintelligence/documentModels/prebuilt-layout/analyzeResults/id",
+    ],
+    [
+      "wrong origin",
+      "https://other.example.test/sdpr-invoice-automation/documentintelligence/documentModels/prebuilt-layout/analyzeResults/id",
+    ],
+    [
+      "wrong tenant path",
+      "https://test.aihub.gov.bc.ca/other-tenant/documentintelligence/documentModels/prebuilt-layout/analyzeResults/id",
+    ],
+  ])("rejects operation-location with %s", async (_caseName, location) => {
+    mockPost.mockResolvedValue({
+      status: 202,
+      headers: {
+        "apim-request-id": "gateway-correlation-id",
+        "operation-location": location,
+      },
+      body: {},
+    });
+
+    await expect(
+      submitToAzureOCR({
+        fileData: {
+          fileName: "test.pdf",
+          fileType: "pdf",
+          contentType: "application/pdf",
+          blobKey: "atestgroup/ocr/test.pdf",
+          modelId: "prebuilt-layout",
+        },
+        groupId: "atestgroup",
+      }),
+    ).rejects.toThrow("Azure OCR");
+  });
+
   it("submits document with prebuilt-read without keyValuePairs feature (unsupported by Azure)", async () => {
     const mockResponse = {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-read",
+        "operation-location": operationLocation("result-read", "prebuilt-read"),
       },
       body: {},
     };
@@ -179,6 +221,10 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-456",
+        "operation-location": operationLocation(
+          "result-456",
+          "custom-invoice-model",
+        ),
       },
       body: {},
     };
@@ -214,6 +260,7 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "Apim-Request-Id": "test-request-id-789",
+        "Operation-Location": operationLocation("result-789"),
       },
       body: {},
     };
@@ -233,8 +280,8 @@ describe("submitToAzureOCR activity", () => {
   });
 
   it("throws error when credentials are missing", async () => {
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
+    delete process.env.AI_HUB_ENDPOINT;
+    delete process.env.AI_HUB_API_KEY;
 
     const fileData: PreparedFileData = {
       fileName: "test.pdf",
@@ -246,7 +293,9 @@ describe("submitToAzureOCR activity", () => {
 
     await expect(
       submitToAzureOCR({ fileData, groupId: "atestgroup" }),
-    ).rejects.toThrow("Azure Document Intelligence credentials not configured");
+    ).rejects.toThrow(
+      "AI Hub configuration missing. Set AI_HUB_ENDPOINT and AI_HUB_API_KEY.",
+    );
   });
 
   it("throws error when status code is not 202", async () => {
@@ -400,13 +449,13 @@ describe("submitToAzureOCR activity", () => {
   });
 
   it("normalizes endpoint URL by removing trailing slash", async () => {
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT =
-      "https://test.cognitiveservices.azure.com/";
+    process.env.AI_HUB_ENDPOINT = `${AI_HUB_ENDPOINT}/`;
 
     const mockResponse = {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id",
+        "operation-location": operationLocation("result-normalized"),
       },
       body: {},
     };
@@ -423,7 +472,7 @@ describe("submitToAzureOCR activity", () => {
     await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
-      "https://test.cognitiveservices.azure.com",
+      AI_HUB_ENDPOINT,
       expect.any(Object),
       expect.any(Object),
     );
@@ -463,7 +512,10 @@ describe("submitToAzureOCR activity", () => {
   it("reads the document from the run's group", async () => {
     mockPost.mockResolvedValue({
       status: 202,
-      headers: { "apim-request-id": "test-request-id-group" },
+      headers: {
+        "apim-request-id": "test-request-id-group",
+        "operation-location": operationLocation("result-group"),
+      },
       body: {},
     });
     const fileData: PreparedFileData = {
@@ -517,7 +569,13 @@ describe("submitToAzureOCR activity", () => {
   it("runs the group's own trained model", async () => {
     mockPost.mockResolvedValue({
       status: 202,
-      headers: { "apim-request-id": "own-model-request" },
+      headers: {
+        "apim-request-id": "own-model-request",
+        "operation-location": operationLocation(
+          "own-model-result",
+          "invoice-v2",
+        ),
+      },
       body: {},
     });
     const fileData: PreparedFileData = {

@@ -7,8 +7,8 @@ metadata:
 data:
   # In-cluster service URLs (same namespace)
   DATABASE_API_URL: "http://database-api:3001/api/documents"
-  # Azure Document Intelligence: set endpoint per instance; API key in secret
-  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://your-region.api.cognitive.microsoft.com"
+  # Shared AI Hub tenant base URL; subscription key lives in backend-services-secrets.
+  AI_HUB_ENDPOINT: ""
   # live (default) | mock — mock stubs DI for load tests (training paths return 503)
   DOCUMENT_INTELLIGENCE_MODE: "live"
   # Comma-separated list of model IDs for document intelligence (e.g. prebuilt-layout,sdpr-monthly-report-model)

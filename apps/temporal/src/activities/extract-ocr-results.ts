@@ -1,5 +1,6 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import axios from "axios";
+import { readAiHubConfig } from "../ai-hub-config";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import {
@@ -22,6 +23,7 @@ function normalizeEndpoint(url: string | undefined): string {
  */
 export async function extractOCRResults(params: {
   apimRequestId: string;
+  analyzeResultId?: string;
   fileName: string;
   fileType: string;
   modelId: string;
@@ -41,8 +43,6 @@ export async function extractOCRResults(params: {
     ocrResponse,
   } = params;
   const log = createActivityLogger(activityName, { apimRequestId, documentId });
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
 
   log.info("Extract OCR results start", {
     event: "start",
@@ -64,16 +64,17 @@ export async function extractOCRResults(params: {
     }
 
     if (!ocrResponseObj) {
-      if (!endpoint || !apiKey) {
+      if (!params.analyzeResultId) {
         throw new Error(
-          "Azure Document Intelligence credentials not configured.",
+          "Document Intelligence analyze result ID is required when the OCR response was not provided.",
         );
       }
+      const { endpoint, apiKey } = readAiHubConfig();
       const normalizedEndpoint = normalizeEndpoint(endpoint);
       const normalizedModelId = encodeURIComponent(
         modelId || "prebuilt-layout",
       );
-      const url = `${normalizedEndpoint}/documentintelligence/documentModels/${normalizedModelId}/analyzeResults/${encodeURIComponent(apimRequestId)}?api-version=2024-11-30`;
+      const url = `${normalizedEndpoint}/documentintelligence/documentModels/${normalizedModelId}/analyzeResults/${encodeURIComponent(params.analyzeResultId)}?api-version=2024-11-30`;
       const response = await axios.get<OCRResponse>(url, {
         headers: { "api-key": apiKey },
       });

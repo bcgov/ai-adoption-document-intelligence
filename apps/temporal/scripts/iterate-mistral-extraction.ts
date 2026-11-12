@@ -24,6 +24,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
 import { getPrismaClient } from "../src/activities/database-client";
+import { readAiHubConfig } from "../src/ai-hub-config";
 import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
 
 const FOUNDRY_PATH = "/providers/mistral/azure/ocr";
@@ -202,16 +203,7 @@ function shortHash(s: string): string {
 
 async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;
-  const endpoint = process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT?.replace(
-    /\/+$/,
-    "",
-  );
-  const apiKey = process.env.MISTRAL_DOC_AI_AZURE_KEY;
-  if (!endpoint || !apiKey) {
-    throw new Error(
-      "MISTRAL_DOC_AI_AZURE_ENDPOINT and MISTRAL_DOC_AI_AZURE_KEY must be set in the environment.",
-    );
-  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   const jpgPath = findSampleFile(sampleId, "jpg");
   const jsonPath = findSampleFile(sampleId, "json");
@@ -372,7 +364,7 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   const { data } = await axios.post(url, requestBody, {
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "api-key": apiKey,
       "Content-Type": "application/json",
     },
     timeout: 600_000,

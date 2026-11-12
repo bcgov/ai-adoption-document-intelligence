@@ -175,7 +175,7 @@ export interface PaidApiMockConfig {
 /**
  * Stub ONLY the paid external APIs and run everything else for real:
  *   - Azure DI via the `MOCK_AZURE_OCR` env-seam (SDK-based; canned layout).
- *   - Azure OpenAI VLM + Mistral OCR via axios-mock-adapter (raw axios).
+ *   - AI Hub VLM + Mistral OCR via axios-mock-adapter (raw axios).
  * Forces dummy provider creds so the real activity builds its request URL but
  * never reaches the network (axios is intercepted). Returns a `restore` that
  * removes the interceptor and reverts the env it changed.
@@ -185,18 +185,20 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
 } {
   const prevEnv: Record<string, string | undefined> = {
     MOCK_AZURE_OCR: process.env.MOCK_AZURE_OCR,
+    AI_HUB_ENDPOINT: process.env.AI_HUB_ENDPOINT,
+    AI_HUB_API_KEY: process.env.AI_HUB_API_KEY,
     AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY,
     MOCK_MISTRAL_OCR: process.env.MOCK_MISTRAL_OCR,
     MOCK_MISTRAL_AZURE_OCR: process.env.MOCK_MISTRAL_AZURE_OCR,
     MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
-    MISTRAL_DOC_AI_AZURE_ENDPOINT: process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT,
-    MISTRAL_DOC_AI_AZURE_KEY: process.env.MISTRAL_DOC_AI_AZURE_KEY,
     MOCK_AZURE_OCR_RESPONSE: process.env.MOCK_AZURE_OCR_RESPONSE,
     MOCK_AZURE_CU: process.env.MOCK_AZURE_CU,
     MOCK_AZURE_CU_RESULT: process.env.MOCK_AZURE_CU_RESULT,
   };
   process.env.MOCK_AZURE_OCR = "true";
+  process.env.AI_HUB_ENDPOINT = "https://mock-aihub.local/tenant";
+  process.env.AI_HUB_API_KEY = "mock-key";
   if (cfg.di) {
     process.env.MOCK_AZURE_OCR_RESPONSE = JSON.stringify(cfg.di);
   }
@@ -224,8 +226,8 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
     delete process.env.MOCK_MISTRAL_OCR;
     delete process.env.MOCK_MISTRAL_AZURE_OCR;
     process.env.MISTRAL_API_KEY = "mock-key";
-    process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT = "https://mock-foundry.local";
-    process.env.MISTRAL_DOC_AI_AZURE_KEY = "mock-key";
+    process.env.AI_HUB_ENDPOINT = "https://mock-aihub.local/tenant";
+    process.env.AI_HUB_API_KEY = "mock-key";
     mock.onPost(/\/ocr(\?|$)/).reply(200, cfg.mistral);
   }
 

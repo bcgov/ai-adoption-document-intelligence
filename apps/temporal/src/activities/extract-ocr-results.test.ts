@@ -26,6 +26,7 @@ const axiosMock = axios as jest.Mocked<typeof axios>;
 
 const TEST_DOCUMENT_ID = "doc-extract-test";
 const TEST_GROUP_ID = "gtestgroupidfortests01";
+const AI_HUB_ENDPOINT = "https://test.aihub.gov.bc.ca/sdpr-invoice-automation";
 
 describe("extractOCRResults activity", () => {
   const originalEnv = process.env;
@@ -34,9 +35,8 @@ describe("extractOCRResults activity", () => {
     jest.resetAllMocks();
     process.env = {
       ...originalEnv,
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-        "https://test.cognitiveservices.azure.com",
-      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+      AI_HUB_ENDPOINT,
+      AI_HUB_API_KEY: "test-api-key",
     };
     jest
       .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
@@ -85,6 +85,7 @@ describe("extractOCRResults activity", () => {
 
     const result = await extractOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: "test-analyze-result-id",
       fileName: "test.pdf",
       fileType: "pdf",
       modelId: "prebuilt-layout",
@@ -117,6 +118,7 @@ describe("extractOCRResults activity", () => {
 
     const result = await extractOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: "test-analyze-result-id",
       fileName: "test.pdf",
       fileType: "pdf",
       modelId: "prebuilt-layout",
@@ -128,7 +130,7 @@ describe("extractOCRResults activity", () => {
     expect(axiosMock.get).toHaveBeenCalled();
   });
 
-  it("encodes modelId and apimRequestId as single URL path segments", async () => {
+  it("encodes modelId and analyzeResultId as single URL path segments", async () => {
     axiosMock.get.mockResolvedValue({
       data: sampleResponse(),
       status: 200,
@@ -139,6 +141,7 @@ describe("extractOCRResults activity", () => {
 
     await extractOCRResults({
       apimRequestId: "request/id?x=1",
+      analyzeResultId: "result/id?x=1",
       fileName: "test.pdf",
       fileType: "pdf",
       modelId: "custom/model#1",
@@ -147,9 +150,25 @@ describe("extractOCRResults activity", () => {
     });
 
     expect(axiosMock.get).toHaveBeenCalledWith(
-      "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/custom%2Fmodel%231/analyzeResults/request%2Fid%3Fx%3D1?api-version=2024-11-30",
+      `${AI_HUB_ENDPOINT}/documentintelligence/documentModels/custom%2Fmodel%231/analyzeResults/result%2Fid%3Fx%3D1?api-version=2024-11-30`,
       expect.anything(),
     );
+  });
+
+  it("requires analyzeResultId only when no OCR response is provided", async () => {
+    await expect(
+      extractOCRResults({
+        apimRequestId: "test-request-id",
+        fileName: "test.pdf",
+        fileType: "pdf",
+        modelId: "prebuilt-layout",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+      }),
+    ).rejects.toThrow(
+      "Document Intelligence analyze result ID is required when the OCR response was not provided.",
+    );
+    expect(axiosMock.get).not.toHaveBeenCalled();
   });
 
   describe("OCR response ref limited to the run's group", () => {

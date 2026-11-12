@@ -3,9 +3,11 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { readAiHubConfig } from "../ai-hub-config";
 import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";
+import { getAnalyzeResultId } from "./azure-ocr-operation-location";
 import { assertModelUsableByGroup } from "./model-ownership";
 
 /**
@@ -31,8 +33,6 @@ export async function submitToAzureOCR(params: {
   const locale = params.locale ?? "en-US";
   const log = createActivityLogger(activityName);
   const startTime = Date.now();
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
 
   const cache = params.__benchmarkOcrCache;
@@ -44,6 +44,7 @@ export async function submitToAzureOCR(params: {
     return {
       statusCode: 202,
       apimRequestId: "benchmark-ocr-cache",
+      analyzeResultId: "benchmark-ocr-cache",
       headers: {
         "apim-request-id": "benchmark-ocr-cache",
         "operation-location":
@@ -79,6 +80,7 @@ export async function submitToAzureOCR(params: {
     return {
       statusCode: 202,
       apimRequestId: mockRequestId,
+      analyzeResultId: mockRequestId,
       headers: {
         "apim-request-id": mockRequestId,
         "operation-location": `https://mock.azure.com/results/${mockRequestId}`,
@@ -86,19 +88,7 @@ export async function submitToAzureOCR(params: {
     };
   }
 
-  if (!endpoint || !apiKey) {
-    const duration = Date.now() - startTime;
-    log.error("Submit to Azure OCR: missing credentials", {
-      event: "error",
-      error: "missing_credentials",
-      message: "Azure Document Intelligence credentials not configured",
-      durationMs: duration,
-    });
-    throw new Error(
-      "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.",
-    );
-  }
-
+  const { endpoint, apiKey } = readAiHubConfig();
   const normalizedEndpoint = normalizeEndpoint(endpoint);
 
   try {
@@ -152,7 +142,7 @@ export async function submitToAzureOCR(params: {
       });
       const hint =
         Number(status) === 404
-          ? ` Model "${modelId}" may not exist in this resource, or the model ID may be wrong. For custom models, use the exact model ID returned when the model was built (e.g. from GET documentModels or the build response). Verify AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT points to the same resource where the model was created.`
+          ? ` Model "${modelId}" may not exist in this tenant, or the model ID may be wrong. For custom models, use the exact model ID returned when the model was built (e.g. from GET documentModels or the build response). Verify AI_HUB_ENDPOINT points to the tenant where the model was created.`
           : "";
       throw new Error(
         `Failed to submit document to Azure OCR. Status: ${status}${hint}`,
@@ -191,10 +181,22 @@ export async function submitToAzureOCR(params: {
       throw new Error("APIM Request ID not found in response headers");
     }
 
+    const rawOperationLocation =
+      initialResponse.headers["operation-location"] ||
+      initialResponse.headers["Operation-Location"];
+    const operationLocation = Array.isArray(rawOperationLocation)
+      ? rawOperationLocation[0]
+      : rawOperationLocation;
+    const analyzeResultId = getAnalyzeResultId(
+      typeof operationLocation === "string" ? operationLocation : undefined,
+      normalizedEndpoint,
+    );
+
     log.info("Submit to Azure OCR complete", {
       event: "complete",
       statusCode,
       apimRequestId,
+      analyzeResultId,
       alertType: "azure_ocr_submit",
     });
 
@@ -202,6 +204,7 @@ export async function submitToAzureOCR(params: {
     return {
       statusCode,
       apimRequestId: apimRequestId as string,
+      analyzeResultId,
       headers: initialResponse.headers as Record<string, string | string[]>,
     };
   } catch (error) {

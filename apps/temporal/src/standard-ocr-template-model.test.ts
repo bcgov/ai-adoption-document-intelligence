@@ -57,12 +57,12 @@ function fakeAzure() {
   const submittedUnder = new Map<string, string>();
   const seen: Array<{ step: AzureStep; model: string }> = [];
 
-  const fetchUnder = (step: AzureStep, requestId: string, model: string) => {
+  const fetchUnder = (step: AzureStep, resultId: string, model: string) => {
     seen.push({ step, model });
-    const submitted = submittedUnder.get(requestId);
+    const submitted = submittedUnder.get(resultId);
     if (submitted !== model) {
       throw ApplicationFailure.nonRetryable(
-        `404: request ${requestId} was submitted under model "${submitted}", not "${model}"`,
+        `404: result ${resultId} was submitted under model "${submitted}", not "${model}"`,
         "AzureModelMismatch",
       );
     }
@@ -71,17 +71,21 @@ function fakeAzure() {
   const activities = {
     "azureOcr.submit": async (params: { fileData: PreparedFileData }) => {
       const model = params.fileData.modelId || AZURE_DEFAULT_MODEL;
-      const apimRequestId = `request-${submittedUnder.size + 1}`;
-      submittedUnder.set(apimRequestId, model);
+      const analyzeResultId = `result-${submittedUnder.size + 1}`;
+      submittedUnder.set(analyzeResultId, model);
       seen.push({ step: "submit", model });
-      return { apimRequestId };
+      return {
+        apimRequestId: `request-${submittedUnder.size}`,
+        analyzeResultId,
+      };
     },
     "azureOcr.poll": async (params: {
       apimRequestId: string;
+      analyzeResultId: string;
       modelId?: string;
     }) => {
       const model = params.modelId || AZURE_DEFAULT_MODEL;
-      fetchUnder("poll", params.apimRequestId, model);
+      fetchUnder("poll", params.analyzeResultId, model);
       return {
         status: "succeeded",
         ocrResponse: {
@@ -92,10 +96,11 @@ function fakeAzure() {
     },
     "azureOcr.extract": async (params: {
       apimRequestId: string;
+      analyzeResultId: string;
       modelId?: string;
     }) => {
       const model = params.modelId || AZURE_DEFAULT_MODEL;
-      fetchUnder("extract", params.apimRequestId, model);
+      fetchUnder("extract", params.analyzeResultId, model);
       return { ocrResult: { modelId: model, keyValuePairs: {} } };
     },
   };

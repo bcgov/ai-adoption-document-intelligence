@@ -62,9 +62,9 @@ describe("azureClassifySubmit activity", () => {
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-        "https://test.cognitiveservices.azure.com",
-      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+      AI_HUB_ENDPOINT:
+        "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+      AI_HUB_API_KEY: "test-api-key",
       BLOB_STORAGE_PROVIDER: "minio",
     };
 
@@ -116,7 +116,7 @@ describe("azureClassifySubmit activity", () => {
         status: "202",
         headers: {
           "operation-location":
-            "https://test.cognitiveservices.azure.com/documentClassifiers/atestgroup__my-classifier/analyzeResults/result-abc",
+            "https://test.aihub.gov.bc.ca/sdpr-invoice-automation/documentClassifiers/atestgroup__my-classifier/analyzeResults/result-abc",
         },
       });
 
@@ -144,7 +144,7 @@ describe("azureClassifySubmit activity", () => {
         status: "202",
         headers: {
           "operation-location":
-            "https://test.cognitiveservices.azure.com/documentClassifiers/atestgroup__my-classifier/analyzeResults/result-xyz",
+            "https://test.aihub.gov.bc.ca/sdpr-invoice-automation/documentClassifiers/atestgroup__my-classifier/analyzeResults/result-xyz",
         },
       });
 

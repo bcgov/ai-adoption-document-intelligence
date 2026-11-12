@@ -193,9 +193,9 @@ THROTTLE_AUTH_REFRESH_LIMIT=$(optional_cfg THROTTLE_AUTH_REFRESH_LIMIT 5)
 
 DB_POOL_MAX=$(optional_cfg DB_POOL_MAX 10)
 
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=$(optional_cfg AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT "")
+AI_HUB_ENDPOINT=$(optional_cfg AI_HUB_ENDPOINT "")
 AZURE_DOC_INTELLIGENCE_MODELS=$(optional_cfg AZURE_DOC_INTELLIGENCE_MODELS prebuilt-layout)
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(require_cfg AZURE_DOCUMENT_INTELLIGENCE_API_KEY)
+AI_HUB_API_KEY=$(require_cfg AI_HUB_API_KEY)
 
 AZURE_OPENAI_ENDPOINT=$(optional_cfg AZURE_OPENAI_ENDPOINT "")
 AZURE_OPENAI_DEPLOYMENT=$(optional_cfg AZURE_OPENAI_DEPLOYMENT "")
@@ -330,7 +330,7 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
   --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
-  --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
+  --ai-hub-endpoint "${AI_HUB_ENDPOINT}" \
   --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
   --document-intelligence-mode "${DOCUMENT_INTELLIGENCE_MODE}" \
   --mock-azure-ocr "${MOCK_AZURE_OCR}" \
@@ -391,7 +391,7 @@ echo "[INFO] Applying backend secret ${BACKEND_SECRET}..."
 # key, two per-deployment secrets.
 oc create secret generic "${BACKEND_SECRET}" \
   --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
-  --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+  --from-literal="AI_HUB_API_KEY=${AI_HUB_API_KEY}" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
@@ -404,7 +404,7 @@ oc label secret "${BACKEND_SECRET}" \
 WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
 echo "[INFO] Applying temporal worker secret ${WORKER_SECRET}..."
 oc create secret generic "${WORKER_SECRET}" \
-  --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+  --from-literal="AI_HUB_API_KEY=${AI_HUB_API_KEY}" \
   --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \

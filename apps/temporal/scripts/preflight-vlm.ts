@@ -4,9 +4,8 @@
  * Asserts every precondition needed to run an iteration / benchmark before
  * the first paid call:
  *
- *   1. Env vars present: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY,
- *      AZURE_OPENAI_API_VERSION (defaulted), AZURE_OPENAI_DEPLOYMENT
- *      (or override on CLI), TEST_API_KEY.
+ *   1. Env vars present: AI_HUB_ENDPOINT, AI_HUB_API_KEY,
+ *      AZURE_OPENAI_API_VERSION (defaulted), TEST_API_KEY.
  *   2. AZURE_OPENAI_API_VERSION is recent enough for strict-mode
  *      structured outputs (≥ 2024-12-01-preview).
  *   3. The chosen deployment is reachable + image-capable. Sends a
@@ -24,7 +23,7 @@
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register scripts/preflight-vlm.ts [deployment-name]
  *
- *   default deployment: $AZURE_OPENAI_DEPLOYMENT or "gpt-5.4"
+ *   default deployment: gpt-5.6-sol (or override on CLI)
  */
 
 import "../src/env-loader";
@@ -81,23 +80,18 @@ async function checkEnvVars(): Promise<{
   apiVersion: string;
   deployment: string;
 }> {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const endpoint = process.env.AI_HUB_ENDPOINT?.trim().replace(/\/+$/, "");
+  const apiKey = process.env.AI_HUB_API_KEY?.trim();
   const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? MIN_API_VERSION;
   const cliDeployment = process.argv[2];
-  const deployment =
-    cliDeployment ?? process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-5.4";
+  const deployment = cliDeployment ?? "gpt-5.6-sol";
 
   record(
-    "AZURE_OPENAI_ENDPOINT set",
+    "AI_HUB_ENDPOINT set",
     !!endpoint,
     endpoint ? `→ ${maskEndpoint(endpoint)}` : "missing",
   );
-  record(
-    "AZURE_OPENAI_API_KEY set",
-    !!apiKey,
-    apiKey ? "(redacted)" : "missing",
-  );
+  record("AI_HUB_API_KEY set", !!apiKey, apiKey ? "(redacted)" : "missing");
   const cmp = compareApiVersion(apiVersion, MIN_API_VERSION);
   record(
     `AZURE_OPENAI_API_VERSION ≥ ${MIN_API_VERSION}`,
@@ -108,7 +102,7 @@ async function checkEnvVars(): Promise<{
         ? `${apiVersion} is older than ${MIN_API_VERSION}; strict-mode structured outputs need at least the December 2024 preview`
         : `unparseable: "${apiVersion}"`,
   );
-  record("AZURE_OPENAI_DEPLOYMENT chosen", true, deployment);
+  record("GPT vision deployment chosen", true, deployment);
 
   const testApiKey = process.env.TEST_API_KEY;
   record(
@@ -264,7 +258,7 @@ async function checkDb(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log("E04 preflight (VLM-direct, gpt-5.4 default)\n");
+  console.log("E04 preflight (VLM-direct, gpt-5.6-sol default)\n");
   const env = await checkEnvVars();
   console.log("");
   if (env.endpoint && env.apiKey) {
@@ -275,7 +269,11 @@ async function main(): Promise<void> {
       deployment: env.deployment,
     });
   } else {
-    record(`deployment probe`, false, "skipped — endpoint or key missing");
+    record(
+      `deployment probe`,
+      false,
+      "skipped — AI Hub endpoint or key missing",
+    );
   }
   console.log("");
   await checkDb();

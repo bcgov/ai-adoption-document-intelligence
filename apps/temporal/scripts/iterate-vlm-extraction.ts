@@ -3,8 +3,8 @@
  *
  * Reads the editable global prompt and per-field descriptions from
  * `experiments/results/04-vlm-direct/iteration/`, builds the strict-mode
- * JSON Schema, calls the chosen Azure OpenAI deployment with the sample
- * image, compares the prediction against ground truth, and writes:
+ * JSON Schema, calls the chosen GPT vision deployment through the AI Hub with the sample
+ * image through the AI Hub, compares the prediction against ground truth, and writes:
  *
  *   - last-request.json     (system/user messages, schema, deployment)
  *   - last-response.json    (raw VLM payload + parsed structured output)
@@ -12,7 +12,7 @@
  *
  * Pattern lifted from `iterate-cu-extraction.ts`. Calls the engine
  * directly (not through Temporal) to avoid worker reload churn during
- * tuning. ~10–25 s per call on gpt-5.4 at capacity 100.
+ * tuning. ~10–25 s per call, depending on deployment capacity.
  *
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register scripts/iterate-vlm-extraction.ts "synth-full (1)" [deployment]
@@ -23,6 +23,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
 import { getPrismaClient } from "../src/activities/database-client";
+import { readAiHubConfig } from "../src/ai-hub-config";
 import {
   buildVlmExtractionRequest,
   type TemplateFieldType,
@@ -32,7 +33,7 @@ import type { VlmExtractionResponse } from "../src/ocr-providers/vlm-direct/vlm-
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "synth-full (1)";
 const DEFAULT_API_VERSION = "2024-12-01-preview";
-const DEFAULT_DEPLOYMENT = "gpt-5.4";
+const DEFAULT_DEPLOYMENT = "gpt-5.6-sol";
 const DEFAULT_MAX_COMPLETION_TOKENS = 8192;
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -201,17 +202,10 @@ async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;
   const cliDeployment = process.argv[3];
 
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/+$/, "");
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const { endpoint, apiKey } = readAiHubConfig();
   const apiVersion =
     process.env.AZURE_OPENAI_API_VERSION ?? DEFAULT_API_VERSION;
-  const deployment =
-    cliDeployment ?? process.env.AZURE_OPENAI_DEPLOYMENT ?? DEFAULT_DEPLOYMENT;
-  if (!endpoint || !apiKey) {
-    throw new Error(
-      "AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set in the environment.",
-    );
-  }
+  const deployment = cliDeployment ?? DEFAULT_DEPLOYMENT;
 
   const jpgPath = findSampleFile(sampleId, "jpg");
   const jsonPath = findSampleFile(sampleId, "json");

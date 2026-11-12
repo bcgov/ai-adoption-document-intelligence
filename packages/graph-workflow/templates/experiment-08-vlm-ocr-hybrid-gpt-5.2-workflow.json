@@ -79,6 +79,9 @@
     "apimRequestId": {
       "type": "string"
     },
+    "analyzeResultId": {
+      "type": "string"
+    },
     "ocrResponseRef": {
       "type": "object",
       "description": "Lightweight blob reference to the raw Azure DI prebuilt-layout response (markdown content + per-line/per-word polygons). Resolved inside the hybrid extract step; the full payload is kept out of Temporal history."
@@ -161,6 +164,10 @@
         {
           "port": "apimRequestId",
           "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "analyzeResultId",
+          "ctxKey": "analyzeResultId"
         }
       ],
       "timeout": {
@@ -179,6 +186,10 @@
         {
           "port": "apimRequestId",
           "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "analyzeResultId",
+          "ctxKey": "analyzeResultId"
         },
         {
           "port": "modelId",

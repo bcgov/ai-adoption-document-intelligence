@@ -105,12 +105,8 @@ export class TrainingService {
       this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
     );
 
-    const endpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    );
-    const apiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    );
+    const endpoint = this.configService.get<string>("AI_HUB_ENDPOINT");
+    const apiKey = this.configService.get<string>("AI_HUB_API_KEY");
 
     if (this.diMode === "mock") {
       this.logger.log(

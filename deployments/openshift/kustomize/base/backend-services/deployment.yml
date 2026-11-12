@@ -150,11 +150,11 @@ spec:
             secretKeyRef:
               name: backend-services-secrets
               key: SSO_CLIENT_SECRET
-        - name: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+        - name: AI_HUB_ENDPOINT
           valueFrom:
             configMapKeyRef:
               name: backend-services-config
-              key: AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
+              key: AI_HUB_ENDPOINT
         - name: DOCUMENT_INTELLIGENCE_MODE
           valueFrom:
             configMapKeyRef:
@@ -165,11 +165,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: AZURE_DOC_INTELLIGENCE_MODELS
-        - name: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+        - name: AI_HUB_API_KEY
           valueFrom:
             secretKeyRef:
               name: backend-services-secrets
-              key: AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+              key: AI_HUB_API_KEY
         - name: TEMPORAL_ADDRESS
           valueFrom:
             configMapKeyRef:

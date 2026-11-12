@@ -27,6 +27,7 @@ import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
+import { readAiHubConfig } from "../../ai-hub-config";
 import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
 import {
@@ -446,16 +447,7 @@ export async function vlmHybridExtract(
     return { ocrResult, ocrResponse: mockResponse };
   }
 
-  const endpoint = readEnv("AZURE_OPENAI_ENDPOINT");
-  const apiKey = readEnv("AZURE_OPENAI_API_KEY");
-  if (!endpoint) {
-    throw new Error(
-      "VLM-hybrid: AZURE_OPENAI_ENDPOINT not configured (must point at the resource hosting the chosen deployment).",
-    );
-  }
-  if (!apiKey) {
-    throw new Error("VLM-hybrid: AZURE_OPENAI_API_KEY not configured.");
-  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   const buffer = await readGroupBlob(params.fileData.blobKey, groupId);
   const imageMimeType =

@@ -1,5 +1,10 @@
 # Extraction-experiments PR chain — pre-merge triage
 
+This is a historical review of the extraction-experiments PR chain. The
+endpoint variable cited in B1 describes the implementation at that review
+point; current Azure Mistral traffic uses the shared `AI_HUB_ENDPOINT` and
+`AI_HUB_API_KEY` configuration.
+
 **Merge strategy (decided):** a **single merge of the cumulative PR [#221](https://github.com/bcgov/ai-adoption-document-intelligence/pull/221)** (`experiments/release-up-to-08-part-2` → `develop`) which contains all commits from the chain. The individual PRs **#155–#165 and #220 will be closed, not merged.** So the only thing that matters is the **final state of #221's head** — verified below.
 
 Consequences of this strategy:

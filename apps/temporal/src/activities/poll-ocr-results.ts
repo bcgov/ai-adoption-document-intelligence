@@ -4,6 +4,7 @@ import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import { ApplicationFailure } from "@temporalio/activity";
+import { readAiHubConfig } from "../ai-hub-config";
 import { createActivityLogger } from "../logger";
 import {
   makeOcrPayloadRef,
@@ -33,6 +34,7 @@ function throwFailedOcrResponse(responseBody: OCRResponse): never {
  */
 export async function pollOCRResults(params: {
   apimRequestId: string;
+  analyzeResultId: string;
   modelId: string;
   documentId: string;
   groupId?: string | null;
@@ -40,10 +42,8 @@ export async function pollOCRResults(params: {
 }): Promise<PollResult> {
   const activityName = "pollOCRResults";
   const documentId = requireDocumentId(params);
-  const { apimRequestId, modelId } = params;
+  const { apimRequestId, analyzeResultId, modelId } = params;
   const log = createActivityLogger(activityName, { apimRequestId, documentId });
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
   const useMock = process.env.MOCK_AZURE_OCR === "true";
 
   const cache = params.__benchmarkOcrCache;
@@ -146,21 +146,15 @@ export async function pollOCRResults(params: {
     };
   }
 
-  if (!endpoint || !apiKey) {
-    log.error("Poll OCR results: missing credentials", {
-      event: "error",
-      modelId,
-      error: "missing_credentials",
-      message: "Azure Document Intelligence credentials not configured",
-    });
-    throw new Error(
-      "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY environment variables.",
-    );
-  }
-
   if (!apimRequestId || typeof apimRequestId !== "string") {
     throw new Error("APIM Request ID not available for polling");
   }
+  if (!analyzeResultId || typeof analyzeResultId !== "string") {
+    throw new Error(
+      "Document Intelligence analyze result ID not available for polling",
+    );
+  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   const normalizedModelId = modelId || "prebuilt-layout";
 
@@ -179,7 +173,7 @@ export async function pollOCRResults(params: {
       .path(
         "/documentModels/{modelId}/analyzeResults/{resultId}",
         normalizedModelId,
-        apimRequestId,
+        analyzeResultId,
       )
       .get();
 
@@ -199,7 +193,7 @@ export async function pollOCRResults(params: {
       // regression that was really a two-models-one-run mismatch.
       const hint =
         Number(response.status) === 404
-          ? ` No analyze result "${apimRequestId}" under model "${normalizedModelId}". An analyze result belongs to the model it was submitted with, so check that this step polls the SAME model id the Submit OCR step used, and that AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT points at the resource the document was submitted to. Azure also discards analyze results after 24 hours.`
+          ? ` No analyze result "${analyzeResultId}" under model "${normalizedModelId}". An analyze result belongs to the model it was submitted with, so check that this step polls the SAME model id the Submit OCR step used, and that AI_HUB_ENDPOINT points at the tenant where the document was submitted to. Results may also expire after the provider's retention period.`
           : "";
       throw new Error(
         `Failed to poll OCR results. Status: ${response.status}${hint}`,

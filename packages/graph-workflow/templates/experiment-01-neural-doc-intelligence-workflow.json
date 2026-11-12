@@ -25,6 +25,7 @@
     "confidenceThreshold": { "type": "number", "defaultValue": 0.95, "description": "OCR confidence threshold for human review" },
     "preparedFileData": { "type": "object" },
     "apimRequestId": { "type": "string" },
+    "analyzeResultId": { "type": "string" },
     "ocrResponse": { "type": "object" },
     "ocrResult": { "type": "object" },
     "cleanedResult": { "type": "object" },
@@ -54,7 +55,10 @@
       "label": "Submit to Azure OCR",
       "activityType": "azureOcr.submit",
       "inputs": [{ "port": "fileData", "ctxKey": "preparedFileData" }],
-      "outputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
+      "outputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "analyzeResultId", "ctxKey": "analyzeResultId" }
+      ],
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 3 }
     },
@@ -78,6 +82,7 @@
       "activityType": "azureOcr.poll",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "analyzeResultId", "ctxKey": "analyzeResultId" },
         { "port": "modelId", "ctxKey": "modelId" }
       ],
       "outputs": [{ "port": "ocrResponse", "ctxKey": "ocrResponse" }],
@@ -98,6 +103,7 @@
       "activityType": "azureOcr.extract",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "analyzeResultId", "ctxKey": "analyzeResultId" },
         { "port": "ocrResponse", "ctxKey": "ocrResponse" },
         { "port": "fileName", "ctxKey": "fileName" },
         { "port": "fileType", "ctxKey": "fileType" },

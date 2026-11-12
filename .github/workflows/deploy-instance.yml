@@ -392,7 +392,7 @@ jobs:
           BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
           BLOB_STORAGE_PROVIDER: ${{ secrets.BLOB_STORAGE_PROVIDER }}
           AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
-          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
+          AI_HUB_ENDPOINT: ${{ secrets.AI_HUB_ENDPOINT }}
           AZURE_DOC_INTELLIGENCE_MODELS: ${{ secrets.AZURE_DOC_INTELLIGENCE_MODELS }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
@@ -454,7 +454,7 @@ jobs:
             --throttle-auth-limit "${THROTTLE_AUTH_LIMIT:-10}" \
             --throttle-auth-refresh-ttl-ms "${THROTTLE_AUTH_REFRESH_TTL_MS:-60000}" \
             --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT:-5}" \
-            --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}" \
+            --ai-hub-endpoint "${AI_HUB_ENDPOINT:-}" \
             --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS:-prebuilt-layout}" \
             --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
@@ -480,7 +480,7 @@ jobs:
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
           ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
           SSO_CLIENT_SECRET: ${{ secrets.SSO_CLIENT_SECRET }}
-          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_API_KEY }}
+          AI_HUB_API_KEY: ${{ secrets.AI_HUB_API_KEY }}
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
           AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
           AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
@@ -521,7 +521,7 @@ jobs:
           # enrichment. Same subscription key, two per-deployment secrets.
           oc create secret generic "$BACKEND_SECRET" \
             --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
-            --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="AI_HUB_API_KEY=${AI_HUB_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
@@ -535,7 +535,7 @@ jobs:
           echo "::group::Worker secrets"
           WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
           oc create secret generic "$WORKER_SECRET" \
-            --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="AI_HUB_API_KEY=${AI_HUB_API_KEY}" \
             --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
@@ -824,4 +824,3 @@ jobs:
 
           echo "Failed services: ${FAILED_SERVICES[*]}"
           bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
-

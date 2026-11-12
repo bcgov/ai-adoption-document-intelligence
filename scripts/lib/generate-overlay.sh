@@ -84,7 +84,7 @@ generate_instance_overlay() {
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
-  local azure_doc_intelligence_endpoint=""
+  local ai_hub_endpoint=""
   local azure_doc_intelligence_models="prebuilt-layout"
   local document_intelligence_mode="live"
   local mock_azure_ocr="false"
@@ -230,8 +230,8 @@ generate_instance_overlay() {
         enrichment_redact_pii="$2"
         shift 2
         ;;
-      --azure-doc-intelligence-endpoint)
-        azure_doc_intelligence_endpoint="$2"
+      --ai-hub-endpoint)
+        ai_hub_endpoint="$2"
         shift 2
         ;;
       --azure-doc-intelligence-models)
@@ -405,7 +405,7 @@ generate_instance_overlay() {
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"
-    -e "s|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__|$(_sed_escape_replacement "${azure_doc_intelligence_endpoint}")|g"
+    -e "s|__AI_HUB_ENDPOINT__|$(_sed_escape_replacement "${ai_hub_endpoint}")|g"
     -e "s|__AZURE_DOC_INTELLIGENCE_MODELS__|$(_sed_escape_replacement "${azure_doc_intelligence_models}")|g"
     -e "s|__DOCUMENT_INTELLIGENCE_MODE__|$(_sed_escape_replacement "${document_intelligence_mode}")|g"
     -e "s|__MOCK_AZURE_OCR__|$(_sed_escape_replacement "${mock_azure_ocr}")|g"

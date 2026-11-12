@@ -103,8 +103,8 @@ describe("vlmHybridExtract group scope", () => {
     process.env = {
       ...originalEnv,
       MOCK_VLM_DIRECT: "false",
-      AZURE_OPENAI_ENDPOINT: "https://example.cognitiveservices.azure.com",
-      AZURE_OPENAI_API_KEY: "test-key",
+      AI_HUB_ENDPOINT: "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+      AI_HUB_API_KEY: "test-key",
       AZURE_OPENAI_DEPLOYMENT: "test-deployment",
     };
     mockBlobRead.mockResolvedValue(Buffer.from("image-bytes"));

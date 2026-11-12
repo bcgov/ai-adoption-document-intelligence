@@ -44,6 +44,7 @@ export const mockActivities = {
     return {
       statusCode: 202,
       apimRequestId: "mock-apim-request-id",
+      analyzeResultId: "mock-analyze-result-id",
       headers: {},
     };
   },

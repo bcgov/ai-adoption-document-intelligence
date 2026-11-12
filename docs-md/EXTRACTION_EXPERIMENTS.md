@@ -4,6 +4,12 @@ Hub doc for the extraction-experiments suite. Index of experiments + status + ho
 
 See `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` for the full spec, and `experiments/integration-checklists/` for per-experiment briefs.
 
+The checklist rows retain each experiment's original implementation details.
+Where a row lists prior provider-specific endpoint or credential variables,
+those are historical; current runtime configuration is documented in
+[Environment Configuration](operations/ENVIRONMENT_CONFIGURATION.md) and
+[Extraction Provider Architecture](EXTRACTION_PROVIDER_ARCHITECTURE.md).
+
 ## Stacking — chained
 
 Each experiment branches from the **previous** experiment, so the final tip (`experiment/05-vlm-ocr-hybrid`) contains every workflow, every provider, and every seed change from E01–E05 — ready to run all 5 benchmarks against the same dataset and produce a cross-experiment comparison.

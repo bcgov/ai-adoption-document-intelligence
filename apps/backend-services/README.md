@@ -216,9 +216,9 @@ FRONTEND_URL=http://localhost:3000
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/docintell
 
-# Azure Document Intelligence (OCR)
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
+# AI Hub (Document Intelligence, Azure Mistral, and GPT vision)
+AI_HUB_ENDPOINT=https://test.aihub.gov.bc.ca/sdpr-invoice-automation
+AI_HUB_API_KEY=<your-test-tenant-subscription-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
 # Azure Blob Storage (for primary storage when BLOB_STORAGE_PROVIDER=azure, and always for training)
@@ -675,13 +675,13 @@ docker compose --profile temporal ps
 ### Azure Document Intelligence Errors
 
 Verify environment variables:
-- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`
-- `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+- `AI_HUB_ENDPOINT`
+- `AI_HUB_API_KEY`
 
 Test connectivity:
 ```bash
-curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/documentModels?api-version=2023-10-31-preview" \
-  -H "Ocp-Apim-Subscription-Key: $AZURE_DOCUMENT_INTELLIGENCE_API_KEY"
+curl -X GET "$AI_HUB_ENDPOINT/documentintelligence/documentModels?api-version=2024-11-30" \
+  -H "api-key: $AI_HUB_API_KEY"
 ```
 
 ## Documentation
@@ -694,4 +694,3 @@ curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/document
 ## License
 
 Apache License 2.0
-

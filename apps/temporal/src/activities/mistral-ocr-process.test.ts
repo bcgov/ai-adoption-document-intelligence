@@ -140,15 +140,17 @@ describe("buildAzureOcrUrl", () => {
 
   it("appends the canonical Foundry path for Mistral Document AI", () => {
     expect(
-      buildAzureOcrUrl("https://strukalex-8338-resource.services.ai.azure.com"),
+      buildAzureOcrUrl("https://test.aihub.gov.bc.ca/sdpr-invoice-automation"),
     ).toBe(
-      "https://strukalex-8338-resource.services.ai.azure.com/providers/mistral/azure/ocr",
+      "https://test.aihub.gov.bc.ca/sdpr-invoice-automation/providers/mistral/azure/ocr",
     );
   });
 
   it("strips a trailing slash from the configured endpoint", () => {
-    expect(buildAzureOcrUrl("https://example.services.ai.azure.com/")).toBe(
-      "https://example.services.ai.azure.com/providers/mistral/azure/ocr",
+    expect(
+      buildAzureOcrUrl("https://test.aihub.gov.bc.ca/sdpr-invoice-automation/"),
+    ).toBe(
+      "https://test.aihub.gov.bc.ca/sdpr-invoice-automation/providers/mistral/azure/ocr",
     );
   });
 });
@@ -264,6 +266,11 @@ describe("mistralOcrProcess", () => {
     expect(axiosPost).toHaveBeenCalled();
     const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
     expect(callBody.document_annotation_format).toBeDefined();
+    const callOptions = axiosPost.mock.calls[0][2] as {
+      headers?: Record<string, string>;
+    };
+    expect(callOptions.headers?.Authorization).toBe("Bearer test-key");
+    expect(callOptions.headers?.["api-key"]).toBeUndefined();
     expect(ocrFromRef(ref).pages.length).toBeGreaterThan(0);
   });
 
@@ -376,9 +383,8 @@ describe("mistralOcrProcess", () => {
       process.env = {
         ...originalEnv,
         MOCK_MISTRAL_AZURE_OCR: "false",
-        MISTRAL_DOC_AI_AZURE_ENDPOINT:
-          "https://strukalex-8338-resource.services.ai.azure.com",
-        MISTRAL_DOC_AI_AZURE_KEY: "test-foundry-key",
+        AI_HUB_ENDPOINT: "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+        AI_HUB_API_KEY: "test-hub-key",
       };
 
       templateRows = [amountTemplate(GROUP)];
@@ -411,7 +417,7 @@ describe("mistralOcrProcess", () => {
       expect(axiosPost).toHaveBeenCalledTimes(1);
       const [calledUrl, calledBody, calledOptions] = axiosPost.mock.calls[0];
       expect(calledUrl).toBe(
-        "https://strukalex-8338-resource.services.ai.azure.com/providers/mistral/azure/ocr",
+        "https://test.aihub.gov.bc.ca/sdpr-invoice-automation/providers/mistral/azure/ocr",
       );
       const body = calledBody as Record<string, unknown>;
       expect(body.model).toBe("mistral-document-ai-2512");
@@ -419,7 +425,8 @@ describe("mistralOcrProcess", () => {
       // Foundry rejects `confidence_scores_granularity` with HTTP 422.
       expect(body.confidence_scores_granularity).toBeUndefined();
       const opts = calledOptions as { headers?: Record<string, string> };
-      expect(opts.headers?.Authorization).toBe("Bearer test-foundry-key");
+      expect(opts.headers?.["api-key"]).toBe("test-hub-key");
+      expect(opts.headers?.Authorization).toBeUndefined();
       expect(ocrFromRef(ref).modelId).toBe("mistral-document-ai-2512");
       expect(ocrResponse.pages?.length).toBeGreaterThan(0);
 
@@ -452,9 +459,8 @@ describe("mistralOcrProcess", () => {
       process.env = {
         ...originalEnv,
         MOCK_MISTRAL_AZURE_OCR: "false",
-        MISTRAL_DOC_AI_AZURE_ENDPOINT:
-          "https://strukalex-8338-resource.services.ai.azure.com",
-        MISTRAL_DOC_AI_AZURE_KEY: "test-foundry-key",
+        AI_HUB_ENDPOINT: "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
+        AI_HUB_API_KEY: "test-hub-key",
       };
 
       templateRows = [amountTemplate(GROUP)];
@@ -520,8 +526,8 @@ describe("mistralOcrProcess", () => {
 
     it("throws when the Foundry endpoint is missing and not mock", async () => {
       process.env = { ...originalEnv, MOCK_MISTRAL_AZURE_OCR: "false" };
-      delete process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT;
-      delete process.env.MISTRAL_DOC_AI_AZURE_KEY;
+      delete process.env.AI_HUB_ENDPOINT;
+      delete process.env.AI_HUB_API_KEY;
 
       await expect(
         mistralOcrProcess({
@@ -529,17 +535,18 @@ describe("mistralOcrProcess", () => {
           documentId: DOC_ID,
           variant: "azure",
         }),
-      ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_ENDPOINT");
+      ).rejects.toThrow(
+        "AI Hub configuration missing. Set AI_HUB_ENDPOINT and AI_HUB_API_KEY.",
+      );
     });
 
     it("throws when the Foundry API key is missing and not mock", async () => {
       process.env = {
         ...originalEnv,
         MOCK_MISTRAL_AZURE_OCR: "false",
-        MISTRAL_DOC_AI_AZURE_ENDPOINT:
-          "https://strukalex-8338-resource.services.ai.azure.com",
+        AI_HUB_ENDPOINT: "https://test.aihub.gov.bc.ca/sdpr-invoice-automation",
       };
-      delete process.env.MISTRAL_DOC_AI_AZURE_KEY;
+      delete process.env.AI_HUB_API_KEY;
 
       await expect(
         mistralOcrProcess({
@@ -547,7 +554,9 @@ describe("mistralOcrProcess", () => {
           documentId: DOC_ID,
           variant: "azure",
         }),
-      ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_KEY");
+      ).rejects.toThrow(
+        "AI Hub configuration missing. Set AI_HUB_ENDPOINT and AI_HUB_API_KEY.",
+      );
     });
   });
 });

@@ -40,6 +40,8 @@ const mockPath = jest.fn(() => ({ get: mockGet }));
 
 const TEST_DOCUMENT_ID = "doc-poll-test";
 const TEST_GROUP_ID = "gtestgroupidfortests01";
+const AI_HUB_ENDPOINT = "https://test.aihub.gov.bc.ca/sdpr-invoice-automation";
+const TEST_ANALYZE_RESULT_ID = "test-analyze-result-id";
 
 describe("pollOCRResults activity", () => {
   const originalEnv = process.env;
@@ -48,9 +50,8 @@ describe("pollOCRResults activity", () => {
     jest.resetAllMocks();
     process.env = {
       ...originalEnv,
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-        "https://test.cognitiveservices.azure.com",
-      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-api-key",
+      AI_HUB_ENDPOINT,
+      AI_HUB_API_KEY: "test-api-key",
     };
     isUnexpectedMock.mockReturnValue(false);
     mockGet.mockReset();
@@ -93,6 +94,7 @@ describe("pollOCRResults activity", () => {
 
     const result = await pollOCRResults({
       apimRequestId: "any",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
       groupId: TEST_GROUP_ID,
@@ -117,6 +119,7 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "any",
+        analyzeResultId: TEST_ANALYZE_RESULT_ID,
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
         groupId: TEST_GROUP_ID,
@@ -155,6 +158,7 @@ describe("pollOCRResults activity", () => {
 
     const result = await pollOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
       groupId: TEST_GROUP_ID,
@@ -163,7 +167,7 @@ describe("pollOCRResults activity", () => {
     expect(result.status).toBe("succeeded");
     expect(result.ocrResponse?.blobPath).toContain("azure-response.json");
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
-      "https://test.cognitiveservices.azure.com",
+      AI_HUB_ENDPOINT,
       { key: "test-api-key" },
       {
         credentials: {
@@ -174,7 +178,7 @@ describe("pollOCRResults activity", () => {
     expect(mockPath).toHaveBeenCalledWith(
       "/documentModels/{modelId}/analyzeResults/{resultId}",
       "prebuilt-layout",
-      "test-request-id",
+      TEST_ANALYZE_RESULT_ID,
     );
   });
 
@@ -189,6 +193,7 @@ describe("pollOCRResults activity", () => {
 
     const result = await pollOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
     });
@@ -213,6 +218,7 @@ describe("pollOCRResults activity", () => {
 
     const promise = pollOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
     });
@@ -227,22 +233,26 @@ describe("pollOCRResults activity", () => {
   });
 
   it("throws error when credentials are missing", async () => {
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
+    delete process.env.AI_HUB_ENDPOINT;
+    delete process.env.AI_HUB_API_KEY;
 
     await expect(
       pollOCRResults({
         apimRequestId: "test-request-id",
+        analyzeResultId: TEST_ANALYZE_RESULT_ID,
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
       }),
-    ).rejects.toThrow("Azure Document Intelligence credentials not configured");
+    ).rejects.toThrow(
+      "AI Hub configuration missing. Set AI_HUB_ENDPOINT and AI_HUB_API_KEY.",
+    );
   });
 
   it("throws error when apimRequestId is missing", async () => {
     await expect(
       pollOCRResults({
         apimRequestId: "",
+        analyzeResultId: TEST_ANALYZE_RESULT_ID,
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
       }),
@@ -255,6 +265,7 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "test-request-id",
+        analyzeResultId: TEST_ANALYZE_RESULT_ID,
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
       }),
@@ -268,6 +279,7 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "test-request-id",
+        analyzeResultId: TEST_ANALYZE_RESULT_ID,
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
       }),
@@ -275,8 +287,7 @@ describe("pollOCRResults activity", () => {
   });
 
   it("passes endpoint from env to SDK as configured", async () => {
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT =
-      "https://test.cognitiveservices.azure.com";
+    process.env.AI_HUB_ENDPOINT = AI_HUB_ENDPOINT;
 
     const mockOCRResponse: OCRResponse = {
       status: "succeeded",
@@ -299,13 +310,14 @@ describe("pollOCRResults activity", () => {
 
     await pollOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
       groupId: TEST_GROUP_ID,
     });
 
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
-      "https://test.cognitiveservices.azure.com",
+      AI_HUB_ENDPOINT,
       expect.any(Object),
       expect.any(Object),
     );
@@ -323,12 +335,13 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "req-abc",
+        analyzeResultId: "test-result-404",
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
         groupId: TEST_GROUP_ID,
       }),
     ).rejects.toThrow(
-      /Status: 404 No analyze result "req-abc" under model "prebuilt-layout"/,
+      /Status: 404 No analyze result "test-result-404" under model "prebuilt-layout"/,
     );
   });
 
@@ -339,11 +352,12 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "req-abc",
+        analyzeResultId: "test-result-404",
         modelId: "sdpr_synth_test",
         documentId: TEST_DOCUMENT_ID,
         groupId: TEST_GROUP_ID,
       }),
-    ).rejects.toThrow(/AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/);
+    ).rejects.toThrow(/AI_HUB_ENDPOINT/);
   });
 
   it("leaves a non-404 status without the model-mismatch hint", async () => {
@@ -353,6 +367,7 @@ describe("pollOCRResults activity", () => {
     await expect(
       pollOCRResults({
         apimRequestId: "req-abc",
+        analyzeResultId: "test-result-500",
         modelId: "prebuilt-layout",
         documentId: TEST_DOCUMENT_ID,
         groupId: TEST_GROUP_ID,
@@ -387,6 +402,7 @@ describe("pollOCRResults activity", () => {
 
     const result = await pollOCRResults({
       apimRequestId: "test-request-id",
+      analyzeResultId: TEST_ANALYZE_RESULT_ID,
       modelId: "prebuilt-layout",
       documentId: TEST_DOCUMENT_ID,
       groupId: TEST_GROUP_ID,

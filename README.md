@@ -264,9 +264,9 @@ FRONTEND_URL=http://localhost:3000
 # Database
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
 
-# Azure Document Intelligence (OCR — endpoint without /documentintelligence suffix)
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
+# AI Hub (Document Intelligence, Azure Mistral, and GPT vision)
+AI_HUB_ENDPOINT=https://test.aihub.gov.bc.ca/sdpr-invoice-automation
+AI_HUB_API_KEY=<your-test-tenant-subscription-key>
 AZURE_DOC_INTELLIGENCE_MODELS=prebuilt-layout,prebuilt-document,prebuilt-invoice
 
 # Blob Storage — MinIO for local dev, Azure for production
@@ -301,6 +301,14 @@ VITE_API_BASE_URL=
 VITE_APP_NAME=Document Intelligence Platform
 VITE_APP_VERSION=1.0.0
 ```
+
+After copying the sample, replace any legacy
+`AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` / `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
+entries with `AI_HUB_ENDPOINT` / `AI_HUB_API_KEY`; the application no longer
+reads the legacy names. For the approved GPT vision validation, set the
+workflow input `azureOpenAiDeployment` to `gpt-5.6-sol` rather than changing
+the shared `AZURE_OPENAI_DEPLOYMENT` used by other features. Public Mistral
+continues to require its separate `MISTRAL_API_KEY`.
 
 Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
@@ -817,8 +825,8 @@ FRONTEND_URL=https://app.example.com
 DATABASE_URL=postgresql://user:pass@host:5432/db
 
 # Azure Document Intelligence (endpoint without /documentintelligence suffix)
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://...
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY=...
+AI_HUB_ENDPOINT=https://test.aihub.gov.bc.ca/sdpr-invoice-automation
+AI_HUB_API_KEY=...
 
 # Blob Storage (azure for production)
 BLOB_STORAGE_PROVIDER=azure
@@ -952,8 +960,8 @@ npm run db:generate
 **Azure OCR Errors:**
 ```bash
 # Test Azure connection
-curl "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/documentModels?api-version=2023-10-31-preview" \
-  -H "Ocp-Apim-Subscription-Key: $AZURE_DOCUMENT_INTELLIGENCE_API_KEY"
+curl "$AI_HUB_ENDPOINT/documentintelligence/documentModels?api-version=2024-11-30" \
+  -H "api-key: $AI_HUB_API_KEY"
 ```
 
 ### Logs

@@ -12,9 +12,8 @@ describe("AzureService", () => {
   beforeEach(async () => {
     configService = {
       get: jest.fn((key: string) => {
-        if (key === "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-          return "https://test.com";
-        if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "secret-key";
+        if (key === "AI_HUB_ENDPOINT") return "https://test.com";
+        if (key === "AI_HUB_API_KEY") return "secret-key";
         return undefined;
       }),
     } as any;
@@ -294,9 +293,8 @@ describe("AzureService", () => {
     it("should preserve path suffix in endpoint when building URL", async () => {
       // Simulate a path-suffixed APIM endpoint
       (configService.get as jest.Mock).mockImplementation((key: string) => {
-        if (key === "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-          return "https://apim.example.com/myapi";
-        if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "key";
+        if (key === "AI_HUB_ENDPOINT") return "https://apim.example.com/myapi";
+        if (key === "AI_HUB_API_KEY") return "key";
         return undefined;
       });
       const module2 = await Test.createTestingModule({
@@ -345,9 +343,8 @@ describe("AzureService", () => {
       configService = {
         get: jest.fn((key: string) => {
           if (key === "DOCUMENT_INTELLIGENCE_MODE") return "mock";
-          if (key === "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-            return "https://unused.example.com";
-          if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "unused";
+          if (key === "AI_HUB_ENDPOINT") return "https://unused.example.com";
+          if (key === "AI_HUB_API_KEY") return "unused";
           return undefined;
         }),
       } as unknown as ConfigService;

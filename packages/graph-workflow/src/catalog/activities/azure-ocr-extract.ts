@@ -18,8 +18,16 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
     {
       name: "apimRequestId",
       label: "APIM request ID",
-      description: "Azure request tracking ID.",
+      description: "Gateway correlation ID retained on the OCR result.",
       required: true,
+      kind: "RequestId",
+    },
+    {
+      name: "analyzeResultId",
+      label: "Analyze result ID",
+      description:
+        "Document Intelligence result ID, used only if the OCR response was not provided.",
+      required: false,
       kind: "RequestId",
     },
     {

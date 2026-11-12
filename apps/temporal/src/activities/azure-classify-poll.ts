@@ -4,6 +4,7 @@ import DocumentIntelligence, {
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
 import { ApplicationFailure } from "@temporalio/workflow";
+import { readAiHubConfig } from "../ai-hub-config";
 import { createActivityLogger } from "../logger";
 import type { AzureClassifySubmitOutput } from "./azure-classify-submit";
 
@@ -70,14 +71,7 @@ export async function azureClassifyPoll(
     constructedClassifierName,
   });
 
-  const endpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  const apiKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY;
-
-  if (!endpoint || !apiKey) {
-    throw new Error(
-      "Azure Document Intelligence credentials not configured. Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_API_KEY.",
-    );
-  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   log.info("azureClassifyPoll start", {
     event: "start",

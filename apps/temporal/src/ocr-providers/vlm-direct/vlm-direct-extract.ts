@@ -2,8 +2,7 @@
  * VLM-direct extraction activity (E04).
  *
  * Sends a document image plus a strict JSON-Schema response_format to an
- * Azure OpenAI chat-completions deployment (vision-capable; gpt-5.4 by
- * default for E04). Returns the canonical {@link OCRResult} alongside the
+ * AI Hub chat-completions deployment (vision-capable). Returns the canonical {@link OCRResult} alongside the
  * raw response so the benchmark sample workflow's `persistOcrCache` step
  * can write a row to `benchmark_ocr_cache`.
  *
@@ -13,16 +12,8 @@
  * and the production-PDF path will be added once a workload requires it
  * or E05's hybrid pulls it in).
  *
- * Auth/endpoint env vars:
- *   - AZURE_OPENAI_ENDPOINT   resource hostname (e.g.
- *                             `https://strukalex-8338-resource.cognitiveservices.azure.com`)
- *   - AZURE_OPENAI_API_KEY        API key for the resource
- *   - AZURE_OPENAI_DEPLOYMENT default deployment name (overridable per
- *                             call via `params.azureOpenAiDeployment`)
- *   - AZURE_OPENAI_API_VERSION default `2024-12-01-preview`
- *
- * For E04, AZURE_OPENAI_ENDPOINT must point at the resource hosting
- * gpt-5.4 (the eastus2 `strukalex-8338-resource`, same one CU uses).
+ * AI_HUB_ENDPOINT and AI_HUB_API_KEY select the tenant. Deployment and API
+ * version remain separate settings.
  */
 
 import { randomUUID } from "node:crypto";
@@ -30,6 +21,7 @@ import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
+import { readAiHubConfig } from "../../ai-hub-config";
 import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
 import type { OCRResult, PreparedFileData } from "../../types";
@@ -395,16 +387,7 @@ export async function vlmDirectExtract(
     return { ocrResult, ocrResponse: mockResponse };
   }
 
-  const endpoint = readEnv("AZURE_OPENAI_ENDPOINT");
-  const apiKey = readEnv("AZURE_OPENAI_API_KEY");
-  if (!endpoint) {
-    throw new Error(
-      "VLM-direct: AZURE_OPENAI_ENDPOINT not configured (must point at the resource hosting the chosen deployment).",
-    );
-  }
-  if (!apiKey) {
-    throw new Error("VLM-direct: AZURE_OPENAI_API_KEY not configured.");
-  }
+  const { endpoint, apiKey } = readAiHubConfig();
 
   const buffer = await readGroupBlob(params.fileData.blobKey, groupId);
   const imageMimeType =

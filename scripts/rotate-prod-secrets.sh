@@ -74,7 +74,7 @@ Options:
 
 Recognized keys (others are skipped with a warning):
   SSO_CLIENT_SECRET                     → GH + OpenShift backend
-  AZURE_DOCUMENT_INTELLIGENCE_API_KEY   → GH + OpenShift backend + worker
+  AI_HUB_API_KEY                        → GH + OpenShift backend + worker
   AZURE_STORAGE_CONNECTION_STRING       → GH + OpenShift backend + worker
   AZURE_STORAGE_ACCOUNT_NAME            → GH + OpenShift backend + worker
   AZURE_STORAGE_ACCOUNT_KEY             → GH + OpenShift backend + worker
@@ -140,7 +140,7 @@ fi
 # file, fanned out to both per-deployment Secrets in one run.
 declare -A ROUTE_BACKEND=(
   [SSO_CLIENT_SECRET]=1
-  [AZURE_DOCUMENT_INTELLIGENCE_API_KEY]=1
+  [AI_HUB_API_KEY]=1
   [AZURE_STORAGE_CONNECTION_STRING]=1
   [AZURE_STORAGE_ACCOUNT_NAME]=1
   [AZURE_STORAGE_ACCOUNT_KEY]=1
@@ -149,7 +149,7 @@ declare -A ROUTE_BACKEND=(
 
 # Keys that write to the temporal-worker secret
 declare -A ROUTE_WORKER=(
-  [AZURE_DOCUMENT_INTELLIGENCE_API_KEY]=1
+  [AI_HUB_API_KEY]=1
   [AZURE_OPENAI_API_KEY]=1
   [AZURE_STORAGE_CONNECTION_STRING]=1
   [AZURE_STORAGE_ACCOUNT_NAME]=1
@@ -166,7 +166,7 @@ declare -A ROUTE_GH_ONLY=(
 # Union of recognized keys
 declare -A RECOGNIZED=(
   [SSO_CLIENT_SECRET]=1
-  [AZURE_DOCUMENT_INTELLIGENCE_API_KEY]=1
+  [AI_HUB_API_KEY]=1
   [AZURE_STORAGE_CONNECTION_STRING]=1
   [AZURE_STORAGE_ACCOUNT_NAME]=1
   [AZURE_STORAGE_ACCOUNT_KEY]=1

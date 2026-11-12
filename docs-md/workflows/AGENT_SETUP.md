@@ -93,7 +93,7 @@ the pod in `CreateContainerConfigError`. An instance whose Secret has no
 
 The worker keeps its own copy in `temporal-worker-secrets` /
 `temporal-worker-config`. The two Secrets are per-deployment by convention here
-(`AZURE_DOCUMENT_INTELLIGENCE_API_KEY` and the `AZURE_STORAGE_*` keys are
+(`AI_HUB_API_KEY` and the `AZURE_STORAGE_*` keys are
 duplicated the same way), and every writer — the deploy workflow, the deploy
 script and the rotation script — fills both from a single source value. One key
 to rotate, two places it lands.

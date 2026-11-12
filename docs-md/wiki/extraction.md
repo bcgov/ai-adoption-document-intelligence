@@ -1,8 +1,10 @@
 ---
 status: active
-updated: 2026-07-24
+updated: 2026-11-12
 canonical_sources:
   - docs-md/extraction/
+  - docs-md/operations/ENVIRONMENT_CONFIGURATION.md
+  - docs-md/EXTRACTION_PROVIDER_ARCHITECTURE.md
   - apps/temporal/src/activities/
   - apps/backend-services/src/azure/
   - apps/backend-services/src/document/
@@ -29,6 +31,7 @@ OCR and field extraction: how document bytes become structured, corrected field 
 ## Design Notes
 
 - Extraction runs inside graph workflows — the nodes and their parameters are cataloged in [Graph workflows](graph-workflows.md); this topic is about what those nodes *do*, not how the engine schedules them.
+- Document Intelligence, Azure Mistral, and VLM use the shared AI Hub tenant configuration; native public Mistral remains separately credentialed. See the canonical environment and provider architecture docs for current configuration boundaries.
 - Correction is a pipeline: cleanup → character-confusion → normalize-fields → spellcheck → enrich, each an optional graph node. Confusion matrices and format specs feed those nodes. All correction activities are blob-backed (resolve an input `OcrPayloadRef`, return a new one) via `apps/temporal/src/ocr-activity-ref-utils.ts`.
 - `ocr.recoverNumericZerosFromCheckboxes` recovers numeric zeros Azure DI misread as selection marks, driven entirely by per-table node config. Because that config is form-specific, it is **not** in the generic standard workflow — it lives in form-specific variants (e.g. `standard-ocr-workflow-sdpr.json`, seeded as `seed-workflow-standard-ocr-sdpr`), wired in place on `ocrResultRef` between extract and normalize/cleanup. It is excluded from AI tool recommendation (per-form structural config). Details and finder strategies: `docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md`. That template also demonstrates the full field-level HITL gate (`hitl.applyReviewCriteria` → `document.persistReviewPlan`, replacing `ocr.checkConfidence` for routing) and a simulated ICM handoff (`data.transform` → `document.updateStatus`) — see [HITL](hitl.md) and `docs-md/architecture/HITL_REVIEW_CRITERIA.md`. Alignment notes: `docs-md/extraction/SDPR_V2_WORKFLOW_ALIGNMENT.md`.
 - Quality feedback loops (confusion profiles, format suggestions, OCR improvement pipeline) derive their inputs from HITL corrections and benchmark run mismatches — see [HITL](hitl.md) and the benchmarking docs.

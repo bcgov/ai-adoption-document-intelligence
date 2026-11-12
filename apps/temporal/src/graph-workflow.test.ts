@@ -57,7 +57,10 @@ const mockActivities: ActivityMap = {
   },
 
   "azureOcr.submit": async (_params: Record<string, unknown>) => {
-    return { apimRequestId: "test-request-123" };
+    return {
+      apimRequestId: "test-request-123",
+      analyzeResultId: "test-analyze-result-123",
+    };
   },
 
   "ocr.enrich": async () => ({
@@ -129,7 +132,10 @@ function makeLinearGraph(): GraphWorkflowConfig {
         label: "Node C",
         activityType: "azureOcr.submit",
         inputs: [{ port: "fileData", ctxKey: "preparedData" }],
-        outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        outputs: [
+          { port: "apimRequestId", ctxKey: "apimRequestId" },
+          { port: "analyzeResultId", ctxKey: "analyzeResultId" },
+        ],
       },
     },
     edges: [
@@ -142,6 +148,7 @@ function makeLinearGraph(): GraphWorkflowConfig {
       blobKey: { type: "string", defaultValue: "blobs/test.pdf" },
       preparedData: { type: "object" },
       apimRequestId: { type: "string" },
+      analyzeResultId: { type: "string" },
     },
   };
 }
@@ -440,6 +447,7 @@ describe("Graph Workflow", () => {
       // Verify context flows correctly
       expect(result.ctx.preparedData).toBeDefined();
       expect(result.ctx.apimRequestId).toBe("test-request-123");
+      expect(result.ctx.analyzeResultId).toBe("test-analyze-result-123");
     });
 
     it("returns final result with completed status", async () => {
@@ -1051,7 +1059,10 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+            inputs: [
+              { port: "apimRequestId", ctxKey: "apimRequestId" },
+              { port: "analyzeResultId", ctxKey: "analyzeResultId" },
+            ],
             outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
@@ -1067,6 +1078,10 @@ describe("Graph Workflow", () => {
         entryNodeId: "pollOcr",
         ctx: {
           apimRequestId: { type: "string", defaultValue: "req-123" },
+          analyzeResultId: {
+            type: "string",
+            defaultValue: "result-123",
+          },
           ocrResponse: { type: "object" },
         },
       };
@@ -2301,7 +2316,10 @@ describe("Graph Workflow", () => {
             type: "activity",
             label: "Node C",
             activityType: "azureOcr.submit",
-            outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+            outputs: [
+              { port: "apimRequestId", ctxKey: "apimRequestId" },
+              { port: "analyzeResultId", ctxKey: "analyzeResultId" },
+            ],
           },
         },
         edges: [
@@ -2313,6 +2331,7 @@ describe("Graph Workflow", () => {
           blobKey: { type: "string", defaultValue: "blobs/test.pdf" },
           preparedData: { type: "object" },
           apimRequestId: { type: "string" },
+          analyzeResultId: { type: "string" },
         },
       };
 
@@ -2325,7 +2344,10 @@ describe("Graph Workflow", () => {
         "azureOcr.submit": async () => {
           cStartedResolve?.();
           await finishC;
-          return { apimRequestId: "req-final" };
+          return {
+            apimRequestId: "req-final",
+            analyzeResultId: "result-final",
+          };
         },
       };
 

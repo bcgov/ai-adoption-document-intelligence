@@ -54,12 +54,8 @@ export class TemplateModelOcrService {
     private readonly pdfNormalization: PdfNormalizationService,
     private readonly logger: AppLoggerService,
   ) {
-    this.azureEndpoint = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
-    )!;
-    this.azureApiKey = this.configService.get<string>(
-      "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
-    )!;
+    this.azureEndpoint = this.configService.get<string>("AI_HUB_ENDPOINT")!;
+    this.azureApiKey = this.configService.get<string>("AI_HUB_API_KEY")!;
   }
 
   /**
