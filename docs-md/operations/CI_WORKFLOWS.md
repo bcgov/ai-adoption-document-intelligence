@@ -28,7 +28,7 @@ The app QA workflows and Wiki Check also support `workflow_dispatch`. The title 
 | Workflow | File | Trigger | What it does |
 | --- | --- | --- | --- |
 | Deploy Instance | `deploy-instance.yml` | Push to `develop`, or manual dispatch from any branch (`prod` only from `main`) | Builds images and deploys to OpenShift: `develop` pushes to the test instance, a manual `prod` run from `main` to production — see [AUTO_DEPLOY.md](AUTO_DEPLOY.md) |
-| Deploy GitHub Pages | `pages.yml` | Push to `main` touching `docs/**`, `docs-md/wiki/**`, the wiki builder, or `package.json` | Runs `docs/build.sh` (pages, wiki HTML, Mermaid diagrams) and publishes the `docs/` site |
+| Deploy GitHub Pages | `pages.yml` | Pull requests and pushes to `develop` touching `docs/**`, `docs-md/wiki/**`, or `scripts/sync-docs-wiki.mjs`, or manual dispatch | Builds the VitePress site in `docs/` with the repo wiki copied in from `docs-md/wiki/`; pull requests only build it, pushes to `develop` and manual runs from `develop` publish it to GitHub Pages |
 | Release | `release.yml` | Push to `main` | Opens one release pull request for the whole product, or tags the release when that pull request merges |
 
 A release is one version for the whole product, `vMAJOR.MINOR.PATCH`. `feat` raises the second number. `fix` raises the third. Before `1.0.0`, a breaking change raises the second number too, so the releaser does not tag `1.0.0` on its own. `docs`, `chore`, `ci`, `test`, `refactor`, `build`, and `style` do not open a release. Commits before `dfd5e3e3` are left out of the changelog. The first release pull request sets the root `package.json` version. It is `1.0.0` today, and that number is not a release.

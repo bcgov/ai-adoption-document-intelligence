@@ -202,3 +202,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
 - `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
+
+## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
+
+- The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
+- `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
+- `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.

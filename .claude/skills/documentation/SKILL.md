@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: "Update project documentation and the repo wiki when features or boundaries change. Trigger phrases: update documentation, update docs, update the wiki, document this change, docs and wiki, ingest wiki. Do NOT invoke for: editing only the public HTML docs site pages (use docs-site), or general code changes with no doc impact."
+description: "Update project documentation and the repo wiki when features or boundaries change. Trigger phrases: update documentation, update docs, update the wiki, document this change, docs and wiki, ingest wiki. Do NOT invoke for: editing only the public docs site pages (use docs-site), or general code changes with no doc impact."
 ---
 
 # Documentation
@@ -14,8 +14,8 @@ Keeps implementation docs, ownership maps, and the repo wiki aligned when code o
 - Update the wiki only for routing, synthesis, cross-links, or drift notes — never copy full runbooks, schemas, or endpoint lists into `docs-md/wiki/`
 - Follow wiki ingest / query / lint workflows in [docs-md/wiki/README.md](../../../docs-md/wiki/README.md)
 - Run `npm run docs:wiki:check` after any change under `docs-md/wiki/`
-- Do not commit generated `docs/wiki*.html`; build via `docs/build.sh` at deploy time
-- For public HTML site pages under `docs/_pages/`, use the [docs-site](../docs-site/SKILL.md) skill
+- Do not edit or commit `docs/wiki/`; the docs site copies the wiki in from `docs-md/wiki/` when it builds
+- For public documentation site pages under `docs/`, use the [docs-site](../docs-site/SKILL.md) skill
 
 ## Ownership (where to edit)
 
@@ -25,7 +25,7 @@ Keeps implementation docs, ownership maps, and the repo wiki aligned when code o
 | `apps/README.md` | App-level boundaries only; link to root README for setup |
 | `docs-md/` | Stable implementation and operations docs |
 | `docs-md/wiki/` | Routing map for agents and contributors (not a second implementation spec) |
-| `docs/` (`_pages/`) | Public overview and links; defer detailed setup to root README |
+| `docs/` | Public documentation site (VitePress): overview and guides; defer detailed setup to root README |
 
 ## Workflows
 

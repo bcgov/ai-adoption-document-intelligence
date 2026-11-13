@@ -8,7 +8,6 @@ on:
     paths:
       - "docs-md/wiki/**"
       - "scripts/validate-wiki.js"
-      - "scripts/build-docs-wiki.js"
       - "package.json"
       - ".github/workflows/wiki-check.yml"
   workflow_dispatch:

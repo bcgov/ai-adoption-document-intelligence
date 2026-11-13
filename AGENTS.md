@@ -24,7 +24,7 @@ Use these skills when the task matches their triggers. Full instructions live un
 | --- | --- |
 | [documentation](.claude/skills/documentation/SKILL.md) | Updating `docs-md/`, READMEs, or the repo wiki after feature or boundary changes |
 | [create-pr](.claude/skills/create-pr/SKILL.md) | Opening a single pull request for the current branch |
-| [docs-site](.claude/skills/docs-site/SKILL.md) | Editing the public HTML documentation site under `docs/` |
+| [docs-site](.claude/skills/docs-site/SKILL.md) | Editing the public VitePress documentation site under `docs/` |
 | [split-branch-into-prs](.claude/skills/split-branch-into-prs/SKILL.md) | Splitting a feature branch into multiple stacked draft PRs |
 
 When creating or modifying features, follow the documentation skill (canonical docs first, wiki ingest when routing or boundaries change). When the user asks to open a PR, follow the create-pr skill and complete the documentation checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
@@ -41,12 +41,12 @@ The repo wiki in `docs-md/wiki/` is a compression layer: synthesize and route to
 - New wiki content must either replace scattered explanation or add useful source navigation/context. If it does neither, do not add it.
 - Append grep-friendly entries to `docs-md/wiki/log.md` (`## [YYYY-MM-DD] operation | Title`) when maintaining the wiki.
 - Run `npm run docs:wiki:check` after changing `docs-md/wiki/`.
-- Do not commit generated wiki HTML under `docs/wiki*.html`; it is built by `docs/build.sh` at docs deploy time.
+- The documentation site copies the wiki from `docs-md/wiki/` into `docs/wiki/` when it builds. That copy is git-ignored: edit the wiki only in `docs-md/wiki/`.
 
 ## Documentation ownership
 
 - **Root `README.md`**: local setup, prerequisites, and development commands.
-- **`docs/` site (`_pages/`)**: public overview and links; defer detailed setup to root README.
+- **`docs/` site**: public documentation site (VitePress) overview and guides; defer detailed setup to root README.
 - **`docs-md/`**: canonical developer reference docs, organized by topic folder — taxonomy in `docs-md/README.md`.
 - **`docs-md/wiki/`**: routing map for agents and contributors; not a second implementation spec.
 - **`apps/README.md`**: app-level boundaries only; link to root README for setup.

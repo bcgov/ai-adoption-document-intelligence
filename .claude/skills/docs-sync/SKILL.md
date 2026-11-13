@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: "Keeps docs-md/ and the repo wiki synchronized with the codebase: update docs affected by code changes, audit docs for accuracy, add new docs in the right topic folder, archive stale docs. Trigger phrases: sync docs, update docs for this change, audit docs, docs maintenance, archive doc, document this feature. Do NOT invoke for: editing the docs/ HTML site (use docs-site), writing feature requirements (use requirements-refiner), or wiki-only content questions (read docs-md/wiki/README.md directly)."
+description: "Keeps docs-md/ and the repo wiki synchronized with the codebase: update docs affected by code changes, audit docs for accuracy, add new docs in the right topic folder, archive stale docs. Trigger phrases: sync docs, update docs for this change, audit docs, docs maintenance, archive doc, document this feature. Do NOT invoke for: editing the docs/ site (use docs-site), writing feature requirements (use requirements-refiner), or wiki-only content questions (read docs-md/wiki/README.md directly)."
 ---
 
 # Docs Sync
@@ -22,6 +22,6 @@ Maintains `docs-md/` (canonical developer reference docs, organized by topic) an
 2. Docs describe **current shipped behavior only**. Verify every concrete claim (paths, commands, env vars, endpoints, model/field names) against code before writing it. Never document unverified or planned behavior without an explicit status disclaimer.
 3. Canonical docs first, wiki second: update the `docs-md/` topic doc, then reflect routing/boundary changes in the wiki per `docs-md/wiki/README.md` (ingest workflow). The wiki never duplicates implementation detail.
 4. After touching `docs-md/wiki/`: run `npm run docs:wiki:check`.
-5. After moving/renaming/deleting any doc: run `bash .claude/skills/docs-sync/scripts/check-doc-links.sh` and fix reported dangling links; also grep code, READMEs, and `docs/_pages/` for references to the old path (`grep -rn "docs-md/<OLDNAME>" --include='*.ts' --include='*.md' --include='*.html' --include='*.sh' --include='*.yml' apps packages docs scripts tools deployments README.md`).
+5. After moving/renaming/deleting any doc: run `bash .claude/skills/docs-sync/scripts/check-doc-links.sh` and fix reported dangling links; also grep code, READMEs, and the `docs/` site pages for references to the old path (`grep -rn "docs-md/<OLDNAME>" --include='*.ts' --include='*.md' --include='*.html' --include='*.sh' --include='*.yml' apps packages docs scripts tools deployments README.md`).
 6. Use `git mv` for moves so history is preserved.
-7. Never commit generated `docs/wiki*.html` (gitignored; built by `docs/build.sh` at deploy time).
+7. Never commit the `docs/wiki/` copy of the wiki (git-ignored; made by `scripts/sync-docs-wiki.mjs` when the docs site builds).

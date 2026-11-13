@@ -43,7 +43,7 @@ Each runs on pull requests to `main` or `develop` that touch its app, `packages/
 ### Documentation
 
 - `pages.yml`
-  - Builds the `docs/` site with `docs/build.sh` and publishes it on pushes to `main` that touch `docs/**`, `docs-md/wiki/**`, the wiki builder, or `package.json`
+  - Builds the VitePress site in `docs/`, with the repo wiki copied in from `docs-md/wiki/`. Pull requests that touch `docs/**`, `docs-md/wiki/**` or `scripts/sync-docs-wiki.mjs` build it without publishing; pushes to `develop` that touch them publish it to GitHub Pages, and a manual run publishes only from `develop`
 - `wiki-check.yml`
   - Runs `npm run docs:wiki:check` on pull requests that change `docs-md/wiki/**` or the validator
 
