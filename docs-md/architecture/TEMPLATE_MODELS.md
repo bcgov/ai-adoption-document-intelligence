@@ -238,7 +238,13 @@ Suggested fields and suggested labels come from an LLM reading a document's stor
 
 **Suggest fields** (Field schema tab → Suggest fields) proposes keys, types, one-line descriptions and the value found on the chosen document, as a table with one row per field. Keys already in the schema start unticked and are marked "Already in schema"; renaming a key into one that exists, or using one twice, blocks adding until it is fixed. The user edits the list and adds it through the bulk endpoint. The labelling screen then drafts that document's labels like any other.
 
+![Suggest fields: one row per suggested field with its key, type, description and the value found on the document; keys already in the schema start unticked](images/suggest-fields-table.png)
+
 **On the labelling screen,** opening a document with no saved labels requests suggestions automatically, and **Load suggestions** requests them again. Either way the suggestions only fill fields the user has not labelled: a field that already has words keeps them, and a word already assigned to a field is never moved (`utils/mergeSuggestedAssignments.ts`). The header shows that suggestions are running while the call is in flight. A field's value lists its words in OCR reading order.
+
+![Labelling header while suggestions run: a spinner and "Suggesting labels", above the page and zoom controls](images/labelling-header-loading.png)
+
+![Field panel after suggestions arrived: a field labelled by hand while they ran kept its value, and fields with no value say "Not labelled yet"](images/labelling-field-panel.png)
 
 **Latency:** one call reads the whole document, so it takes seconds to tens of seconds, depending on the model and the document; a 2-page form took 20–45 s on gpt-5.6-sol and 8 s on gpt-4o. The backend gives the call up to 120 s (`LLM_TIMEOUT_MS`), so on OpenShift the frontend and backend Routes and the frontend's nginx wait 150 s (see [KUSTOMIZE_INSTANCE_TEMPLATE.md](../operations/KUSTOMIZE_INSTANCE_TEMPLATE.md#route-timeouts)).
 
