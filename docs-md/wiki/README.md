@@ -2,7 +2,7 @@
 
 This wiki is a repo-focused source-of-truth map for humans and LLMs. It compresses the documentation surface by pointing to canonical docs and code paths, then adding only the synthesis needed to understand how those sources relate.
 
-The wiki is rendered into the generated `docs/` site as `wiki.html` and related `wiki-*.html` pages using [marked](https://marked.js.org/) for Markdown conversion. Generated wiki HTML is **not committed**; `docs/build.sh` produces it at docs deploy time (see `.github/workflows/pages.yml`).
+The documentation site publishes the wiki under `/wiki/`. When the site builds, `scripts/sync-docs-wiki.mjs` copies these pages into `docs/wiki/`, shows each page's `canonical_sources` and `do_not_duplicate` as callouts under its title, and points links that leave the wiki at GitHub. The copy is **not committed**; edit the wiki here.
 
 ## Purpose
 
@@ -104,4 +104,4 @@ Append grep-friendly entries to `log.md`:
 3. Add maintenance notes to `log.md` when the wiki structure or source registry changes.
 4. Record contradictions or ownership questions in `open-questions.md`.
 5. Run `npm run docs:wiki:check` before opening a PR that changes the wiki.
-6. Do not commit generated `docs/wiki*.html`; the docs deploy workflow builds them via `docs/build.sh`.
+6. Do not edit or commit `docs/wiki/`; it is the copy made when the docs site builds.

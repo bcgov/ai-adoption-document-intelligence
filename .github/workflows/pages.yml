@@ -1,23 +1,27 @@
 name: Deploy GitHub Pages
 permissions:
   contents: read
-  pages: write
-  id-token: write
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
       - "docs-md/wiki/**"
-      - "scripts/build-docs-wiki.js"
-      - "package.json"
-      - "package-lock.json"
+      - "scripts/sync-docs-wiki.mjs"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+    paths:
+      - "docs/**"
+      - "docs-md/wiki/**"
+      - "scripts/sync-docs-wiki.mjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -33,23 +37,27 @@ jobs:
           node-version: "24"
 
       - name: Install dependencies
+        working-directory: docs
         run: npm install --ignore-scripts --no-package-lock
 
       - name: Build documentation
-        run: |
-          cd docs
-          chmod +x build.sh
-          bash build.sh
+        working-directory: docs
+        run: npm run build
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: docs/.vitepress/dist
 
   deploy:
     name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

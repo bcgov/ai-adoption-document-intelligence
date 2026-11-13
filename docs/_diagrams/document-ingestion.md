@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     autonumber
 
@@ -87,3 +88,4 @@ sequenceDiagram
     Source ->> BE: GET /api/documents/:id
     BE ->> DB: SELECT Document + OcrResult
     BE -->> Source: Document with extracted data
+```
