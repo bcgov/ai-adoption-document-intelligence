@@ -44,6 +44,7 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
   };
 
   const showZoom = zoom != null && onZoomIn && onZoomOut && onZoomReset;
+  const showPaging = totalPages > 1;
 
   return (
     <Group
@@ -56,40 +57,45 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
           "var(--layout-border-width-small) solid var(--surface-color-border-default)",
       }}
     >
-      <IconActionButton
-        tooltip="Previous page"
-        variant="subtle"
-        disabled={currentPage <= 1}
-        onClick={() => onPageChange(currentPage - 1)}
-        icon={<IconChevronLeft size={18} />}
-      />
+      {showPaging && (
+        <>
+          <IconActionButton
+            tooltip="Previous page"
+            variant="subtle"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            icon={<IconChevronLeft size={18} />}
+          />
 
-      <Group gap={5}>
-        <NumberInput
-          value={currentPage}
-          onChange={handlePageInputChange}
-          min={1}
-          max={totalPages}
-          size="xs"
-          style={{ width: 60 }}
-          hideControls
-        />
-        <Text size="sm" c="dimmed">
-          / {totalPages}
-        </Text>
-      </Group>
+          <Group gap={5}>
+            <NumberInput
+              aria-label="Page"
+              value={currentPage}
+              onChange={handlePageInputChange}
+              min={1}
+              max={totalPages}
+              size="xs"
+              style={{ width: 60 }}
+              hideControls
+            />
+            <Text size="sm" c="dimmed">
+              / {totalPages}
+            </Text>
+          </Group>
 
-      <IconActionButton
-        tooltip="Next page"
-        variant="subtle"
-        disabled={currentPage >= totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-        icon={<IconChevronRight size={18} />}
-      />
+          <IconActionButton
+            tooltip="Next page"
+            variant="subtle"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+            icon={<IconChevronRight size={18} />}
+          />
+        </>
+      )}
 
       {showZoom && (
         <>
-          <Divider orientation="vertical" />
+          {showPaging && <Divider orientation="vertical" />}
 
           <IconActionButton
             tooltip="Zoom out"

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockNotificationsShow } from "@/test/mockNotifications";
@@ -72,6 +72,33 @@ const documentWithOcrWords = {
   },
 };
 
+/** A one-page document whose words are "word0" … "word{count-1}", in order. */
+function documentWithWords(count: number) {
+  let offset = 0;
+  const words = Array.from({ length: count }, (_, index) => {
+    const content = `word${index}`;
+    const word = {
+      content,
+      polygon: [index, 0, index + 1, 0, index + 1, 1, index, 1],
+      confidence: 1,
+      span: { offset, length: content.length },
+    };
+    offset += content.length + 1;
+    return word;
+  });
+  return {
+    labeling_document: {
+      original_filename: "form.pdf",
+      normalized_file_path: null,
+      ocr_result: {
+        analyzeResult: {
+          pages: [{ pageNumber: 1, words, selectionMarks: [] }],
+        },
+      },
+    },
+  };
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -141,6 +168,81 @@ describe("LabelingWorkspacePage — automatic suggestions", () => {
           title: "Failed to load suggestions",
           message: "Label suggestions are not configured",
           color: "red",
+        }),
+      ),
+    );
+  });
+
+  it("says suggestions are running while the call is in flight", () => {
+    mockUseSuggestions.mockReturnValue({
+      // Never settles: the call stays in flight for the whole test.
+      loadSuggestionsAsync: vi
+        .fn()
+        .mockReturnValue(new Promise(() => undefined)),
+      isLoadingSuggestions: true,
+    });
+
+    renderPage();
+
+    expect(screen.getByTestId("suggestions-loading")).toHaveTextContent(
+      "Suggesting labels. This can take up to a minute.",
+    );
+  });
+
+  it("lists a value's words in reading order, past word 9", async () => {
+    mockUseFieldSchema.mockReturnValue({
+      schema: [
+        { id: "f-1", fieldKey: "name", fieldType: "string", displayOrder: 0 },
+      ],
+    });
+    mockUseTemplateModelDocument.mockReturnValue({
+      document: documentWithWords(11),
+      isLoading: false,
+    });
+    mockUseSuggestions.mockReturnValue({
+      loadSuggestionsAsync: vi
+        .fn()
+        .mockResolvedValue([
+          { field_key: "name", element_ids: ["p1-w10", "p1-w2", "p1-w1"] },
+        ]),
+      isLoadingSuggestions: false,
+    });
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Value of name")).toHaveValue(
+        "word1 word2 word10",
+      ),
+    );
+  });
+
+  it("reports a field labelled before a manual load as left alone", async () => {
+    mockUseFieldSchema.mockReturnValue({
+      schema: [
+        { id: "f-1", fieldKey: "name", fieldType: "string", displayOrder: 0 },
+      ],
+    });
+    mockUseSuggestions.mockReturnValue({
+      loadSuggestionsAsync: vi
+        .fn()
+        .mockResolvedValue([{ field_key: "name", element_ids: ["p1-w0"] }]),
+      isLoadingSuggestions: false,
+    });
+
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Value of name")).toHaveValue("Jane"),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /load suggestions/i }));
+
+    await waitFor(() =>
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Suggestions loaded",
+          message:
+            "Filled 0 fields. Left 1 field you had already labelled as they were.",
         }),
       ),
     );
