@@ -59,20 +59,30 @@ history are not runtime fallbacks. Public Mistral remains separate, using
 
 ### Test-tenant smoke evidence
 
-On 2026-11-12, one synthetic public sample was sent through each active Hub
-provider using the existing iteration runners: `synth-full (1)` for DI plus
-GPT vision, and `synth-full (3)` for Azure Mistral. These are compatibility
-smokes, not an accuracy benchmark or evidence of production readiness.
+On 2026-11-12 and 2026-11-13, the existing iteration runners sent three
+synthetic public samples through each active Hub provider. DI and GPT vision
+used `synth-full (1)`, `synth-full (2)`, and `synth-no-spouse (1)`; Azure
+Mistral used `synth-full (3)`, `synth-full (2)`, and `synth-no-spouse (1)`.
+These direct-provider calls check compatibility, not end-to-end app behavior,
+production readiness, or representative accuracy.
 
-| Provider | Result |
+| Provider | Samples and results |
 |---|---|
-| Document Intelligence | `prebuilt-layout` succeeded for one page; the Hub operation URL passed origin/tenant-path validation before polling; 5,005 markdown characters returned. |
-| Azure Mistral | HTTP 200 from `mistral-document-ai-2512`; one annotated page and all 76 schema fields returned; 12.5 s. |
-| GPT vision | `gpt-5.6-sol` returned valid strict-schema JSON with all 76 field and quote keys, no additional properties; 17,309 total tokens and 28.7 s. The request used API version `2024-10-21` from the process environment. One sample matched 64/76 ground-truth fields, which is not an accuracy estimate. |
+| Document Intelligence (`prebuilt-layout`) | All three DI calls in the hybrid runs succeeded. Markdown output was 5,005, 5,041, and 4,799 characters; elapsed times were about 5.3, 6.9, and 6.0 s. The initial Hub operation URL passed origin/tenant-path validation before polling. |
+| GPT vision (`gpt-5.6-sol`) | Strict-schema extraction matched 64/76, 61/76, and 67/76 fields on the three samples (192/228 aggregate, 84.2%). Elapsed times were 28.7, 22.8, and 19.5 s. The first call reported 17,309 total tokens. |
+| Azure Mistral (`mistral-document-ai-2512`) | All calls returned HTTP 200 with one annotated page. Extraction matched 75/76, 73/76, and 72/76 fields (220/228 aggregate, 96.5%); elapsed times were 12.5, 13.3, and 19.1 s. The runner's score is not a quality estimate: for example, the last sample had two materially incorrect monetary amounts despite matching 72/76 fields. |
 
-No live Content Understanding or production checks were performed. Mistral
+GPT requests used API version `2024-10-21` as reported by the process
+environment. Existing VLM preflight scripts still require
+`2024-12-01-preview`; that minimum is not confirmed against the deployed Hub
+contract and should be reconciled before relying on preflight. Mistral
 reported `pages_processed_annotation: 1` and `pages_processed: 0`; its
-annotation-specific count is the relevant usage signal for this response.
+annotation-specific count is the relevant usage signal for these responses.
+
+No live Content Understanding, production, or upload-to-Temporal end-to-end
+checks were performed. Mistral's annotation output and the GPT field scores
+are small-sample compatibility evidence only; field-level error severity and
+workflow behavior need separate validation.
 
 ### TODOs propagated to experiment briefs
 
