@@ -78,7 +78,7 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
               style={{ width: 60 }}
               hideControls
             />
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="dimmed" mt={0} mb={0}>
               / {totalPages}
             </Text>
           </Group>
@@ -104,7 +104,12 @@ export const ViewerToolbar: FC<ViewerToolbarProps> = ({
             icon={<IconZoomOut size={18} />}
           />
 
-          <Text size="sm" style={{ minWidth: 50, textAlign: "center" }}>
+          <Text
+            size="sm"
+            mt={0}
+            mb={0}
+            style={{ minWidth: 50, textAlign: "center" }}
+          >
             {Math.round(zoom * 100)}%
           </Text>
 
