@@ -48,6 +48,7 @@ export function NumberInput({
   disabled,
   required,
   error,
+  hideControls,
   size,
   mt,
   mb,
@@ -57,9 +58,12 @@ export function NumberInput({
   const passthrough = pickFieldPassthrough(rest);
   const wrapperStyle: CSSProperties = { ...fieldMarginStyle(mt, mb), ...style };
   const numericValue = toNumber(value ?? defaultValue);
+  const className = hideControls
+    ? "bcds-form-field bcds-number-input--no-controls"
+    : "bcds-form-field";
 
   return (
-    <div className="bcds-form-field" style={wrapperStyle}>
+    <div className={className} style={wrapperStyle}>
       <BcdsNumberField
         {...passthrough}
         size={

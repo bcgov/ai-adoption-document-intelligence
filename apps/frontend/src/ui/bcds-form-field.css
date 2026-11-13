@@ -9,3 +9,9 @@
   font: var(--typography-regular-small-body);
   color: var(--typography-color-primary);
 }
+
+/* NumberInput `hideControls`: BC DS NumberField always draws its −/+ buttons,
+   which leave no room for the value in a narrow box. */
+.bcds-number-input--no-controls .bcds-react-aria-NumberField--Button {
+  display: none;
+}
