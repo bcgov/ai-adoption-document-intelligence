@@ -1217,6 +1217,7 @@ export const ModelDetailPage: FC = () => {
             id: doc.labeling_document_id,
             name: doc.labeling_document.original_filename,
           }))}
+        existingKeys={schema.map((field) => field.fieldKey)}
         onAddFields={async (fields) => {
           await addFieldsAsync(fields);
         }}

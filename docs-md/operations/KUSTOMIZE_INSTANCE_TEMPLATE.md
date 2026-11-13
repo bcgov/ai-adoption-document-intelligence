@@ -45,6 +45,15 @@ The backend Route keeps `haproxy.router.openshift.io/deny-list` for `/metrics` i
 >
 > History: a prior base value of `142.16.0.0/11` both over-restricted (a `/11` only spans `142.0.0.0`–`142.31.255.255`, silently excluding BC Gov clients in `142.32.0.0/16`–`142.36.0.0/16`) and applied to every environment, including test/dev.
 
+### Route timeouts
+
+The OpenShift router ends a request after 30 seconds unless the Route says otherwise. Label and field suggestions wait on an LLM call that the backend allows 120 seconds (`LLM_TIMEOUT_MS` in `suggestion-llm.ts`), so both base Routes set `haproxy.router.openshift.io/timeout: 150s`:
+
+- The **frontend** Route carries the browser's API calls: the deploy builds the frontend with `VITE_API_BASE_URL=/api`, and the frontend's nginx forwards `/api/` to the backend Service. That nginx location sets `proxy_read_timeout 150s` to match, since nginx's own default is 60 seconds (`apps/frontend/nginx-default.conf`).
+- The **backend** Route carries API-key callers, who reach the backend directly.
+
+The production allowlist patches merge with these annotations rather than replacing them.
+
 ### What Gets Patched
 
 Kustomize's `namePrefix` handles most cross-references automatically, but several categories of references require explicit patches:

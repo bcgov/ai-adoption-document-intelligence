@@ -50,7 +50,11 @@ export const FieldItem: FC<FieldItemProps> = ({
     >
       <Stack gap="xs">
         <Group justify="space-between" gap="xs">
-          <Text fw={600} size="sm" style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            fw={600}
+            size="sm"
+            style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}
+          >
             {field.fieldKey}
           </Text>
           <Group gap={4} wrap="nowrap">

@@ -59,7 +59,8 @@ and to the Temporal worker. On OpenShift the `backend-services-config` and
 `temporal-worker-config` ConfigMaps set `2024-02-15-preview`, which is also what
 the deploy workflow and `scripts/oc-deploy-instance.sh` fall back to. Running
 locally from the root `.env` without it, each feature uses its own code default:
-`2024-10-21` for the agent, and `2024-12-01-preview` for the other six.
+`2024-10-21` for the agent, format suggestions and label suggestions, and
+`2024-12-01-preview` for the other four.
 
 Cost and loop bounds, none of them load-bearing for setup: `AGENT_MAX_STEPS`,
 `AGENT_MAX_OUTPUT_TOKENS`, `AGENT_MAX_CONVERSATION_TOKENS`,

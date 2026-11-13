@@ -202,3 +202,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
 - `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
+
+## [2026-11-13] ingest | Label suggestions keep hand labels; route timeouts for slow models
+
+- `architecture/TEMPLATE_MODELS.md`: suggestions now fill only fields the user has not labelled, the Suggest fields window is a table that marks keys already in the schema, field values follow OCR reading order, and a latency note links the route timeouts.
+- `operations/KUSTOMIZE_INSTANCE_TEMPLATE.md`: new Route timeouts section (150 s on both base Routes and the frontend nginx `/api/` location, against the router's 30 s default).
+- `workflows/AGENT_SETUP.md`: corrected which features default to which Azure OpenAI API version.
