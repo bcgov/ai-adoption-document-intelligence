@@ -14,6 +14,7 @@ type WindowWithRedoc = Window & { Redoc?: RedocStandalone };
 
 const container = ref<HTMLElement | null>(null);
 const error = ref("");
+const specUrl = withBase("/openapi.json");
 
 /** Loads the Redoc bundle once and returns its global. */
 function loadRedoc(): Promise<RedocStandalone> {
@@ -39,7 +40,7 @@ onMounted(async () => {
 	try {
 		const redoc = await loadRedoc();
 		redoc.init(
-			withBase("/openapi.json"),
+			specUrl,
 			{
 				scrollYOffset: 64,
 				hideDownloadButton: false,
@@ -60,7 +61,7 @@ onMounted(async () => {
 			element,
 		);
 	} catch {
-		error.value = "The API reference could not be loaded. The OpenAPI file is available at /openapi.json.";
+		error.value = "The API reference could not be loaded.";
 	}
 });
 </script>
@@ -68,7 +69,7 @@ onMounted(async () => {
 <template>
 	<div class="redoc-viewer">
 		<div ref="container" />
-		<p v-if="error" class="redoc-viewer__error">{{ error }}</p>
+		<p v-if="error" class="redoc-viewer__error">{{ error }} <a :href="specUrl">Open the OpenAPI file</a>.</p>
 	</div>
 </template>
 

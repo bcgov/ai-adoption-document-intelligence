@@ -3,7 +3,7 @@ permissions:
   contents: read
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - "docs/**"
       - "docs-md/wiki/**"
@@ -52,7 +52,9 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
+    # Publish pushes to develop, and manual runs only when dispatched from develop,
+    # so a run from any other branch cannot replace the public site.
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop')
     needs: build
     runs-on: ubuntu-latest
     permissions:

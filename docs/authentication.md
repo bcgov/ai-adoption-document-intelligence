@@ -35,8 +35,6 @@ The authentication system is split across the backend (NestJS) and frontend (Rea
 
 The following sequence diagram shows the complete authentication lifecycle — from login through to token refresh and logout.
 
-Authentication Flow — OAuth 2.0 + PKCE Sequence [↓ Download SVG](assets/authentication-flow.svg)
-
 <!--@include: ./_diagrams/authentication-flow.md-->
 
 The same diagram is on the [Diagrams](./diagrams.md#authentication-flow) page.

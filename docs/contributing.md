@@ -41,4 +41,4 @@ npm run dev
 
 ## Publishing
 
-Pushes to `main` that change the docs build and deploy the site. Pull requests build it without deploying, so a broken page fails before merge.
+Pushes to `develop` that change the docs build and deploy the site. Pull requests build it without deploying, so a broken page fails before merge.

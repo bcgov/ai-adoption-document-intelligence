@@ -46,7 +46,7 @@ The repo wiki in `docs-md/wiki/` is a compression layer: synthesize and route to
 ## Documentation ownership
 
 - **Root `README.md`**: local setup, prerequisites, and development commands.
-- **`docs/` site (`_pages/`)**: public overview and links; defer detailed setup to root README.
+- **`docs/` site**: public documentation site (VitePress) overview and guides; defer detailed setup to root README.
 - **`docs-md/`**: canonical developer reference docs, organized by topic folder — taxonomy in `docs-md/README.md`.
 - **`docs-md/wiki/`**: routing map for agents and contributors; not a second implementation spec.
 - **`apps/README.md`**: app-level boundaries only; link to root README for setup.

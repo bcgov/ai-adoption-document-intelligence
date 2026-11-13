@@ -29,4 +29,4 @@ How to add and write pages: [contributing.md](contributing.md), published as the
 
 ## Publishing
 
-`.github/workflows/pages.yml` builds the site on pull requests that touch the docs, and publishes it to GitHub Pages on pushes to `main`. GitHub Pages must be set to deploy from GitHub Actions (repository Settings → Pages → Source).
+`.github/workflows/pages.yml` builds the site on pull requests that touch the docs, and publishes it to GitHub Pages on pushes to `develop`. GitHub Pages must be set to deploy from GitHub Actions (repository Settings → Pages → Source).
