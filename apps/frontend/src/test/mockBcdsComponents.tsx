@@ -175,16 +175,22 @@ function createBcdsMocksInternal() {
     ({
       children,
       isSelected,
+      isDisabled,
       onChange,
+      "aria-label": ariaLabel,
     }: {
       children?: ReactNode;
       isSelected?: boolean;
+      isDisabled?: boolean;
       onChange?: (selected: boolean) => void;
+      "aria-label"?: string;
     }) => (
       <label>
         <input
           type="checkbox"
+          aria-label={ariaLabel}
           checked={isSelected}
+          disabled={isDisabled}
           onChange={(e) => onChange?.(e.target.checked)}
         />
         {children}
