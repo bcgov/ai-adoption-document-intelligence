@@ -135,6 +135,19 @@ export interface ActivityCatalogEntry {
    */
   benchmarkOcrCacheRole?: "passthrough" | "extract";
   /**
+   * `startToClose` timeout applied when a node of this type does not set its
+   * own. Use for activities that legitimately run longer than the engine's
+   * generic default (e.g. activities that wait on an external service).
+   */
+  defaultStartToClose?: string;
+  /**
+   * True for granular building blocks that a higher-level activity already
+   * covers. The palette lists them under an "Advanced" section instead of
+   * their category. They stay fully supported: existing workflows keep
+   * loading and running.
+   */
+  advanced?: boolean;
+  /**
    * Phase 6 dynamic-node lineage slug. Set on entries produced by
    * `parseDynamicNodeSignature` (US-159); absent on static catalog entries.
    *

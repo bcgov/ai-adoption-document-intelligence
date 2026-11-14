@@ -80,7 +80,7 @@ Current activity types, grouped by category:
 
 **Document / File**: `document.updateStatus`, `document.storeRejection`, `document.split`, `document.classify`, `document.splitAndClassify`, `document.validateFields`, `document.extractPageRange`, `document.selectClassifiedPages`, `document.flattenClassifiedDocuments`, `document.extractToBase64`, `document.normalizeOrientation`, `file.prepare`
 
-**Azure OCR**: `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract`
+**Azure OCR**: `azureOcr.analyze` (one-step composite), plus the granular `azureOcr.submit`, `azureOcr.poll`, `azureOcr.extract` (shown under Advanced in the palette)
 
 **Azure Classifier**: `azureClassify.submit`, `azureClassify.poll`
 

@@ -61,7 +61,7 @@ The remaining decisions are mostly about **how simplified mode should group, nam
 
 Internal chain: `file.prepare` → `azureOcr.submit` → optional `document.updateStatus` → `pollUntil(azureOcr.poll)` → `azureOcr.extract`.
 
-Keep the runtime steps separate for retries, benchmark replay, status updates, and caching. Show one simplified block with OCR model and optional poll/locale settings.
+**Implemented** as the `azureOcr.analyze` activity (runtime composite). It calls the granular activities internally, so benchmark replay and status updates still apply. The granular nodes remain in the palette's collapsed **Advanced** section (catalog `advanced: true`).
 
 ### Extract Text (Mistral)
 
@@ -73,7 +73,7 @@ Show as a provider preset parallel to Azure. Primary setting is the template/lab
 
 Internal chain: `azureClassify.submit` → `azureClassify.poll`.
 
-Show as one classifier block. Hide operation IDs and raw classifier payloads.
+**Implemented** as the `azureClassify.analyze` activity. The granular submit/poll nodes are under **Advanced** in the palette.
 
 ### Post-OCR Processing
 

@@ -247,7 +247,29 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 # OCR (Azure)
 
-## 📤 Submit OCR
+## 📝 Extract Text (Azure)
+
+- **Category:** OCR (Azure)
+- **Activity ID (internal):** `azureOcr.analyze`
+- **One-line description:** Extracts text from a document with Azure Document Intelligence in a single step.
+- **When to use it:** The default way to run Azure OCR. It replaces the **Prepare File → Submit OCR → Wait for OCR Result → Extract OCR Result** chain.
+
+### Settings panel
+
+- **Standard label, retry, error handling.** The default timeout is 15 minutes.
+- **Inputs ("This step reads"):** the same document fields as **Prepare File** (document ID, blob key, file name, file type, content type, model ID).
+- **Outputs ("This step produces"):** **OCR result** and the optional **Azure request ID**.
+- **Static parameters:**
+  - **Locale** *(dropdown, optional)* — Language hint for OCR.
+  - **Poll interval (seconds)** *(optional, default 10)* and **Maximum wait (seconds)** *(optional, default 600)*.
+
+A timeout while waiting for Azure fails the node without retrying, so the document is not submitted twice. Billing is per page, using the page count from the extracted result.
+
+The granular nodes below are listed under **Advanced** in the palette. They remain registered and existing workflows keep running unchanged.
+
+---
+
+## 📤 Submit OCR *(Advanced)*
 
 - **Category:** OCR (Azure)
 - **Visual:** Blue, upload-arrow icon
@@ -269,7 +291,7 @@ Designer note: simple cases (a single comparison) should look as clean as possib
 
 ---
 
-## ⌛ Wait for OCR Result
+## ⌛ Wait for OCR Result *(Advanced)*
 
 - **Category:** OCR (Azure)
 - **Visual:** Orange rounded rectangle with clock icon (this is technically a **Wait & Retry** node configured for OCR polling)
@@ -297,7 +319,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 
 ---
 
-## 📥 Extract OCR Result
+## 📥 Extract OCR Result *(Advanced)*
 
 - **Category:** OCR (Azure)
 - **Visual:** Blue, document icon
@@ -1023,3 +1045,12 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 ```
 
 The icons are placeholders — final iconography is the designer's call. Categories and grouping are based on what the system actually does, not on internal code organization.
+
+---
+
+# Classify Document (Azure)
+
+- **Activity ID (internal):** `azureClassify.analyze` (category: Document Handling)
+- **One-line description:** Classifies a document with an Azure classifier in a single step. Replaces `azureClassify.submit` plus `azureClassify.poll`, which are now listed under **Advanced** in the palette.
+- **Inputs:** blob key, group ID, document ID. **Outputs:** labeled documents, original blob key, group ID, document ID.
+- **Static parameters:** **Classifier name**, plus the same poll interval and maximum wait settings as **Extract Text (Azure)**. Default timeout is 15 minutes.

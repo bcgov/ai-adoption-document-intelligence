@@ -15,6 +15,14 @@ export interface ClassifiedDocument {
   pageRange: { start: number; end: number };
 }
 
+/** Raised while Azure is still classifying; the caller should poll again. */
+export class AzureClassifyInProgressError extends Error {
+  constructor(status: string) {
+    super(`Azure classifier analysis still in progress (status: ${status})`);
+    this.name = "AzureClassifyInProgressError";
+  }
+}
+
 export interface AzureClassifyPollOutput {
   /** The original source blob key, unchanged. */
   originalBlobKey: string;
@@ -124,9 +132,7 @@ export async function azureClassifyPoll(
 
     if (status === "running" || status === "notStarted") {
       // Retryable — Temporal will retry the activity on non-ApplicationError errors
-      throw new Error(
-        `Azure classifier analysis still in progress (status: ${status})`,
-      );
+      throw new AzureClassifyInProgressError(status);
     }
 
     if (status === "failed") {

@@ -322,7 +322,9 @@ async function executeActivityNode(
 
   // Step 2: Create activity proxy with timeout and retry configuration
   // Use defaults if not specified in node config
-  const timeout = (node.timeout?.startToClose ?? "2m") as Duration;
+  const timeout = (node.timeout?.startToClose ??
+    ACTIVITY_CATALOG[node.activityType]?.defaultStartToClose ??
+    "2m") as Duration;
   const retry = (node.retry ?? { maximumAttempts: 3 }) as RetryPolicy;
 
   const activityProxy = proxyActivities({
