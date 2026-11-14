@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ForbiddenException,
   GoneException,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
@@ -393,11 +394,41 @@ describe("DocumentController", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should wrap other errors in NotFoundException", async () => {
+    it("should return 500 for unexpected database errors", async () => {
       documentService.findDocument.mockRejectedValue(new Error("fail"));
       await expect(
         controller.getOcrResult("1", mockReq as any),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        controller.getOcrResult("1", mockReq as any),
+      ).rejects.toThrow("An unexpected error occurred");
+    });
+
+    it("should return 500 for unexpected errors when retrieving OCR results", async () => {
+      const mockDocument = {
+        id: "1",
+        status: "extracted",
+        title: "Test Document",
+        original_filename: "test.pdf",
+        file_type: "pdf",
+        file_size: 1024,
+        created_at: new Date("2024-01-01"),
+        updated_at: new Date("2024-01-02"),
+        apim_request_id: null,
+        model_id: "prebuilt-layout",
+        group_id: mockGroupId,
+      };
+      documentService.findDocument.mockResolvedValue(mockDocument as any);
+      documentService.findOcrResult.mockRejectedValue(
+        new Error("Database connection timeout"),
+      );
+
+      await expect(
+        controller.getOcrResult("1", mockReq as any),
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        controller.getOcrResult("1", mockReq as any),
+      ).rejects.toThrow("An unexpected error occurred");
     });
   });
 
@@ -554,12 +585,35 @@ describe("DocumentController", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should wrap other errors in NotFoundException", async () => {
+    it("should return 500 for unexpected database errors", async () => {
       documentService.findDocument.mockRejectedValue(new Error("fail"));
       const res: any = {};
       await expect(
         controller.downloadDocument("1", res, mockReq as any),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        controller.downloadDocument("1", res, mockReq as any),
+      ).rejects.toThrow("An unexpected error occurred");
+    });
+
+    it("should return 500 for unexpected errors when reading file from storage", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "cuid/ocr/file.pdf",
+        original_filename: "file.pdf",
+        group_id: mockGroupId,
+        purged_at: null,
+      } as any);
+      blobStorage.read.mockRejectedValue(
+        new Error("Storage service unreachable"),
+      );
+      const res: any = {};
+      await expect(
+        controller.downloadDocument("1", res, mockReq as any),
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        controller.downloadDocument("1", res, mockReq as any),
+      ).rejects.toThrow("An unexpected error occurred");
     });
 
     it("should throw GoneException when the document has been purged", async () => {
@@ -643,7 +697,7 @@ describe("DocumentController", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should throw NotFoundException (not 500) when the blob read fails", async () => {
+    it("should throw InternalServerErrorException when the blob read fails", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
         normalized_file_path: "cuid/ocr/normalized.pdf",
@@ -654,7 +708,10 @@ describe("DocumentController", () => {
       const res: any = { setHeader: jest.fn(), send: jest.fn() };
       await expect(
         controller.viewDocument("1", res, mockReq as any),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        controller.viewDocument("1", res, mockReq as any),
+      ).rejects.toThrow("An unexpected error occurred");
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
@@ -906,12 +963,12 @@ describe("DocumentController", () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it("throws NotFoundException when thumbnail blob is not in storage", async () => {
+    it("throws InternalServerErrorException when thumbnail blob is not in storage", async () => {
       documentService.findDocument.mockResolvedValue(mockDoc as any);
       blobStorage.read.mockRejectedValue(new Error("blob not found"));
       await expect(
         controller.getDocumentThumbnail("doc-1", {} as any, mockReq as any),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
