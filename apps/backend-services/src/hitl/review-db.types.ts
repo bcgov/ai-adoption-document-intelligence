@@ -15,6 +15,7 @@ export type ReviewSessionData = ReviewSession & {
           datasetVersion: Pick<DatasetVersion, "frozen">;
         })
       | null;
+    id: string;
   };
   corrections: FieldCorrection[];
 };

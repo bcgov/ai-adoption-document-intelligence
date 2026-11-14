@@ -42,6 +42,7 @@ const mockDocumentLock = {
   deleteMany: jest.fn(),
   updateMany: jest.fn(),
   findFirst: jest.fn(),
+  findUnique: jest.fn(),
   findMany: jest.fn(),
 };
 
@@ -839,32 +840,72 @@ describe("ReviewDbService", () => {
   });
 
   describe("acquireDocumentLock", () => {
-    it("should upsert and return a document lock, reclaiming stale rows", async () => {
+    it("should create and return a document lock when none exists", async () => {
       const lockData = {
         document_id: "doc-1",
         reviewer_id: "reviewer-1",
         session_id: "session-1",
         expires_at: new Date("2024-01-01T01:00:00Z"),
       };
-      const upsertedLock = { id: "lock-1", ...lockData };
-      mockDocumentLock.upsert.mockResolvedValue(upsertedLock);
+      const createdLock = { id: "lock-1", ...lockData };
+      mockDocumentLock.create.mockResolvedValue(createdLock);
 
       const result = await service.acquireDocumentLock(lockData);
 
-      expect(result).toEqual(upsertedLock);
-      expect(mockDocumentLock.upsert).toHaveBeenCalledWith({
-        where: { document_id: "doc-1" },
-        update: expect.objectContaining({
+      expect(result).toEqual(createdLock);
+      expect(mockDocumentLock.create).toHaveBeenCalledWith({ data: lockData });
+      expect(mockDocumentLock.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("should reclaim a stale row via a conditional update when the row already exists", async () => {
+      const lockData = {
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: new Date("2024-01-01T01:00:00Z"),
+      };
+      const uniqueViolation = new Prisma.PrismaClientKnownRequestError("dup", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      mockDocumentLock.create.mockRejectedValue(uniqueViolation);
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 1 });
+      const reclaimedLock = { id: "lock-1", ...lockData };
+      mockDocumentLock.findUnique.mockResolvedValue(reclaimedLock);
+
+      const result = await service.acquireDocumentLock(lockData);
+
+      expect(result).toEqual(reclaimedLock);
+      expect(mockDocumentLock.updateMany).toHaveBeenCalledWith({
+        where: { document_id: "doc-1", expires_at: { lte: expect.any(Date) } },
+        data: expect.objectContaining({
           reviewer_id: "reviewer-1",
           session_id: "session-1",
           expires_at: lockData.expires_at,
         }),
-        create: lockData,
       });
     });
 
-    it("should throw if prisma upsert fails", async () => {
-      mockDocumentLock.upsert.mockRejectedValue(new Error("DB error"));
+    it("should return null when an active lock is held by someone else", async () => {
+      const uniqueViolation = new Prisma.PrismaClientKnownRequestError("dup", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      mockDocumentLock.create.mockRejectedValue(uniqueViolation);
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.acquireDocumentLock({
+        document_id: "doc-1",
+        reviewer_id: "reviewer-1",
+        session_id: "session-1",
+        expires_at: new Date(),
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it("should throw if prisma create fails for a reason other than a conflict", async () => {
+      mockDocumentLock.create.mockRejectedValue(new Error("DB error"));
 
       await expect(
         service.acquireDocumentLock({
@@ -902,11 +943,15 @@ describe("ReviewDbService", () => {
       mockDocumentLock.updateMany.mockResolvedValue({ count: 1 });
       const expiresAt = new Date("2024-01-01T02:00:00Z");
 
-      const result = await service.refreshLockHeartbeat("session-1", expiresAt);
+      const result = await service.refreshLockHeartbeat(
+        "session-1",
+        "reviewer-1",
+        expiresAt,
+      );
 
       expect(result).toBe(true);
       expect(mockDocumentLock.updateMany).toHaveBeenCalledWith({
-        where: { session_id: "session-1" },
+        where: { session_id: "session-1", reviewer_id: "reviewer-1" },
         data: {
           last_heartbeat: expect.any(Date),
           expires_at: expiresAt,
@@ -919,6 +964,19 @@ describe("ReviewDbService", () => {
 
       const result = await service.refreshLockHeartbeat(
         "missing-session",
+        "reviewer-1",
+        new Date(),
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it("should return false when the lock is held by a different reviewer", async () => {
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.refreshLockHeartbeat(
+        "session-1",
+        "someone-else",
         new Date(),
       );
 
@@ -1053,7 +1111,7 @@ describe("ReviewDbService", () => {
     it("should use provided tx client instead of this.prisma for acquireDocumentLock", async () => {
       const lock = { id: "lock-1", document_id: "doc-1" };
       const mockTxDocumentLock = {
-        upsert: jest.fn().mockResolvedValue(lock),
+        create: jest.fn().mockResolvedValue(lock),
       };
       const mockTx = { documentLock: mockTxDocumentLock } as never;
 
@@ -1068,8 +1126,8 @@ describe("ReviewDbService", () => {
       );
 
       expect(result).toEqual(lock);
-      expect(mockTxDocumentLock.upsert).toHaveBeenCalled();
-      expect(mockDocumentLock.upsert).not.toHaveBeenCalled();
+      expect(mockTxDocumentLock.create).toHaveBeenCalled();
+      expect(mockDocumentLock.create).not.toHaveBeenCalled();
     });
 
     it("should use provided tx client instead of this.prisma for releaseDocumentLock", async () => {
@@ -1092,6 +1150,7 @@ describe("ReviewDbService", () => {
 
       const result = await service.refreshLockHeartbeat(
         "session-1",
+        "reviewer-1",
         new Date(),
         mockTx,
       );
