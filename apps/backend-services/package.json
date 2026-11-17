@@ -161,7 +161,7 @@
 		"maxWorkers": 4,
 		"workerIdleMemoryLimit": "2GB",
 		"transformIgnorePatterns": [
-			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose|https-proxy-agent|agent-base))"
+			"node_modules/(?!(uuid|openid-client|oauth4webapi|jose|https-proxy-agent|agent-base|proxy-agent-negotiate))"
 		],
 		"moduleNameMapper": {
 			"^@/(.*)$": "<rootDir>/$1",
