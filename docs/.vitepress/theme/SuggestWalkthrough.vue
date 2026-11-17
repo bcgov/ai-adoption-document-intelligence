@@ -314,11 +314,26 @@ confidence: this.suggestionConfidence(item.refs.length, resolved !== null),</pre
 </style>
 
 <style>
-.suggest-walkthrough-page .VPDoc .container {
-  max-width: 1480px;
+.suggest-walkthrough-page,
+.suggest-walkthrough-page .VPContent {
+  background: #eef3f8;
+}
+.suggest-walkthrough-page .VPDoc,
+.suggest-walkthrough-page .VPDoc .container,
+.suggest-walkthrough-page .VPDoc .content,
+.suggest-walkthrough-page .VPDoc .content-container,
+.suggest-walkthrough-page .vp-doc {
+  max-width: none !important;
+  width: 100% !important;
+}
+.suggest-walkthrough-page .VPDoc {
+  padding: 8px 0 32px !important;
+}
+.suggest-walkthrough-page .VPDoc .content {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 .suggest-walkthrough-page .vp-doc {
-  max-width: none;
   padding: 0;
 }
 .suggest-walkthrough-page .vp-doc h1,
