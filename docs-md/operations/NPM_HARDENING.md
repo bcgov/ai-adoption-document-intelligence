@@ -27,7 +27,7 @@ Because QA workflows install with `--no-package-lock`, dependency pins must also
 | `backend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
 | `frontend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
 | `temporal-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root + apps/temporal) |
-| `pages.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
+| `pages.yml` | `npm install --ignore-scripts --no-package-lock` (`docs/`, which carries its own copy of the root `.npmrc` policy because npm reads the `.npmrc` beside the package it installs) |
 | `release.yml` | `npm install --ignore-scripts` (root) |
 | `deploy-instance.yml` | `npm ci --ignore-scripts` (root, alert-rule generation only) |
 

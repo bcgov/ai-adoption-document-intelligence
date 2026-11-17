@@ -261,7 +261,8 @@ services:
         VITE_SSO_REALM: ${VITE_SSO_REALM}
         VITE_SSO_CLIENT_ID: ${VITE_SSO_CLIENT_ID}
         VITE_APP_NAME: ${VITE_APP_NAME:-AI OCR Frontend}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-1.0.0}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-}
+        VITE_APP_COMMIT: ${VITE_APP_COMMIT:-}
     container_name: frontend
     restart: unless-stopped
     environment:
