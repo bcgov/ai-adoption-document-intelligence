@@ -1,11 +1,13 @@
 import {
   type CallHandler,
   type ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   type NestInterceptor,
 } from "@nestjs/common";
 import type { Request } from "express";
-import { tap } from "rxjs";
+import { type Observable, tap } from "rxjs";
 import { AppLoggerService } from "./app-logger.service";
 import { requestContext } from "./request-context";
 
@@ -30,6 +32,7 @@ declare global {
   namespace Express {
     interface Request {
       _loggingStartTime?: number;
+      _loggingCompleted?: boolean;
     }
   }
 }
@@ -38,7 +41,13 @@ declare global {
 export class RequestLoggingInterceptor implements NestInterceptor {
   constructor(private readonly logger: AppLoggerService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler) {
+  /**
+   * Enriches request context and logs completion, including the thrown HTTP status.
+   * @param context Current execution context.
+   * @param next Route handler stream.
+   * @returns The handler stream with completion logging.
+   */
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
     request._loggingStartTime = Date.now();
 
@@ -72,17 +81,36 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: () => this.logRequest(request, context.getType()),
-        error: () => this.logRequest(request, context.getType()),
+        error: (error: unknown) =>
+          this.logRequest(
+            request,
+            context.getType(),
+            error instanceof HttpException
+              ? error.getStatus()
+              : HttpStatus.INTERNAL_SERVER_ERROR,
+          ),
       }),
     );
   }
 
-  private logRequest(request: Request, contextType: string): void {
+  /**
+   * Records a request once and marks it as handled for the exception filter.
+   * @param request Current HTTP request.
+   * @param contextType Nest execution context type.
+   * @param failureStatus Exception status, before Nest updates the response.
+   * @returns Nothing.
+   */
+  private logRequest(
+    request: Request,
+    contextType: string,
+    failureStatus?: number,
+  ): void {
     if (contextType !== "http" || !request.res) return;
     const start = request._loggingStartTime;
     const durationMs = start != null ? Date.now() - start : undefined;
     const requestId = request.headers["x-request-id"] as string | undefined;
-    const statusCode = request.res.statusCode;
+    const statusCode = failureStatus ?? request.res.statusCode;
+    request._loggingCompleted = true;
     const context = {
       requestId,
       method: request.method,

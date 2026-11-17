@@ -1,12 +1,13 @@
 ---
 status: active
-updated: 2026-06-17
+updated: 2026-11-17
 canonical_sources:
   - docs-md/operations/
   - scripts/README.md
   - docs-md/benchmarking/LOAD_TESTING.md
   - docs-md/monitoring/LOCAL_MONITORING_STACK.md
   - docs-md/monitoring/ALERTING.md
+  - docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md
   - .github/workflows/
   - deployments/
 do_not_duplicate:
@@ -26,6 +27,7 @@ Deployment and operations guidance spans OpenShift docs, scripts, GitHub Actions
 - Script usage and maintenance operations live in `scripts/README.md`.
 - Load testing guidance lives in `docs-md/benchmarking/LOAD_TESTING.md`.
 - Monitoring and alerting guidance lives in `docs-md/monitoring/LOCAL_MONITORING_STACK.md` and `docs-md/monitoring/ALERTING.md`.
+- `docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md` covers local and OpenShift Fluent Bit mirroring with Entra service-principal authentication. Shared filters/configuration live under `deployments/fluent-bit/`; the Kustomize base and CHES Helm deployment add per-pod sidecars independently of Promtail/Loki. CI and manual deploy paths provision instance-owned Secrets.
 - CI/CD behavior lives in `.github/workflows/`.
 - Kubernetes, Helm, and local deployment assets live under `deployments/`.
 

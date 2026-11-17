@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-mirror
+spec:
+  template:
+    spec:
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:4.0.3
+          args: ["--config=/fluent-bit/etc/fluent-bit.yaml"]
+          envFrom:
+            - secretRef:
+                name: azure-logs-secrets
+          env:
+            - name: LOG_SERVICE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['app']
+            - name: LOG_PROJECT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: LOG_FILTER
+              value: structured
+          ports:
+            - name: fluent-bit
+              containerPort: 2020
+          livenessProbe:
+            httpGet:
+              path: /api/v1/uptime
+              port: fluent-bit
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/app
+              readOnly: true
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc
+              readOnly: true
+            - name: fluent-bit-data
+              mountPath: /var/lib/fluent-bit
+      volumes:
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+        - name: fluent-bit-data
+          emptyDir:
+            sizeLimit: 128Mi

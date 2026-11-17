@@ -1,6 +1,11 @@
 # PLG Stack - Default Values
 # Override per environment via values-local.yaml, values-openshift.yaml, or --set flags.
 
+azureLogs:
+  # Shared ConfigMap is supplied by the application's Kustomize deployment.
+  configMapName: fluent-bit-config
+  secretName: azure-logs-secrets
+
 loki:
   image:
     repository: grafana/loki
