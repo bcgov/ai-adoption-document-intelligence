@@ -25,6 +25,7 @@ const suggested = {
   value: "S-251234",
   page_number: 1,
   already_exists: false,
+  confidence: 0.95,
 };
 
 describe("useFieldSuggestions", () => {

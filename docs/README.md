@@ -18,7 +18,7 @@ npm run dev
 | --- | --- |
 | `*.md` | One file per page; `index.md` is the home page |
 | `.vitepress/config.mts` | Site settings, navigation and sidebar |
-| `.vitepress/theme/` | The default theme plus the `MermaidDiagram` and `RedocViewer` components |
+| `.vitepress/theme/` | The default theme plus the `MermaidDiagram`, `RedocViewer`, and `SuggestWalkthrough` components |
 | `_diagrams/` | Mermaid diagrams shared between pages |
 | `public/openapi.json` | The OpenAPI document behind the API reference |
 | `generate-openapi.ts` | Regenerates `public/openapi.json` from the backend; run `npm run generate:openapi` at the repository root |
