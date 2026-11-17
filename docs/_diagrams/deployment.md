@@ -1,3 +1,4 @@
+```mermaid
 graph TB
     %% ── External Traffic ─────────────────────────────────────────
     Internet["Internet<br/>(Users + API Consumers)"]
@@ -107,3 +108,4 @@ graph TB
     class DBCluster,PGPrimary,PGReplica db
     class ConfigMap,Secrets config
     class HPA,NetPol,Probes infra
+```

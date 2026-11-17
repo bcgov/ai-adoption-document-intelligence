@@ -1,3 +1,4 @@
+```mermaid
 flowchart TD
     Users(["👤 Human Users (Browser)"]):::external
     APIConsumers(["🔌 API Consumers"]):::external
@@ -75,3 +76,4 @@ flowchart TD
 
     class Users,APIConsumers,Keycloak,AzureDI,AzureBlob external
     class PG,LocalBlob datastore
+```

@@ -56,5 +56,5 @@ Do **not** copy runbooks, schemas, or endpoint lists into topic pages.
 
 - Putting implementation detail only in the wiki (promote to `docs-md/` and keep the wiki as a map)
 - Skipping `log.md` or `docs:wiki:check` after wiki edits
-- Committing generated `docs/wiki*.html`
+- Committing the `docs/wiki/` copy of the wiki that the docs site build makes
 - Updating the public `docs/` site for contributor implementation detail that belongs in `docs-md/`

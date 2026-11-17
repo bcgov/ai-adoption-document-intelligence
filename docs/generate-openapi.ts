@@ -54,8 +54,8 @@ async function generateOpenApiSpec() {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  // Write to docs assets directory
-  const outputDir = path.join(__dirname, 'assets');
+  // Write to the docs site's public directory, which VitePress serves at /openapi.json
+  const outputDir = path.join(__dirname, 'public');
   const outputPath = path.join(outputDir, 'openapi.json');
 
   // Ensure directory exists

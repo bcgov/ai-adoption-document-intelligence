@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     autonumber
 
@@ -121,3 +122,4 @@ sequenceDiagram
         Identity -->> BE: request.resolvedIdentity set
         BE -->> API: 200 OK
     end
+```

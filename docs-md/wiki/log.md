@@ -183,6 +183,15 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
 - `graph-workflows.md`: the source map names the templates' folder.
 
+## [2026-10-28] ingest | Integration tutorial page, post-gate store wording
+
+- `hitl.md`: the post-gate store writes the extracted result again; reviewer corrections stay in `field_corrections`.
+- `open-questions.md`: the From Zero to Integration tutorial is one of the published guides.
+
+## [2026-10-29] ingest | Post-gate store applies to some templates only
+
+- `hitl.md`: only templates with a post-gate store write the extracted result again; the base Standard OCR template has none.
+
 ## [2026-11-02] ingest | HITL corrections across sessions, Save, skip back to Flagged
 
 - `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
@@ -193,3 +202,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
 - `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
+
+## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
+
+- The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
+- `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
+- `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
