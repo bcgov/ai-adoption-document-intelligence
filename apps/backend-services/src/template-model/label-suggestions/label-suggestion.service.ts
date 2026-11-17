@@ -177,7 +177,10 @@ export class LabelSuggestionService {
         value: resolved?.value ?? null,
         page_number: resolved?.pageNumber ?? null,
         already_exists: existing.has(key),
-        confidence: this.suggestionConfidence(item.refs.length, resolved !== null),
+        confidence: this.suggestionConfidence(
+          item.refs.length,
+          resolved !== null,
+        ),
       });
     }
     return result;

@@ -182,11 +182,7 @@ export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
         )}
         {isSuggestingFields && <Loader size="sm" />}
         {rows.map((row, index) => (
-          <Stack
-            key={row.id}
-            data-testid={`suggested-field-${index}`}
-            gap="xs"
-          >
+          <Stack key={row.id} data-testid={`suggested-field-${index}`} gap="xs">
             <Group align="flex-end" wrap="wrap">
               <Checkbox
                 label="Include"

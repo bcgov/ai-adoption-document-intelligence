@@ -290,7 +290,9 @@ describe("LabelSuggestionService", () => {
 
       const result = await service.suggestFields("tm-1", "doc-1");
 
-      expect(result.map((field) => [field.field_key, field.confidence])).toEqual([
+      expect(
+        result.map((field) => [field.field_key, field.confidence]),
+      ).toEqual([
         ["court_file_number", 0.5],
         ["third_parties", 0],
       ]);
