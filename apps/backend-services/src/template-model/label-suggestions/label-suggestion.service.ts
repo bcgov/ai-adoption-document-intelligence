@@ -123,6 +123,17 @@ export class LabelSuggestionService {
     return suggestions;
   }
 
+  /*
+   * A value whose words were found on the page scores 0.95. A field the
+   * model left blank scores 0, because there is no value to be sure of.
+   * A value the model names but cannot point at on the page scores 0.5.
+   */
+  private suggestionConfidence(refCount: number, resolved: boolean): number {
+    if (refCount > 0 && !resolved) return 0.5;
+    if (refCount === 0) return 0;
+    return 0.95;
+  }
+
   /** Suggested fields read from one document, with the value found for each. */
   async suggestFields(
     templateModelId: string,
@@ -166,6 +177,7 @@ export class LabelSuggestionService {
         value: resolved?.value ?? null,
         page_number: resolved?.pageNumber ?? null,
         already_exists: existing.has(key),
+        confidence: this.suggestionConfidence(item.refs.length, resolved !== null),
       });
     }
     return result;

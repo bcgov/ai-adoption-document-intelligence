@@ -227,6 +227,7 @@ describe("LabelSuggestionService", () => {
           value: "Jane Doe",
           page_number: 1,
           already_exists: false,
+          confidence: 0.95,
         },
         {
           field_key: "applicant_name_2",
@@ -235,6 +236,7 @@ describe("LabelSuggestionService", () => {
           value: null,
           page_number: null,
           already_exists: false,
+          confidence: 0,
         },
         {
           field_key: "wants_help",
@@ -243,6 +245,7 @@ describe("LabelSuggestionService", () => {
           value: "selected",
           page_number: 1,
           already_exists: true,
+          confidence: 0.95,
         },
       ]);
       expect(llm.generate.mock.calls[0][0].schemaName).toBe("suggested_fields");
@@ -265,6 +268,32 @@ describe("LabelSuggestionService", () => {
 
       expect(result.description).toHaveLength(500);
       expect(result.description).toBe(longDescription.slice(0, 500));
+    });
+
+    it("scores a value that is not on the page at 0.5 and a blank field at 0", async () => {
+      llm.generate.mockResolvedValue({
+        fields: [
+          {
+            key: "court_file_number",
+            type: "string",
+            description: "The court file number",
+            refs: [{ tag: "L1", text: "not on the page" }],
+          },
+          {
+            key: "third_parties",
+            type: "string",
+            description: "Third parties, left blank",
+            refs: [],
+          },
+        ],
+      });
+
+      const result = await service.suggestFields("tm-1", "doc-1");
+
+      expect(result.map((field) => [field.field_key, field.confidence])).toEqual([
+        ["court_file_number", 0.5],
+        ["third_parties", 0],
+      ]);
     });
   });
 
