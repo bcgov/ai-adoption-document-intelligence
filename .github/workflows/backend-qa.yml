@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies
-        run: npm install --ignore-scripts --no-package-lock
+        run: npm ci --ignore-scripts
       - name: Build shared packages
         run: npm run build:packages
         # Prisma-generated types needed

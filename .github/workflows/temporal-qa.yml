@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies (root)
-        run: npm install --ignore-scripts --no-package-lock
+        run: npm ci --ignore-scripts
       - name: Build shared packages
         run: npm run build:packages
       - name: Test blob path package
@@ -37,7 +37,7 @@ jobs:
         run: npm test
       - name: Install dependencies (temporal)
         working-directory: apps/temporal
-        run: npm install --ignore-scripts --no-package-lock
+        run: npm ci --ignore-scripts
       - name: Generate Prisma
         working-directory: apps/temporal
         run: npm run db:generate
