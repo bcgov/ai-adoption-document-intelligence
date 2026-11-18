@@ -27,9 +27,10 @@ repo is configured for it**, so Azure is the only working path today.
 `AZURE_OPENAI_*` is **shared configuration**, not agent-specific: the same four
 variables are read by the OCR enrichment step (`enrich-results`), field-format
 suggestions (`format-suggestion.service.ts`), benchmark recommendations
-(`ai-recommendation.service.ts`) and the two vision-model OCR providers
-(`vlm-direct-extract.ts` and `vlm-hybrid-extract.ts`). Repointing the endpoint
-moves all six features at once.
+(`ai-recommendation.service.ts`), the two vision-model OCR providers
+(`vlm-direct-extract.ts` and `vlm-hybrid-extract.ts`) and label suggestions
+(`template-model/label-suggestions/suggestion-llm.ts`). Repointing the endpoint
+moves all seven features at once.
 
 The agent runs inside **backend-services**, so the variables must be present
 for that process — not only for the Temporal worker.
@@ -58,7 +59,7 @@ and to the Temporal worker. On OpenShift the `backend-services-config` and
 `temporal-worker-config` ConfigMaps set `2024-02-15-preview`, which is also what
 the deploy workflow and `scripts/oc-deploy-instance.sh` fall back to. Running
 locally from the root `.env` without it, each feature uses its own code default:
-`2024-10-21` for the agent, and `2024-12-01-preview` for the other five.
+`2024-10-21` for the agent, and `2024-12-01-preview` for the other six.
 
 Cost and loop bounds, none of them load-bearing for setup: `AGENT_MAX_STEPS`,
 `AGENT_MAX_OUTPUT_TOKENS`, `AGENT_MAX_CONVERSATION_TOKENS`,

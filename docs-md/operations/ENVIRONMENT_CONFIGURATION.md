@@ -216,7 +216,8 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 | Variable | Description |
 |----------|-------------|
 | `VITE_APP_NAME` | Application display name |
-| `VITE_APP_VERSION` | Application version |
+| `VITE_APP_VERSION` | Release tag baked into the frontend, such as `v0.1.0`. Empty until the deployed commit contains a release tag. `1.0.0` is not a release, and the screen does not show it. |
+| `VITE_APP_COMMIT` | First 8 characters of the deployed commit. The header shows this. |
 | `VITE_ENV` | Environment identifier |
 
 ### Bootstrap (First-Time Setup)

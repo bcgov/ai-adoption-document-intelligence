@@ -25,6 +25,7 @@ import {
   Tooltip,
   useDisclosure,
 } from "../ui";
+import { runningBuildLabel } from "./runningBuild";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
@@ -151,6 +152,11 @@ export function RootLayout() {
     [activeGroup, isSystemAdmin],
   );
 
+  const buildLabel = runningBuildLabel(
+    import.meta.env.VITE_APP_VERSION,
+    import.meta.env.VITE_APP_COMMIT,
+  );
+
   const bottomNavItems = useMemo(
     () =>
       appRoutes.filter(
@@ -182,6 +188,14 @@ export function RootLayout() {
           ]}
         >
           <div className="app-shell-header-actions">
+            {buildLabel && (
+              <span
+                className="app-shell-running-build"
+                data-testid="running-build"
+              >
+                {buildLabel}
+              </span>
+            )}
             <Group gap="sm">
               {agentChatRoute && <AgentChatIcon />}
               <GroupSelector />

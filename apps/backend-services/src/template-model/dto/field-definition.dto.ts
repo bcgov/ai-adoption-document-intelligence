@@ -1,5 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from "class-validator";
 
 export enum FieldType {
   STRING = "string",
@@ -30,6 +42,16 @@ export class CreateFieldDefinitionDto {
   @IsString()
   format_spec?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "One-line plain-English description of what the field is and where it sits on the form. Used as instructions when an LLM suggests fields and labels; not exported to training files. Blank clears it.",
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()
   @IsInt()
@@ -50,9 +72,33 @@ export class UpdateFieldDefinitionDto {
   @IsString()
   format_spec?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "One-line plain-English description of what the field is and where it sits on the form. Used as instructions when an LLM suggests fields and labels; not exported to training files. Blank clears it.",
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()
   @IsInt()
   @Min(0)
   display_order?: number;
+}
+
+export class CreateFieldDefinitionsDto {
+  @ApiProperty({
+    description:
+      "Fields to add, in display order. Their display orders continue after the template model's current last field; any display_order sent here is ignored.",
+    type: [CreateFieldDefinitionDto],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => CreateFieldDefinitionDto)
+  fields!: CreateFieldDefinitionDto[];
 }
