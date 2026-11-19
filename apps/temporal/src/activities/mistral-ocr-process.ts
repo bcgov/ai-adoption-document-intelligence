@@ -6,7 +6,7 @@ import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import {
-  persistOcrArtifactRef,
+  persistOcrExtractionRefs,
   requireDocumentId,
   resolveGroupIdForOcr,
 } from "../ocr-payload-ref";
@@ -288,16 +288,16 @@ export interface MistralOcrProcessResult {
    */
   ocrResult: OcrPayloadRef;
   /**
-   * Raw Mistral OCR response — emitted so the benchmark sample workflow's
+   * Raw Mistral OCR response reference — emitted so the benchmark sample workflow's
    * `persistOcrCache` step can write it to `benchmark_ocr_cache` (sync providers
    * that only emit `ocrResult` produce no cache rows otherwise).
    */
-  ocrResponse: MistralOcrApiResponse;
+  ocrResponse: OcrPayloadRef;
 }
 
 /**
  * Activity: Run Mistral Document AI OCR (synchronous) and return a canonical
- * OCR result as an {@link OcrPayloadRef} plus the raw response. A single HTTP
+ * OCR result and raw response as {@link OcrPayloadRef} outputs. A single HTTP
  * call performs OCR + `document_annotation` server-side for both transports;
  * `variant` selects the public API or the Azure Foundry deployment.
  */
@@ -346,13 +346,14 @@ export async function mistralOcrProcess(
 
   const persist = async (
     ocrResult: Awaited<ReturnType<typeof mistralOcrResponseToOcrResult>>,
-  ): Promise<OcrPayloadRef> => {
+    ocrResponse: MistralOcrApiResponse,
+  ): Promise<MistralOcrProcessResult> => {
     const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
-    return persistOcrArtifactRef(
+    return persistOcrExtractionRefs(
       groupId,
       documentId,
-      "ocr-result.json",
       ocrResult,
+      ocrResponse,
     );
   };
 
@@ -368,14 +369,14 @@ export async function mistralOcrProcess(
       },
       undefined,
     );
-    const ref = await persist(ocrResult);
+    const refs = await persist(ocrResult, ocrResponse);
     log.info("Mistral OCR process complete (mock)", {
       event: "complete_mock",
       variant,
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult: ref, ocrResponse };
+    return refs;
   }
 
   // Resolve transport credentials + URL.
@@ -486,6 +487,7 @@ export async function mistralOcrProcess(
     const { data } = await axios.post<MistralOcrApiResponse>(url, requestBody, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        ...(isAzure ? { "api-key": apiKey } : {}),
         "Content-Type": "application/json",
       },
       timeout: timeoutMs,
@@ -503,7 +505,7 @@ export async function mistralOcrProcess(
       mistralFieldDefs.length > 0 ? { fieldDefs: mistralFieldDefs } : undefined,
     );
 
-    const ref = await persist(ocrResult);
+    const refs = await persist(ocrResult, data);
 
     log.info("Mistral OCR process complete", {
       event: "complete",
@@ -514,7 +516,7 @@ export async function mistralOcrProcess(
       alertType: "mistral_ocr",
     });
 
-    return { ocrResult: ref, ocrResponse: data };
+    return refs;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;

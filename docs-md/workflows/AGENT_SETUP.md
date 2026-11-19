@@ -34,6 +34,11 @@ moves all six features at once.
 The agent runs inside **backend-services**, so the variables must be present
 for that process — not only for the Temporal worker.
 
+For the TEST-tenant migration, endpoint conventions, operator-managed value
+replacements, and existing validation checks are in
+[AI Hub migration validation](../operations/AI_HUB_MIGRATION_VALIDATION.md).
+Changing the shared endpoint also moves the non-agent features listed above.
+
 ## Which variables gate it
 
 Read once at startup by

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   BACKEND_URL,
+  SEED_GROUP_ID,
   setupWorkflowBuilderTest,
   TEST_API_KEY,
 } from "../helpers/wb-test";
@@ -40,7 +41,7 @@ test.describe("agent chat — live model @llm", () => {
     // tool execution can take a while.
     const findMatch = async (): Promise<{ id: string } | undefined> => {
       const res = await page.request.get(
-        `${BACKEND_URL}/api/workflows?limit=100`,
+        `${BACKEND_URL}/api/workflows?groupId=${encodeURIComponent(SEED_GROUP_ID)}&limit=100`,
         { headers: { "x-api-key": TEST_API_KEY } },
       );
       const body = await res.json();

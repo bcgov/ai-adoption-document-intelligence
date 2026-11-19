@@ -17,7 +17,7 @@ describe("AzureService", () => {
         if (key === "AZURE_DOCUMENT_INTELLIGENCE_API_KEY") return "secret-key";
         return undefined;
       }),
-    } as any;
+    } as unknown as ConfigService;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -158,6 +158,14 @@ describe("AzureService", () => {
     });
 
     it("should fetch training operation URLs with underscore IDs directly", async () => {
+      service = new AzureService(
+        new ConfigService({
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
+            "https://test.com/sdpr-invoice-automation",
+          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-key",
+        }),
+        mockAppLogger,
+      );
       const mockFetch = jest.fn().mockResolvedValue({
         json: jest
           .fn()
@@ -208,6 +216,37 @@ describe("AzureService", () => {
       await expect(
         service.checkOperationStatus("https://user:pass@test.com/op"),
       ).rejects.toThrow("operationLocation must not include credentials");
+    });
+
+    it("preserves the configured Hub tenant path and refuses another tenant", async () => {
+      const tenantService = new AzureService(
+        new ConfigService({
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://test.com/tenant/",
+          AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "test-key",
+        }),
+        mockAppLogger,
+      );
+      const fetchSpy = jest
+        .spyOn(global, "fetch")
+        .mockResolvedValue(
+          new Response(JSON.stringify({ status: "succeeded" })),
+        );
+      const operation =
+        "https://test.com/tenant/documentintelligence/operations/result";
+      await tenantService.checkOperationStatus(operation);
+      expect(fetchSpy).toHaveBeenCalledWith(
+        operation,
+        expect.objectContaining({ redirect: "error" }),
+      );
+      fetchSpy.mockClear();
+      await expect(
+        tenantService.checkOperationStatus(
+          operation.replace("/tenant/", "/other/"),
+        ),
+      ).rejects.toThrow(
+        "not an allowed Azure Document Intelligence endpoint path",
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 

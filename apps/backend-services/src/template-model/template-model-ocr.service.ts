@@ -1,3 +1,4 @@
+import { azureAnalyzeResultId } from "@ai-di/graph-workflow";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { HttpService } from "@nestjs/axios";
@@ -237,7 +238,11 @@ export class TemplateModelOcrService {
       throw new Error("Failed to submit OCR request");
     }
 
-    return azureResponse.headers["apim-request-id"];
+    return azureAnalyzeResultId(
+      azureResponse.headers,
+      this.azureEndpoint,
+      "prebuilt-layout",
+    );
   }
 
   private async waitForOcrCompletion(

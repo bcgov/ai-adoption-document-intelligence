@@ -183,3 +183,13 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
 - `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
 - `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.
+
+## [2026-11-13] ingest | AI Hub TEST migration validation
+
+- Added routing to the canonical operator value map and migration validation runbook.
+- Kept deployment instructions and endpoint inventories out of the wiki.
+
+## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
+
+- Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
+- Updated the migration runbook to use existing tests and benchmark UI/APIs.
