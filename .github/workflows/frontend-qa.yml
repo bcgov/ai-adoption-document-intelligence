@@ -7,6 +7,8 @@ on:
     branches: [main, develop]
     paths:
       - 'apps/frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'packages/**'
       - '.github/workflows/frontend-qa.yml'
   workflow_dispatch:
