@@ -1,11 +1,14 @@
 <!--
-PR title format:
-type: short description
-Example: fix: require a permission on the suggestion endpoints
+Title: type: HCAP-### short description
+The HCAP key is uppercase. Example: feat: HCAP-145 show the deployed commit in the header
 
-Types that bump a release: feat, fix, perf, revert
-Types that do not: docs, style, refactor, test, build, ci, chore
-A breaking change puts a ! after the type, or a BREAKING CHANGE footer.
+feat is what you added. fix is what you repaired. Use chore when none of the other types fit.
+feat raises the second number. fix raises the third.
+docs, style, refactor, test, build, ci, and chore do not open a release.
+Before 1.0.0, a breaking change raises the second number. Mark it with ! after the type, or a BREAKING CHANGE footer.
+
+Branch: feature/HCAP-###-short-slug
+Develop squash-merges, so this title becomes the commit.
 -->
 
 ## Summary

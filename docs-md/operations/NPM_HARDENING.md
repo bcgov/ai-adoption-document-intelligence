@@ -10,28 +10,33 @@ ignore-scripts=true  # disable lifecycle scripts globally
 min-release-age=3    # block packages published less than 3 days ago
 ```
 
-`package-lock=true` is deliberately omitted — it is already npm's default in v7+. npm v11 only records the current-platform optional package in lockfile v3 (e.g. `@biomejs/cli-darwin-arm64` when generating on macOS arm64). When CI runs on Linux and a lockfile is present, npm honours that recorded resolution and installs the macOS binary; the Linux binary (`@biomejs/cli-linux-x64`) is never installed, causing tools like biome to fail. The three settings above are the primary supply-chain controls; the lockfile provides secondary coverage for all non-optional packages.
+`package-lock=true` is deliberately omitted — it is already npm's default in v7+. The root `package-lock.json` is what CI installs from (see below), so it is a supply-chain control alongside the three settings above: CI gets exactly the versions recorded there.
+
+Use npm 11.13 or newer; Node 24.16 and later include it. Older npm versions drop other platforms' native binaries from the lockfile when they rewrite it (fixed in npm 11.3.0, [npm/cli#8184](https://github.com/npm/cli/pull/8184)), and older `npm ci` rejected a lockfile that lists them (fixed in npm 11.11.1, [npm/cli#9083](https://github.com/npm/cli/pull/9083)). See [Native binaries in the lockfile](#native-binaries-in-the-lockfile).
 
 ## CI / GitHub Actions
 
-QA workflows use `npm install --ignore-scripts --no-package-lock`. `npm ci` is avoided because it enforces strict lockfile adherence, which also breaks on cross-platform optional packages. `--no-package-lock` causes npm to skip the lockfile entirely and resolve optional packages for the current platform, ensuring the Linux runner installs the correct binary (e.g. `@biomejs/cli-linux-x64` for biome).
-
-Workflows that do not run platform-specific optional tools use `npm install --ignore-scripts` without `--no-package-lock` and benefit from lockfile-based reproducibility.
-
-### Min-release-age compatibility note
-
-Because QA workflows install with `--no-package-lock`, dependency pins must also satisfy `min-release-age` from `.npmrc` at CI runtime. If a dependency version was published too recently, `npm install` fails with `ETARGET` even when the version exists on npm. For this reason, backend-services pinned `@nestjs/swagger` to `11.3.2` instead of the then-new `11.4.x` (the pin is still `11.3.2`; `11.4.x` has since aged past the threshold and can be bumped normally).
+QA workflows install with `npm ci --ignore-scripts`. `npm ci` installs exactly the versions in `package-lock.json` and fails if a `package.json` and the lockfile disagree, so commit lockfile changes together with the `package.json` change that caused them.
 
 | Workflow | Command |
 |---|---|
-| `backend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
-| `frontend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
-| `temporal-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root + apps/temporal) |
-| `pages.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
-| `release.yml` | `npm install --ignore-scripts` (root) |
+| `backend-qa.yml` | `npm ci --ignore-scripts` (root) |
+| `frontend-qa.yml` | `npm ci --ignore-scripts` (root) |
+| `temporal-qa.yml` | `npm ci --ignore-scripts` (root) |
+| `pages.yml` | `npm ci --ignore-scripts` (`docs/`, which has its own `package-lock.json` and its own copy of the root `.npmrc` policy because npm reads the `.npmrc` beside the package it installs) |
 | `deploy-instance.yml` | `npm ci --ignore-scripts` (root, alert-rule generation only) |
 
 `deploy-instance.yml` builds app images inside Docker (buildx); the host job only runs the root install above to generate Prometheus alert rules.
+
+### Native binaries in the lockfile
+
+Some dependencies ship a prebuilt binary for each operating system as optional packages, and npm installs only the one that matches the machine: `@biomejs/biome`, `esbuild`, `rollup`, `@swc/core`, `sharp`, `lefthook`, `unrs-resolver` (which Jest 30 loads to resolve modules), `@napi-rs/canvas` and `@napi-rs/nice`. `npm ci` installs only what the lockfile lists, so the lockfile must contain each of these binaries for every platform that installs from it: Linux x64 (glibc) for CI, and Windows x64, macOS x64 and macOS arm64 for developers.
+
+When an entry is missing, the tool that loads that binary fails on that platform. For `unrs-resolver`, Jest fails with `Cannot find native binding`. `npm ci` does not always catch it first: it can stop with `Missing: <package>@<version> from lock file`, but in this repo's CI it installs without the binary. Restore the missing entry: copy it from `develop`'s `package-lock.json`, or add it at the version the parent package lists under `optionalDependencies`. Do not delete `package-lock.json` and reinstall, as the Jest error suggests; that re-resolves every dependency to the newest version allowed.
+
+### Min-release-age compatibility note
+
+npm 11.10 and later honour `min-release-age`. It applies whenever npm chooses a version, such as when a developer adds or updates a dependency: npm skips versions published less than 3 days ago, and asking for one of them exactly fails with `ETARGET`, even though it exists on npm. `npm ci` can apply the same check to lockfile entries that have no `resolved` URL, so CI can also fail with `ETARGET` when one of those names a version under 3 days old.
 
 ## Dockerfiles
 
