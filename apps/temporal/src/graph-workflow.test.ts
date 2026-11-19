@@ -624,6 +624,33 @@ describe("Graph Workflow", () => {
 
       expect(updateStatusCalls.some((c) => c.status === "failed")).toBe(false);
     });
+
+    it("transitions a document stuck `extracted` (failure after storing results) to `failed`", async () => {
+      const updateStatusCalls: Array<Record<string, unknown>> = [];
+      const input = makeMockInput(makeFailingGraph(), {
+        documentId: "doc-fail-3",
+      });
+
+      await expect(
+        runWorkflow(testEnv, input, "test-failure-status-hook-extracted", {
+          "test.boom": async () => {
+            throw ApplicationFailure.create({
+              message: "activity exploded",
+              nonRetryable: true,
+            });
+          },
+          "document.getStatus": async () => ({ status: "extracted" }),
+          "document.updateStatus": async (params: Record<string, unknown>) => {
+            updateStatusCalls.push(params);
+            return { success: true };
+          },
+        }),
+      ).rejects.toThrow();
+
+      expect(updateStatusCalls).toContainEqual(
+        expect.objectContaining({ documentId: "doc-fail-3", status: "failed" }),
+      );
+    });
   });
 
   describe("Run group on workflow-level calls", () => {

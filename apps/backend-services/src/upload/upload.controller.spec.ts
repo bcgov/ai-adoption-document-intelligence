@@ -41,7 +41,7 @@ describe("UploadController", () => {
       processOcrForDocument: jest.fn().mockResolvedValue(undefined),
     } as any;
     workflowService = {
-      resolveWorkflowVersionId: jest.fn().mockResolvedValue(null),
+      resolveWorkflowVersionId: jest.fn().mockResolvedValue("wv-default"),
       getModelIdDefault: jest.fn().mockResolvedValue(null),
     } as any;
     trainingService = {
@@ -112,7 +112,7 @@ describe("UploadController", () => {
         baseDto.model_id,
         baseDto.group_id,
         baseDto.metadata,
-        undefined, // workflow_config_id
+        "wv-default", // workflow_config_id
       );
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -121,6 +121,16 @@ describe("UploadController", () => {
           fileType: "pdf",
         }),
       );
+    });
+
+    it("rejects an upload naming no workflow with 400 and creates no document", async () => {
+      workflowService.resolveWorkflowVersionId.mockResolvedValue(null);
+
+      await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(documentService.uploadDocument).not.toHaveBeenCalled();
+      expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException if file is missing", async () => {
@@ -207,7 +217,7 @@ describe("UploadController", () => {
           "km-invoice-v2",
           groupId,
           groupDto.metadata,
-          undefined,
+          "wv-default",
         );
       });
 
@@ -232,7 +242,7 @@ describe("UploadController", () => {
           modelId,
           groupId,
           expect.anything(),
-          undefined,
+          "wv-default",
         );
       });
 

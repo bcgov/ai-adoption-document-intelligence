@@ -63,7 +63,7 @@ export class UploadDocumentDto {
   @IsOptional()
   @ApiPropertyOptional({
     description:
-      "Stable workflow handle, unique within the group. Resolves to the head version unless workflow_version is set.",
+      "Stable workflow handle, unique within the group. Resolves to the head version unless workflow_version is set. Required unless workflow_config_id is given.",
     example: "ocr-only-minimal",
   })
   workflow_slug?: string;
@@ -83,7 +83,7 @@ export class UploadDocumentDto {
   @IsOptional()
   @ApiPropertyOptional({
     description:
-      "Accepts a WorkflowVersion.id or a WorkflowLineage.id (resolved to head). Mutually exclusive with workflow_slug.",
+      "Accepts a WorkflowVersion.id or a WorkflowLineage.id (resolved to head). Mutually exclusive with workflow_slug. Required unless workflow_slug is given.",
   })
   workflow_config_id?: string;
 
