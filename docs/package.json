@@ -1,0 +1,17 @@
+{
+	"name": "ai-di-docs",
+	"private": true,
+	"type": "module",
+	"description": "Documentation site for the Document Intelligence Platform, built with VitePress",
+	"scripts": {
+		"sync:wiki": "node ../scripts/sync-docs-wiki.mjs",
+		"dev": "npm run sync:wiki && vitepress dev",
+		"build": "npm run sync:wiki && vitepress build",
+		"preview": "vitepress preview"
+	},
+	"devDependencies": {
+		"mermaid": "12.3.0",
+		"vitepress": "1.6.4",
+		"vue": "3.5.45"
+	}
+}

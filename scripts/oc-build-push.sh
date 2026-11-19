@@ -200,6 +200,12 @@ build_push_one() {
       echo "[ERROR] VITE_ENV missing from config." >&2
       exit 1
     }
+    local vite_commit vite_version
+    vite_commit="$(git -C "${PROJECT_ROOT}" rev-parse HEAD | cut -c1-8)"
+    vite_version="$(git -C "${PROJECT_ROOT}" describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+    if ! [[ "${vite_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+      vite_version=""
+    fi
 
     docker build \
       --push \
@@ -210,6 +216,8 @@ build_push_one() {
       --build-arg "VITE_SSO_REALM=${vite_realm}" \
       --build-arg "VITE_SSO_CLIENT_ID=${vite_client}" \
       --build-arg "VITE_APP_NAME=${vite_name}" \
+      --build-arg "VITE_APP_VERSION=${vite_version}" \
+      --build-arg "VITE_APP_COMMIT=${vite_commit}" \
       --build-arg "VITE_ENV=${vite_env}" \
       "${context}"
   else

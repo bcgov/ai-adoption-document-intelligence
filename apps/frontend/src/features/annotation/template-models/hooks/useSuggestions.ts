@@ -15,7 +15,7 @@ export interface LabelSuggestionDto {
     };
     [key: string]: unknown;
   };
-  source_type: "keyValuePair" | "selectionMarkOrder" | "tableCellToWords";
+  source_type: "llm";
   confidence?: number;
   explanation?: string;
 }
@@ -30,7 +30,10 @@ export const useSuggestions = (
         `/template-models/${templateModelId}/documents/${documentId}/suggestions`,
         {},
       );
-      return response.data || [];
+      if (!response.success) {
+        throw new Error(response.message ?? "Loading suggestions failed");
+      }
+      return response.data ?? [];
     },
   });
 

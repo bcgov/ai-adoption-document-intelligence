@@ -299,7 +299,6 @@ ENABLE_BENCHMARK_QUEUE=true
 # Frontend
 VITE_API_BASE_URL=
 VITE_APP_NAME=Document Intelligence Platform
-VITE_APP_VERSION=1.0.0
 ```
 
 Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.

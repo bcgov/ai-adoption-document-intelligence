@@ -1,0 +1,18 @@
+{
+  "bootstrap-sha": "dfd5e3e3f170f20125340422347b232efa26fa3b",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "component": "ai-adoption-document-intelligence",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true
+    }
+  },
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "revert", "section": "Reverts" }
+  ]
+}
