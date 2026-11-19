@@ -485,7 +485,7 @@ export class HitlService {
         tx,
       );
 
-      await this.reviewDb.acquireDocumentLock(
+      const lock = await this.reviewDb.acquireDocumentLock(
         {
           document_id: dto.documentId,
           reviewer_id: reviewerId,
@@ -494,6 +494,13 @@ export class HitlService {
         },
         tx,
       );
+      // The findActiveLock check above is only an optimization; this claim is
+      // the one atomic step that actually decides who wins a simultaneous start.
+      if (!lock) {
+        throw new ConflictException(
+          "Document is currently locked by another reviewer",
+        );
+      }
 
       const doc = created.document as {
         group_id?: string;
@@ -635,7 +642,10 @@ export class HitlService {
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
+      id: string;
     };
+
+    await this.isSessionLocked(doc.id, actorId);
 
     const savedCorrections = await this.prismaService.transaction(
       async (tx) => {
@@ -715,7 +725,10 @@ export class HitlService {
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
+      id: string;
     };
+
+    await this.isSessionLocked(doc.id, actorId);
 
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
@@ -837,7 +850,10 @@ export class HitlService {
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
+      id: string;
     };
+
+    await this.isSessionLocked(doc.id, actorId);
 
     const rejectionComment = dto.comments?.trim() || null;
 
@@ -941,7 +957,10 @@ export class HitlService {
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
+      id: string;
     };
+
+    await this.isSessionLocked(doc.id, actorId);
 
     const nextStatus =
       session.reopened_from_status === ReviewStatus.flagged
@@ -1002,10 +1021,19 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot flag a session that is ${session.status}`,
+      );
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
+      id: string;
     };
+
+    await this.isSessionLocked(doc.id, actorId);
 
     const flagNote = dto.note?.trim() || null;
 
@@ -1119,15 +1147,18 @@ export class HitlService {
     return this.analyticsService.getAnalytics(filters, groupIds);
   }
 
-  async heartbeat(sessionId: string) {
+  async heartbeat(sessionId: string, actorId: string) {
     const lockTtlMs = 10 * 60 * 1000;
     const newExpiry = new Date(Date.now() + lockTtlMs);
     const refreshed = await this.reviewDb.refreshLockHeartbeat(
       sessionId,
+      actorId,
       newExpiry,
     );
     if (!refreshed) {
-      throw new ConflictException("Lock expired or session not found");
+      throw new ConflictException(
+        "Lock expired, session not found, or held by another reviewer",
+      );
     }
     return { ok: true, expiresAt: newExpiry };
   }
@@ -1135,12 +1166,16 @@ export class HitlService {
   async deleteCorrection(
     sessionId: string,
     correctionId: string,
-    actorId?: string,
+    actorId: string,
   ) {
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
+
+    const doc = session.document as { group_id?: string; id: string };
+    await this.isSessionLocked(doc.id, actorId);
+
     const deleted = await this.reviewDb.deleteCorrection(
       correctionId,
       sessionId,
@@ -1148,7 +1183,7 @@ export class HitlService {
     if (!deleted) {
       throw new NotFoundException(`Correction ${correctionId} not found`);
     }
-    const doc = session.document as { group_id?: string };
+
     await this.auditService.recordEvent({
       event_type: "review_correction_deleted",
       resource_type: "review_session",
@@ -1242,7 +1277,7 @@ export class HitlService {
         tx,
       );
 
-      await this.reviewDb.acquireDocumentLock(
+      const lock = await this.reviewDb.acquireDocumentLock(
         {
           document_id: session.document_id,
           reviewer_id: reviewerId,
@@ -1251,6 +1286,13 @@ export class HitlService {
         },
         tx,
       );
+      // The findActiveLock check above is only an optimization; this claim is
+      // the one atomic step that actually decides who wins a simultaneous reopen.
+      if (!lock) {
+        throw new ConflictException(
+          "Document is currently locked by another reviewer",
+        );
+      }
 
       await this.reviewDb.createReviewSessionEvent(
         sessionId,
@@ -1377,5 +1419,17 @@ export class HitlService {
 
     const firstDoc = eligible[0];
     return this.startSession({ documentId: firstDoc.id }, reviewerId);
+  }
+
+  async isSessionLocked(documentId: string, reviewerId: string) {
+    const existingLock = await this.reviewDb.findActiveLock(documentId);
+    // No active lock covers both "never locked" and "lock already released" —
+    // a finished (approved/rejected/abandoned) session falls in the latter, so
+    // this also refuses actions on sessions that are already done.
+    if (!existingLock || existingLock.reviewer_id !== reviewerId) {
+      throw new ConflictException(
+        "You do not currently hold the lock on this document",
+      );
+    }
   }
 }
