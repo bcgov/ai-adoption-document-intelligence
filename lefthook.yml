@@ -27,3 +27,6 @@ pre-commit:
       glob: "apps/temporal/**/*.{ts,tsx}"
       root: "apps/temporal"
       run: npm run type-check
+    - name: error-logging-check
+      glob: "{apps,packages}/**/*.ts"
+      run: npm run lint:error-logging

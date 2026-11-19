@@ -17,7 +17,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import type { AxiosResponse } from "axios";
 import { getPrismaClient } from "../../activities/database-client";
@@ -160,7 +159,7 @@ async function loadTemplateForAnalyzer(
       {
         event: "analyzer_skip",
         templateModelId,
-        error: getErrorMessage(error),
+        error,
       },
     );
     return null;
@@ -445,7 +444,7 @@ export async function azureCuAnalyze(
       event: "submit_error",
       analyzerId,
       httpStatus: status !== undefined ? String(status) : undefined,
-      error: getErrorMessage(err),
+      error: err,
     });
     throw new Error(
       `Azure CU analyze submit failed${status ? ` (${status})` : ""}: ${message}`,

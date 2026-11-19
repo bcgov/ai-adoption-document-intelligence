@@ -1,5 +1,4 @@
 import type { EphemeralConfig } from "@ai-di/graph-workflow";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
   OcrResult,
@@ -105,7 +104,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to create document", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -135,7 +134,7 @@ export class DocumentDbService {
       return document;
     } catch (error) {
       this.logger.error("Failed to find document", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -327,7 +326,7 @@ export class DocumentDbService {
       return { documents: listItems, total };
     } catch (error) {
       this.logger.error("Failed to find documents", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -380,7 +379,7 @@ export class DocumentDbService {
       };
     } catch (error) {
       this.logger.error("Failed to get document status counts", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -421,7 +420,7 @@ export class DocumentDbService {
         return null;
       }
       this.logger.error("Failed to update document", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -456,7 +455,7 @@ export class DocumentDbService {
         return false;
       }
       this.logger.error("Failed to delete document", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -585,7 +584,7 @@ export class DocumentDbService {
       return ocrResult;
     } catch (error) {
       this.logger.error("Failed to find OCR result", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
@@ -683,7 +682,7 @@ export class DocumentDbService {
       });
     } catch (error) {
       this.logger.error("Failed to create/update OCR result", {
-        error: getErrorMessage(error),
+        error,
       });
       throw error;
     }
