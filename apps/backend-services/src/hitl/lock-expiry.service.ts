@@ -17,9 +17,10 @@ export class LockExpiryService {
 
   /**
    * Reclaims documents whose reviewer stopped sending heartbeats, and deletes
-   * their lock rows. A session that carries a flag note was handed on from the
-   * Flagged tab, so it goes back to `flagged` with its note and corrections for
-   * the next reviewer to take. Any other session becomes `abandoned`, which
+   * their lock rows. A session reopened from `flagged` (a handoff) restores to
+   * `flagged` so the next reviewer can take it, unless the reviewer saved
+   * corrections during the takeover, which clears that marker and means the
+   * takeover produced work. Any other session becomes `abandoned`, which
    * returns its document to the pending queue.
    */
   @Cron(CronExpression.EVERY_MINUTE)
@@ -29,10 +30,10 @@ export class LockExpiryService {
 
     const sessionIds = expiredLocks.map((lock) => lock.session_id);
     const flaggedIds = expiredLocks
-      .filter((lock) => lock.has_flag_note)
+      .filter((lock) => lock.reopened_from_status === ReviewStatus.flagged)
       .map((lock) => lock.session_id);
     const abandonedIds = expiredLocks
-      .filter((lock) => !lock.has_flag_note)
+      .filter((lock) => lock.reopened_from_status !== ReviewStatus.flagged)
       .map((lock) => lock.session_id);
 
     const { flagged, abandoned } = await this.prismaService.transaction(
@@ -57,9 +58,10 @@ export class LockExpiryService {
             group_id: lock.group_id,
             payload: {
               document_id: lock.document_id,
-              status: lock.has_flag_note
-                ? ReviewStatus.flagged
-                : ReviewStatus.abandoned,
+              status:
+                lock.reopened_from_status === ReviewStatus.flagged
+                  ? ReviewStatus.flagged
+                  : ReviewStatus.abandoned,
             },
           })),
           tx,

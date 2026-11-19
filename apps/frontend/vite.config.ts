@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -15,6 +16,38 @@ const PDFJS_WASM_FILES = [
   "qcms_bg.wasm",
 ] as const;
 const PDFJS_WASM_ROUTE = "/pdfjs-wasm";
+
+const releaseTag =
+  /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-rc\.(?:0|[1-9]\d*))?$/;
+
+/*
+ * Fill the values the header shows when the environment did not set them.
+ * A local dev server reads the commit from git. A release tag is used only
+ * when this commit contains one. 1.0.0 is the package.json placeholder, so
+ * it is cleared and the header leaves it out.
+ */
+function gitOutput(command: string): string {
+  try {
+    return execSync(command, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+if (!process.env.VITE_APP_COMMIT) {
+  const fullCommit = gitOutput("git rev-parse HEAD");
+  if (fullCommit) {
+    process.env.VITE_APP_COMMIT = fullCommit.slice(0, 8);
+  }
+}
+
+if (!releaseTag.test(process.env.VITE_APP_VERSION ?? "")) {
+  const tag = gitOutput("git describe --tags --abbrev=0 --match v[0-9]*");
+  process.env.VITE_APP_VERSION = releaseTag.test(tag) ? tag : "";
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({

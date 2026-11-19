@@ -25,9 +25,16 @@
 
 .app-shell-bcds-header .app-shell-header-actions {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
   margin-left: auto;
   justify-content: flex-end;
+}
+
+.app-shell-running-build {
+  margin-right: 1rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .app-shell-bcds-header .app-shell-header-actions .mantine-Group-root {

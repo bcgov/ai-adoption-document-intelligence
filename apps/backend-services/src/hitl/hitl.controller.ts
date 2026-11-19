@@ -35,6 +35,7 @@ import {
   QueueResponseDto,
   QueueStatsResponseDto,
   ReopenSessionResponseDto,
+  ReviewSessionHistoryResponseDto,
   ReviewSessionResponseDto,
   SessionActionResponseDto,
   SubmitCorrectionsResponseDto,
@@ -166,6 +167,10 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Document not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "Document is locked by another reviewer's in-progress session, or is not currently reviewable (OCR not yet complete, or review already decided: approved/rejected/failed)",
+  })
   async startSession(@Body() dto: ReviewSessionDto, @Req() req: Request) {
     const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
@@ -272,6 +277,30 @@ export class HitlController {
     return result;
   }
 
+  @Get("sessions/:id/history")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Get the permanent action history for a review session",
+  })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description:
+      "Flag/reject/skip/approve/reopen events recorded for the session, oldest first",
+    type: ReviewSessionHistoryResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getSessionHistory(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
+      Permission.HITL_SESSION_RETRIEVE,
+    ]);
+    return this.hitlService.getSessionHistory(sessionId);
+  }
+
   @Post("sessions/:id/approve")
   @Identity({ allowApiKey: true })
   @ApiOperation({ summary: "Approve and complete a review session" })
@@ -343,10 +372,13 @@ export class HitlController {
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
     description:
-      "Lock released, document returned to the pending queue, or to the flagged queue if the session carried a flag note",
+      "Lock released, document returned to the pending queue, or to the flagged queue if this was an unresolved handoff from Flagged",
     type: SessionActionResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiConflictResponse({
+    description: "Session is not in progress and cannot be skipped",
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async skipSession(@Param("id") sessionId: string, @Req() req: Request) {
     const session = await this.hitlService.findReviewSession(sessionId);
@@ -356,7 +388,10 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.skipSession(sessionId);
+    return this.hitlService.skipSession(
+      sessionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/flag")
@@ -383,7 +418,11 @@ export class HitlController {
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
       Permission.HITL_SESSION_PROGRESS,
     ]);
-    return this.hitlService.flagSession(sessionId, dto);
+    return this.hitlService.flagSession(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/heartbeat")

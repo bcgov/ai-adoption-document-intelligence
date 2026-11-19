@@ -2,150 +2,71 @@
 
 ## Page Structure
 
-Every page in `docs/_pages/` is an **HTML fragment** — no doctype, html, head, or body tags.
+Every page starts with frontmatter holding its title, followed by one `#` heading:
 
-```html
-<!-- TITLE: My Page Title -->
-<!-- NAV: mypagename -->
+```md
+---
+title: "My Page Title"
+---
 
-<h1>My Page Title</h1>
-<p>Introductory paragraph.</p>
+# My Page Title
 
-<!-- Section content below -->
+Introductory paragraph.
 ```
 
-## CSS Classes Reference
+`index.md` uses VitePress's `home` layout: its hero and feature cards are set in frontmatter. `api-reference.md` uses the `page` layout so that Redoc gets the full width.
 
-### Alerts (callouts)
-```html
-<div class="alert alert-info">...</div>     <!-- Blue — tips, info -->
-<div class="alert alert-warning">...</div>  <!-- Yellow — cautions -->
-<div class="alert alert-success">...</div>  <!-- Green — confirmations -->
+## Headings and Anchors
+
+- Use `##` for sections and `###` for subsections; the "On this page" outline shows both levels.
+- VitePress makes an anchor from each heading's text. When other pages link to a section, give it a fixed anchor so rewording the heading does not break those links: `## Upload Request Fields {#upload-fields}`.
+
+## Links
+
+- Between pages, use relative Markdown links: `[Integrations Guide](./integrations.md#upload-fields)`. The build fails if the target page does not exist.
+- To the wiki: `./wiki/` for its index, `./wiki/<page>.md` for a page.
+- Put local addresses such as `http://localhost:3000` in backticks. As plain text they become links, and the build fails on them.
+
+## Callouts
+
+```md
+::: info Title
+Neutral information.
+:::
+
+::: tip Title
+A recommendation, or a pointer to another page.
+:::
+
+::: warning Title
+A caution.
+:::
+
+::: details Title
+Content that starts collapsed.
+:::
 ```
 
-Alert inner structure:
-```html
-<div class="alert alert-info">
-    <div class="alert-icon">
-        <svg ...>...</svg>
-    </div>
-    <div>
-        <strong>Title</strong><br>
-        Body text here.
-    </div>
-</div>
-```
+## Badges
 
-### Cards
-```html
-<div class="card">...</div>              <!-- Default (blue left border) -->
-<div class="card card-gold">...</div>    <!-- Gold left border -->
-```
+`<Badge type="info" text="ongoing_ocr" />`. Types: `info`, `tip`, `warning`, `danger`.
 
-Custom border: `<div class="card" style="border-left-color: #22c55e;">`
+## Code
 
-### Clickable Cards
-```html
-<a href="page.html" class="card-link">
-    <div class="card">
-        <h3>Title</h3>
-        <p>Description</p>
-        <div class="card-arrow">Learn More →</div>
-    </div>
-</a>
-```
+Fence code with its language: ` ```bash `, ` ```json `, ` ```ts `. Use a plain ` ``` ` fence for output and plain text.
 
-### Grid Layouts
-```html
-<div class="grid grid-2">...</div>  <!-- 2 columns -->
-<div class="grid grid-3">...</div>  <!-- 3 columns -->
-<div class="grid grid-4">...</div>  <!-- 4 columns -->
-```
+## Tables
 
-All grids collapse to single column on mobile (≤768px).
+Use GitHub-style pipe tables. Escape a literal pipe inside a cell as `\|`; an unescaped pipe starts a new column and pushes the rest of the row out of the table.
 
-### Feature Icons
-```html
-<div class="feature-icon gold">...</div>
-<div class="feature-icon blue">...</div>
-<div class="feature-icon green">...</div>
-<div class="feature-icon purple">...</div>
-```
+## Diagrams
 
-### Badges
-```html
-<span class="badge badge-gold">Gold</span>
-<span class="badge badge-blue">Blue</span>
-```
+- A fenced `mermaid` block is drawn in the page, in the reader's light or dark theme, with an **Open full size** link under it.
+- A diagram used on more than one page lives in `docs/_diagrams/<name>.md` and is included with `<!--@include: ./_diagrams/<name>.md-->`.
 
-### Hero Section
-```html
-<div class="hero">
-    <span class="badge badge-gold">Featured</span>
-    <h1>Hero Title</h1>
-    <p>Subtitle text.</p>
-</div>
-```
+## Vue Syntax
 
-### Stats
-```html
-<div class="card" style="text-align: center; border-left: none; border-top: 4px solid var(--bc-gold);">
-    <div class="stat-number">42</div>
-    <div class="stat-label">Total Items</div>
-</div>
-```
+VitePress compiles every page as a Vue template:
 
-### Collapsible Sections
-```html
-<details>
-    <summary style="cursor: pointer; color: var(--bc-blue-light); font-weight: 600;">
-        Click to expand
-    </summary>
-    <div style="margin-top: 1rem;">
-        Content here.
-    </div>
-</details>
-```
-
-### Code
-- Inline: `<code>some code</code>`
-- Block: `<pre>multi-line code</pre>`
-
-### Tables
-```html
-<table>
-    <tr><th>Header</th><th>Header</th></tr>
-    <tr><td>Cell</td><td>Cell</td></tr>
-</table>
-```
-
-### Images
-```html
-<div class="img-container">
-    <img src="assets/image.svg" alt="Description">
-    <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">Caption</p>
-</div>
-```
-
-## Design System Colors
-
-| Variable | Hex | Usage |
-|----------|-----|-------|
-| `--bc-blue` | `#003366` | Primary, nav, headings |
-| `--bc-gold` | `#fcba19` | Accents, highlights |
-| `--bc-blue-light` | `#1a5a96` | Links, interactive |
-| `--bc-blue-dark` | `#002244` | Dark backgrounds |
-| `--text-primary` | `#313132` | Body text |
-| `--text-secondary` | `#606060` | Secondary text |
-
-Additional colors used inline: `#22c55e` (green), `#8b5cf6` (purple), `#0ea5e9` (sky blue), `#ef4444` (red).
-
-## Rules
-
-1. **No framework tags** — pure HTML only, no JSX, no web components
-2. **No external CSS/JS imports in pages** — all styles come from `_partials/header.html`
-3. **Use semantic HTML** — `h1`→`h2`→`h3` hierarchy, `<table>`, `<ul>`/`<ol>`
-4. **One `<h1>` per page** — matching the TITLE metadata
-5. **SVG icons inline** — use Lucide-style SVGs (24x24 viewBox, stroke-based)
-6. **Links between pages** — use relative paths: `href="authentication.html"`
-7. **Assets** — place in `docs/assets/`, reference as `assets/filename.ext`
+- Put placeholders in angle brackets, such as `<API_KEY>`, inside backticks or code blocks. In plain text they are read as HTML tags and disappear.
+- Keep literal double curly braces inside code; in plain text they are read as Vue expressions.
