@@ -27,6 +27,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.submit": { description: "Submit to Azure Document Intelligence" },
     "azureOcr.poll": { description: "Poll Azure for OCR results" },
     "azureOcr.extract": { description: "Extract structured OCR data" },
+    "azureOcr.analyze": {
+      description:
+        "Extract text with Azure Document Intelligence (prepare, submit, wait, extract) in one step",
+    },
     "mistralOcr.process": {
       description:
         "Mistral Document AI OCR (sync, native or Azure Foundry transport) with optional document annotation",
@@ -100,6 +104,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureClassify.poll": {
       description:
         "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+    },
+    "azureClassify.analyze": {
+      description:
+        "Classify a document with an Azure Document Intelligence classifier (submit and wait) in one step",
     },
     "document.selectClassifiedPages": {
       description:

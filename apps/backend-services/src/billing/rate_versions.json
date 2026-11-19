@@ -28,6 +28,7 @@
     "activity_costs": {
       "azureOcr.submit": { "cost_type": "flat", "units": 10 },
       "azureOcr.extract": { "cost_type": "per_page", "units": 40 },
+      "azureOcr.analyze": { "cost_type": "per_page", "units": 40 },
       "mistralOcr.process": { "cost_type": "flat", "units": 120 },
       "azureContentUnderstanding.analyze": {
         "cost_type": "flat",
@@ -41,6 +42,7 @@
       "vlmOcrHybrid.extract": { "cost_type": "flat", "units": 120 },
       "ocr.enrich": { "cost_type": "flat", "units": 200 },
       "azureClassify.submit": { "cost_type": "flat", "units": 30 },
+      "azureClassify.analyze": { "cost_type": "flat", "units": 30 },
       "blob.read": { "cost_type": "flat", "units": 0.0009 },
       "blob.write": { "cost_type": "flat", "units": 0.012 },
       "training.template_model": { "cost_type": "flat", "units": 500 },

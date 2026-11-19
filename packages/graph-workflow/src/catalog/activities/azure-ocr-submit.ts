@@ -38,6 +38,7 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
   description:
     "Sends a prepared document to Azure Document Intelligence and returns a tracking ID.",
   iconHint: "upload",
+  advanced: true,
   colorHint: "blue",
   // Non-deterministic: each call creates a new Azure operation, so two
   // invocations with identical inputs produce different `apimRequestId`s.
