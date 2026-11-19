@@ -19,9 +19,9 @@ export function azureAnalyzeResultId(
   if (typeof location !== "string") {
     throw new Error("Azure analyze response missing Operation-Location");
   }
-  const base = new URL(endpoint.replace(/\/+$/, ""));
+  const base = new URL(trimTrailingSlashes(endpoint));
   const operation = new URL(location);
-  const prefix = `${base.pathname.replace(/\/+$/, "")}/documentintelligence/documentModels/${encodeURIComponent(modelId)}/analyzeResults/`;
+  const prefix = `${trimTrailingSlashes(base.pathname)}/documentintelligence/documentModels/${encodeURIComponent(modelId)}/analyzeResults/`;
   if (
     base.protocol !== "https:" ||
     operation.origin !== base.origin ||
@@ -41,4 +41,17 @@ export function azureAnalyzeResultId(
     );
   }
   return resultId;
+}
+
+/**
+ * Remove trailing slashes in one backward scan, without regex backtracking.
+ * @param value - Endpoint or URL pathname to normalize.
+ * @returns The value without trailing slashes.
+ */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end--;
+  }
+  return value.slice(0, end);
 }
