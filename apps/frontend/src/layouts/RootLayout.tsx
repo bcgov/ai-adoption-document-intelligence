@@ -1,28 +1,18 @@
 import { Footer, Header } from "@bcgov/design-system-react-components";
 import {
-  IconAdjustments,
   IconChartBar,
   IconChevronLeft,
   IconChevronRight,
-  IconClipboardCheck,
-  IconCurrencyDollar,
-  IconDatabase,
-  IconFileText,
-  IconFlagQuestion,
-  IconFlask,
-  IconFolderOpen,
   IconLogout,
-  IconSettings,
-  IconTable,
-  IconTags,
-  IconUpload,
-  IconUsers,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
+import { AgentChatDrawer } from "../features/agent-chat/AgentChatDrawer";
+import { AgentChatIcon } from "../features/agent-chat/AgentChatIcon";
+import { AppRouteConfig, appRoutes } from "../routes.config";
 import {
   ActionIcon,
   AppShell,
@@ -35,6 +25,7 @@ import {
   Tooltip,
   useDisclosure,
 } from "../ui";
+import { runningBuildLabel } from "./runningBuild";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
@@ -79,7 +70,7 @@ function getUserInitials(name?: string, email?: string): string {
 }
 
 /** Routes that use a fixed viewport workspace (document + field panel). */
-function isWorkspaceRoute(pathname: string): boolean {
+export function isWorkspaceRoute(pathname: string): boolean {
   return (
     /^\/template-models\/[^/]+\/document\/[^/]+$/.test(pathname) ||
     /^\/review\/[^/]+$/.test(pathname) ||
@@ -89,12 +80,40 @@ function isWorkspaceRoute(pathname: string): boolean {
   );
 }
 
+/**
+ * Routes that render the full-bleed visual workflow editor. These own the
+ * whole viewport-minus-header area with zero Main padding (edge-to-edge
+ * canvas). Distinct from workspace routes: the editor lives entirely under
+ * `/workflows/*`, which the workspace predicate never matches, so the two are
+ * mutually exclusive by prefix. `/workflows/by-slug/:slug/edit` is not matched
+ * here (extra path segment) — it only redirects to the canonical
+ * `/workflows/:id/edit` route, which is.
+ */
+export function isEditorRoute(pathname: string): boolean {
+  return (
+    /^\/workflows\/create$/.test(pathname) ||
+    /^\/workflows\/[^/]+\/edit$/.test(pathname)
+  );
+}
+
+/**
+ * Routes where the workflow agent chat is offered. The agent's tools only act
+ * on workflows, so the entry point is scoped to the workflow section rather
+ * than the global header: `/workflows` (list), `/workflows/create`,
+ * `/workflows/:id/edit`, `/workflows/by-slug/:slug/edit` and the dev-only
+ * form preview — i.e. `/workflows` itself plus anything under it, and nothing
+ * else. An icon on every route would silently do nothing off the editor, with
+ * nothing telling the user which screen it needs.
+ */
+export function isAgentChatRoute(pathname: string): boolean {
+  return /^\/workflows(\/|$)/.test(pathname);
+}
+
 export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user, isSystemAdmin } = useAuth();
-  const group = useGroup();
-  const isAdmin = isSystemAdmin || group.activeGroup?.role === "ADMIN";
+  const { activeGroup, hasPermissionForGroup } = useGroup();
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const displayName = user?.profile?.name ?? "Authenticated user";
   const displayIdir = user?.profile?.email?.split("@")[0] ?? "Logged in";
@@ -105,90 +124,46 @@ export function RootLayout() {
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
   const workspaceRoute = isWorkspaceRoute(location.pathname);
+  const editorRoute = isEditorRoute(location.pathname);
+  const agentChatRoute = isAgentChatRoute(location.pathname);
 
-  const navItems = useMemo(
-    () => [
-      {
-        path: "/",
-        label: "Upload",
-        description: "Send new files",
-        icon: IconUpload,
-      },
-      {
-        path: "/documents",
-        label: "Documents",
-        description: "View all documents",
-        icon: IconFileText,
-      },
-      {
-        path: "/template-models",
-        label: "Template models",
-        description: "Manage template models",
-        icon: IconTags,
-      },
-      {
-        path: "/tables",
-        label: "Tables",
-        description: "Manage reference data tables",
-        icon: IconTable,
-      },
-      {
-        path: "/review",
-        label: "HITL review",
-        description: "Validate OCR results",
-        icon: IconClipboardCheck,
-      },
-      {
-        path: "/workflows",
-        label: "Workflows",
-        description: "Manage workflows",
-        icon: IconFlask,
-      },
-      {
-        path: "/classify",
-        label: "Classify",
-        description: "Build & use classifiers",
-        icon: IconFlagQuestion,
-      },
-      {
-        path: "/groups",
-        label: "Groups",
-        description: "Manage groups",
-        icon: IconUsers,
-      },
-      {
-        path: "/billing",
-        label: "Billing",
-        description: "Spending and rate information",
-        icon: IconCurrencyDollar,
-        hidden: !isAdmin,
-      },
-      {
-        path: "/confusion-profiles",
-        label: "Confusion profiles",
-        description: "Manage OCR confusion profiles",
-        icon: IconAdjustments,
-      },
-    ],
-    [],
+  const isNavItemVisible = (route: AppRouteConfig): boolean => {
+    if (!route.permissions || route.permissions.length === 0) return true;
+    if (isSystemAdmin) return true;
+    if (!activeGroup) return false;
+    return hasPermissionForGroup(activeGroup.id, route.permissions);
+  };
+
+  const mainNavItems = useMemo(
+    () =>
+      appRoutes.filter(
+        (r) => r.nav && !r.nav.navSection && isNavItemVisible(r),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeGroup, isSystemAdmin],
   );
 
   const benchmarkingNavItems = useMemo(
-    () => [
-      {
-        path: "/benchmarking/datasets",
-        label: "Datasets",
-        description: "Manage benchmark datasets",
-        icon: IconDatabase,
-      },
-      {
-        path: "/benchmarking/projects",
-        label: "Projects",
-        description: "Benchmark projects",
-        icon: IconFolderOpen,
-      },
-    ],
-    [],
+    () =>
+      appRoutes.filter(
+        (r) => r.nav?.navSection === "benchmarking" && isNavItemVisible(r),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeGroup, isSystemAdmin],
+  );
+
+  const buildLabel = runningBuildLabel(
+    import.meta.env.VITE_APP_VERSION,
+    import.meta.env.VITE_APP_COMMIT,
+  );
+
+  const bottomNavItems = useMemo(
+    () =>
+      appRoutes.filter(
+        (r) => r.nav?.navSection === "bottom" && isNavItemVisible(r),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeGroup, isSystemAdmin],
   );
 
   return (
@@ -213,7 +188,16 @@ export function RootLayout() {
           ]}
         >
           <div className="app-shell-header-actions">
+            {buildLabel && (
+              <span
+                className="app-shell-running-build"
+                data-testid="running-build"
+              >
+                {buildLabel}
+              </span>
+            )}
             <Group gap="sm">
+              {agentChatRoute && <AgentChatIcon />}
               <GroupSelector />
               <Menu shadow="md" width={260} position="bottom-end" withinPortal>
                 <Menu.Target>
@@ -271,157 +255,155 @@ export function RootLayout() {
 
         <ScrollArea flex={1} p="md">
           <Stack gap="xs">
-            {navItems
-              .filter((item) => !item.hidden)
-              .map((item) => {
-                const Icon = item.icon;
-                const active =
-                  !isBenchmarkingRoute &&
-                  (location.pathname === item.path ||
-                    (item.path !== "/" &&
-                      location.pathname.startsWith(item.path)));
+            {mainNavItems.map((item) => {
+              const nav = item.nav!;
+              const Icon = nav.icon;
+              const navPath = item.index ? "/" : `/${item.path}`;
+              const active =
+                !isBenchmarkingRoute &&
+                (location.pathname === navPath ||
+                  (!item.index && location.pathname.startsWith(navPath + "/")));
 
-                return navbarOpened ? (
-                  <NavLink
-                    key={item.path}
-                    label={item.label}
-                    description={item.description}
-                    leftSection={<Icon size={18} />}
-                    active={active}
+              return navbarOpened ? (
+                <NavLink
+                  key={navPath}
+                  label={nav.label}
+                  description={nav.description}
+                  leftSection={<Icon size={18} />}
+                  active={active}
+                  variant={active ? "light" : "subtle"}
+                  color={active ? "blue" : "gray"}
+                  onClick={() => navigate(navPath)}
+                />
+              ) : (
+                <Tooltip key={navPath} label={nav.label} position="right">
+                  <ActionIcon
                     variant={active ? "light" : "subtle"}
                     color={active ? "blue" : "gray"}
-                    onClick={() => navigate(item.path)}
-                  />
-                ) : (
-                  <Tooltip key={item.path} label={item.label} position="right">
-                    <ActionIcon
-                      variant={active ? "light" : "subtle"}
-                      color={active ? "blue" : "gray"}
-                      size="lg"
-                      radius="md"
-                      onClick={() => navigate(item.path)}
-                      aria-label={item.label}
-                    >
-                      <Icon size={18} />
-                    </ActionIcon>
-                  </Tooltip>
-                );
-              })}
+                    size="lg"
+                    radius="md"
+                    onClick={() => navigate(navPath)}
+                    aria-label={nav.label}
+                  >
+                    <Icon size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
 
-            {navbarOpened ? (
-              <NavLink
-                label="Benchmarking"
-                description="Benchmark management"
-                leftSection={<IconChartBar size={18} />}
-                active={isBenchmarkingRoute}
-                variant={isBenchmarkingRoute ? "light" : "subtle"}
-                color={isBenchmarkingRoute ? "blue" : "gray"}
-                childrenOffset={28}
-                defaultOpened={isBenchmarkingRoute}
-                data-testid="benchmarking-nav"
-              >
-                {benchmarkingNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const active =
-                    location.pathname === item.path ||
-                    location.pathname.startsWith(item.path + "/");
-
-                  return (
-                    <NavLink
-                      key={item.path}
-                      label={item.label}
-                      description={item.description}
-                      leftSection={<Icon size={16} />}
-                      active={active}
-                      variant={active ? "filled" : "subtle"}
-                      color={active ? "blue" : "gray"}
-                      onClick={() => navigate(item.path)}
-                      data-testid={`${item.label.toLowerCase()}-nav-link`}
-                    />
-                  );
-                })}
-              </NavLink>
-            ) : (
-              <Tooltip label="Benchmarking" position="right">
-                <ActionIcon
+            {benchmarkingNavItems.length > 0 &&
+              (navbarOpened ? (
+                <NavLink
+                  label="Benchmarking"
+                  description="Benchmark management"
+                  leftSection={<IconChartBar size={18} />}
+                  active={isBenchmarkingRoute}
                   variant={isBenchmarkingRoute ? "light" : "subtle"}
                   color={isBenchmarkingRoute ? "blue" : "gray"}
-                  size="lg"
-                  radius="md"
-                  onClick={() => navigate("/benchmarking/datasets")}
-                  aria-label="Benchmarking"
-                  data-testid="benchmarking-nav-collapsed"
+                  childrenOffset={28}
+                  defaultOpened={isBenchmarkingRoute}
+                  data-testid="benchmarking-nav"
                 >
-                  <IconChartBar size={18} />
-                </ActionIcon>
-              </Tooltip>
-            )}
+                  {benchmarkingNavItems.map((item) => {
+                    const nav = item.nav!;
+                    const Icon = nav.icon;
+                    const navPath = `/${item.path}`;
+                    const active =
+                      location.pathname === navPath ||
+                      location.pathname.startsWith(navPath + "/");
 
-            {navbarOpened ? (
-              <NavLink
-                label="Settings"
-                description="API key management"
-                leftSection={<IconSettings size={18} />}
-                active={
-                  !isBenchmarkingRoute &&
-                  location.pathname.startsWith("/settings")
-                }
-                variant={
-                  !isBenchmarkingRoute &&
-                  location.pathname.startsWith("/settings")
-                    ? "light"
-                    : "subtle"
-                }
-                color={
-                  !isBenchmarkingRoute &&
-                  location.pathname.startsWith("/settings")
-                    ? "blue"
-                    : "gray"
-                }
-                onClick={() => navigate("/settings")}
-              />
-            ) : (
-              <Tooltip label="Settings" position="right">
-                <ActionIcon
-                  variant={
-                    !isBenchmarkingRoute &&
-                    location.pathname.startsWith("/settings")
-                      ? "light"
-                      : "subtle"
-                  }
-                  color={
-                    !isBenchmarkingRoute &&
-                    location.pathname.startsWith("/settings")
-                      ? "blue"
-                      : "gray"
-                  }
-                  size="lg"
-                  radius="md"
-                  onClick={() => navigate("/settings")}
-                  aria-label="Settings"
-                >
-                  <IconSettings size={18} />
-                </ActionIcon>
-              </Tooltip>
-            )}
+                    return (
+                      <NavLink
+                        key={navPath}
+                        label={nav.label}
+                        description={nav.description}
+                        leftSection={<Icon size={16} />}
+                        active={active}
+                        variant={active ? "filled" : "subtle"}
+                        color={active ? "blue" : "gray"}
+                        onClick={() => navigate(navPath)}
+                        data-testid={`${nav.label.toLowerCase()}-nav-link`}
+                      />
+                    );
+                  })}
+                </NavLink>
+              ) : (
+                <Tooltip label="Benchmarking" position="right">
+                  <ActionIcon
+                    variant={isBenchmarkingRoute ? "light" : "subtle"}
+                    color={isBenchmarkingRoute ? "blue" : "gray"}
+                    size="lg"
+                    radius="md"
+                    onClick={() => navigate("/benchmarking/datasets")}
+                    aria-label="Benchmarking"
+                    data-testid="benchmarking-nav-collapsed"
+                  >
+                    <IconChartBar size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              ))}
+
+            {bottomNavItems.map((item) => {
+              const nav = item.nav!;
+              const Icon = nav.icon;
+              const navPath = `/${item.path}`;
+              const active =
+                !isBenchmarkingRoute && location.pathname.startsWith(navPath);
+
+              return navbarOpened ? (
+                <NavLink
+                  key={navPath}
+                  label={nav.label}
+                  description={nav.description}
+                  leftSection={<Icon size={18} />}
+                  active={active}
+                  variant={active ? "light" : "subtle"}
+                  color={active ? "blue" : "gray"}
+                  onClick={() => navigate(navPath)}
+                />
+              ) : (
+                <Tooltip key={navPath} label={nav.label} position="right">
+                  <ActionIcon
+                    variant={active ? "light" : "subtle"}
+                    color={active ? "blue" : "gray"}
+                    size="lg"
+                    radius="md"
+                    onClick={() => navigate(navPath)}
+                    aria-label={nav.label}
+                  >
+                    <Icon size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              );
+            })}
           </Stack>
         </ScrollArea>
       </AppShell.Navbar>
 
       <AppShell.Main
         id={MAIN_CONTENT_ID}
-        className={workspaceRoute ? "app-shell-main--workspace" : undefined}
+        className={
+          editorRoute
+            ? "app-shell-main--editor"
+            : workspaceRoute
+              ? "app-shell-main--workspace"
+              : undefined
+        }
         style={{ display: "flex", flexDirection: "column" }}
       >
-        {workspaceRoute ? (
+        {editorRoute ? (
           <>
-            <div className="app-shell-workspace-outlet">
+            <div className="app-shell-editor-outlet">
               <Outlet />
             </div>
             <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
               <Footer hideLogoAndLinks />
             </div>
           </>
+        ) : workspaceRoute ? (
+          <div className="app-shell-workspace-outlet">
+            <Outlet />
+          </div>
         ) : (
           <>
             <Stack gap="lg" style={{ minHeight: "100dvh" }}>
@@ -433,6 +415,7 @@ export function RootLayout() {
           </>
         )}
       </AppShell.Main>
+      {agentChatRoute && <AgentChatDrawer />}
     </AppShell>
   );
 }

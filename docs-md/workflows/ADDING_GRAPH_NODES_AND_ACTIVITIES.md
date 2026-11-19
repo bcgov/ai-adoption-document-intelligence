@@ -77,6 +77,8 @@ Add your `activityType` string to `REGISTERED_ACTIVITY_TYPES`.
 
 This matters because workflow code cannot import worker-only modules directly; it validates with this constants file.
 
+An activity that only workflow code calls, and that no graph node may run, stays out of this list and is registered in the worker's `activity-registry.ts` only. The benchmark orchestration activities (`benchmark.*`) work this way: the benchmark workflows call them by name, and a graph that names one fails validation.
+
 ### Step A4: Add backend save-time validation support
 
 Modify:
@@ -105,7 +107,7 @@ Use in workflow JSON as:
 - map `inputs`/`outputs` ports to `ctx` keys
 
 Useful places for examples/templates:
-- `docs-md/templates/*.json` (if maintaining templates)
+- `packages/graph-workflow/templates/*.json` (if maintaining templates)
 - Workflow configs stored via API/UI
 
 ---
@@ -149,8 +151,10 @@ Add validation for:
 
 ### Step B4: Update frontend rendering and editor assumptions
 
-Modify:
-- `apps/frontend/src/components/workflow/GraphVisualization.tsx`
+Modify the canvas editor module, `apps/frontend/src/features/workflow-builder/canvas/`:
+- `WorkflowEditorCanvas.tsx` — the node-type registry (`NODE_TYPES`) and per-type card rendering
+- `port-rows.ts` — `estimateNodeHeight`, so auto-layout reserves the right space for the new card
+- `workflow-editor-canvas.css` — any per-type styling
 
 At minimum, update node type maps:
 - dimensions
@@ -213,7 +217,7 @@ Relevant implementation:
 - [ ] Add node type/interface in `packages/graph-workflow/src/types.ts` (all three apps pick it up automatically via re-exports)
 - [ ] Implement executor behavior in `apps/temporal/src/graph-engine/node-executors.ts`
 - [ ] Extend the shared validator in `packages/graph-workflow/src/validator/validator.ts`
-- [ ] Update frontend graph visualization for new node type (`apps/frontend/src/components/workflow/GraphVisualization.tsx`)
+- [ ] Update the canvas editor for the new node type (`apps/frontend/src/features/workflow-builder/canvas/` — `WorkflowEditorCanvas.tsx`, `port-rows.ts`)
 - [ ] Add node-type-specific tests in temporal/backend/frontend
 - [ ] Update docs (`docs-md/workflows/GRAPH_TYPES.md` and this guide)
 
@@ -221,14 +225,16 @@ Relevant implementation:
 
 ## 6. Practical gotchas
 
-1. Activity type strings must stay synchronized across:
+1. Activity type strings that graph nodes may use must stay synchronized across:
    - backend `activity-registry.ts`
    - temporal `activity-types.ts`
    - temporal `activity-registry.ts`
 
+   A worker-only activity (see Step A3) is in the temporal `activity-registry.ts` only.
+
 2. Backend may accept/reject at save time differently than runtime if those lists drift.
 
-3. `getWorkflowGraphConfig` is an internal Temporal activity used by child workflow behavior. Do not rely on it as a user-facing graph node unless explicitly intended.
+3. `getWorkflowGraphConfig` is an internal Temporal activity: every run loads its own configuration through it, and `childWorkflow` nodes use it for the child's. Do not rely on it as a user-facing graph node unless explicitly intended.
 
 4. Node-level timeout/retry values in graph config drive execution behavior. Registry defaults are metadata for discoverability/tests unless explicitly wired into execution.
 

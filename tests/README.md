@@ -72,7 +72,7 @@ tests/
 
 Tests are configured in [playwright.config.ts](../playwright.config.ts) at the repository root.
 
-Environment variables are loaded from `apps/backend-services/.env`:
+Environment variables are loaded from the repo-root `.env`:
 
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/ai_ocr

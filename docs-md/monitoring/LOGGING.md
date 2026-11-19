@@ -22,17 +22,30 @@ The package has a small Jest test suite in `packages/logging/src/logger.test.ts`
 
 The backend records **who accessed documents and when** in the `audit_events` table. For each successful access to document metadata (GET/list/update), document file (GET view or download), or OCR result (GET OCR), an event with `event_type` `document_accessed` is written with `actor_id`, `document_id`, `group_id`, `request_id`, and `payload.action` (`metadata`, `view`, `download`, or `ocr`). Other modules that serve document content (HITL, benchmark datasets, template models) write the same event type. See [`AUDIT.md`](../architecture/AUDIT.md) and [`feature-docs/007-logging-system/REQUIREMENTS-AUDIT.md`](../../feature-docs/007-logging-system/REQUIREMENTS-AUDIT.md) for the full audit schema and event types.
 
-## OpenShift: log persistence and rotation
+## OpenShift: the log file and how it stays small
 
-On OpenShift, stdout is still collected by the platform (e.g. Loki). To keep a durable copy for debugging after crashes, deployments use:
+Where logs live, and which copy to reach for:
 
-- **Tee:** The main process stdout/stderr is piped through `tee -a /var/log/app/<service>.log`, so logs go to both the container runtime (and thus Loki) and a file on a persistent volume.
-- **PVC:** A dedicated logs PVC (`backend-services-logs`, `temporal-worker-logs`) is mounted at `/var/log/app`. Logs survive pod restarts.
-- **Logrotate sidecar:** A `logrotate` container runs hourly, rotating the log file when it reaches 50M and keeping 5 rotated files. It uses `copytruncate` so the app does not need to be restarted.
+| Copy | Retention | How to read it |
+|---|---|---|
+| **Loki** — the durable, searchable copy | 30 days (`retention_period: 720h`) | Grafana, or the Loki query API |
+| **Container stdout**, kept by the node | node-managed rotation, a few days in practice | `oc logs` |
+| **The file** at `/var/log/app/<service>.log` | seconds — it is a buffer, not an archive | `oc exec` (below) |
 
-To inspect persisted logs:
+- **Tee:** the main process stdout/stderr is piped through `tee -a /var/log/app/<service>.log`, so the same stream reaches both the container runtime (and from there `oc logs`) and the file.
+- **Why a file at all:** promtail can only read files. It cannot attach to another container's stdout — that stream belongs to the container runtime and is written to a node path a sidecar cannot mount. So the file exists purely to give the promtail sidecar something readable, and only has to hold what promtail has not yet shipped. Loki is the record.
+- **`emptyDir`, one per pod:** the volume is node ephemeral storage, private to the pod. It must **not** be a `ReadWriteMany` PVC shared across replicas: NFS has no atomic append, so each replica writes at the end-of-file its own client has cached, overwriting other replicas' lines and zero-filling the gaps between them.
+- **`log-rotator` sidecar:** checks the file every 60 seconds and truncates it in place past 10 MB. Truncating rather than renaming keeps the inode, so both `tee -a` and promtail carry on without a restart. It is a shell loop rather than `logrotate(8)` — the sidecar image does not carry that binary.
+
+To read the file directly:
 
 - Backend: `oc exec -it deployment/backend-services -c backend-services -- tail -n 200 /var/log/app/backend.log`
 - Temporal worker: `oc exec -it deployment/temporal-worker -c temporal-worker -- tail -n 200 /var/log/app/worker.log`
 
-Config is in `deployments/openshift/kustomize/base/`: PVCs (`pvc-logs.yml`), ConfigMaps (`logrotate-configmap.yml`), and the deployment specs (volume mounts, tee command, logrotate sidecar).
+For anything older than the last few minutes, query Loki instead.
+
+Config is in `deployments/openshift/kustomize/base/<service>/deployment.yml` — the `logs` volume, the `tee` command and the `log-rotator` sidecar. The ches-adapter carries the same three in `deployments/openshift/helm/plg/templates/ches-adapter-deployment.yaml`.
+
+### Probe and scrape requests are logged at `debug`
+
+`/health/*` and `/metrics` are hit every few seconds per replica by the kubelet and Prometheus, and unfiltered they are the overwhelming majority of request log volume. `RequestLoggingInterceptor` logs them at `debug` instead of `info`, so they are suppressed at the normal log level and return by raising `LOG_LEVEL` — which is what you want when a probe itself is being investigated. The promtail configs carry matching `drop` stages, so a probe line that is emitted at `debug` in a lower environment still does not reach Loki.

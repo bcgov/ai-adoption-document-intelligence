@@ -53,6 +53,10 @@ generate_instance_overlay() {
   local backend_image=""
   local frontend_image=""
   local worker_image=""
+  # Phase 6 deno-runner sidecar. Optional — defaults to the shared base image
+  # name so existing callers keep working; the tag is always pinned to
+  # --image-tag alongside the other services.
+  local deno_runner_image="artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner"
   local image_tag=""
   local sso_auth_server_url=""
   local sso_realm=""
@@ -70,13 +74,18 @@ generate_instance_overlay() {
   local throttle_auth_refresh_ttl_ms="60000"
   local throttle_auth_refresh_limit="5"
   local db_pool_max="20"
+  # Empty disables each retention janitor; a positive integer is days.
+  local document_retention_days=""
+  local audit_event_retention_days=""
+  local benchmark_audit_log_retention_days=""
+  local review_session_retention_days=""
+  local chat_conversation_retention_days=""
   local azure_openai_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
   local azure_doc_intelligence_endpoint=""
   local azure_doc_intelligence_models="prebuilt-layout"
-  local pg_backup_storage_size="10Gi"
   local document_intelligence_mode="live"
   local mock_azure_ocr="false"
   local minio_endpoint=""
@@ -111,6 +120,10 @@ generate_instance_overlay() {
         ;;
       --worker-image)
         worker_image="$2"
+        shift 2
+        ;;
+      --deno-runner-image)
+        deno_runner_image="$2"
         shift 2
         ;;
       --image-tag)
@@ -181,6 +194,26 @@ generate_instance_overlay() {
         db_pool_max="$2"
         shift 2
         ;;
+      --document-retention-days)
+        document_retention_days="$2"
+        shift 2
+        ;;
+      --audit-event-retention-days)
+        audit_event_retention_days="$2"
+        shift 2
+        ;;
+      --benchmark-audit-log-retention-days)
+        benchmark_audit_log_retention_days="$2"
+        shift 2
+        ;;
+      --review-session-retention-days)
+        review_session_retention_days="$2"
+        shift 2
+        ;;
+      --chat-conversation-retention-days)
+        chat_conversation_retention_days="$2"
+        shift 2
+        ;;
       --azure-openai-endpoint)
         azure_openai_endpoint="$2"
         shift 2
@@ -203,10 +236,6 @@ generate_instance_overlay() {
         ;;
       --azure-doc-intelligence-models)
         azure_doc_intelligence_models="$2"
-        shift 2
-        ;;
-      --pg-backup-storage-size)
-        pg_backup_storage_size="$2"
         shift 2
         ;;
       --document-intelligence-mode)
@@ -349,6 +378,7 @@ generate_instance_overlay() {
     -e "s|__BACKEND_IMAGE__|$(_sed_escape_replacement "${backend_image}")|g"
     -e "s|__FRONTEND_IMAGE__|$(_sed_escape_replacement "${frontend_image}")|g"
     -e "s|__WORKER_IMAGE__|$(_sed_escape_replacement "${worker_image}")|g"
+    -e "s|__DENO_RUNNER_IMAGE__|$(_sed_escape_replacement "${deno_runner_image}")|g"
     -e "s|__IMAGE_TAG__|$(_sed_escape_replacement "${image_tag}")|g"
     -e "s|__SSO_AUTH_SERVER_URL__|$(_sed_escape_replacement "${sso_auth_server_url}")|g"
     -e "s|__SSO_REALM__|$(_sed_escape_replacement "${sso_realm}")|g"
@@ -366,13 +396,17 @@ generate_instance_overlay() {
     -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|$(_sed_escape_replacement "${throttle_auth_refresh_ttl_ms}")|g"
     -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_refresh_limit}")|g"
     -e "s|__DB_POOL_MAX__|$(_sed_escape_replacement "${db_pool_max}")|g"
+    -e "s|__DOCUMENT_RETENTION_DAYS__|$(_sed_escape_replacement "${document_retention_days}")|g"
+    -e "s|__AUDIT_EVENT_RETENTION_DAYS__|$(_sed_escape_replacement "${audit_event_retention_days}")|g"
+    -e "s|__BENCHMARK_AUDIT_LOG_RETENTION_DAYS__|$(_sed_escape_replacement "${benchmark_audit_log_retention_days}")|g"
+    -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
+    -e "s|__CHAT_CONVERSATION_RETENTION_DAYS__|$(_sed_escape_replacement "${chat_conversation_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"
     -e "s|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__|$(_sed_escape_replacement "${azure_doc_intelligence_endpoint}")|g"
     -e "s|__AZURE_DOC_INTELLIGENCE_MODELS__|$(_sed_escape_replacement "${azure_doc_intelligence_models}")|g"
-    -e "s|__PG_BACKUP_STORAGE_SIZE__|$(_sed_escape_replacement "${pg_backup_storage_size}")|g"
     -e "s|__DOCUMENT_INTELLIGENCE_MODE__|$(_sed_escape_replacement "${document_intelligence_mode}")|g"
     -e "s|__MOCK_AZURE_OCR__|$(_sed_escape_replacement "${mock_azure_ocr}")|g"
     -e "s|__MINIO_ENDPOINT__|$(_sed_escape_replacement "${minio_endpoint}")|g"
@@ -387,6 +421,17 @@ generate_instance_overlay() {
     while IFS= read -r -d '' file; do
       sed -i "${sed_args[@]}" "${file}"
     done
+
+  # Fail if any __TOKEN__ placeholders survived substitution — a template token
+  # without a matching sed rule would otherwise reach the live ConfigMap as a literal string.
+  local unresolved
+  unresolved=$(grep -rn --include='*.yml' --include='*.yaml' '__[A-Z][A-Z0-9_]*__' "${generated_dir}" || true)
+  if [[ -n "${unresolved}" ]]; then
+    echo "[ERROR] generate_instance_overlay: unresolved placeholder tokens found in rendered overlay:" >&2
+    echo "${unresolved}" >&2
+    rm -rf "${tmp_root}"
+    return 1
+  fi
 
   echo "${generated_dir}"
 }

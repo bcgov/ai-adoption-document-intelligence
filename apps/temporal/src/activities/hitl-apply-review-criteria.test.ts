@@ -1,3 +1,8 @@
+import {
+  getActivityCatalogEntry,
+  type HitlApplyReviewCriteriaParameters,
+} from "@ai-di/graph-workflow";
+import type { SameShape } from "../__testlib__/same-shape";
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
@@ -21,6 +26,8 @@ jest.mock("./database-client", () => ({
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
 const DOC_ID = "doc-review-criteria-test";
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
 
 function run(
   params: Omit<ApplyReviewCriteriaParams, "documentId" | "rules"> &
@@ -28,16 +35,24 @@ function run(
       rules: ApplyReviewCriteriaParams["rules"];
     },
 ) {
-  return applyReviewCriteria({ documentId: DOC_ID, ...params });
+  return applyReviewCriteria({ documentId: DOC_ID, groupId: GROUP, ...params });
 }
 
 beforeEach(() => {
   jest
     .spyOn(ocrRefUtils, "resolveOcrResultInput")
-    .mockImplementation(async (params) => ({
-      ocrResult: params.ocrResult as OCRResult,
-      groupId: "gtestgroupidfortests01",
-    }));
+    .mockImplementation(async (params) => {
+      // Mirrors the real helper: the run's group is required and returned.
+      if (!params.groupId) {
+        throw new Error(
+          `groupId is required for OCR payloads of document ${params.documentId}`,
+        );
+      }
+      return {
+        ocrResult: params.ocrResult as OCRResult,
+        groupId: params.groupId,
+      };
+    });
 });
 
 afterEach(() => {
@@ -201,7 +216,7 @@ describe("applyReviewCriteria activity", () => {
   it("flags a field via formatValidationFails using documentType schema", async () => {
     const prismaMock = {
       templateModel: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -247,7 +262,7 @@ describe("applyReviewCriteria activity", () => {
   it("does not flag formatValidationFails when the value matches the pattern", async () => {
     const prismaMock = {
       templateModel: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: "proj-1",
           field_schema: [
             {
@@ -284,6 +299,112 @@ describe("applyReviewCriteria activity", () => {
     });
 
     expect(result.reviewPlan[0].decision).toBe("skip");
+  });
+
+  describe("group scope of the documentType schema", () => {
+    const sinTemplate = (groupId: string) => ({
+      id: "proj-1",
+      group_id: groupId,
+      field_schema: [
+        {
+          field_key: "sin_number",
+          field_type: "string",
+          field_format: null,
+          format_spec: JSON.stringify({
+            canonicalize: "digits",
+            pattern: "^\\d{9}$",
+          }),
+        },
+      ],
+    });
+
+    function templateTable(rows: Array<ReturnType<typeof sinTemplate>>) {
+      return {
+        templateModel: {
+          findUnique: jest.fn(
+            async ({ where }: { where: { id: string } }) =>
+              rows.find((r) => r.id === where.id) ?? null,
+          ),
+          findFirst: jest.fn(
+            async ({ where }: { where: { id: string; group_id?: string } }) =>
+              rows.find(
+                (r) =>
+                  r.id === where.id &&
+                  (where.group_id === undefined ||
+                    r.group_id === where.group_id),
+              ) ?? null,
+          ),
+        },
+      };
+    }
+
+    const formatRule: ApplyReviewCriteriaParams["rules"] = [
+      {
+        name: "bad-format",
+        select: {},
+        when: [{ formatValidationFails: true }],
+        action: "review",
+        reason: "Fails format validation",
+      },
+    ];
+
+    afterEach(() => {
+      getPrismaClientMock.mockReset();
+    });
+
+    it("loads the field schema only within the run's group", async () => {
+      const prisma = templateTable([sinTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      const result = await run({
+        ocrResult: makeOcrResult({
+          sin_number: { content: "12-34", confidence: 0.99 },
+        }),
+        documentType: "proj-1",
+        rules: formatRule,
+      });
+
+      expect(prisma.templateModel.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "proj-1", group_id: GROUP } }),
+      );
+      expect(result.reviewPlan[0].decision).toBe("review");
+    });
+
+    it("treats a template model from another group as not found", async () => {
+      getPrismaClientMock.mockReturnValue(
+        templateTable([sinTemplate(OTHER_GROUP)]),
+      );
+
+      const result = await run({
+        ocrResult: makeOcrResult({
+          sin_number: { content: "12-34", confidence: 0.99 },
+        }),
+        documentType: "proj-1",
+        rules: formatRule,
+      });
+
+      expect(result.reviewPlan[0].decision).toBe("skip");
+    });
+
+    it("refuses to load the field schema without a groupId", async () => {
+      const prisma = templateTable([sinTemplate(GROUP)]);
+      getPrismaClientMock.mockReturnValue(prisma);
+
+      await expect(
+        run({
+          groupId: undefined,
+          ocrResult: makeOcrResult({
+            sin_number: { content: "12-34", confidence: 0.99 },
+          }),
+          documentType: "proj-1",
+          rules: formatRule,
+        }),
+      ).rejects.toThrow(
+        `groupId is required for OCR payloads of document ${DOC_ID}`,
+      );
+      expect(prisma.templateModel.findUnique).not.toHaveBeenCalled();
+      expect(prisma.templateModel.findFirst).not.toHaveBeenCalled();
+    });
   });
 
   it("applies defaultAction 'skip' when no rule matches", async () => {
@@ -521,6 +642,7 @@ describe("applyReviewCriteria activity", () => {
 
     const result = await applyReviewCriteria({
       documentId: "benchmark-abc123",
+      groupId: GROUP,
       ocrResult,
       rules: [
         {
@@ -535,5 +657,33 @@ describe("applyReviewCriteria activity", () => {
 
     expect(result.requiresReview).toBe(true);
     expect(result.reviewFieldCount).toBe(1);
+  });
+});
+
+describe("applyReviewCriteria — catalog contract", () => {
+  // The engine copies result[port] into the variable each output binding
+  // names, so a port the catalog declares but the activity does not return is
+  // written as an empty value, and the next step reads nothing.
+  it("returns every output port the catalog declares for it", async () => {
+    const result = await run({
+      ocrResult: makeOcrResult({
+        total_amount: { content: "100.00", confidence: 0.4 },
+      }),
+      rules: [],
+    });
+    const declared = getActivityCatalogEntry(
+      "hitl.applyReviewCriteria",
+    )?.outputs.map((port) => port.name);
+
+    expect(declared).toContain("reviewPlan");
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
+  });
+
+  it("describes exactly the parameters the activity takes", () => {
+    const agree: SameShape<
+      HitlApplyReviewCriteriaParameters,
+      Omit<ApplyReviewCriteriaParams, "documentId" | "ocrResult" | "groupId">
+    > = true;
+    expect(agree).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
+import type { RejectionReason } from "@/shared/types";
 import type { CorrectionAction } from "../../core/types/annotation";
 
 interface OcrField {
@@ -61,6 +62,8 @@ interface ReviewSession {
   fieldDefinitions?: FieldDefinition[];
   /** Per-field review/skip plan from hitl.applyReviewCriteria, when present. */
   reviewPlan?: ReviewPlanEntry[];
+  /** Note captured when this session was flagged, shown to whoever opens it next. */
+  flagNote?: string | null;
 }
 
 interface CorrectionDto {
@@ -91,6 +94,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/corrections`,
         { corrections },
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -104,9 +108,10 @@ export const useReviewSession = (sessionId?: string) => {
   const approveSessionMutation = useMutation({
     mutationFn: async () => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/submit`,
+        `/hitl/sessions/${sessionId}/approve`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -117,12 +122,16 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
-  const escalateSessionMutation = useMutation({
-    mutationFn: async (reason: string) => {
+  const rejectSessionMutation = useMutation({
+    mutationFn: async (dto: {
+      rejectionReason: RejectionReason;
+      comments?: string;
+    }) => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/escalate`,
-        { reason },
+        `/hitl/sessions/${sessionId}/reject`,
+        dto,
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -130,6 +139,9 @@ export const useReviewSession = (sessionId?: string) => {
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
       queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
       queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+      // The document is now rejected, so the Documents page and its counts change
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document-stats"] });
     },
   });
 
@@ -139,6 +151,24 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${sessionId}/skip`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+    },
+  });
+
+  const flagSessionMutation = useMutation({
+    mutationFn: async (dto?: { note?: string }) => {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/flag`,
+        dto ?? {},
+      );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -154,6 +184,7 @@ export const useReviewSession = (sessionId?: string) => {
       const response = await apiService.delete(
         `/hitl/sessions/${sessionId}/corrections/${correctionId}`,
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -169,6 +200,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${targetSessionId}/reopen`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -192,6 +224,7 @@ export const useReviewSession = (sessionId?: string) => {
           originalConfidence?: number;
           action: string;
           createdAt: string;
+          author: { type: "user" | "api_key" | "unknown"; email?: string };
         }>;
       }>(`/hitl/sessions/${sessionId}/corrections`);
       return response.data?.corrections || [];
@@ -208,14 +241,17 @@ export const useReviewSession = (sessionId?: string) => {
     submitCorrectionsAsync: submitCorrectionsMutation.mutateAsync,
     approveSession: approveSessionMutation.mutate,
     approveSessionAsync: approveSessionMutation.mutateAsync,
-    escalateSession: escalateSessionMutation.mutate,
-    escalateSessionAsync: escalateSessionMutation.mutateAsync,
     skipSession: skipSessionMutation.mutate,
     skipSessionAsync: skipSessionMutation.mutateAsync,
+    flagSession: flagSessionMutation.mutate,
+    flagSessionAsync: flagSessionMutation.mutateAsync,
+    rejectSession: rejectSessionMutation.mutate,
+    rejectSessionAsync: rejectSessionMutation.mutateAsync,
     isSubmitting: submitCorrectionsMutation.isPending,
     isApproving: approveSessionMutation.isPending,
-    isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
+    isFlagging: flagSessionMutation.isPending,
+    isRejecting: rejectSessionMutation.isPending,
     deleteCorrection: deleteCorrectionMutation.mutate,
     deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
     reopenSession: reopenSessionMutation.mutate,

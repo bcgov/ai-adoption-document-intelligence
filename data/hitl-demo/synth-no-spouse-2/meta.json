@@ -1,0 +1,12 @@
+{
+  "slug": "synth-no-spouse-2",
+  "title": "HITL synth-no-spouse (2)",
+  "originalFilename": "synth-no-spouse-(2).jpg",
+  "fileType": "image",
+  "fileSize": 543549,
+  "source": "api",
+  "modelId": "sdpr_synth_test",
+  "contentHash": "86b433be45f7fbc6b02649df5920233cc3971ccfbebc811098a600671c436d4f",
+  "metadata": {},
+  "sourceImage": "data/datasets/samples-mix/public/synth-no-spouse (2).jpg"
+}

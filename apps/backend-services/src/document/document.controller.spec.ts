@@ -5,9 +5,9 @@ import {
   GoneException,
   NotFoundException,
 } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
-import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentController } from "./document.controller";
 import { DocumentService } from "./document.service";
 
@@ -18,20 +18,22 @@ const mockAuditService = {
 describe("DocumentController", () => {
   let controller: DocumentController;
   let documentService: jest.Mocked<DocumentService>;
-  let temporalClientService: jest.Mocked<TemporalClientService>;
   let blobStorage: jest.Mocked<BlobStorageInterface>;
 
   const mockGroupId = "group-1";
-  const createMockReq = (userId = "user-1") => ({
+  const createMockReq = (
+    userId = "user-1",
+    role: GroupRole = GroupRole.EDITOR,
+  ) => ({
     resolvedIdentity: {
       userId,
       isSystemAdmin: false,
-      groupRoles: { [mockGroupId]: GroupRole.MEMBER },
+      groupRoles: { [mockGroupId]: role },
       actorId: "actor-1",
     },
   });
   const createMockApiKeyReq = (groupId = mockGroupId) => ({
-    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.MEMBER } },
+    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.EDITOR } },
   });
 
   beforeEach(async () => {
@@ -39,13 +41,13 @@ describe("DocumentController", () => {
     documentService = {
       findAllDocuments: jest.fn(),
       findDocument: jest.fn(),
+      findDocumentIdsInGroup: jest.fn(),
       findOcrResult: jest.fn(),
       updateDocument: jest.fn(),
       deleteDocument: jest.fn(),
       uploadDocument: jest.fn(),
       updateDocumentStatus: jest.fn(),
     } as any;
-    temporalClientService = {} as jest.Mocked<TemporalClientService>;
     blobStorage = {
       read: jest.fn(),
       write: jest.fn(),
@@ -56,7 +58,6 @@ describe("DocumentController", () => {
     } as any;
     controller = new DocumentController(
       documentService,
-      temporalClientService,
       blobStorage,
       mockAppLogger,
       mockAuditService as any,
@@ -78,6 +79,7 @@ describe("DocumentController", () => {
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
+        mockGroupId,
       );
       expect(result).toEqual({
         documents: [{ id: "1" }],
@@ -105,7 +107,10 @@ describe("DocumentController", () => {
       documentService.findAllDocuments.mockResolvedValue(
         paginatedResult([{ id: "1" }]) as any,
       );
-      const result = await controller.getAllDocuments(apiKeyReq as any);
+      const result = await controller.getAllDocuments(
+        apiKeyReq as any,
+        mockGroupId,
+      );
       expect(result).toEqual({
         documents: [{ id: "1" }],
         total: 1,
@@ -127,34 +132,10 @@ describe("DocumentController", () => {
       );
     });
 
-    it("should return empty result when there is no identity", async () => {
-      const noIdentityReq = { resolvedIdentity: undefined };
-      documentService.findAllDocuments.mockResolvedValue(
-        paginatedResult([]) as any,
-      );
-      const result = await controller.getAllDocuments(noIdentityReq as any);
-      expect(result).toEqual({
-        documents: [],
-        total: 0,
-        limit: 50,
-        offset: 0,
-      });
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([], {
-        limit: 50,
-        offset: 0,
-        search: undefined,
-        status: "all",
-        sortBy: "created_at",
-        sortDir: "desc",
-        source: undefined,
-        contentHash: undefined,
-      });
-    });
-
     it("should throw NotFoundException on error", async () => {
       documentService.findAllDocuments.mockRejectedValue(new Error("fail"));
       await expect(
-        controller.getAllDocuments(mockReqWithIdentity as any),
+        controller.getAllDocuments(mockReqWithIdentity as any, mockGroupId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -164,7 +145,7 @@ describe("DocumentController", () => {
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         "10",
         "20",
       );
@@ -195,7 +176,7 @@ describe("DocumentController", () => {
       );
       await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         "500",
       );
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
@@ -237,27 +218,13 @@ describe("DocumentController", () => {
       );
     });
 
-    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
-      const notMemberReq = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      };
-      await expect(
-        controller.getAllDocuments(notMemberReq as any, mockGroupId),
-      ).rejects.toThrow(ForbiddenException);
-      expect(documentService.findAllDocuments).not.toHaveBeenCalled();
-    });
-
     it("should return all group documents when group_id is omitted", async () => {
       documentService.findAllDocuments.mockResolvedValue(
         paginatedResult([{ id: "1" }, { id: "2" }]) as any,
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
       );
       expect(result.documents).toEqual([{ id: "1" }, { id: "2" }]);
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
@@ -284,7 +251,7 @@ describe("DocumentController", () => {
 
       await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         undefined,
         undefined,
         undefined,
@@ -436,6 +403,24 @@ describe("DocumentController", () => {
 
   describe("downloadDocument", () => {
     const mockReq = createMockReq();
+
+    it("should let a REVIEWER download the document they are reviewing", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "cuid/ocr/file.pdf",
+        original_filename: "file.pdf",
+        file_type: "pdf",
+        group_id: mockGroupId,
+      } as never);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
+      const res = { setHeader: jest.fn(), send: jest.fn() };
+      await controller.downloadDocument(
+        "1",
+        res as unknown as Response,
+        createMockReq("reviewer-1", GroupRole.REVIEWER) as unknown as Request,
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
+    });
 
     it("should send PDF file if document found", async () => {
       documentService.findDocument.mockResolvedValue({
@@ -595,6 +580,23 @@ describe("DocumentController", () => {
 
   describe("viewDocument", () => {
     const mockReq = createMockReq();
+
+    it("should let a REVIEWER view the document they are reviewing", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+        purged_at: null,
+      } as never);
+      blobStorage.read.mockResolvedValue(Buffer.from("pdf"));
+      const res = { setHeader: jest.fn(), send: jest.fn() };
+      await controller.viewDocument(
+        "1",
+        res as unknown as Response,
+        createMockReq("reviewer-1", GroupRole.REVIEWER) as unknown as Request,
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("pdf"));
+    });
 
     it("should stream the normalized PDF when present", async () => {
       documentService.findDocument.mockResolvedValue({
@@ -914,16 +916,17 @@ describe("DocumentController", () => {
   });
 
   describe("getBulkThumbnails", () => {
-    const mockReq = createMockReq();
-
     it("returns base64 data URLs for available thumbnails", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue([
+        "doc-1",
+        "doc-2",
+      ]);
       const buf = Buffer.from("webp");
       blobStorage.read.mockResolvedValue(buf);
 
       const result = await controller.getBulkThumbnails(
         mockGroupId,
         "doc-1,doc-2",
-        mockReq as any,
       );
 
       const expected = `data:image/webp;base64,${buf.toString("base64")}`;
@@ -931,21 +934,26 @@ describe("DocumentController", () => {
         { documentId: "doc-1", thumbnailData: expected },
         { documentId: "doc-2", thumbnailData: expected },
       ]);
+      expect(documentService.findDocumentIdsInGroup).toHaveBeenCalledWith(
+        ["doc-1", "doc-2"],
+        mockGroupId,
+      );
     });
 
     it("returns null for documents without a thumbnail", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue(["doc-1"]);
       blobStorage.read.mockRejectedValue(new Error("not found"));
 
-      const result = await controller.getBulkThumbnails(
-        mockGroupId,
-        "doc-1",
-        mockReq as any,
-      );
+      const result = await controller.getBulkThumbnails(mockGroupId, "doc-1");
 
       expect(result).toEqual([{ documentId: "doc-1", thumbnailData: null }]);
     });
 
     it("mixes data URLs and nulls for mixed availability", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue([
+        "doc-1",
+        "doc-2",
+      ]);
       const buf = Buffer.from("webp");
       blobStorage.read
         .mockResolvedValueOnce(buf)
@@ -954,7 +962,6 @@ describe("DocumentController", () => {
       const result = await controller.getBulkThumbnails(
         mockGroupId,
         "doc-1,doc-2",
-        mockReq as any,
       );
 
       expect(result).toEqual([
@@ -966,44 +973,42 @@ describe("DocumentController", () => {
       ]);
     });
 
-    it("throws BadRequestException when ids is an empty string", async () => {
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, "", mockReq as any),
-      ).rejects.toThrow(BadRequestException);
+    it("reports ids that are not documents in the group as having no thumbnail, without reading storage for them", async () => {
+      documentService.findDocumentIdsInGroup.mockResolvedValue(["doc-1"]);
+      const buf = Buffer.from("webp");
+      blobStorage.read.mockResolvedValue(buf);
+
+      const result = await controller.getBulkThumbnails(
+        mockGroupId,
+        "doc-1,clh7z2xk00000356u8e3h5678,../other",
+      );
+
+      expect(result).toEqual([
+        {
+          documentId: "doc-1",
+          thumbnailData: `data:image/webp;base64,${buf.toString("base64")}`,
+        },
+        { documentId: "clh7z2xk00000356u8e3h5678", thumbnailData: null },
+        { documentId: "../other", thumbnailData: null },
+      ]);
+      expect(blobStorage.read).toHaveBeenCalledTimes(1);
+      expect(blobStorage.read).toHaveBeenCalledWith(
+        `${mockGroupId}/ocr/doc-1/thumbnail.webp`,
+      );
+    });
+
+    it("returns empty array when ids is an empty string", async () => {
+      const result = await controller.getBulkThumbnails(mockGroupId, "");
+      expect(result).toEqual([]);
       expect(blobStorage.read).not.toHaveBeenCalled();
-    });
-
-    it("throws BadRequestException when group_id is missing", async () => {
-      await expect(
-        controller.getBulkThumbnails(undefined, "doc-1", mockReq as any),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it("throws BadRequestException when ids param is missing", async () => {
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, undefined, mockReq as any),
-      ).rejects.toThrow(BadRequestException);
+      expect(documentService.findDocumentIdsInGroup).not.toHaveBeenCalled();
     });
 
     it("throws BadRequestException when more than 200 IDs are requested", async () => {
       const ids = Array.from({ length: 201 }, (_, i) => `doc-${i}`).join(",");
       await expect(
-        controller.getBulkThumbnails(mockGroupId, ids, mockReq as any),
+        controller.getBulkThumbnails(mockGroupId, ids),
       ).rejects.toThrow(BadRequestException);
-      expect(blobStorage.read).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const notMemberReq = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      };
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, "doc-1", notMemberReq as any),
-      ).rejects.toThrow(ForbiddenException);
       expect(blobStorage.read).not.toHaveBeenCalled();
     });
   });

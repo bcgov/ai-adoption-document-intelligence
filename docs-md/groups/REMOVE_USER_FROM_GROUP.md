@@ -12,7 +12,7 @@ Removes a user from a group.
 - `404 Not Found` if the group does not exist or the user is not a member of the group
 
 ## Description
-Removes the specified user from the specified group by deleting the `UserGroup` record. Returns `404 Not Found` if the group does not exist or the user is not a member. Authorization is enforced by the `@Identity` guard (`groupIdFrom` the `groupId` path param, minimum role `ADMIN`); system admins bypass the membership check. A `member_removed` audit event is recorded.
+Removes the specified user from the specified group by deleting the `UserGroup` record. Returns `404 Not Found` if the group does not exist or the user is not a member. Authorization is enforced by the `@Identity` guard (`groupPermissions: { groupIdFrom: { param: "groupId" }, requiredPermissions: [Permission.GROUP_USER_REMOVE] } }`); system admins bypass the membership check. A `member_removed` audit event is recorded.
 
 ## Frontend (Group Detail Page — Members Tab)
 

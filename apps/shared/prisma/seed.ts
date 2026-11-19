@@ -1,4 +1,8 @@
-import "dotenv/config";
+import { config as dotenvConfig } from "dotenv";
+import { resolve } from "node:path";
+
+dotenvConfig({ path: resolve(__dirname, "../../../.env") });
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import {
@@ -682,25 +686,25 @@ async function seedBenchmarkingData() {
   // Load workflow configs from template files
   const standardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/standard-ocr-workflow.json"),
       "utf-8",
     ),
   );
   const multiPageReportConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/multi-page-report-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/multi-page-report-workflow.json"),
       "utf-8",
     ),
   );
   const mistralStandardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/mistral-standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/mistral-standard-ocr-workflow.json"),
       "utf-8",
     ),
   );
   const standardOcrSdprConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow-sdpr.json"),
+      path.resolve(__dirname, "../../../packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json"),
       "utf-8",
     ),
   );
@@ -1669,14 +1673,29 @@ async function seedTestApiKey() {
       },
     });
   } else {
-    const apiKeyActor = await prisma.actor.create({});
+    // The key acts as the group's durable API actor, as keys made by
+    // ApiKeyDbService.createApiKey do. Deleting a key leaves that actor in
+    // place, so reuse it when the group has one; otherwise create and record it.
+    const group = await prisma.group.findUniqueOrThrow({
+      where: { id: SEED_GROUP_ID },
+      select: { api_actor_id: true },
+    });
+    let apiActorId = group.api_actor_id;
+    if (!apiActorId) {
+      const apiKeyActor = await prisma.actor.create({});
+      await prisma.group.update({
+        where: { id: SEED_GROUP_ID },
+        data: { api_actor_id: apiKeyActor.id },
+      });
+      apiActorId = apiKeyActor.id;
+    }
     await prisma.apiKey.create({
       data: {
         generating_user_id: "test-user",
         key_hash: keyHash,
         key_prefix: keyPrefix,
         group_id: SEED_GROUP_ID,
-        actor_id: apiKeyActor.id,
+        actor_id: apiActorId,
       },
     });
   }
@@ -2106,7 +2125,7 @@ async function seedLocalDatasets() {
 
 /**
  * Auto-discover experiment workflows. Scans
- * `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each
+ * `packages/graph-workflow/templates/experiment-*-workflow.json` and for each
  * file derives a slug from the filename, then idempotently seeds:
  *
  *   - WorkflowLineage `seed-experiment-{slug}-workflow`
@@ -2117,7 +2136,7 @@ async function seedLocalDatasets() {
  *     via `metadata.targetLocalDataset = "{folder}-{visibility}"`.
  *
  * This means each experiment branch only needs to drop a workflow JSON at
- * `docs-md/graph-workflows/templates/experiment-{slug}-workflow.json` — no
+ * `packages/graph-workflow/templates/experiment-{slug}-workflow.json` — no
  * edits to seed.ts needed per experiment.
  *
  * Runs after `seedLocalDatasets()` so the dataset version row exists when we
@@ -2127,8 +2146,8 @@ async function seedExperimentWorkflows() {
   const repoRoot = path.resolve(__dirname, "../../..");
   const templatesDir = path.join(
     repoRoot,
-    "docs-md",
-    "graph-workflows",
+    "packages",
+    "graph-workflow",
     "templates",
   );
 
@@ -2143,7 +2162,7 @@ async function seedExperimentWorkflows() {
 
   if (experimentFiles.length === 0) {
     console.log(
-      "🧪 No experiment workflow templates at docs-md/graph-workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
+      "🧪 No experiment workflow templates at packages/graph-workflow/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
     );
     return;
   }
@@ -2192,13 +2211,23 @@ async function seedExperimentWorkflows() {
     const workflowName = config.metadata?.name ?? `Experiment ${slug}`;
     const workflowDescription = config.metadata?.description ?? null;
 
+    // `slug` is required on WorkflowLineage and is what `/workflows/by-slug/…`
+    // resolves against. Omitting it aborts the whole seed run (P2012) partway
+    // through, after `migrate reset` has already emptied the database.
+    const lineageSlug = `experiment-${slug}-workflow`;
+
     await prisma.workflowLineage.upsert({
       where: { id: lineageId },
-      update: { name: workflowName, description: workflowDescription },
+      update: {
+        name: workflowName,
+        description: workflowDescription,
+        slug: lineageSlug,
+      },
       create: {
         id: lineageId,
         name: workflowName,
         description: workflowDescription,
+        slug: lineageSlug,
         actor_id: TEST_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },

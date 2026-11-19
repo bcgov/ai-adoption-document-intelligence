@@ -1,0 +1,273 @@
+/**
+ * Integration tests for the Phase 6 Milestone C (US-171) executor-side
+ * dynamic-node dispatch path through `graphWorkflow`.
+ *
+ * These tests exercise the workflow → `dynamicNode.resolveLineage` →
+ * `dyn.run` path end-to-end using Temporal's `TestWorkflowEnvironment`,
+ * but with both activities stubbed so the tests don't need Postgres or
+ * the live deno-runner. Real-runner integration is covered by
+ * `dyn-run.activity.spec.ts` (US-172).
+ *
+ * Covers Scenario 5: workflow with dyn.* node executes resolve→run; soft-
+ * deleted lineage surfaces as DynamicNodeDeletedError-flavored errorMessage;
+ * pinned version threads through; head version threads through; head pointer
+ * change is picked up by the NEXT execution without restart.
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
+import { TestWorkflowEnvironment } from "@temporalio/testing";
+import { Worker } from "@temporalio/worker";
+import { computeConfigHash } from "../config-hash";
+import { getStatus, graphWorkflow } from "../graph-workflow";
+import type {
+  GraphWorkflowConfig,
+  GraphWorkflowInput,
+  GraphWorkflowResult,
+  GraphWorkflowStatus,
+} from "../graph-workflow-types";
+
+/** Final result plus terminal ctx from getStatus (for assertions). */
+type DynRunOutcome = GraphWorkflowResult & { ctx: Record<string, unknown> };
+/** Test input that carries the graph the mocked loader returns by reference. */
+type TestDynInput = GraphWorkflowInput & { __testGraph: GraphWorkflowConfig };
+
+const TASK_QUEUE = "graph-workflow-dynamic-nodes-test";
+
+interface ResolveCall {
+  groupId: string;
+  slug: string;
+  version?: number;
+}
+
+interface DynRunCall {
+  slug: string;
+  versionId: string;
+  parameters: Record<string, unknown>;
+  inputCtx: Record<string, unknown>;
+  groupId: string;
+  workflowRunId: string;
+}
+
+function makeDynGraph(
+  opts: { pinned?: number; inputCtxKey?: string } = {},
+): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "Dyn graph", description: "", version: "1.0.0" },
+    nodes: {
+      a: {
+        id: "a",
+        type: "activity",
+        label: "Dyn",
+        activityType: "dyn.my-node",
+        dynamicNodeVersion: opts.pinned,
+        inputs: opts.inputCtxKey
+          ? [{ port: "url", ctxKey: opts.inputCtxKey }]
+          : [],
+        outputs: [{ port: "uppercased", ctxKey: "result" }],
+      },
+    },
+    edges: [],
+    entryNodeId: "a",
+    ctx: opts.inputCtxKey
+      ? {
+          [opts.inputCtxKey]: {
+            type: "string",
+            defaultValue: "foo.pdf",
+          },
+          result: { type: "object" },
+        }
+      : { result: { type: "object" } },
+  };
+}
+
+function makeInput(graph: GraphWorkflowConfig): TestDynInput {
+  return {
+    workflowVersionId: "dyn-test-wv",
+    initialCtx: {},
+    configHash: computeConfigHash(graph),
+    runnerVersion: "1.0.0",
+    groupId: "g-test",
+    __testGraph: graph,
+  };
+}
+
+describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
+  let testEnv: TestWorkflowEnvironment;
+
+  // Every case here drives a real workflow through the Temporal test
+  // environment, which does not fit jest's 5s default when the machine is busy
+  // running the rest of the suite.
+  jest.setTimeout(60_000);
+
+  beforeAll(async () => {
+    // createLocal() downloads the Temporal server binary (~500MB) on first run;
+    // a cold CI cache can take 60-90s. Allow generous time so it isn't a flaky
+    // timeout (subsequent cached runs complete in a few seconds).
+    testEnv = await TestWorkflowEnvironment.createLocal();
+  }, 180_000);
+
+  afterAll(async () => {
+    if (testEnv) await testEnv.teardown();
+  });
+
+  async function runWith(
+    input: TestDynInput,
+    resolveFn: (
+      args: ResolveCall,
+    ) => Promise<{ versionId: string; deterministic: boolean }>,
+    dynRunFn: (args: DynRunCall) => Promise<Record<string, unknown>>,
+    workflowId: string,
+  ): Promise<DynRunOutcome> {
+    const { __testGraph, ...workflowInput } = input;
+    const activities = {
+      "dynamicNode.resolveLineage": resolveFn as (
+        ...a: unknown[]
+      ) => Promise<unknown>,
+      "dyn.run": dynRunFn as (...a: unknown[]) => Promise<unknown>,
+      // Develop's by-reference workflow entry loads its graph from this
+      // activity; mock it to return the inline test graph + matching hash.
+      getWorkflowGraphConfig: async () => ({
+        graph: __testGraph,
+        workflowVersionId: workflowInput.workflowVersionId,
+        configHash: computeConfigHash(__testGraph),
+      }),
+    };
+
+    const worker = await Worker.create({
+      connection: testEnv.nativeConnection,
+      namespace: "default",
+      taskQueue: TASK_QUEUE,
+      workflowsPath: require.resolve("../graph-workflow"),
+      activities,
+    });
+
+    return worker.runUntil(async () => {
+      const result = (await testEnv.client.workflow.execute(graphWorkflow, {
+        workflowId,
+        taskQueue: TASK_QUEUE,
+        args: [workflowInput],
+      })) as GraphWorkflowResult;
+      const handle = testEnv.client.workflow.getHandle(workflowId);
+      const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+      return { ...result, ctx: status.ctx };
+    });
+  }
+
+  it("Scenario 1+4: workflow with dyn.<slug> executes resolve→run; versionId threads to dyn.run", async () => {
+    const resolveCalls: ResolveCall[] = [];
+    const dynRunCalls: DynRunCall[] = [];
+
+    const resolveFn = async (args: ResolveCall) => {
+      resolveCalls.push(args);
+      return { versionId: "v-head-1", deterministic: true };
+    };
+    const dynRunFn = async (args: DynRunCall) => {
+      dynRunCalls.push(args);
+      return { uppercased: { url: "FOO.PDF" } };
+    };
+
+    const result = await runWith(
+      makeInput(makeDynGraph()),
+      resolveFn,
+      dynRunFn,
+      "dyn-workflow-head",
+    );
+
+    expect(result.status).toBe("completed");
+    expect(resolveCalls).toEqual([
+      { groupId: "g-test", slug: "my-node", version: undefined },
+    ]);
+    expect(dynRunCalls).toHaveLength(1);
+    expect(dynRunCalls[0].versionId).toBe("v-head-1");
+    expect(dynRunCalls[0].groupId).toBe("g-test");
+    // Item 4 (security): the caller's API key is NOT part of the dyn.run
+    // activity input — it must not be persisted in Temporal history. The
+    // platform key is sourced server-side in the activity from worker config.
+    expect(dynRunCalls[0]).not.toHaveProperty("apiKey");
+    expect(result.ctx.result).toEqual({ url: "FOO.PDF" });
+  });
+
+  it("Scenario 3: pinned version threads through to dynamicNode.resolveLineage", async () => {
+    const resolveCalls: ResolveCall[] = [];
+    const resolveFn = async (args: ResolveCall) => {
+      resolveCalls.push(args);
+      return { versionId: "v-pinned-3", deterministic: true };
+    };
+    const dynRunFn = async () => ({ uppercased: {} });
+
+    await runWith(
+      makeInput(makeDynGraph({ pinned: 3 })),
+      resolveFn,
+      dynRunFn,
+      "dyn-workflow-pinned",
+    );
+
+    expect(resolveCalls[0].version).toBe(3);
+  });
+
+  it("Scenario 2: soft-deleted lineage surfaces as DynamicNodeDeletedError-flavored errorMessage", async () => {
+    const resolveFn = async () => {
+      const err = new Error("[DynamicNodeDeletedError] slug=my-node");
+      err.name = "DynamicNodeDeletedError";
+      throw err;
+    };
+    const dynRunFn = async () => ({ uppercased: {} });
+
+    // Temporal wraps activity errors; check the failure cause chain carries
+    // the DynamicNodeDeletedError prefix the agent's revision loop parses.
+    try {
+      await runWith(
+        makeInput(makeDynGraph()),
+        resolveFn,
+        dynRunFn,
+        "dyn-workflow-deleted",
+      );
+      throw new Error("expected workflow to fail");
+    } catch (err) {
+      const serialised = JSON.stringify(err, (_k, v) => {
+        if (v instanceof Error) {
+          return {
+            name: v.name,
+            message: v.message,
+            cause: (v as Error & { cause?: unknown }).cause,
+          };
+        }
+        return v;
+      });
+      expect(serialised).toMatch(/DynamicNodeDeletedError/);
+    }
+  });
+
+  it("Scenario 5: head pointer change is picked up by the NEXT execution (no restart)", async () => {
+    let currentHead = "v-head-1";
+    const resolveFn = async () => ({
+      versionId: currentHead,
+      deterministic: true,
+    });
+    const dynRunSeen: string[] = [];
+    const dynRunFn = async (args: DynRunCall) => {
+      dynRunSeen.push(args.versionId);
+      return { uppercased: {} };
+    };
+
+    await runWith(
+      makeInput(makeDynGraph()),
+      resolveFn,
+      dynRunFn,
+      "dyn-workflow-head-1",
+    );
+
+    // Simulate a republish — head pointer moves.
+    currentHead = "v-head-2";
+
+    await runWith(
+      makeInput(makeDynGraph()),
+      resolveFn,
+      dynRunFn,
+      "dyn-workflow-head-2",
+    );
+
+    expect(dynRunSeen).toEqual(["v-head-1", "v-head-2"]);
+  });
+});

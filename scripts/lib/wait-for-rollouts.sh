@@ -5,6 +5,12 @@
 # Source this file and call wait_for_rollouts. On failure, emits diagnostics and
 # returns non-zero. In GitHub Actions, failures are surfaced as ::error:: annotations.
 #
+# Deployments are restarted one at a time, each waited on before the next. A
+# rolling update creates a surge pod before it removes an old one, and the
+# namespace CPU-request quota leaves room for about one surge pod at a time;
+# restarting them all at once makes the surge pods queue on the quota
+# ("exceeded quota" FailedCreate events) until the later ones time out.
+#
 
 # _rollout_log_error <message>
 _rollout_log_error() {
@@ -49,6 +55,12 @@ diagnose_rollout_failures() {
     --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
 
   echo ""
+  echo "--- Recent FailedCreate events (pods refused, e.g. exceeded quota) ---"
+  oc get events -n "${namespace}" \
+    --field-selector reason=FailedCreate \
+    --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
+
+  echo ""
   echo "--- Resource quotas ---"
   oc describe resourcequota -n "${namespace}" 2>/dev/null || true
 
@@ -75,12 +87,6 @@ wait_for_rollouts() {
     if ! oc rollout restart "deployment/${deploy}" -n "${namespace}"; then
       failed+=("${deploy}:restart")
       _rollout_log_error "Rollout restart failed for ${deploy}"
-    fi
-  done
-
-  for svc in "${services[@]}"; do
-    deploy="${instance}-${svc}"
-    if ! oc get deployment "${deploy}" -n "${namespace}" &>/dev/null; then
       continue
     fi
     echo "Waiting for ${deploy}..."

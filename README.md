@@ -134,7 +134,7 @@ The platform is built as a microservices architecture with four main components:
 - Field-by-field validation interface
 - Side-by-side document viewing with OCR overlays
 - Correction tracking with action types (confirmed, corrected, flagged, deleted)
-- Session state management (in_progress, approved, escalated, skipped)
+- Session state management (in_progress, approved, flagged, abandoned)
 - Analytics and performance metrics
 
 ### Security & Authentication
@@ -239,12 +239,10 @@ npm run install:all
 
 ### 2. Configure Environment
 
-Copy `.env.sample` to each app directory and fill in your values:
+Copy `.env.sample` to a single `.env` at the repo root and fill in your values:
 
 ```bash
-cp .env.sample apps/backend-services/.env
-cp .env.sample apps/temporal/.env
-cp .env.sample apps/frontend/.env
+cp .env.sample .env
 ```
 
 **Minimum required keys** to get the backend running and seeded:
@@ -255,9 +253,7 @@ SEED_USER_SUB=<Your GUID>@azureidir   # find this on the SSO integrations page
 SEED_USER_EMAIL=<Email associated with your IDIR>
 ```
 
-All other keys in `.env.sample` have working local defaults or are production-only. The sections below document the full set of available keys per app.
-
-**`apps/backend-services/.env`** (required):
+All other keys in `.env.sample` have working local defaults or are production-only. The root `.env` is shared by the backend, frontend, and Temporal worker — there is no per-app `.env` file.
 
 ```env
 # Server
@@ -299,32 +295,13 @@ ENABLE_BENCHMARK_QUEUE=true
 # SSO_REALM=standard
 # SSO_CLIENT_ID=your-client-id
 # SSO_CLIENT_SECRET=your-client-secret
-```
 
-**Frontend Configuration** — edit `apps/frontend/.env`:
-
-```env
+# Frontend
 VITE_API_BASE_URL=
 VITE_APP_NAME=Document Intelligence Platform
-VITE_APP_VERSION=1.0.0
 ```
 
 Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
-
-**Temporal Worker Configuration** — edit `apps/temporal/.env`:
-
-```env
-TEMPORAL_ADDRESS=localhost:7233
-TEMPORAL_NAMESPACE=default
-TEMPORAL_TASK_QUEUE=ocr-processing
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
-BLOB_STORAGE_PROVIDER=minio
-MINIO_ENDPOINT=http://localhost:19000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-```
 
 ### 3. Start Infrastructure (Docker)
 
@@ -333,7 +310,7 @@ MINIO_SECRET_KEY=minioadmin
    The `Dev: all` task starts Docker infrastructure, waits for all containers to be healthy, then starts the frontend, backend, and Temporal worker automatically on workspace open.
 
    **First-time setup:**
-   1. Complete steps 3 and 4 first (Docker infra up, then migrate/seed from WSL)
+   1. Run the Docker infra command below, then run the database setup commands in step 4
    2. Enable automatic tasks: **Ctrl+Shift+P** → `Manage Automatic Tasks` → `Allow Automatic Tasks`
    3. Reload the window: **Ctrl+Shift+P** → `Developer: Reload Window` — this triggers `Dev: all`
 
@@ -344,7 +321,11 @@ MINIO_SECRET_KEY=minioadmin
 ```bash
 docker compose --profile infra --profile temporal up -d
 # Starts: postgres, minio, temporal-postgresql, minio-init, temporal, temporal-ui
+docker compose -f deployments/local/docker-compose.deno.yml up -d
+# Starts: deno-runner, the sandbox that checks and runs custom-step code
 ```
+
+Custom steps cannot be published or run without the deno-runner.
 
 Verify all containers are healthy:
 
@@ -359,13 +340,14 @@ docker ps
 | MinIO Console | 19001     |
 | Temporal      | 7233      |
 | Temporal UI   | 8088      |
+| deno-runner   | 9099      |
 
 - http://localhost:8088 — Temporal UI
 - http://localhost:19001 — MinIO Console (user: `minioadmin` / `minioadmin`)
 
 ### 4. Database Setup (run once before starting services)
 
-Requires only PostgreSQL to be running (Docker infra from step 3) — the backend and frontend do not need to be started yet. Run in WSL on Windows:
+Requires only PostgreSQL to be running (Docker infra from step 3) — the backend and frontend do not need to be started yet. Run in WSL on Windows, from `apps/backend-services`:
 
 ```bash
 # Apply all pending migrations
@@ -381,10 +363,9 @@ npm run db:generate
 npm run db:seed
 ```
 
-**Verify the seed ran correctly** — open Prisma Studio:
+**Verify the seed ran correctly** — open Prisma Studio (still from `apps/backend-services`):
 
 ```bash
-cd apps/backend-services
 npm run db:studio   # opens http://localhost:5555
 ```
 
@@ -392,9 +373,9 @@ In the `user` table you should see 3 rows; `group` should have 1 row; `api_key` 
 
 ### 5. Start Services
 
-**Option A — VS Code `Dev: all` task **
+**Option A — VS Code `Dev: all` task**
 
-if Dev:all task has run, then skip this step 
+Skip this step if the `Dev: all` task already started the backend, frontend, and Temporal worker (see step 3).
 
 **Option B — All services via command line (WSL)**
 
@@ -422,7 +403,7 @@ cd apps/temporal && npm run dev
 - **Frontend**: http://localhost:3000
 - **Swagger API Docs**: http://localhost:3002/api
 - **Temporal UI**: http://localhost:8088
-- **Prisma Studio**: `cd apps/backend-services && npm run db:studio`
+- **Prisma Studio**: `npm run db:studio`
 
 
 ## Development Workflow
@@ -430,8 +411,6 @@ cd apps/temporal && npm run dev
 ### Database Management
 
 ```bash
-cd apps/backend-services
-
 # Generate Prisma client from schema
 npm run db:generate
 
@@ -737,7 +716,7 @@ Validate and correct OCR results through human review.
 **Queue Management:**
 - Documents automatically enter queue after OCR
 - Filtering by status, document type, confidence threshold
-- Statistics dashboard (pending, approved, escalated)
+- Statistics dashboard (pending, flagged, reviewed)
 - Reviewer assignment
 
 **Review Session:**
@@ -750,8 +729,8 @@ Validate and correct OCR results through human review.
 **Session States:**
 - `in_progress` - Active review
 - `approved` - Review completed, results approved
-- `escalated` - Requires additional review
-- `skipped` - Deferred for later
+- `flagged` - Handed on for someone else's attention; read-only in the Flagged tab
+- `abandoned` - Skipped, or the reviewer's lock expired; back in the pending queue
 
 **Analytics:**
 - Field accuracy rates
@@ -810,7 +789,7 @@ docker run \
 Kubernetes manifests are provided in `deployments/openshift/kustomize/`. Deployments are
 driven by the **Deploy Instance** GitHub Actions workflow, which renders an instance-specific
 overlay from `overlays/instance-template` and applies it (pushes to `develop` deploy to
-`fd34fb-test`, pushes to `main` deploy to `fd34fb-prod`). See
+`fd34fb-test`; production in `fd34fb-prod` is deployed by a manual run from `main`). See
 [docs-md/operations/AUTO_DEPLOY.md](docs-md/operations/AUTO_DEPLOY.md) and
 [docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md](docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md).
 

@@ -20,7 +20,7 @@ Displays all current members of the group in a table.
 
 ### Change Role Action
 
-Group admins and system admins see a role `Select` (`MEMBER` / `ADMIN`) per row. Changing it calls `PATCH /api/groups/:groupId/members/:userId/role` and refreshes the member list on success.
+Group admins and system admins see a role `Select` (`EDITOR` / `REVIEWER` / `ADMIN`) per row. Changing it calls `PATCH /api/groups/:groupId/members/:userId/role` and refreshes the member list on success.
 
 ### Remove Action
 
@@ -113,7 +113,7 @@ The Groups page (`/groups`) navigates to this page when a group row is clicked. 
 | Role | Members tab | Remove / role change | Leave Group | Join | Requests tab | Edit Group | Delete Group |
 |------|-------------|----------------------|-------------|------|--------------|------------|--------------|
 | Non-member | No | No | No | Yes | No | No | No |
-| Group member (`MEMBER`) | Yes | No | Yes | No | No | No | No |
+| Group member (`EDITOR`) | Yes | No | Yes | No | No | No | No |
 | Group admin (`ADMIN`) | Yes | Yes | Yes | No | Yes | No | No |
 | System admin (not a roster member) | Yes | Yes | No | No | Yes | Yes | Yes |
 | System admin (also a roster member) | Yes | Yes | Yes | No | Yes | Yes | Yes |

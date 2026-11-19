@@ -18,7 +18,9 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:latest
+          # MinIO no longer publishes minio/minio on Docker Hub; Chainguard
+          # publishes a build of the same server.
+          image: cgr.dev/chainguard/minio:latest
           imagePullPolicy: IfNotPresent
           args:
             - server

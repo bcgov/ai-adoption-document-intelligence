@@ -11,6 +11,7 @@ describe("AuditService", () => {
   let service: AuditService;
   const mockAuditDb = {
     createAuditEvent: jest.fn(),
+    createAuditEvents: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -119,6 +120,81 @@ describe("AuditService", () => {
       );
     });
 
+    it("names the custom step and its run on an event recorded during the step's call", async () => {
+      jest.spyOn(requestContextModule, "getRequestContext").mockReturnValue({
+        requestId: "req-1",
+        actorId: "internal:dyn-run",
+        dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
+      });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "review_session_started",
+        resource_type: "review_session",
+        resource_id: "rs-1",
+        payload: { document_id: "doc-1" },
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor_id: "internal:dyn-run",
+          payload: {
+            document_id: "doc-1",
+            dynamic_node_run: {
+              workflow_execution_id: "run-1",
+              slug: "lookup-vendor",
+            },
+          },
+        }),
+        undefined,
+      );
+    });
+
+    it("names the custom step on an event recorded without a payload", async () => {
+      jest.spyOn(requestContextModule, "getRequestContext").mockReturnValue({
+        requestId: "req-1",
+        dynamicNodeRun: { workflowExecutionId: "run-1", slug: "lookup-vendor" },
+      });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "workflow_updated",
+        resource_type: "workflow",
+        resource_id: "wf-1",
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: {
+            dynamic_node_run: {
+              workflow_execution_id: "run-1",
+              slug: "lookup-vendor",
+            },
+          },
+        }),
+        undefined,
+      );
+    });
+
+    it("leaves the payload as given outside a custom step's call", async () => {
+      jest
+        .spyOn(requestContextModule, "getRequestContext")
+        .mockReturnValue({ requestId: "req-1", actorId: "actor-1" });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "workflow_updated",
+        resource_type: "workflow",
+        resource_id: "wf-1",
+        payload: { name: "renamed" },
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: { name: "renamed" } }),
+        undefined,
+      );
+    });
+
     it("should prefer explicit actor_id over request context", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
@@ -222,6 +298,61 @@ describe("AuditService", () => {
       await service.recordEvent([]);
 
       expect(mockAuditDb.createAuditEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("recordEvent - batch case (array + tx)", () => {
+    it("should route more than one event through createAuditEvents in one call when tx is provided", async () => {
+      mockAuditDb.createAuditEvents.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      const events: CreateAuditEventInput[] = [
+        { event_type: "EVT_1", resource_type: "doc", resource_id: "r1" },
+        { event_type: "EVT_2", resource_type: "doc", resource_id: "r2" },
+      ];
+
+      await service.recordEvent(events, tx);
+
+      expect(mockAuditDb.createAuditEvents).toHaveBeenCalledTimes(1);
+      expect(mockAuditDb.createAuditEvents).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ event_type: "EVT_1", resource_id: "r1" }),
+          expect.objectContaining({ event_type: "EVT_2", resource_id: "r2" }),
+        ],
+        tx,
+      );
+      expect(mockAuditDb.createAuditEvent).not.toHaveBeenCalled();
+    });
+
+    it("should still use createAuditEvent (not the batch route) for a single-element array with tx", async () => {
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      await service.recordEvent(
+        [{ event_type: "EVT_1", resource_type: "doc", resource_id: "r1" }],
+        tx,
+      );
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledTimes(1);
+      expect(mockAuditDb.createAuditEvents).not.toHaveBeenCalled();
+    });
+
+    it("should propagate a batch write failure so the caller's transaction rolls back", async () => {
+      mockAuditDb.createAuditEvents.mockRejectedValue(
+        new Error("batch insert failed"),
+      );
+      const tx = {} as Prisma.TransactionClient;
+
+      await expect(
+        service.recordEvent(
+          [
+            { event_type: "EVT_1", resource_type: "doc", resource_id: "r1" },
+            { event_type: "EVT_2", resource_type: "doc", resource_id: "r2" },
+          ],
+          tx,
+        ),
+      ).rejects.toThrow("batch insert failed");
+      expect(mockAppLogger.warn).not.toHaveBeenCalled();
     });
   });
 

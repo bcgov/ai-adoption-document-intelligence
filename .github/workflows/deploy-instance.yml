@@ -2,7 +2,7 @@ name: Deploy Instance
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -13,6 +13,7 @@ on:
         options:
           - dev
           - test
+          - prod
       namespace:
         description: Optional OpenShift namespace override
         required: false
@@ -28,9 +29,13 @@ env:
 permissions:
   contents: read
 
+# A deploy that has started runs to the end; a newer push waits for it. A run
+# cancelled after its build pushed images would leave them in Artifactory,
+# where the only cleanup is the rotation after a later deploy. GitHub keeps
+# just the newest waiting run, so a burst of merges still deploys once more.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   metadata:
@@ -58,8 +63,16 @@ jobs:
             IMAGE_TAG="bcgov-di-test"
             SHA_TAG="bcgov-di-test-${GITHUB_SHA::12}"
             ENV="test"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "main" ]]; then
-            # push to main → prod instance; floating tag + immutable SHA tag for rollback
+          elif [[ "${{ inputs.environment }}" == "prod" ]]; then
+            # manual prod deploy: main only, fixed instance, no overrides; floating tag + immutable SHA tag for rollback
+            if [[ "${{ github.ref_name }}" != "main" ]]; then
+              echo "::error::prod deploys run from main only (this run is on '${{ github.ref_name }}')"
+              exit 1
+            fi
+            if [[ -n "${{ inputs.namespace }}" || -n "${{ inputs.instance_name }}" ]]; then
+              echo "::error::prod deploys do not accept namespace or instance_name overrides"
+              exit 1
+            fi
             INSTANCE="bcgov-di"
             IMAGE_TAG="bcgov-di"
             SHA_TAG="bcgov-di-${GITHUB_SHA::12}"
@@ -104,9 +117,86 @@ jobs:
           echo "Namespace:    ${NAMESPACE:-(default from environment secret)}"
           echo "Checkout ref: $CHECKOUT_REF"
 
+  pre-cleanup:
+    name: Clear Artifactory space
+    # Runs before any image is pushed, so builds left in Artifactory by earlier
+    # runs are gone before this run pushes. A run whose build failed keeps the
+    # images that did build, for "Re-run failed jobs"; once a newer run starts,
+    # that run will not be re-run, so its images are deleted here. Every image
+    # tag the namespace refers to is kept: the running build, both builds of a
+    # rollout caught halfway, and anything deployed outside the instance
+    # overlay. If the cluster cannot be read, no build is deleted. Prod keeps
+    # its rollback builds, so there this job only reclaims unreferenced
+    # manifests and old upload copies. Its steps cannot fail the job, so the
+    # build always runs.
+    needs: [metadata]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Install oc CLI
+        if: needs.metadata.outputs.environment != 'prod'
+        continue-on-error: true
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1
+        with:
+          oc: "4"
+
+      - name: Find the image tags in use
+        id: in-use
+        if: needs.metadata.outputs.environment != 'prod'
+        continue-on-error: true
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/openshift-login.sh
+          source scripts/lib/oc-retry.sh
+          source scripts/lib/in-use-image-tags.sh
+          openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
+          in_use_image_tags "${OC_NAMESPACE}" > "${RUNNER_TEMP}/in-use-tags"
+          echo "Image tags in use in ${OC_NAMESPACE}:"
+          cat "${RUNNER_TEMP}/in-use-tags"
+
+      - name: Delete leftover builds and reclaim storage
+        continue-on-error: true
+        # The build waits on this step. It normally takes under 4 minutes, and
+        # one failing Artifactory call can retry for about 13.
+        timeout-minutes: 15
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
+          INSTANCE: ${{ needs.metadata.outputs.instance-name }}
+          LOOKUP: ${{ steps.in-use.outcome }}
+        run: |
+          set -euo pipefail
+          ARGS=(--delete)
+          TAGS_FILE="${RUNNER_TEMP}/in-use-tags"
+          if [[ "${ENVIRONMENT}" == "prod" ]]; then
+            echo "Prod keeps its rollback builds; reclaiming only unreferenced manifests and old upload copies."
+          elif [[ "${LOOKUP}" == "success" ]] && grep -Eqx "${INSTANCE}-[0-9a-f]{12}" "${TAGS_FILE}"; then
+            # Every build of this instance goes except the tags in use. The
+            # lookup must have found the running build, so an empty or wrong
+            # answer can never clear the instance's images.
+            ARGS+=(--keep 0 --match "${INSTANCE}-????????????")
+            while IFS= read -r tag; do
+              ARGS+=(--protect "${tag}")
+            done < "${TAGS_FILE}"
+          else
+            echo "::warning::Could not tell which build ${INSTANCE} runs, so no build is deleted; reclaiming only unreferenced manifests and old upload copies."
+          fi
+          bash ./scripts/artifactory-cleanup.sh "${ARGS[@]}"
+
   build:
     name: Build ${{ matrix.service }}
-    needs: [metadata]
+    needs: [metadata, pre-cleanup]
     runs-on: ubuntu-latest
     environment: ${{ needs.metadata.outputs.environment }}
     strategy:
@@ -125,6 +215,12 @@ jobs:
           - service: ches-adapter
             context: "."
             dockerfile: apps/ches-adapter/Dockerfile
+          # Phase 6 dynamic-nodes Deno sandbox. Its Dockerfile COPYs src/ and
+          # deno.json relative to the build context, so the context is the app
+          # dir (not the repo root like the others).
+          - service: deno-runner
+            context: apps/deno-runner
+            dockerfile: apps/deno-runner/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -152,6 +248,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-instance-${{ matrix.service }}-
 
+      - name: Resolve the version shown in the app
+        id: app-build
+        if: matrix.service == 'frontend'
+        run: |
+          set -euo pipefail
+          # The header shows this commit. A release tag is added only when
+          # this commit contains one. There is no tag yet, so the header
+          # shows the commit on its own.
+          COMMIT="${GITHUB_SHA::8}"
+          VERSION=""
+          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+            git fetch --unshallow origin
+          fi
+          git fetch --tags --force origin
+          TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            VERSION="$TAG"
+          fi
+          echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Compute image tags
         id: tags
         run: |
@@ -175,6 +292,8 @@ jobs:
             VITE_SSO_REALM=${{ secrets.VITE_SSO_REALM }}
             VITE_SSO_CLIENT_ID=${{ secrets.VITE_SSO_CLIENT_ID }}
             VITE_APP_NAME=${{ secrets.VITE_APP_NAME }}
+            VITE_APP_VERSION=${{ steps.app-build.outputs.version }}
+            VITE_APP_COMMIT=${{ steps.app-build.outputs.commit }}
             VITE_ENV=${{ secrets.VITE_ENV }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
@@ -184,6 +303,25 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+
+      # Marks this service as failed so cleanup-on-failure deletes only failed
+      # services' tags. Siblings that pushed stay in Artifactory, so "Re-run
+      # failed jobs" rebuilds just the failures and the deploy still finds every
+      # staged image. The attempt number keeps a re-run from reading markers
+      # left by an earlier attempt.
+      - name: Record failed service
+        if: failure()
+        run: |
+          mkdir -p /tmp/failure-marker
+          touch "/tmp/failure-marker/${{ matrix.service }}"
+
+      - name: Upload failure marker
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-service-${{ matrix.service }}-${{ github.run_attempt }}
+          path: /tmp/failure-marker/
+          retention-days: 1
 
   deploy:
     name: Deploy to OpenShift
@@ -214,10 +352,13 @@ jobs:
           version: v3.17.0
 
       - name: Login to OpenShift
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
         run: |
-          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
-            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
-            --insecure-skip-tls-verify=true
+          set -euo pipefail
+          source scripts/lib/openshift-login.sh
+          openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
 
       - name: Verify staged images in Artifactory
         env:
@@ -230,7 +371,7 @@ jobs:
           source scripts/lib/retry.sh
           AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
           DOCKER_API="https://${ARTIFACTORY_URL}/artifactory/api/docker/kfd3-fd34fb-local/v2"
-          SERVICES=(backend-services frontend temporal ches-adapter)
+          SERVICES=(backend-services frontend temporal ches-adapter deno-runner)
 
           # Returns 0 only on HTTP 200. A transient failure (curl error -> 000,
           # or a 5xx) is retried by with_retries so an intermittent registry
@@ -254,7 +395,7 @@ jobs:
 
           for svc in "${SERVICES[@]}"; do
             echo "Checking ${svc}:${SHA_TAG}..."
-            if ! with_retries 3 15 check_manifest "${svc}"; then
+            if ! with_retries 6 15 check_manifest "${svc}"; then
               echo "::error::Missing staged image ${svc}:${SHA_TAG}"
               exit 1
             fi
@@ -283,15 +424,20 @@ jobs:
           BENCHMARK_TASK_QUEUE: ${{ secrets.BENCHMARK_TASK_QUEUE }}
           ENABLE_BENCHMARK_QUEUE: ${{ secrets.ENABLE_BENCHMARK_QUEUE }}
           BODY_LIMIT: ${{ secrets.BODY_LIMIT }}
+          DOCUMENT_RETENTION_DAYS: ${{ secrets.DOCUMENT_RETENTION_DAYS }}
+          AUDIT_EVENT_RETENTION_DAYS: ${{ secrets.AUDIT_EVENT_RETENTION_DAYS }}
+          BENCHMARK_AUDIT_LOG_RETENTION_DAYS: ${{ secrets.BENCHMARK_AUDIT_LOG_RETENTION_DAYS }}
+          REVIEW_SESSION_RETENTION_DAYS: ${{ secrets.REVIEW_SESSION_RETENTION_DAYS }}
+          CHAT_CONVERSATION_RETENTION_DAYS: ${{ secrets.CHAT_CONVERSATION_RETENTION_DAYS }}
           THROTTLE_GLOBAL_TTL_MS: ${{ secrets.THROTTLE_GLOBAL_TTL_MS }}
           THROTTLE_GLOBAL_LIMIT: ${{ secrets.THROTTLE_GLOBAL_LIMIT }}
           THROTTLE_AUTH_TTL_MS: ${{ secrets.THROTTLE_AUTH_TTL_MS }}
           THROTTLE_AUTH_LIMIT: ${{ secrets.THROTTLE_AUTH_LIMIT }}
           THROTTLE_AUTH_REFRESH_TTL_MS: ${{ secrets.THROTTLE_AUTH_REFRESH_TTL_MS }}
           THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
-          PG_BACKUP_STORAGE_SIZE: ${{ secrets.PG_BACKUP_STORAGE_SIZE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           source scripts/lib/instance-name.sh
           source scripts/lib/generate-overlay.sh
@@ -309,6 +455,7 @@ jobs:
             --backend-image "${IMAGE_BASE}/backend-services" \
             --frontend-image "${IMAGE_BASE}/frontend" \
             --worker-image "${IMAGE_BASE}/temporal" \
+            --deno-runner-image "${IMAGE_BASE}/deno-runner" \
             --image-tag "${IMAGE_TAG}" \
             --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
             --sso-realm "${SSO_REALM}" \
@@ -319,6 +466,11 @@ jobs:
             --benchmark-task-queue "${BENCHMARK_TASK_QUEUE:-benchmark-processing}" \
             --enable-benchmark-queue "${ENABLE_BENCHMARK_QUEUE:-true}" \
             --body-limit "${BODY_LIMIT:-50mb}" \
+            --document-retention-days "${DOCUMENT_RETENTION_DAYS:-}" \
+            --audit-event-retention-days "${AUDIT_EVENT_RETENTION_DAYS:-}" \
+            --benchmark-audit-log-retention-days "${BENCHMARK_AUDIT_LOG_RETENTION_DAYS:-}" \
+            --review-session-retention-days "${REVIEW_SESSION_RETENTION_DAYS:-}" \
+            --chat-conversation-retention-days "${CHAT_CONVERSATION_RETENTION_DAYS:-}" \
             --throttle-global-ttl-ms "${THROTTLE_GLOBAL_TTL_MS:-60000}" \
             --throttle-global-limit "${THROTTLE_GLOBAL_LIMIT:-100}" \
             --throttle-auth-ttl-ms "${THROTTLE_AUTH_TTL_MS:-60000}" \
@@ -330,8 +482,7 @@ jobs:
             --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
             --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
-            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}" \
-            --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE:-10Gi}")
+            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}")
           echo "Overlay generated at: $OVERLAY_DIR"
           echo "::endgroup::"
 
@@ -359,6 +510,7 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           echo "::group::Artifactory image pull secret"
           # Create an instance-owned docker-registry pull secret with the same
@@ -375,7 +527,7 @@ jobs:
             "app.kubernetes.io/instance=${INSTANCE_NAME}" --overwrite -n "$OC_NAMESPACE" || true
 
           # Patch each deployment to use the instance pull secret.
-          for dep in backend-services frontend temporal temporal-ui temporal-worker; do
+          for dep in backend-services frontend temporal temporal-ui temporal-worker deno-runner; do
             DEPLOY="${INSTANCE_NAME}-${dep}"
             if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
               oc patch deployment "$DEPLOY" -n "$OC_NAMESPACE" --type=merge -p \
@@ -386,12 +538,17 @@ jobs:
 
           echo "::group::Backend secrets"
           BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
+          # AZURE_OPENAI_API_KEY goes into BOTH secrets, from this one source.
+          # backend-services hosts the workflow chat agent, AI format
+          # suggestion and benchmark recommendations; the worker hosts LLM
+          # enrichment. Same subscription key, two per-deployment secrets.
           oc create secret generic "$BACKEND_SECRET" \
             --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
             --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+            --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
             --dry-run=client -o yaml | oc apply -f - -n "$OC_NAMESPACE"
 
           oc label secret "$BACKEND_SECRET" \
@@ -434,6 +591,7 @@ jobs:
           CHES_TO_EMAILS: ${{ secrets.CHES_TO_EMAILS }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           CHES_SECRET="${INSTANCE_NAME}-ches-adapter-secrets"
 
@@ -467,6 +625,7 @@ jobs:
           ALERTMANAGER_CHES_ADAPTER_SECRET: ${{ secrets.ALERTMANAGER_CHES_ADAPTER_SECRET }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_RELEASE="${INSTANCE_NAME}-plg"
           # Secret name must match the default produced by the plg.alertmanager.adapterSecretName
@@ -494,6 +653,7 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/plg-pre-delete.sh
           delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 
@@ -503,28 +663,23 @@ jobs:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          LOKI_RETENTION_DAYS: ${{ secrets.LOKI_RETENTION_DAYS }}
-          LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
-          PROMETHEUS_PVC_SIZE: ${{ secrets.PROMETHEUS_PVC_SIZE }}
-          METRICS_SCRAPE_INTERVAL: ${{ secrets.METRICS_SCRAPE_INTERVAL }}
           ALERTMANAGER_NOTIFICATION_CHANNEL: ${{ secrets.ALERTMANAGER_NOTIFICATION_CHANNEL }}
           ALERTMANAGER_NOTIFICATIONS_ENABLED: ${{ secrets.ALERTMANAGER_NOTIFICATIONS_ENABLED }}
           ALERTMANAGER_MIN_SEVERITY: ${{ secrets.ALERTMANAGER_MIN_SEVERITY }}
           ALERTMANAGER_TEAMS_WEBHOOK_URL: ${{ secrets.ALERTMANAGER_TEAMS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
 
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
 
+          PLG_ENV="${{ needs.metadata.outputs.environment }}"
           helm upgrade --install "$PLG_RELEASE" "$PLG_CHART_DIR" \
             --namespace "$OC_NAMESPACE" \
             -f "$PLG_CHART_DIR/values-openshift.yaml" \
+            -f "$PLG_CHART_DIR/values-${PLG_ENV}.yaml" \
             --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD:-admin}" \
-            --set "loki.retentionDays=${LOKI_RETENTION_DAYS:-30}" \
-            --set "loki.pvcSize=${LOKI_PVC_SIZE:-2Gi}" \
-            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-2Gi}" \
-            --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
             --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
             --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \
@@ -544,9 +699,25 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/oc-retry.sh
           source scripts/lib/wait-for-rollouts.sh
-          SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
+          SERVICES=(backend-services frontend temporal temporal-ui temporal-worker deno-runner)
           wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"
+
+  promote:
+    name: Promote floating tag
+    # Its own job because the app's Deployments pull the build's SHA tag: when
+    # only this fails, the deploy job stays green, artifactory-cleanup still
+    # runs, and "Re-run failed jobs" repeats this job and the cleanup without
+    # repeating the rollout.
+    needs: [metadata, deploy]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
@@ -565,17 +736,38 @@ jobs:
           artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
 
           REGISTRY="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
-          SERVICES=(backend-services frontend temporal ches-adapter)
+          SERVICES=(backend-services frontend temporal ches-adapter deno-runner)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
-            with_retries 3 15 docker buildx imagetools create \
-              "${REGISTRY}/${svc}:${FLOATING_TAG}" \
-              "${REGISTRY}/${svc}:${SHA_TAG}"
+            if ! with_retries 6 15 docker buildx imagetools create \
+              --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
+              "${REGISTRY}/${svc}:${SHA_TAG}"; then
+              echo "::error::The deploy rolled out ${SHA_TAG}, but the floating tag ${FLOATING_TAG} was not moved for ${svc} or any service after it. Artifactory refuses writes with \"manifest invalid\" when the repository is out of space."
+              exit 1
+            fi
           done
 
-      - name: Artifactory cleanup (reclaim storage)
-        if: success()
-        continue-on-error: true
+
+  artifactory-cleanup:
+    name: Artifactory cleanup
+    # Rotates old SHA tags and reclaims unreferenced manifests once the deploy
+    # has rolled out, including when only the floating-tag promotion after the
+    # rollout failed: a full repository is the usual cause of that failure, so
+    # skipping the rotation would keep it full. It is a separate job so that a
+    # failure (Artifactory lookups or deletes that still fail after retries)
+    # shows as a red job without marking the deploy failed, and can be re-run
+    # on its own with "Re-run failed jobs"; the script is safe to repeat.
+    needs: [metadata, deploy, promote]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.metadata.outputs.checkout-ref }}
+
+      - name: Rotate SHA tags and reclaim storage
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -584,13 +776,20 @@ jobs:
           INSTANCE: ${{ needs.metadata.outputs.instance-name }}
         run: |
           set -euo pipefail
-          # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
-          # recent `<instance>-<12hex>` named tags per image, delete the rest.
-          # For test/dev, rotate SHA tags matching `<instance>-????????????`.
+          # For prod, rotate the SHA-tagged rollback handles: keep the 2 most
+          # recent `<instance>-<12hex>` named tags per image (the running build
+          # and the one before it), delete the rest. With a third, a deploy
+          # would peak at about 5.2 GB, over the quota below.
+          # For test/dev, keep only the newest `<instance>-<12hex>` tag per
+          # image: this job runs only once the deploy has rolled out, so that
+          # is the build the instance is running. Test keeps no rollback
+          # history: each build adds about 0.9 GB to a repository that test and
+          # prod share under a 5 GB quota, and while it is pushed the
+          # repository also holds temporary upload copies of most of its layers.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 2 --match "${INSTANCE}-????????????"
           else
-            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-????????????"
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 1 --match "${INSTANCE}-????????????"
           fi
 
   cleanup-on-failure:
@@ -611,7 +810,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Delete staged run tags and reclaim orphans
+      - name: Download failure markers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: /tmp/failed-services
+          pattern: failed-service-*-${{ github.run_attempt }}
+          merge-multiple: true
+
+      - name: Delete staged run tags for failed services
         env:
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
@@ -623,4 +829,22 @@ jobs:
             echo "No SHA tag to clean up."
             exit 0
           fi
-          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete
+
+          # Only delete the tag for services whose build actually failed, so a
+          # single flaky image push doesn't wipe already-pushed sibling images
+          # (which would otherwise force rebuilding everything on retry).
+          FAILED_SERVICES=()
+          if [[ -d /tmp/failed-services ]]; then
+            while IFS= read -r -d '' f; do
+              FAILED_SERVICES+=("$(basename "$f")")
+            done < <(find /tmp/failed-services -maxdepth 1 -type f -print0)
+          fi
+
+          if [[ "${#FAILED_SERVICES[@]}" -eq 0 ]]; then
+            echo "No failure markers found; skipping targeted cleanup."
+            exit 0
+          fi
+
+          echo "Failed services: ${FAILED_SERVICES[*]}"
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
+

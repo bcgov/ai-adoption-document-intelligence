@@ -4,13 +4,38 @@ export enum OperationCategory {
   OCR = "ocr",
   TRAINING = "training",
   CLASSIFICATION = "classification",
-  BENCHMARK = "benchmark"
+  BENCHMARK = "benchmark",
+  WORKFLOW = "workflow"
 }
 
 export type BlobFilePath = string & { readonly brand: 'BlobFilePath' };
 export type BlobPrefixPath = string & { readonly brand: 'BlobPrefixPath' };
 
+/**
+ * Throws if any `/`-separated segment of `value` is `.` or `..`, so a path can
+ * never resolve outside the group and category it names.
+ */
+const assertNoDotSegments = (value: string): void => {
+  if (value.split("/").some((segment) => segment === "." || segment === "..")) {
+    throw new Error("Blob storage path must not contain a dot segment (. or ..)")
+  }
+}
+
+/**
+ * Throws if `value` contains a backslash. Azure Blob Storage treats `\` as `/`
+ * in blob names, so a backslash would act as a separator that the dot-segment
+ * check above does not see.
+ */
+const assertNoBackslash = (value: string): void => {
+  if (value.includes("\\")) {
+    throw new Error("Blob storage path must not contain a backslash")
+  }
+}
+
 const buildPrefix = (prefixComponents: string[]): string => {
+  for (const component of prefixComponents) {
+    assertNoDotSegments(component);
+  }
   // Combine prefix components if they exist
   let prefix = path.posix.join(...prefixComponents);
   // Ensure there are no illegal characters (\ or :)
@@ -33,6 +58,8 @@ const buildPrefix = (prefixComponents: string[]): string => {
  * @returns A branded `BlobFilePath` string.
  */
 export const buildBlobFilePath = (groupId: string, category: OperationCategory, prefixComponents: string[], fileName: string): BlobFilePath => {
+  assertNoDotSegments(fileName);
+  assertNoBackslash(fileName);
   // Combine elements for final storage path
   return path.posix.join(...[buildBlobPrefixPath(groupId, category, prefixComponents), fileName]) as BlobFilePath;
 }
@@ -69,7 +96,8 @@ export const buildBlobPrefixPath = (groupId: string, category: OperationCategory
 
 /**
  * Casts an arbitrary string to a `BlobFilePath` after validating its structure.
- * Throws if the path does not start with a valid CUID group ID and a known category.
+ * Throws if the path does not start with a valid CUID group ID and a known category,
+ * if any segment is `.` or `..`, or if it contains a backslash.
  *
  * @param blobPath - The raw path string to validate.
  * @returns A branded `BlobFilePath`.
@@ -80,8 +108,41 @@ export const validateBlobFilePath = (blobPath: string): BlobFilePath => {
 }
 
 /**
+ * Validates a blob file path and confirms it belongs to `groupId`.
+ * Throws if the path is malformed or its group segment is a different group.
+ *
+ * @param blobPath - The raw path string to validate.
+ * @param groupId - The group the path must belong to.
+ * @returns A branded `BlobFilePath`.
+ */
+export const validateBlobFilePathInGroup = (blobPath: string, groupId: string): BlobFilePath => {
+  const validated = validateBlobFilePath(blobPath);
+  if (validated.split("/")[0] !== groupId) {
+    throw new Error(`Blob file path does not belong to group ${groupId}`);
+  }
+  return validated;
+}
+
+/**
+ * Validates a blob prefix path and confirms it belongs to `groupId`.
+ * Throws if the prefix is malformed or its group segment is a different group.
+ *
+ * @param blobPath - The raw prefix string to validate.
+ * @param groupId - The group the prefix must belong to.
+ * @returns A branded `BlobPrefixPath`.
+ */
+export const validateBlobPrefixPathInGroup = (blobPath: string, groupId: string): BlobPrefixPath => {
+  const validated = validateBlobPrefixPath(blobPath);
+  if (validated.split("/")[0] !== groupId) {
+    throw new Error(`Blob prefix path does not belong to group ${groupId}`);
+  }
+  return validated;
+}
+
+/**
  * Casts an arbitrary string to a `BlobPrefixPath` after validating its structure.
- * Throws if the path does not start with a valid CUID group ID and a known category.
+ * Throws if the path does not start with a valid CUID group ID and a known category,
+ * if any segment is `.` or `..`, or if it contains a backslash.
  *
  * @param blobPath - The raw path string to validate.
  * @returns A branded `BlobPrefixPath`.
@@ -97,7 +158,8 @@ export const validateBlobPrefixPath = (blobPath: string): BlobPrefixPath => {
   if (!(Object.values(OperationCategory).includes(category as OperationCategory))){
     throw new Error(`Category ${category} in blob file path not a valid category`)
   }
-  // No method to validate remainder of prefix
+  assertNoDotSegments(blobPath);
+  assertNoBackslash(blobPath);
   return blobPath as BlobPrefixPath;
 }
 
@@ -110,7 +172,7 @@ export const validateBlobPrefixPath = (blobPath: string): BlobPrefixPath => {
  * @param value - The value to check.
  * @returns `true` if the value matches CUID format.
  */
-const isCuid = (value: string): boolean => {
+export const isCuid = (value: string): boolean => {
   if (value.length < 2) return false;
   return /^[a-z][0-9a-z]+$/.test(value);
 }

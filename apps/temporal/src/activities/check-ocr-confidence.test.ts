@@ -11,14 +11,14 @@ const getPrismaClientMock = getPrismaClient as jest.Mock;
 describe("checkOcrConfidence activity", () => {
   let prismaMock: {
     document: {
-      update: jest.Mock;
+      updateMany: jest.Mock;
     };
   };
 
   beforeEach(() => {
     prismaMock = {
       document: {
-        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -129,11 +129,6 @@ describe("checkOcrConfidence activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    prismaMock.document.update.mockResolvedValue({
-      id: "doc-2",
-      status: "ongoing_ocr",
-    });
-
     const result = await checkOcrConfidence({
       documentId: "doc-2",
       groupId: "gtestgroupidfortests01",
@@ -143,8 +138,8 @@ describe("checkOcrConfidence activity", () => {
 
     expect(result.averageConfidence).toBeCloseTo(0.875, 3);
     expect(result.requiresReview).toBe(true);
-    expect(prismaMock.document.update).toHaveBeenCalledWith({
-      where: { id: "doc-2" },
+    expect(prismaMock.document.updateMany).toHaveBeenCalledWith({
+      where: { id: "doc-2", group_id: "gtestgroupidfortests01" },
       data: { status: "ongoing_ocr" },
     });
   });
@@ -425,6 +420,80 @@ describe("checkOcrConfidence activity", () => {
     // "benchmark-", so the activity must short-circuit requiresReview to
     // false (avoiding the 24h humanGate park) and never touch the DB.
     expect(result.requiresReview).toBe(false);
-    expect(prismaMock.document.update).not.toHaveBeenCalled();
+    expect(prismaMock.document.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe("document status update scope", () => {
+    const lowConfidenceOcrResult: OCRResult = {
+      success: true,
+      status: "succeeded",
+      apimRequestId: "test",
+      fileName: "test.pdf",
+      fileType: "pdf",
+      modelId: "prebuilt-layout",
+      extractedText: "Test",
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words: [
+            {
+              content: "Word1",
+              confidence: 0.5,
+              polygon: [],
+              span: { offset: 0, length: 5 },
+            },
+          ],
+          lines: [],
+          spans: [],
+        },
+      ],
+      paragraphs: [],
+      tables: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [],
+      processedAt: "2024-01-01T00:00:00Z",
+    };
+
+    it("updates the document only within the run's group", async () => {
+      await checkOcrConfidence({
+        documentId: "doc-1",
+        groupId: "group-2",
+        ocrResult: lowConfidenceOcrResult,
+      });
+
+      expect(prismaMock.document.updateMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.document.updateMany.mock.calls[0][0].where).toEqual({
+        id: "doc-1",
+        group_id: "group-2",
+      });
+    });
+
+    it("returns the error result when the document is not in the run's group", async () => {
+      prismaMock.document.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await checkOcrConfidence({
+        documentId: "doc-in-group-2",
+        groupId: "group-1",
+        ocrResult: lowConfidenceOcrResult,
+      });
+
+      expect(result).toEqual({ averageConfidence: 0, requiresReview: true });
+    });
+
+    it("throws when groupId is missing and does not touch the database", async () => {
+      await expect(
+        checkOcrConfidence({
+          documentId: "doc-1",
+          ocrResult: lowConfidenceOcrResult,
+        }),
+      ).rejects.toThrow("groupId is required");
+
+      expect(prismaMock.document.updateMany).not.toHaveBeenCalled();
+    });
   });
 });

@@ -155,7 +155,7 @@ When adding or migrating a component, follow this decision order:
 | `IconActionButton` | B.C. DS `Button` + `Tooltip` | `BC DS native` | `IconActionButton.tsx`; icon-only `Button` with `stopPropagation` on `onClick`. |
 | `Divider` | B.C. DS `Separator` | `BC DS native` | `Divider.tsx`; vertical divider uses token border fallback. |
 | `Progress` | B.C. DS `ProgressBar` | `BC DS native` | `Progress.tsx`; `animated` without `value`→indeterminate. |
-| `Alert` | B.C. DS `InlineAlert` | `BC DS native` | `Alert.tsx`; Mantine `color`→`variant`. |
+| `Alert` | B.C. DS `InlineAlert` | `BC DS native` | `Alert.tsx`; Mantine `color`→`variant`. `InlineAlert` renders `children` instead of `title`/`description` whenever children is set, so the adapter passes plain-text title and body as props and uses children only for ReactNode content, rendering the title inside it. |
 | `TextInput` | B.C. DS `TextField` | `BC DS native` | `TextInput.tsx`; Mantine `onChange` event bridge. |
 | `Textarea` | B.C. DS `TextArea` | `BC DS native` | `Textarea.tsx`. |
 | `Select` | B.C. DS `Select` | `BC DS native` | `Select.tsx`; flat `data` and grouped `{ group, items }`; default trigger/popover width fits option labels (`bcds-select.css`, `bcds-form-field--fit`); use `fullWidth` in form columns or `w` for fixed width; `StatusSelect` remains separate. **Empty-string values:** React Aria rejects `""` as a Select item key — the adapter maps empty option values to an internal sentinel and maps back to `""` in `onChange`. Mantine fallback (searchable/clearable) passes empty strings through unchanged. |

@@ -21,6 +21,7 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { TemplateModelService } from "../template-model/template-model.service";
 import { StartTrainingDto } from "./dto/start-training.dto";
 import {
@@ -84,7 +85,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return this.trainingService.validateTrainingData(modelId);
   }
 
@@ -100,6 +103,10 @@ export class TrainingController {
     type: TrainingJobDto,
   })
   @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiConflictResponse({
+    description:
+      "A training job is already in progress for this template, or the model id of its next version is already in use",
+  })
   @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async startTraining(
@@ -109,7 +116,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_CREATE,
+    ]);
     return this.trainingService.startTraining(
       modelId,
       dto,
@@ -137,7 +146,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return this.trainingService.getTrainingJobs(modelId);
   }
 
@@ -160,7 +171,9 @@ export class TrainingController {
     const templateModel = await this.templateModelService.getTemplateModel(
       job.templateModelId,
     );
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return job;
   }
 
@@ -183,7 +196,9 @@ export class TrainingController {
     const templateModel = await this.templateModelService.getTemplateModel(
       job.templateModelId,
     );
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_CREATE,
+    ]);
     await this.trainingService.cancelTrainingJob(
       jobId,
       req.resolvedIdentity.actorId,
@@ -211,7 +226,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     return this.trainingService.listTrainedVersions(modelId);
   }
 
@@ -240,7 +257,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_RETRIEVE,
+    ]);
     const snapshot = await this.trainingService.getTrainedVersionSnapshot(
       modelId,
       versionId,
@@ -272,7 +291,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_CREATE,
+    ]);
     return this.trainingService.setActiveTrainedVersion(
       modelId,
       versionId,
@@ -308,7 +329,9 @@ export class TrainingController {
   ) {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
-    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_DELETE,
+    ]);
     return this.trainingService.deleteTrainedVersion(
       modelId,
       versionId,

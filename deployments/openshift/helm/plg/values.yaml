@@ -210,5 +210,5 @@ chesAdapter:
   sidecars:
     promtail:
       image: grafana/promtail:3.4.2
-    logrotate:
+    logRotator:
       image: debian:bookworm-slim

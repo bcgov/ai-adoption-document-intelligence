@@ -126,6 +126,40 @@ describe("JwtAuthGuard", () => {
     });
   });
 
+  describe("x-internal-token routes (Change W)", () => {
+    it("skips JWT validation when an internal token is present on an allowApiKey route", () => {
+      mockReflector.getAllAndOverride.mockImplementation((key: string) => {
+        if (key === IS_PUBLIC_KEY) return false;
+        if (key === IDENTITY_KEY)
+          return { allowApiKey: true } as IdentityOptions;
+        return undefined;
+      });
+
+      const context = createMockExecutionContext({
+        "x-internal-token": "raw-token",
+      });
+      const result = guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockSuperCanActivate).not.toHaveBeenCalled();
+    });
+
+    it("still delegates to Passport when the internal token rides a route without allowApiKey", () => {
+      mockReflector.getAllAndOverride.mockImplementation((key: string) => {
+        if (key === IS_PUBLIC_KEY) return false;
+        if (key === IDENTITY_KEY) return undefined;
+        return undefined;
+      });
+
+      const context = createMockExecutionContext({
+        "x-internal-token": "raw-token",
+      });
+      guard.canActivate(context);
+
+      expect(mockSuperCanActivate).toHaveBeenCalledWith(context);
+    });
+  });
+
   describe("standard JWT routes", () => {
     it("should delegate to Passport JWT strategy for authenticated routes", () => {
       mockReflector.getAllAndOverride.mockReturnValue(false);

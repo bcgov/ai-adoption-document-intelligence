@@ -139,6 +139,6 @@ Tables establishes the pattern but does not prescribe everything a future extens
 
 **Conditional sidebar visibility**: a workspace-extension manifest could declare that the Tables sidebar entry should only appear when at least one workflow in the group uses `tables.lookup`. This would prevent the entry from appearing for groups that have no Tables workflows. Currently the sidebar entry is always shown to group members. This was noted in the design spec but not implemented.
 
-**Per-extension permissions**: the current authorization model uses the group's MEMBER/ADMIN roles for all operations on all extensions. A future design could introduce finer-grained roles (e.g., a "table editor" role distinct from group ADMIN) scoped to individual extensions. Tables doesn't block this — the `identityCanAccessGroup` helper accepts a role argument — but the role enum and assignment UX would need to be extended.
+**Per-extension permissions**: the current authorization model uses the group's permission-based roles (`EDITOR`/`ADMIN`) for all operations on all extensions. A future design could introduce finer-grained permissions scoped to individual extensions. Tables doesn't block this — the `identityCanAccessGroup` helper accepts a `requiredPermissions` argument — but the role enum and assignment UX would need to be extended.
 
 The Tables pattern is a reference point, not a rigid framework. The next extension sharing this shape (user-managed config data driving a generic activity) should adapt the pattern to its own constraints rather than extending Tables itself.

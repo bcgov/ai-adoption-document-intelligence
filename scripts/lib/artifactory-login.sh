@@ -8,7 +8,7 @@ artifactory_docker_login() {
   local registry="$1"
   local username="$2"
   local password="$3"
-  local max_attempts="${4:-3}"
+  local max_attempts="${4:-6}"
   local wait_seconds="${5:-15}"
   local attempt=1
 

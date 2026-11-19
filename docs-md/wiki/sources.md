@@ -13,7 +13,7 @@ This registry names the places the wiki should route readers to before summarizi
 | `docs-md/architecture/TABLES.md`, `docs-md/architecture/PATTERNS_NODE_AND_UI.md` | [Tables and extensions](tables-and-extensions.md) |
 | `docs-md/architecture/BLOB_STORAGE.md` | [Blob storage](blob-storage.md) |
 | `docs-md/architecture/HITL_ARCHITECTURE.md` | [HITL](hitl.md) |
-| `docs-md/auth/AUTHENTICATION.md`, `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`, `docs-md/groups/` | [Auth and groups](auth-and-groups.md) |
+| `docs-md/auth/AUTHENTICATION.md`, `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`, `docs-md/auth/FRONTEND_ROUTE_PERMISSIONS.md`, `docs-md/groups/` | [Auth and groups](auth-and-groups.md) |
 | `docs-md/operations/`, load testing, monitoring, CI workflows | [Deployment and ops](deployment-and-ops.md) |
 | `docs-md/architecture/USAGE_METERING_AND_BILLING.md` | [Billing](billing.md) |
 
@@ -47,6 +47,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 - HITL: `docs-md/architecture/HITL_ARCHITECTURE.md` — wiki: [HITL](hitl.md)
 - Authentication: `docs-md/auth/AUTHENTICATION.md` — wiki: [Auth and groups](auth-and-groups.md)
 - Group authorization: `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md` — wiki: [Auth and groups](auth-and-groups.md)
+- Frontend route permissions: `docs-md/auth/FRONTEND_ROUTE_PERMISSIONS.md` — wiki: [Auth and groups](auth-and-groups.md)
 - Blob storage: `docs-md/architecture/BLOB_STORAGE.md` — wiki: [Blob storage](blob-storage.md)
 - Tables and extension pattern: `docs-md/architecture/TABLES.md`, `docs-md/architecture/PATTERNS_NODE_AND_UI.md` — wiki: [Tables and extensions](tables-and-extensions.md)
 - Load testing: `docs-md/benchmarking/LOAD_TESTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)

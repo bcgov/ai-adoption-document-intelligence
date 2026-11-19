@@ -1,11 +1,12 @@
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
-  CorrectionAction,
   Document,
+  DocumentLock,
   DocumentStatus,
   OcrResult,
   Prisma,
   ReviewSession,
+  ReviewSessionEventType,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -21,24 +22,56 @@ import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
-import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
+import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
   ReviewStatusFilter,
 } from "./dto/status-constants.dto";
-import { ReviewDbService } from "./review-db.service";
+import {
+  type FieldCorrectionWithActor,
+  ReviewDbService,
+  type ReviewQueueDocument,
+  type ReviewQueueFilters,
+} from "./review-db.service";
 import type { ReviewSessionData } from "./review-db.types";
+
+/** Who made a correction: a logged-in user, a group's api key, or unrecorded on older rows. */
+export interface CorrectionAuthor {
+  type: "user" | "api_key" | "unknown";
+  email?: string;
+}
+
+function resolveCorrectionAuthor(
+  actor: FieldCorrectionWithActor["actor"],
+): CorrectionAuthor {
+  if (actor?.user?.email) {
+    return { type: "user", email: actor.user.email };
+  }
+  // The group's API-key identity outlives its keys, so corrections made
+  // through a key that has since been deleted still name the API key.
+  if (actor?.apiKeyGroup) {
+    return { type: "api_key" };
+  }
+  return { type: "unknown" };
+}
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
+  lock?: DocumentLock | null;
   review_sessions?: Array<{
     id: string;
-    reviewer_id: string;
+    document_id: string;
+    actor_id: string;
     status: ReviewStatus;
+    started_at: Date;
     completed_at: Date | null;
+    flag_note?: string | null;
     corrections?: unknown[];
   }>;
 }
@@ -106,6 +139,32 @@ function readReviewPlanFromDocument(
     : undefined;
 }
 
+/**
+ * Averages the per-document mean field confidence across a set of OCR field
+ * payloads. Documents whose fields carry no confidence contribute nothing, and
+ * an empty set averages to zero.
+ */
+function averageDocumentConfidence(payloads: unknown[]): number {
+  const documentAverages: number[] = [];
+
+  for (const payload of payloads) {
+    if (!payload || typeof payload !== "object") continue;
+    const confidences = Object.values(payload as ExtractedFields)
+      .map((field: DocumentField) => field?.confidence)
+      .filter((confidence): confidence is number => confidence !== undefined);
+    if (confidences.length === 0) continue;
+    documentAverages.push(
+      confidences.reduce((sum, value) => sum + value, 0) / confidences.length,
+    );
+  }
+
+  if (documentAverages.length === 0) return 0;
+  const mean =
+    documentAverages.reduce((sum, value) => sum + value, 0) /
+    documentAverages.length;
+  return Math.round(mean * 10000) / 10000;
+}
+
 @Injectable()
 export class HitlService {
   constructor(
@@ -115,6 +174,7 @@ export class HitlService {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
     private readonly prismaService: PrismaService,
+    private readonly temporalClient: TemporalClientService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -125,118 +185,261 @@ export class HitlService {
   ) {
     this.logger.debug("Getting review queue with filters", { ...filters });
 
-    const maxConfidence = filters.maxConfidence ?? 0.9;
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
 
-    const reviewStatusFilter =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : "pending";
+    let statuses: DocumentStatus[];
+    switch (filters.status) {
+      case DocumentStatusFilter.EXTRACTED:
+        statuses = [DocumentStatus.extracted];
+        break;
+      case DocumentStatusFilter.ALL:
+        statuses = [DocumentStatus.extracted, DocumentStatus.awaiting_review];
+        break;
+      default:
+        statuses = [DocumentStatus.awaiting_review];
+    }
 
-    const statuses: DocumentStatus[] =
-      filters.status === DocumentStatusFilter.EXTRACTED
-        ? [DocumentStatus.extracted]
-        : filters.status === DocumentStatusFilter.ALL
-          ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
-          : [DocumentStatus.awaiting_review];
+    // Approving a document moves it to `complete`; flag/skip leave it at
+    // `awaiting_review`. The Reviewed tab must therefore also include
+    // `complete`, or approved documents disappear from the queue entirely.
+    if (reviewStatusFilter === "reviewed") {
+      statuses.push(DocumentStatus.complete);
+    }
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    const queueFilters = {
       statuses,
       modelId: filters.modelId,
-      maxConfidence: filters.maxConfidence ?? 0.9,
-      limit: filters.limit ?? 50,
-      offset: filters.offset ?? 0,
+      workflowId: filters.workflowId,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId,
-    })) as DocumentWithOcrResult[];
+      search: filters.search,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+    };
 
-    // Filter by confidence if OCR results exist
-    const filtered = documents.filter((doc) => {
-      if (!doc.ocr_result) return false;
-
-      const fields = doc.ocr_result
-        .keyValuePairs as unknown as ExtractedFields | null;
-      if (!fields) return false;
-      if (typeof fields !== "object") return false;
-
-      // Check if any field has confidence below threshold
-      const hasLowConfidence = Object.values(fields).some(
-        (field: DocumentField) => {
-          if (field?.confidence !== undefined) {
-            return field.confidence < maxConfidence;
-          }
-          return false;
-        },
-      );
-
-      return hasLowConfidence;
+    const documents = await this.reviewDb.findReviewQueue({
+      ...queueFilters,
+      limit: filters.limit ?? 50,
+      offset: filters.offset ?? 0,
     });
 
+    const total = await this.reviewDb.countReviewQueue(queueFilters);
+
+    const getAverageConfidence = (doc: ReviewQueueDocument) => {
+      if (!doc.ocr_result?.keyValuePairs) return 0;
+      const fields = Object.values(doc.ocr_result.keyValuePairs);
+      if (fields.length === 0) return 0;
+      const sum = fields.reduce(
+        (acc, field) => acc + (field.confidence || 0),
+        0,
+      );
+      return sum / fields.length;
+    };
+
     return {
-      documents: filtered.map((doc) => ({
+      documents: documents.map((doc) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
         model_id: doc.model_id,
+        workflow_name: doc.workflowVersion?.lineage.name ?? null,
         created_at: doc.created_at,
         updated_at: doc.updated_at,
-        ocr_result: {
-          fields: doc.ocr_result?.keyValuePairs || {},
-        },
+        average_confidence: getAverageConfidence(doc),
         lastSession: doc.review_sessions?.[0]
           ? {
               id: doc.review_sessions[0].id,
-              reviewer_id: doc.review_sessions[0].reviewer_id,
+              reviewer_id: doc.review_sessions[0].actor_id,
               status: doc.review_sessions[0].status,
               completed_at: doc.review_sessions[0].completed_at,
               corrections_count:
                 doc.review_sessions[0].corrections?.length || 0,
+              flag_note: doc.review_sessions[0].flag_note ?? undefined,
             }
           : undefined,
+        lock: doc.lock
+          ? {
+              reviewer_id: doc.lock.reviewer_id,
+              session_id: doc.lock.session_id,
+              expires_at: doc.lock.expires_at,
+            }
+          : null,
       })),
-      total: filtered.length,
+      total,
     };
   }
 
-  async getQueueStats(reviewStatus?: ReviewStatusFilter, groupIds?: string[]) {
+  /**
+   * Releases a workflow parked at a `humanGate`.
+   *
+   * A gated workflow sets the document to `awaiting_review` and then waits for
+   * the `humanApproval` signal — without it, it sits at the gate until its
+   * timeout and fails, however the document looks in the database. Reviewing is
+   * finished in the queue, so the queue is what has to send it.
+   *
+   * Not every reviewable document has a workflow waiting: seeded documents and
+   * ungated pipelines have none, and a gate that already timed out is gone. The
+   * review is complete either way, so a failed signal is recorded rather than
+   * raised.
+   */
+  private async resumeGatedWorkflow(
+    documentId: string,
+    outcome: {
+      approved: boolean;
+      reviewer: string;
+      groupId?: string;
+      workflowExecutionId?: string;
+      comments?: string;
+      rejectionReason?: string;
+    },
+  ): Promise<void> {
+    // The Temporal workflow id is derived from the document id. The stored
+    // workflow_execution_id is the billing run id (unique per execution
+    // attempt) and is NOT the workflow id.
+    const workflowId = `graph-${documentId}`;
+
+    try {
+      await this.temporalClient.sendHumanApproval(workflowId, {
+        approved: outcome.approved,
+        reviewer: outcome.reviewer,
+        comments: outcome.comments,
+        rejectionReason: outcome.rejectionReason,
+      });
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_sent",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: outcome.reviewer,
+        document_id: documentId,
+        workflow_execution_id: outcome.workflowExecutionId,
+        group_id: outcome.groupId,
+        payload: {
+          approved: outcome.approved,
+          source: "hitl_session",
+          workflow_id: workflowId,
+        },
+      });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      this.logger.warn(
+        `No workflow resumed for document ${documentId}: ${message}`,
+      );
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_skipped",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: outcome.reviewer,
+        document_id: documentId,
+        workflow_execution_id: outcome.workflowExecutionId,
+        group_id: outcome.groupId,
+        payload: {
+          approved: outcome.approved,
+          source: "hitl_session",
+          workflow_id: workflowId,
+          reason: message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Summarises the whole review queue for the header cards. Every figure is
+   * read through the same per-tab filters the queue itself uses — including the
+   * caller's own locks, so a document open in this reviewer's workspace still
+   * counts — so the numbers do not depend on which tab is open or how many rows
+   * one page holds, and the confidence average covers exactly the documents
+   * the counts do.
+   */
+  async getQueueStats(groupIds?: string[], currentReviewerId?: string) {
     this.logger.debug("Getting queue statistics");
 
-    const reviewStatusFilter =
-      reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : "pending";
+    const reviewableStatuses = [
+      DocumentStatus.awaiting_review,
+      DocumentStatus.complete,
+    ];
 
-    const allDocs = (await this.reviewDb.findReviewQueue({
-      statuses: [DocumentStatus.awaiting_review],
-      limit: 1000,
-      reviewStatus: reviewStatusFilter,
-      groupIds,
-    })) as DocumentWithOcrResult[];
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-    const lowConfidenceDocs = allDocs.filter((doc) => {
-      if (!doc.ocr_result?.keyValuePairs) return false;
-      const fields = doc.ocr_result.keyValuePairs as unknown as ExtractedFields;
-      if (typeof fields !== "object") return false;
+    const tabFilters: Record<
+      "pending" | "claimed" | "flagged" | "reviewed",
+      ReviewQueueFilters
+    > = {
+      pending: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds,
+        currentReviewerId,
+      },
+      claimed: {
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        groupIds,
+        currentReviewerId,
+      },
+      flagged: {
+        statuses: reviewableStatuses,
+        reviewStatus: "flagged",
+        groupIds,
+        currentReviewerId,
+      },
+      reviewed: {
+        statuses: reviewableStatuses,
+        reviewStatus: "reviewed",
+        groupIds,
+        currentReviewerId,
+      },
+    };
 
-      return Object.values(fields).some((field: DocumentField) => {
-        if (field?.confidence !== undefined) {
-          return field.confidence < 0.9;
-        }
-        return false;
-      });
-    });
-
-    const analytics = await this.analyticsService.getAnalytics({}, groupIds);
+    const [
+      pendingCount,
+      claimedCount,
+      flaggedCount,
+      reviewedCount,
+      fieldPayloads,
+      reviewedToday,
+    ] = await Promise.all([
+      this.reviewDb.countReviewQueue(tabFilters.pending),
+      this.reviewDb.countReviewQueue(tabFilters.claimed),
+      this.reviewDb.countReviewQueue(tabFilters.flagged),
+      this.reviewDb.countReviewQueue(tabFilters.reviewed),
+      this.reviewDb.findQueueFieldPayloads(Object.values(tabFilters)),
+      this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
+    ]);
 
     return {
-      totalDocuments: allDocs.length,
-      requiresReview: lowConfidenceDocs.length,
-      averageConfidence: analytics.averageConfidence,
-      reviewedToday: analytics.reviewedDocuments,
+      // Every tab summed together — documents a workflow completed without
+      // ever routing to review never match any of the four tabs, so they are
+      // correctly excluded here, and from the average below.
+      totalDocuments:
+        pendingCount + claimedCount + flaggedCount + reviewedCount,
+      // "Requires review" spans the Pending and Claimed tabs — a document the
+      // caller has claimed still needs reviewing, it is just no longer unclaimed.
+      requiresReview: pendingCount + claimedCount,
+      averageConfidence: averageDocumentConfidence(fieldPayloads),
+      reviewedToday,
     };
   }
 
@@ -249,6 +452,17 @@ export class HitlService {
     const document = await this.documentService.findDocument(dto.documentId);
     if (!document) {
       throw new NotFoundException(`Document ${dto.documentId} not found`);
+    }
+
+    // Reviewable only once OCR has produced results to review, and before a
+    // decision (approve/reject) has already been made
+    if (
+      document.status !== DocumentStatus.extracted &&
+      document.status !== DocumentStatus.awaiting_review
+    ) {
+      throw new ConflictException(
+        `Document ${dto.documentId} is not reviewable in its current status (${document.status})`,
+      );
     }
 
     // Check for existing lock
@@ -369,16 +583,15 @@ export class HitlService {
     // Fetch field definitions for format-aware HITL validation. Prefer the exact
     // template model recorded on the document (a Group can hold many templates;
     // only one was actually used). Fall back to the group lookup for older docs.
+    // Both lookups stay within the document's group.
     const templateModelId = readTemplateModelIdFromMetadata(
       session.document.metadata,
     );
     const fieldDefinitions =
-      templateModelId || session.document.group_id
-        ? await this.reviewDb.findFieldDefinitionsForDocument({
-            templateModelId,
-            groupId: session.document.group_id,
-          })
-        : [];
+      await this.reviewDb.findFieldDefinitionsForDocument({
+        templateModelId,
+        groupId: session.document.group_id,
+      });
 
     const reviewPlan = readReviewPlanFromDocument(
       (session.document as { review_plan?: unknown }).review_plan,
@@ -403,10 +616,15 @@ export class HitlService {
       corrections: session.corrections,
       fieldDefinitions,
       reviewPlan,
+      flagNote: session.flag_note,
     };
   }
 
-  async submitCorrections(sessionId: string, dto: SubmitCorrectionsDto) {
+  async submitCorrections(
+    sessionId: string,
+    dto: SubmitCorrectionsDto,
+    actorId: string,
+  ) {
     this.logger.debug(`Submitting corrections for session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -432,9 +650,22 @@ export class HitlService {
                 corrected_value: correction.corrected_value,
                 original_conf: correction.original_conf,
                 action: correction.action,
+                actor_id: actorId,
               },
               tx,
             ),
+          );
+        }
+
+        // Saving corrections during a reopened handoff is the reviewer engaging
+        // with the takeover, so skip/lock-expiry should no longer auto-restore
+        // this session to its prior status (e.g. back to Flagged) if it later
+        // ends without a decision — that would discard the work's context.
+        if (session.reopened_from_status) {
+          await this.reviewDb.updateReviewSession(
+            sessionId,
+            { reopened_from_status: null },
+            tx,
           );
         }
 
@@ -462,12 +693,23 @@ export class HitlService {
     };
   }
 
-  async approveSession(sessionId: string) {
+  async approveSession(sessionId: string, actorId: string) {
     this.logger.debug(`Approving session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Only a session someone is actually working on can be approved. Without
+    // this, a double-click or a stale tab approves twice: two audit events, and
+    // the ground-truth hook below runs a second time on the same document.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.approved
+          ? "Review session has already been approved"
+          : `Cannot approve a session that is ${session.status}`,
+      );
     }
 
     const doc = session.document as {
@@ -499,11 +741,18 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.approved, actor_id: actorId },
+        tx,
+      );
+
       await this.auditService.recordEvent(
         {
           event_type: "review_session_approved",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
@@ -513,6 +762,13 @@ export class HitlService {
       );
 
       return sessionUpdate;
+    });
+
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: true,
+      reviewer: actorId,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
     });
 
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
@@ -547,12 +803,35 @@ export class HitlService {
     };
   }
 
-  async escalateSession(sessionId: string, dto: EscalateDto) {
-    this.logger.debug(`Escalating session: ${sessionId}`);
+  /**
+   * Rejects a review session, and the document with it. The session keeps the
+   * reviewer's reason and comment, and the document moves to `rejected` in the
+   * same transaction, so the rejection holds whether or not a workflow is
+   * waiting. The workflow's review gate then fails the run
+   * (HUMAN_GATE_REJECTED); its failure hook only moves documents that are
+   * still in OCR, so it leaves `rejected` alone.
+   */
+  async rejectSession(
+    sessionId: string,
+    dto: RejectSessionDto,
+    actorId: string,
+  ) {
+    this.logger.debug(`Rejecting session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Only a session someone is actually working on can be rejected. Without
+    // this, a double-click or a stale tab rejects twice, each sending its own
+    // rejection signal to the workflow.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.rejected
+          ? "Review session has already been rejected"
+          : `Cannot reject a session that is ${session.status}`,
+      );
     }
 
     const doc = session.document as {
@@ -560,22 +839,16 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    const updated = await this.prismaService.transaction(async (tx) => {
-      await this.reviewDb.createFieldCorrection(
-        sessionId,
-        {
-          field_key: "_escalation",
-          original_value: dto.reason,
-          action: CorrectionAction.flagged,
-        },
-        tx,
-      );
+    const rejectionComment = dto.comments?.trim() || null;
 
+    const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
         {
-          status: ReviewStatus.escalated,
+          status: ReviewStatus.rejected,
           completed_at: new Date(),
+          rejection_reason: dto.rejectionReason,
+          rejection_comment: rejectionComment,
         },
         tx,
       );
@@ -584,17 +857,41 @@ export class HitlService {
         throw new NotFoundException(`Review session ${sessionId} not found`);
       }
 
+      await this.documentService.updateDocument(
+        session.document_id,
+        {
+          status: DocumentStatus.rejected,
+        },
+        tx,
+      );
+
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.rejected,
+          actor_id: actorId,
+          comment: rejectionComment,
+          rejection_reason: dto.rejectionReason,
+        },
+        tx,
+      );
 
       await this.auditService.recordEvent(
         {
-          event_type: "review_session_escalated",
+          event_type: "review_session_rejected",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id, reason: dto.reason },
+          payload: {
+            document_id: session.document_id,
+            rejection_reason: dto.rejectionReason,
+            comments: rejectionComment,
+          },
         },
         tx,
       );
@@ -602,15 +899,32 @@ export class HitlService {
       return sessionUpdate;
     });
 
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: false,
+      reviewer: actorId,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
+      comments: rejectionComment ?? undefined,
+      rejectionReason: dto.rejectionReason,
+    });
+
     return {
       id: updated.id,
       status: updated.status,
-      reason: dto.reason,
-      message: "Review session escalated",
+      completedAt: updated.completed_at,
+      message: "Review session rejected",
     };
   }
 
-  async skipSession(sessionId: string) {
+  /**
+   * Skips a session the reviewer is currently working on. A session reopened
+   * from `flagged` (a handoff) restores to `flagged` for the next reviewer,
+   * unless corrections were saved during the takeover (see submitCorrections),
+   * in which case it is `abandoned` like any other skip. A session that is not
+   * `in_progress` cannot be skipped: it has already reached a decision, or
+   * nothing has claimed it yet.
+   */
+  async skipSession(sessionId: string, actorId: string) {
     this.logger.debug(`Skipping session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -618,18 +932,26 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        `Cannot skip a session that is ${session.status}`,
+      );
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
 
+    const nextStatus =
+      session.reopened_from_status === ReviewStatus.flagged
+        ? ReviewStatus.flagged
+        : ReviewStatus.abandoned;
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        {
-          status: ReviewStatus.skipped,
-          completed_at: new Date(),
-        },
+        { status: nextStatus, reopened_from_status: null },
         tx,
       );
 
@@ -639,15 +961,22 @@ export class HitlService {
 
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.skipped, actor_id: actorId },
+        tx,
+      );
+
       await this.auditService.recordEvent(
         {
           event_type: "review_session_skipped",
           resource_type: "review_session",
           resource_id: sessionId,
+          actor_id: actorId,
           document_id: session.document_id,
           workflow_execution_id: doc.workflow_execution_id ?? undefined,
           group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id },
+          payload: { document_id: session.document_id, status: nextStatus },
         },
         tx,
       );
@@ -658,7 +987,72 @@ export class HitlService {
     return {
       id: updated.id,
       status: updated.status,
-      message: "Review session skipped",
+      message:
+        nextStatus === ReviewStatus.flagged
+          ? "Lock released, document returned to flagged queue"
+          : "Lock released, document returned to queue",
+    };
+  }
+
+  async flagSession(sessionId: string, dto: FlagSessionDto, actorId: string) {
+    this.logger.debug(`Flagging session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
+    const flagNote = dto.note?.trim() || null;
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        { status: ReviewStatus.flagged, flag_note: flagNote },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        {
+          event_type: ReviewSessionEventType.flagged,
+          actor_id: actorId,
+          comment: flagNote,
+        },
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_flagged",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          actor_id: actorId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id, flag_note: flagNote },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      message: "Review session flagged",
     };
   }
 
@@ -670,7 +1064,12 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const corrections = await this.reviewDb.findSessionCorrections(sessionId);
+    // History spans every session the document has had, not just this one:
+    // a document that got a fresh session (skip, abandonment, flag handoff)
+    // keeps the corrections made in its earlier sessions.
+    const corrections = await this.reviewDb.findDocumentCorrections(
+      session.document_id,
+    );
 
     return {
       sessionId,
@@ -682,6 +1081,35 @@ export class HitlService {
         originalConfidence: c.original_conf,
         action: c.action,
         createdAt: c.created_at,
+        author: resolveCorrectionAuthor(c.actor),
+      })),
+    };
+  }
+
+  /**
+   * Gets the permanent history of actions (flag, reject, skip, approve,
+   * reopen) recorded against a review session, oldest first.
+   */
+  async getSessionHistory(sessionId: string) {
+    this.logger.debug(`Getting history for session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    const events = await this.reviewDb.findSessionEvents(sessionId);
+
+    return {
+      sessionId,
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.event_type,
+        actorId: e.actor_id,
+        actorName: e.actor?.user?.email ?? null,
+        comment: e.comment,
+        rejectionReason: e.rejection_reason,
+        createdAt: e.created_at,
       })),
     };
   }
@@ -742,7 +1170,11 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    if (session.actor_id !== reviewerId) {
+    // A flagged session is paused work handed to the group, not finished work:
+    // anyone with access takes it over, and there is no window to miss.
+    const isHandoff = session.status === ReviewStatus.flagged;
+
+    if (!isHandoff && session.actor_id !== reviewerId) {
       throw new ForbiddenException(
         "Only the original reviewer can reopen this session",
       );
@@ -752,22 +1184,32 @@ export class HitlService {
       throw new ConflictException("Session is already in progress");
     }
 
-    // Determine reopen eligibility based on workflow type
+    // Labelling a dataset produces ground truth and drives nothing downstream,
+    // so a finished job can go back for another pass until its dataset version
+    // is frozen.
     const groundTruthJob = session.document.groundTruthJob;
     if (groundTruthJob) {
-      // Dataset labeling workflow: block if dataset version is frozen
       if (groundTruthJob.datasetVersion.frozen) {
         throw new ConflictException("Cannot reopen: dataset version is frozen");
       }
-    } else {
-      // Regular workflow: allow within 5 minutes of completion
-      const fiveMinutesMs = 5 * 60 * 1000;
-      if (
-        !session.completed_at ||
-        Date.now() - session.completed_at.getTime() > fiveMinutesMs
-      ) {
-        throw new ConflictException("Cannot reopen: reopen window has expired");
-      }
+    } else if (!isHandoff) {
+      // Approving a document review signals the gated workflow, which then runs
+      // every node after the gate. Nothing can call that back, so an approval is
+      // the end of the review. Re-run the document to review it again.
+      throw new ConflictException(
+        "Cannot reopen: the review is complete and its workflow has already moved on",
+      );
+    }
+
+    // Two reviewers can be reading the same flagged document; only one of them
+    // takes it.
+    const existingLock = await this.reviewDb.findActiveLock(
+      session.document_id,
+    );
+    if (existingLock && existingLock.reviewer_id !== reviewerId) {
+      throw new ConflictException(
+        "Document is currently locked by another reviewer",
+      );
     }
 
     const lockTtlMs = 10 * 60 * 1000;
@@ -782,7 +1224,21 @@ export class HitlService {
         {
           status: ReviewStatus.in_progress,
           completed_at: null,
+          // The session belongs to whoever reopens it, so taking over a flagged
+          // session makes it the new reviewer's. Corrections already saved keep
+          // their own author, and the flag note stays for the new reviewer.
+          actor_id: reviewerId,
+          // Only a handoff (reopened from flagged) restores automatically if the
+          // takeover ends without a decision; a reopened ground-truth job keeps
+          // this unset, since that path isn't in scope for the live-state restore.
+          reopened_from_status: isHandoff ? ReviewStatus.flagged : null,
         },
+        tx,
+      );
+
+      await this.documentService.updateDocument(
+        session.document_id,
+        { status: DocumentStatus.awaiting_review },
         tx,
       );
 
@@ -793,6 +1249,12 @@ export class HitlService {
           session_id: sessionId,
           expires_at: new Date(Date.now() + lockTtlMs),
         },
+        tx,
+      );
+
+      await this.reviewDb.createReviewSessionEvent(
+        sessionId,
+        { event_type: ReviewSessionEventType.reopened, actor_id: reviewerId },
         tx,
       );
 
@@ -843,31 +1305,57 @@ export class HitlService {
       maxConfidence?: number;
       reviewStatus?: ReviewStatusFilter;
       group_id?: string;
+      excludeDocumentId?: string;
     },
     reviewerId: string,
     groupIds: string[],
   ) {
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const reviewStatusFilter =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : "pending";
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    // Unlike getQueue, this starts a brand new in_progress session on
+    // whatever it finds. a `complete` document's workflow has already
+    // went past the review gate (see reopenSession's guard against
+    // reopening one), so it must never be an eligible target here.
+    const documents = await this.reviewDb.findReviewQueue({
       statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
-      maxConfidence,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId: reviewerId,
-    })) as DocumentWithOcrResult[];
+    });
 
     // Filter by confidence — same logic as getQueue
-    const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+    const eligible = documents.filter((doc) => {
+      if (filters.excludeDocumentId && doc.id === filters.excludeDocumentId) {
+        return false;
+      }
+
+      if (doc.status === DocumentStatus.awaiting_review) return true;
+
       if (!doc.ocr_result) return false;
 
       const fields = doc.ocr_result

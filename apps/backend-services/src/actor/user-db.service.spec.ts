@@ -69,4 +69,32 @@ describe("UserDbService", () => {
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
   });
+
+  describe("findUserWithGroupNames", () => {
+    it("loads only memberships in groups that are not soft-deleted, with each group joined", async () => {
+      const user = { id: "user-1", userGroups: [] };
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+
+      expect(await service.findUserWithGroupNames("user-1")).toBe(user);
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        include: {
+          userGroups: {
+            where: { group: { deleted_at: null } },
+            include: { group: true },
+          },
+        },
+      });
+    });
+
+    it("uses tx client", async () => {
+      const txUser = { findUnique: jest.fn().mockResolvedValue(null) };
+      const tx = { user: txUser } as unknown as Parameters<
+        typeof service.findUserWithGroupNames
+      >[1];
+      expect(await service.findUserWithGroupNames("user-1", tx)).toBeNull();
+      expect(txUser.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

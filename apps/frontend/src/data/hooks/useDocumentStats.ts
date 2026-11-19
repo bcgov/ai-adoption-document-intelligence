@@ -11,6 +11,7 @@ export interface DocumentStatusCounts {
   complete: number;
   failed: number;
   conversion_failed: number;
+  rejected: number;
 }
 
 /**

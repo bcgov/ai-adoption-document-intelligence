@@ -51,6 +51,17 @@ export function validateWorkflowConfigOverrides(
       );
       continue;
     }
+    // An override on an undeclared ctx key would set a value nothing reads.
+    const ctxKey = path.startsWith("ctx.") ? path.split(".")[1] : undefined;
+    if (
+      ctxKey !== undefined &&
+      !(config.ctx && Object.hasOwn(config.ctx, ctxKey))
+    ) {
+      errors.push(
+        `Override path "${path}" names ctx key "${ctxKey}", which the workflow does not declare`,
+      );
+      continue;
+    }
     if (param.type === "select" && param.options) {
       if (!param.options.includes(String(value))) {
         errors.push(

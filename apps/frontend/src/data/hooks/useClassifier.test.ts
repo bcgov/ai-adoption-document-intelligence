@@ -188,3 +188,32 @@ describe("useClassifier – getClassifiers", () => {
     });
   });
 });
+
+describe("useClassifier – fetchClassificationResult", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseGroup.mockReturnValue({ activeGroup });
+  });
+
+  it("sends the classifier's group_id with the operation location", async () => {
+    vi.mocked(apiService.get).mockResolvedValue({
+      success: true,
+      data: { status: "succeeded" },
+      message: undefined,
+    });
+    const operationLocation =
+      "https://example.cognitiveservices.azure.com/documentintelligence/documentClassifiers/group-abc__invoices/analyzeResults/r1?api-version=2024-11-30";
+
+    const { result } = renderHook(() => useClassifier(), {
+      wrapper: createWrapper(),
+    });
+    await result.current.fetchClassificationResult(
+      operationLocation,
+      "group-abc",
+    );
+
+    expect(apiService.get).toHaveBeenCalledWith(
+      `/azure/classifier/classify?operationLocation=${encodeURIComponent(operationLocation)}&group_id=group-abc`,
+    );
+  });
+});

@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { useAuth } from "../auth/AuthContext";
 import { useGroup } from "../auth/GroupContext";
+import { Permission } from "../auth/permissions";
 import {
   useGroupBillingConfig,
   useSetBillingCap,
@@ -751,8 +752,11 @@ function RateVersionsView() {
  */
 export function BillingPage(): JSX.Element {
   const { isSystemAdmin } = useAuth();
-  const group = useGroup();
-  const isAdmin = isSystemAdmin || group.activeGroup?.role === "ADMIN";
+  const { activeGroup, hasPermissionForGroup } = useGroup();
+  const isAdmin =
+    isSystemAdmin ||
+    (activeGroup != null &&
+      hasPermissionForGroup(activeGroup.id, [Permission.GROUP_BILLING]));
 
   if (!isAdmin) {
     return <Navigate to="/" replace />;

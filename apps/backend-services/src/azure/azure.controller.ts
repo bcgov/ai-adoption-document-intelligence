@@ -24,6 +24,7 @@ import {
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
 import "multer";
 import {
+  ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
@@ -40,10 +41,7 @@ import {
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
@@ -51,6 +49,7 @@ import {
   CLASSIFIER_OTHER_AZURE_PREFIX,
   ClassifierSource,
   ClassifierStatus,
+  RESERVED_CLASSIFIER_LABELS,
 } from "@/azure/dto/classifier-constants.dto";
 import {
   ClassifierCreationDto,
@@ -58,6 +57,8 @@ import {
   GetClassificationResultQueryDto,
   GetClassifierDocumentsQueryDto,
   GetTrainingResultQueryDto,
+  NO_DOT_SEGMENT_PATTERN,
+  NO_DOT_SEGMENT_RULE,
   RequestClassificationDto,
   RequestClassifierTrainingDto,
   UpdateClassifierDto,
@@ -80,7 +81,6 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { MulterExceptionFilter } from "@/filters/multer-exception.filter";
-import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 @ApiTags("Azure")
@@ -96,7 +96,13 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_RETRIEVE],
+    },
+  })
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -104,32 +110,24 @@ export class AzureController {
   })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description:
-      "Optional group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
+      "Group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
   })
   @ApiCreatedResponse({
     description: "Classifiers retrieved successfully",
     type: [ClassifierModelResponseDto],
   })
-  async getClassifiers(
-    @Req() req: Request,
-    @Query("group_id") groupId?: string,
-  ) {
-    if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      return this.classifierService.findAllClassifierModelsForGroups([groupId]);
-    }
-    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    const classifiers =
-      await this.classifierService.findAllClassifierModelsForGroups(groupIds);
-    return classifiers;
+  async getClassifiers(@Query("group_id") groupId: string) {
+    return this.classifierService.findAllClassifierModelsForGroups([groupId]);
   }
 
   @Post("classifier")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_CREATE],
+    },
     allowApiKey: true,
   })
   @ApiOperation({
@@ -139,6 +137,10 @@ export class AzureController {
   @ApiCreatedResponse({
     description: "Classifier created successfully",
     type: ClassifierCreationDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "The body is invalid, e.g. the name contains a '.' or '..' path segment.",
   })
   @ApiBody({
     type: ClassifierCreationDto,
@@ -173,8 +175,10 @@ export class AzureController {
 
   @Patch("classifier")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_UPDATE],
+    },
   })
   @ApiOperation({
     summary: "Update a classifier",
@@ -225,8 +229,10 @@ export class AzureController {
   @Post("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Upload training documents",
@@ -253,8 +259,16 @@ export class AzureController {
             format: "binary",
           },
         },
-        name: { type: "string" },
-        label: { type: "string" },
+        name: {
+          type: "string",
+          description: `Classifier name. ${NO_DOT_SEGMENT_RULE}`,
+          pattern: NO_DOT_SEGMENT_PATTERN.source,
+        },
+        label: {
+          type: "string",
+          description: `Label name. The following labels are reserved and cannot be used: ${RESERVED_CLASSIFIER_LABELS.join(", ")}. ${NO_DOT_SEGMENT_RULE}`,
+          pattern: NO_DOT_SEGMENT_PATTERN.source,
+        },
       },
       required: ["files", "name", "label"],
     },
@@ -263,6 +277,10 @@ export class AzureController {
   @ApiCreatedResponse({
     description: "Files uploaded successfully",
     type: UploadClassifierDocumentsResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "The body is invalid, e.g. the name or label contains a '.' or '..' path segment, or the label is reserved.",
   })
   async uploadClassifierDocuments(
     @UploadedFiles() files: Array<Express.Multer.File>,
@@ -310,8 +328,10 @@ export class AzureController {
   @Get("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Get training documents",
@@ -320,6 +340,10 @@ export class AzureController {
   @ApiCreatedResponse({
     description: "Documents retrieved successfully",
     type: [String],
+  })
+  @ApiBadRequestResponse({
+    description:
+      "The query is invalid, e.g. the name contains a '.' or '..' path segment.",
   })
   async getClassifierDocuments(
     @Req() req: Request,
@@ -360,8 +384,10 @@ export class AzureController {
   @Delete("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Delete training documents",
@@ -370,6 +396,10 @@ export class AzureController {
   @ApiNoContentResponse({
     description: "Documents deleted successfully.",
     type: DeleteClassifierDocumentsResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "The query is invalid, e.g. the name or folder contains a '.' or '..' path segment.",
   })
   @HttpCode(204)
   async deleteClassifierDocuments(
@@ -413,8 +443,10 @@ export class AzureController {
 
   @Post("classifier/train")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_TRAIN],
+    },
   })
   @ApiOperation({
     summary: "Request classifier training",
@@ -423,6 +455,10 @@ export class AzureController {
   @ApiCreatedResponse({
     description: "Training requested successfully",
     type: ClassifierModelResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "The body is invalid, e.g. the name contains a '.' or '..' path segment.",
   })
   @ApiBody({
     type: RequestClassifierTrainingDto,
@@ -528,8 +564,10 @@ export class AzureController {
 
   @Post("classifier/classify")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_USE],
+    },
   })
   @ApiOperation({
     summary: "Request document classification",
@@ -591,20 +629,50 @@ export class AzureController {
   }
 
   @Get("classifier/classify")
-  // No identity check, as caller is providing only the operation location url, which we do not store.
-  @Identity()
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_USE],
+    },
+  })
   @ApiOperation({
     summary: "Get classification result",
-    description: "Get the result of a classification operation.",
+    description:
+      "Get the result of a classification operation. The operation location must name a classifier of the group in group_id.",
   })
   @ApiOkResponse({
     description: "Classification result retrieved",
     type: ClassificationResultDto,
   })
+  @ApiBadRequestResponse({
+    description: "operationLocation or group_id is missing.",
+  })
+  @ApiNotFoundResponse({
+    description:
+      "The operation location does not name a classifier of the requested group.",
+  })
+  @ApiForbiddenResponse({
+    description: "Caller is not a member of the group or lacks permission.",
+  })
   async getClassificationResult(
     @Query() query: GetClassificationResultQueryDto,
   ): Promise<ClassificationResultDto> {
-    const { operationLocation } = query;
+    const { operationLocation, group_id } = query;
+    const classifierName =
+      this.classifierService.getClassifierNameFromOperationLocation(
+        operationLocation,
+        group_id,
+      );
+    const classifier =
+      classifierName == null
+        ? null
+        : await this.classifierService.findClassifierModel(
+            classifierName,
+            group_id,
+          );
+    if (classifier == null) {
+      throw new NotFoundException("Classification operation not found.");
+    }
     let returnValue: unknown;
     await this.azureService.pollOperationUntilResolved(
       operationLocation,
@@ -622,8 +690,10 @@ export class AzureController {
 
   @Get("classifier/train")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_TRAIN],
+    },
   })
   @ApiOperation({
     summary: "Get training result",
@@ -643,7 +713,6 @@ export class AzureController {
         "Must provide both name and group_id query parameters.",
       );
     }
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
     const actorId = req.resolvedIdentity.actorId;
     const classifier = await this.classifierService.findClassifierModel(
       name,
@@ -679,8 +748,10 @@ export class AzureController {
 
   @Delete("classifiers/:groupId/:classifierName")
   @Identity({
-    minimumRole: GroupRole.ADMIN,
-    groupIdFrom: { param: "groupId" },
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CLASSIFIER_DELETE],
+    },
   })
   @ApiOperation({
     summary: "Delete a classifier",

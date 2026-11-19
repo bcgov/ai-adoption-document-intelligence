@@ -1,24 +1,44 @@
 import {
-  IconAlertTriangle,
+  IconArrowLeft,
   IconArrowsSort,
   IconCheck,
+  IconDeviceFloppy,
+  IconFlag,
   IconLayoutGrid,
   IconPhoto,
   IconPlayerSkipForward,
+  IconX,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import { Button, Group, IconActionButton } from "../../../../ui";
+import {
+  Button,
+  Group,
+  IconActionButton,
+  Switch,
+  Tooltip,
+} from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
 
 interface ReviewToolbarProps {
+  onBack: () => void;
   onApprove: () => void;
-  onEscalate: () => void;
+  onFlag: () => void;
+  /** Omit to hide Reject, as when labelling a dataset: there is no workflow to reject. */
+  onReject?: () => void;
   onSkip: () => void;
+  /** Persists in-progress corrections without approving, flagging, rejecting or skipping. */
+  onSave: () => void;
   isApproving?: boolean;
-  isEscalating?: boolean;
+  isFlagging?: boolean;
   isSkipping?: boolean;
+  isRejecting?: boolean;
+  isSaving?: boolean;
+  /** Note captured from a prior flag on this session, if one exists. */
+  flagNote?: string | null;
+  autoAdvance?: boolean;
+  onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
   onViewModeToggle?: () => void;
   sortMode?: SortMode;
@@ -26,12 +46,20 @@ interface ReviewToolbarProps {
 }
 
 export const ReviewToolbar: FC<ReviewToolbarProps> = ({
+  onBack,
   onApprove,
-  onEscalate,
+  onFlag,
+  onReject,
   onSkip,
+  onSave,
   isApproving,
-  isEscalating,
+  isFlagging,
   isSkipping,
+  isRejecting,
+  isSaving,
+  flagNote,
+  autoAdvance,
+  onAutoAdvanceToggle,
   viewMode,
   onViewModeToggle,
   sortMode,
@@ -41,21 +69,73 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
     <Group justify="space-between">
       <Group>
         <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={onBack}
+        >
+          Back
+        </Button>
+        <Button
+          variant="default"
+          leftSection={<IconDeviceFloppy size={16} />}
+          onClick={onSave}
+          loading={isSaving}
+        >
+          Save
+        </Button>
+        <Button
           leftSection={<IconCheck size={16} />}
           onClick={onApprove}
           loading={isApproving}
         >
           Approve
         </Button>
-        <Button
-          variant="light"
-          color="yellow"
-          leftSection={<IconAlertTriangle size={16} />}
-          onClick={onEscalate}
-          loading={isEscalating}
-        >
-          Escalate
-        </Button>
+        <Tooltip label={flagNote ? `Flag note: ${flagNote}` : "Flag document"}>
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <Button
+              variant="light"
+              color="orange"
+              leftSection={<IconFlag size={16} />}
+              onClick={onFlag}
+              loading={isFlagging}
+            >
+              Flag
+            </Button>
+            {flagNote && (
+              <span
+                aria-label="Flag has a note"
+                style={{
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: "var(--mantine-color-red-6, #e03131)",
+                  color: "white",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: "14px",
+                  textAlign: "center",
+                }}
+              >
+                !
+              </span>
+            )}
+          </div>
+        </Tooltip>
+        {onReject && (
+          <Button
+            variant="light"
+            color="red"
+            leftSection={<IconX size={16} />}
+            onClick={onReject}
+            loading={isRejecting}
+          >
+            Reject
+          </Button>
+        )}
       </Group>
 
       <Group>
@@ -91,15 +171,25 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         )}
       </Group>
 
-      <Button
-        variant="subtle"
-        color="gray"
-        leftSection={<IconPlayerSkipForward size={16} />}
-        onClick={onSkip}
-        loading={isSkipping}
-      >
-        Skip
-      </Button>
+      <Group>
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconPlayerSkipForward size={16} />}
+          onClick={onSkip}
+          loading={isSkipping}
+        >
+          Skip
+        </Button>
+        {onAutoAdvanceToggle && (
+          <Switch
+            size="sm"
+            label="Auto-advance"
+            checked={autoAdvance ?? true}
+            onChange={onAutoAdvanceToggle}
+          />
+        )}
+      </Group>
     </Group>
   );
 };

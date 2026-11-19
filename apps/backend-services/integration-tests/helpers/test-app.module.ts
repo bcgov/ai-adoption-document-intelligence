@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { HttpService } from "@nestjs/axios";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
@@ -52,7 +53,11 @@ export const httpServiceMock = {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ".env", cache: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: resolve(__dirname, "../../../../.env"),
+      cache: true,
+    }),
     DatabaseModule,
     DocumentModule,
     QueueModule,

@@ -79,13 +79,7 @@ For OCR-heavy scenarios use **`DOCUMENT_INTELLIGENCE_MODE=mock`** on the backend
 --document-intelligence-mode mock --mock-azure-ocr true
 ```
 
-Reduce Postgres backup PVC pressure if quotas bite:
-
-```text
-PG_BACKUP_STORAGE_SIZE=2Gi
-```
-
-in `<instance>.env` merge file.
+Backup PVC sizes are fixed at the base manifest values (`10Gi` each for `app-pg` and `temporal-pg`) and are no longer tunable per instance. If the namespace storage quota bites, tear down idle instances or raise the quota with the Platform Services team — editing the base manifests changes every test instance, not just this one.
 
 ### Mock blob storage with in-cluster MinIO
 
@@ -108,16 +102,16 @@ What the deploy script does on **`--blob-storage-provider minio`**:
 
 - Creates **`<instance>-minio-credentials`** Secret with random root user / password (skipped if it already exists, so re-deploys reuse the same credentials).
 - Pulls in the **`deployments/openshift/kustomize/components/minio`** component, which renders:
-  - **`<instance>-minio`** Deployment (image `minio/minio`, single replica, `Recreate` strategy, ports 9000 API / 9001 console).
+  - **`<instance>-minio`** Deployment (image `cgr.dev/chainguard/minio`, single replica, `Recreate` strategy, ports 9000 API / 9001 console).
   - **`<instance>-minio`** Service (ClusterIP).
   - **`<instance>-minio`** PVC (RWO, size from **`--minio-pvc-size`**, default `5Gi`).
-  - **`<instance>-minio-init`** Job (image `minio/mc`) that waits for MinIO to be ready and creates buckets **`document-blobs`** and **`benchmark-outputs`**.
+  - **`<instance>-minio-init`** Job (the same image, which also ships the `mc` client) that waits for MinIO to be ready and creates buckets **`document-blobs`** and **`benchmark-outputs`**.
 - Patches the backend and worker ConfigMaps so **`BLOB_STORAGE_PROVIDER=minio`**, **`MINIO_ENDPOINT=http://<instance>-minio:9000`**, and **`MINIO_DOCUMENT_BUCKET=document-blobs`**. **`MINIO_ACCESS_KEY`** / **`MINIO_SECRET_KEY`** come from the credentials Secret.
 - Deletes any prior **`<instance>-minio-init`** Job before re-applying (Job spec is immutable; this lets re-deploys recreate it cleanly).
 
 No Azure egress is needed for blob operations under this mode, and **`./scripts/oc-teardown.sh --instance <name>`** removes the MinIO Deployment, Service, PVC, Secret, and Job along with the rest of the stack (label-scoped delete).
 
-> **Image pulls:** the MinIO component references public images (**`minio/minio`**, **`minio/mc`**). If your cluster blocks egress to Docker Hub, mirror the images into **`${ARTIFACTORY_URL}/kfd3-fd34fb-local`** and patch the component to use the mirrored references before deploying.
+> **Image pulls:** the MinIO component pulls one public image, **`cgr.dev/chainguard/minio`**: Chainguard's build of the MinIO server, which also ships the `mc` client. MinIO no longer publishes **`minio/minio`** or **`minio/mc`** on Docker Hub. If your cluster blocks egress to `cgr.dev`, mirror the image into **`${ARTIFACTORY_URL}/kfd3-fd34fb-local`** and patch the component to use the mirrored reference before deploying.
 
 ### Optional
 
@@ -250,7 +244,7 @@ This deletes labeled resources including PostgresClusters for that instance.
 
 ## Operational notes
 
-- **`Deploy Instance`** on **`workflow_dispatch`** still targets the **`dev`** GitHub environment / **`fd34fb-dev`**; this manual path is how you land an extra stack in **`fd34fb-test`** without changing CI.
+- **`Deploy Instance`** on **`workflow_dispatch`** deploys into the GitHub environment picked in its form: **`dev`** (the default, **`fd34fb-dev`**) or **`test`** (**`fd34fb-test`**); **`prod`** is accepted only from **`main`**, as the production instance **`bcgov-di`** (see [AUTO_DEPLOY.md](./AUTO_DEPLOY.md)). The scripts on this page build and deploy from your machine, with options the workflow does not expose: per-instance `.env` overrides and the flags below.
 - Registry paths remain **`${ARTIFACTORY_URL}/kfd3-fd34fb-local/<service>:<tag>`**, identical to CI.
 - Overlay placeholders **`DOCUMENT_INTELLIGENCE_MODE`** and **`MOCK_AZURE_OCR`** are substituted by [`scripts/lib/generate-overlay.sh`](../../scripts/lib/generate-overlay.sh); CI defaults stay **`live`** / **`false`** when those flags are omitted.
-- The **`minio`** Kustomize component lives at [`deployments/openshift/kustomize/components/minio`](../../deployments/openshift/kustomize/components/minio) and is opt-in. CI’s **`Deploy Instance`** workflow does **not** pass **`--blob-storage-provider minio`**, so it has no effect on the **`bcgov-di-test`** or **`bcgov-di-prod`** stacks.
+- The **`minio`** Kustomize component lives at [`deployments/openshift/kustomize/components/minio`](../../deployments/openshift/kustomize/components/minio) and is opt-in. CI’s **`Deploy Instance`** workflow does **not** pass **`--blob-storage-provider minio`**, so it has no effect on the **`bcgov-di-test`** or **`bcgov-di`** (production) stacks.

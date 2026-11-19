@@ -4,6 +4,8 @@
 
 Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. All settings — including secrets — live in a single file per profile. Instance-specific overrides can be layered on top.
 
+**CI deployments** (`deploy-instance.yml`) read configuration from GitHub environment secrets (`secrets.*`) for sensitive values. Non-secret PLG monitoring sizing (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) is committed in per-environment Helm values files at `deployments/openshift/helm/plg/values-<env>.yaml`. To change a sizing value, edit the matching values file — no GitHub UI configuration is needed or used for these.
+
 ## Configuration Files
 
 | File | Purpose |
@@ -130,15 +132,34 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, and `MINIO_SECRET_KEY` are not configured through `dev.env`/`prod.env`. The deploy script renders `MINIO_ENDPOINT` from the per-instance Service name and seeds a random `<instance>-minio-credentials` Secret when `--blob-storage-provider minio` is used. See [MANUAL_LOAD_TEST_INSTANCE.md](./MANUAL_LOAD_TEST_INSTANCE.md) for the full opt-in flow.
 
-### Azure OpenAI (LLM Enrichment)
+### Azure OpenAI (shared: chat agent, enrichment, format suggestion, recommendations)
+
+One subscription, **two deployments**. These four variables are delivered to
+*both* `backend-services` and `temporal-worker`, because they have different
+consumers on each side:
+
+- **backend-services** — the workflow chat agent
+  (`apps/backend-services/src/agent`), AI format suggestion, benchmark
+  recommendations.
+- **temporal-worker** — LLM enrichment of OCR results.
+
+Repointing the endpoint moves all of those at once. Setting the four in an env
+file is enough: `scripts/oc-deploy-instance.sh` and
+`.github/workflows/deploy-instance.yml` write the key into both per-instance
+Secrets and the other three into both ConfigMaps.
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
-| `AZURE_OPENAI_ENDPOINT` | No | Azure OpenAI endpoint URL |
-| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
-| `AZURE_OPENAI_DEPLOYMENT` | No | OpenAI deployment/model name |
+| `AZURE_OPENAI_ENDPOINT` | No | Azure OpenAI / APIM proxy base URL |
+| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI (APIM subscription) key |
+| `AZURE_OPENAI_DEPLOYMENT` | No | Deployment name; the chat agent uses it verbatim as the model id |
 | `AZURE_OPENAI_API_VERSION` | No | OpenAI API version (e.g., `2024-02-15-preview`) |
-| `ENRICHMENT_REDACT_PII` | No | Redact PII in LLM enrichment (`true`/`false`) |
+| `ENRICHMENT_REDACT_PII` | No | Redact PII in LLM enrichment (`true`/`false`) — worker only |
+
+Leaving `AZURE_OPENAI_ENDPOINT` or `AZURE_OPENAI_API_KEY` blank does **not**
+break the deployment: backend-services boots normally and the chat assistant
+reports itself as not configured. See
+[../workflows/AGENT_SETUP.md](../workflows/AGENT_SETUP.md).
 
 ### Temporal
 
@@ -150,13 +171,38 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 | `ENABLE_BENCHMARK_QUEUE` | Enable separate benchmark worker |
 | `MOCK_AZURE_OCR` | Worker OCR stub (`true` / `false`). Use `true` only on disposable stacks (see [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md)); substituted into the worker ConfigMap by [`scripts/lib/generate-overlay.sh`](../../scripts/lib/generate-overlay.sh). CLI override: `scripts/oc-deploy-instance.sh --mock-azure-ocr`. |
 
+### Dynamic Nodes (deno-runner)
+
+The `deno-runner` deployment is the sandbox that executes published dynamic-node
+scripts (`dyn.*` activities). It is `ClusterIP`-only (no Route) on port 9090;
+`networkpolicy.yml` restricts ingress to backend-services and temporal-worker
+pods and restricts egress to DNS plus the platform API. Manifests:
+[`deployments/openshift/kustomize/base/deno-runner/`](../../deployments/openshift/kustomize/base/deno-runner/).
+
+| Variable | Description |
+|----------|-------------|
+| `DENO_RUNNER_URL` | Where backend-services and the temporal worker reach the runner (base: `http://deno-runner:9090`; instance overlays patch in the `namePrefix`ed service name) |
+| `AI_DI_API_BASE_URL` | Worker config: the backend base URL injected into dynamic-node sandboxes so scripts can call the platform API back (instance overlays patch in the instance's backend service name) |
+| `DYNAMIC_NODE_ALLOW_NET` | Backend config: global allowlist of extra outbound hosts a dynamic node may declare via `@allowNet`. Empty means scripts can reach only the platform API |
+
+The runner has **no Secret of its own**: the credential a script uses for
+platform callbacks is a short-lived internal token the worker mints per
+invocation (stored hashed in the `internal_token` table, 120 s TTL, scoped to
+the group owning the running workflow), so no long-lived credential ever
+reaches the sandbox.
+
 ### Database Storage
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PG_BACKUP_STORAGE_SIZE` | `10Gi` | Backup PVC size for both `app-pg` and `temporal-pg` PostgresCluster resources. Reduce for test instances to stay within namespace backup storage quotas (e.g., `2Gi`). |
+Prod backup PVC sizes are hardcoded in `deployments/openshift/kustomize/components/prod-resources/kustomization.yml`. Test instances use the base manifest values (10Gi for both). These values are not environment variables and cannot be overridden without editing the kustomize component.
 
-pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
+pgBackRest retention differs between the two PostgresClusters (set in the base manifests, not via env overlay):
+
+| Cluster | Retention | Full backup | Incremental |
+|---------|-----------|-------------|-------------|
+| `app-pg` | **2 most recent fulls** (`repo1-retention-full: '2'` / `repo1-retention-full-type: count`) | Weekly, Sunday 02:00 | Every 4 hours |
+| `temporal-pg` | **14 days** (`repo1-retention-full: '14'` / `repo1-retention-full-type: time`) | Daily 02:00 | Hourly |
+
+On `app-pg`, count-based retention bounds the repo size even if a scheduled full is missed; a time-based window would keep growing until the next full succeeded. Incrementals newer than the oldest retained full are kept, so the recoverable window is roughly two weeks. `app-pg` also compresses with zstd (`compress-type: zst`, `compress-level: '3'`) rather than the pgBackRest gz default.
 
 ### Database SSL
 
@@ -170,7 +216,8 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 | Variable | Description |
 |----------|-------------|
 | `VITE_APP_NAME` | Application display name |
-| `VITE_APP_VERSION` | Application version |
+| `VITE_APP_VERSION` | Release tag baked into the frontend, such as `v0.1.0`. Empty until the deployed commit contains a release tag. `1.0.0` is not a release, and the screen does not show it. |
+| `VITE_APP_COMMIT` | First 8 characters of the deployed commit. The header shows this. |
 | `VITE_ENV` | Environment identifier |
 
 ### Bootstrap (First-Time Setup)
@@ -178,6 +225,22 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 | Variable | Description |
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
+
+### Retention
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`, `rejected`) are permanently deleted along with their blob-storage files and `ocr_results` rows. A positive integer is required to enable it (e.g. `90`). |
+| `AUDIT_EVENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `audit_events` rows are deleted. Confirm statutory retention requirements before setting this in a regulated environment. |
+| `BENCHMARK_AUDIT_LOG_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `benchmark_audit_logs` rows are deleted. |
+| `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `approved`, `rejected` or `abandoned` `review_sessions` are deleted, once their document has finished processing, along with their cascading `field_corrections` (reviewer edits read by confusion profiles, HITL aggregation and format suggestions). `in_progress` and `flagged` sessions are never deleted. |
+| `CHAT_CONVERSATION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which non-demo workflow-builder `chat_conversations` whose last message (`lastMessageAt`) is older than the window are deleted, along with their cascading `chat_messages`. Seeded demo conversations (`isDemo`) are never deleted. Because chat messages can embed tool results containing document text (OCR text, extraction results), this window should be set no longer than `DOCUMENT_RETENTION_DAYS` when both are enabled. |
+
+All five janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
+
+For the document janitor: deletion cascades from the `documents` row to `ocr_results`, `review_sessions`, `field_corrections`, and `document_locks`. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review`, or `extracted` are never deleted at any age.
+
+All values are supplied by repository secrets and substituted by `generate_instance_overlay`. See [DOCUMENT_RETENTION.md](../architecture/DOCUMENT_RETENTION.md) for full details.
 
 ### Database Connection Pool
 
@@ -198,13 +261,11 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 
 ### PLG Monitoring Stack
 
+Sizing values (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) are committed in `deployments/openshift/helm/plg/values-test.yaml` and `values-prod.yaml`. Edit those files to change sizing; they are layered on top of `values-openshift.yaml` and `values.yaml` defaults by both the CI workflow and `oc-deploy-instance.sh`. `GRAFANA_ADMIN_PASSWORD` remains in the env file (it is a credential).
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
-| `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
-| `LOKI_PVC_SIZE` | `2Gi` | Persistent volume size for Loki data |
-| `PROMETHEUS_PVC_SIZE` | `2Gi` | Persistent volume size for Prometheus TSDB |
-| `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 
 ## How Secrets Reach the Pods
 
@@ -218,8 +279,12 @@ Created by the deploy script with keys:
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`
 - `AZURE_STORAGE_ACCOUNT_KEY`
+- `AZURE_OPENAI_API_KEY`
 
 Referenced by the backend-services deployment via `secretKeyRef`.
+`AZURE_OPENAI_API_KEY` is referenced with `optional: true`, so an instance whose
+Secret predates this key still starts — the chat assistant simply reports itself
+as not configured.
 
 ### `<instance>-temporal-worker-secrets`
 

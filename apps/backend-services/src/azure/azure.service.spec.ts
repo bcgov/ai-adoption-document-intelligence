@@ -46,6 +46,81 @@ describe("AzureService", () => {
     expect(service.getClient()).toBeDefined();
   });
 
+  describe("deleteDocumentModel", () => {
+    const deleteModel = jest.fn();
+    let pathSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      deleteModel.mockReset();
+      pathSpy = jest
+        .spyOn(service.getClient(), "path")
+        .mockReturnValue({ delete: deleteModel } as never);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it("deletes the model", async () => {
+      deleteModel.mockResolvedValue({ status: "204" });
+
+      await expect(
+        service.deleteDocumentModel("pay-stub"),
+      ).resolves.toBeUndefined();
+      expect(pathSpy).toHaveBeenCalledWith(
+        "/documentModels/{modelId}",
+        "pay-stub",
+      );
+    });
+
+    it("treats a model that is already gone as deleted", async () => {
+      deleteModel.mockResolvedValue({
+        status: "404",
+        body: { error: { code: "NotFound", message: "Model not found" } },
+      });
+
+      await expect(
+        service.deleteDocumentModel("pay-stub"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws Azure's message for any other failure", async () => {
+      deleteModel.mockResolvedValue({
+        status: "500",
+        body: {
+          error: { code: "InternalServerError", message: "Azure is down" },
+        },
+      });
+
+      await expect(service.deleteDocumentModel("pay-stub")).rejects.toThrow(
+        "Azure is down",
+      );
+    });
+  });
+
+  it("does not call Azure to delete a model in mock mode", async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === "DOCUMENT_INTELLIGENCE_MODE" ? "mock" : undefined,
+            ),
+          },
+        },
+        { provide: AppLoggerService, useValue: mockAppLogger },
+        AzureService,
+      ],
+    }).compile();
+    const mockModeService = module.get<AzureService>(AzureService);
+    const pathSpy = jest.spyOn(mockModeService.getClient(), "path");
+
+    await mockModeService.deleteDocumentModel("pay-stub");
+
+    expect(pathSpy).not.toHaveBeenCalled();
+  });
+
   describe("checkOperationStatus", () => {
     afterEach(() => {
       jest.restoreAllMocks();

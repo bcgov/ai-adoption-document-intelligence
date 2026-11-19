@@ -9,6 +9,7 @@ import {
 import { Request } from "express";
 import type { AuditService } from "@/audit/audit.service";
 import { IDENTITY_KEY, type IdentityOptions } from "@/auth/identity.decorator";
+import { Permission } from "@/auth/role-permissions";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -27,7 +28,7 @@ describe("AzureController", () => {
       resolvedIdentity: {
         userId: sub,
         groupRoles: Object.fromEntries(
-          groups.map((g) => [g, GroupRole.MEMBER]),
+          groups.map((g) => [g, GroupRole.EDITOR]),
         ) as Record<string, GroupRole>,
         actorId: "actor-1",
         isSystemAdmin: false,
@@ -79,8 +80,12 @@ describe("AzureController", () => {
           handler,
         ) as IdentityOptions;
         expect(metadata.allowApiKey).toBe(true);
-        expect(metadata.minimumRole).toBe(GroupRole.MEMBER);
-        expect(metadata.groupIdFrom).toEqual({ query: "group_id" });
+        expect(metadata.groupPermissions?.requiredPermissions).toContain(
+          Permission.CLASSIFIER_FILES,
+        );
+        expect(metadata.groupPermissions?.groupIdFrom).toEqual({
+          query: "group_id",
+        });
       }
     });
 
@@ -96,26 +101,42 @@ describe("AzureController", () => {
         AzureController.prototype.createClassifier,
       ) as IdentityOptions;
       expect(createMeta.allowApiKey).toBe(true);
-      expect(createMeta.minimumRole).toBe(GroupRole.MEMBER);
-      expect(createMeta.groupIdFrom).toEqual({ body: "group_id" });
+      expect(createMeta.groupPermissions?.requiredPermissions).toContain(
+        Permission.CLASSIFIER_CREATE,
+      );
+      expect(createMeta.groupPermissions?.groupIdFrom).toEqual({
+        body: "group_id",
+      });
+    });
+
+    it("should read the classifier delete group from the :groupId route param", () => {
+      const metadata = Reflect.getMetadata(
+        IDENTITY_KEY,
+        AzureController.prototype.deleteClassifier,
+      ) as IdentityOptions;
+      expect(metadata.groupPermissions?.groupIdFrom).toEqual({
+        param: "groupId",
+      });
+      expect(metadata.groupPermissions?.requiredPermissions).toEqual([
+        Permission.CLASSIFIER_DELETE,
+      ]);
     });
   });
 
   describe("getClassifiers", () => {
-    it("should return classifiers for all user groups when group_id is not provided", async () => {
+    it("should return classifiers for the specified group", async () => {
       const mockClassifiers = [
         { id: "c1", group_id: "g1" },
-        { id: "c2", group_id: "g2" },
+        { id: "c2", group_id: "g1" },
       ];
       classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
-      const req = createMockReq("user1", ["g1", "g2"]);
-      const result = await controller.getClassifiers(req, undefined);
+      const result = await controller.getClassifiers("g1");
       expect(result).toEqual(mockClassifiers);
       expect(
         classifierService.findAllClassifierModelsForGroups,
-      ).toHaveBeenCalledWith(["g1", "g2"]);
+      ).toHaveBeenCalledWith(["g1"]);
     });
 
     it("should return classifiers for the specified group when group_id is provided and user is a member", async () => {
@@ -123,19 +144,11 @@ describe("AzureController", () => {
       classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
-      const req = createMockReq("user1", ["g1"]);
-      const result = await controller.getClassifiers(req, "g1");
+      const result = await controller.getClassifiers("g1");
       expect(result).toEqual(mockClassifiers);
       expect(
         classifierService.findAllClassifierModelsForGroups,
       ).toHaveBeenCalledWith(["g1"]);
-    });
-
-    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
-      const req = createMockReq();
-      await expect(controller.getClassifiers(req, "g1")).rejects.toThrow(
-        ForbiddenException,
-      );
     });
   });
   describe("createClassifier", () => {
@@ -338,16 +351,64 @@ describe("AzureController", () => {
   });
 
   describe("getClassificationResult", () => {
+    const groupId = "clh7z2xk00000356u8e3h1234";
+    const otherGroupId = "clh7z2xk00000356u8e3h5678";
+    const location = (classifierId: string) =>
+      `https://example.cognitiveservices.azure.com/documentintelligence/documentClassifiers/${classifierId}/analyzeResults/result-1?api-version=2024-11-30`;
+
+    beforeEach(() => {
+      classifierService.getClassifierNameFromOperationLocation = jest.fn(
+        (operationLocation: string, gid: string) => {
+          const prefix = `/documentClassifiers/${gid}__`;
+          const path = operationLocation.split("?")[0];
+          const start = path.indexOf(prefix);
+          return start === -1
+            ? null
+            : path.slice(start + prefix.length).split("/")[0];
+        },
+      );
+    });
+
+    it("binds the route to the caller's group with the classifier use permission", () => {
+      const metadata = Reflect.getMetadata(
+        IDENTITY_KEY,
+        AzureController.prototype.getClassificationResult,
+      ) as IdentityOptions;
+      expect(metadata.groupPermissions).toEqual({
+        groupIdFrom: { query: "group_id" },
+        requiredPermissions: [Permission.CLASSIFIER_USE],
+      });
+    });
+
     it("should call pollOperationUntilResolved and return value", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({
+        name: "invoices",
+      });
       azureService.pollOperationUntilResolved.mockImplementation(
         async (_loc: any, onSuccess: (arg0: { result: string }) => any) =>
           onSuccess({ result: "ok" }),
       );
-      const query = { operationLocation: "loc" };
+      const query = {
+        operationLocation: location(`${groupId}__invoices`),
+        group_id: groupId,
+      };
       const result = await controller.getClassificationResult(query);
       expect(result).toEqual({ result: "ok" });
+      expect(classifierService.findClassifierModel).toHaveBeenCalledWith(
+        "invoices",
+        groupId,
+      );
+      expect(azureService.pollOperationUntilResolved).toHaveBeenCalledWith(
+        query.operationLocation,
+        expect.any(Function),
+        expect.any(Function),
+      );
     });
+
     it("should throw error if pollOperationUntilResolved fails", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({
+        name: "invoices",
+      });
       azureService.pollOperationUntilResolved.mockImplementation(
         async (
           _loc: any,
@@ -357,10 +418,48 @@ describe("AzureController", () => {
           }) => any,
         ) => onFailure({ error: { code: "fail", message: "fail" } }),
       );
-      const query = { operationLocation: "loc" };
+      const query = {
+        operationLocation: location(`${groupId}__invoices`),
+        group_id: groupId,
+      };
       await expect(controller.getClassificationResult(query)).rejects.toThrow(
         "Could not retrieve classified document. Code: fail. Message: fail",
       );
+    });
+
+    it("returns 404 without contacting Azure when the operation's classifier belongs to another group", async () => {
+      const query = {
+        operationLocation: location(`${otherGroupId}__invoices`),
+        group_id: groupId,
+      };
+      await expect(controller.getClassificationResult(query)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(azureService.pollOperationUntilResolved).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 without contacting Azure when the location names no classifier", async () => {
+      const query = {
+        operationLocation:
+          "https://example.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/result-1",
+        group_id: groupId,
+      };
+      await expect(controller.getClassificationResult(query)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(azureService.pollOperationUntilResolved).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 without contacting Azure when the group has no classifier by that name", async () => {
+      classifierService.findClassifierModel.mockResolvedValue(null);
+      const query = {
+        operationLocation: location(`${groupId}__invoices`),
+        group_id: groupId,
+      };
+      await expect(controller.getClassificationResult(query)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(azureService.pollOperationUntilResolved).not.toHaveBeenCalled();
     });
   });
 

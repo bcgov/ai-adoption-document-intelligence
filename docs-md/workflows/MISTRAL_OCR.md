@@ -42,7 +42,7 @@ Annotation is an extra LMM step on Mistral’s side (see Mistral docs); expect a
 
 ## Sample graph template
 
-[`mistral-standard-ocr-workflow.json`](templates/mistral-standard-ocr-workflow.json) mirrors the Standard OCR workflow after `file.prepare`: Mistral OCR → `ocr.cleanup` → `ocr.checkConfidence` → review switch / `humanGate` → `ocr.storeResults`.
+[`mistral-standard-ocr-workflow.json`](../../packages/graph-workflow/templates/mistral-standard-ocr-workflow.json) mirrors the Standard OCR workflow after `file.prepare`: Mistral OCR → `ocr.cleanup` → `ocr.checkConfidence` → review switch / `humanGate` → `ocr.storeResults`.
 
 After `npm run db:seed` (from `apps/shared` or your usual seed command), a workflow row is created with id **`seed-workflow-standard-ocr-mistral`** and this config, so you can attach documents to it like the Azure standard seed workflow.
 

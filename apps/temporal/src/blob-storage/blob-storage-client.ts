@@ -12,7 +12,6 @@
 import type { BlobFilePath, BlobPrefixPath } from "@ai-di/blob-storage-paths";
 import {
   DeleteObjectCommand,
-  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -27,7 +26,6 @@ import {
 import type { PrismaClient } from "@generated/client";
 import {
   recordLedgerDelete,
-  recordLedgerDeleteByPrefix,
   recordLedgerRead,
   recordLedgerWrite,
 } from "./storage-ledger";
@@ -63,8 +61,6 @@ export interface BlobStorageClient {
   delete(key: BlobFilePath): Promise<void>;
   /** List all object keys matching a prefix. */
   list(prefix: BlobPrefixPath): Promise<string[]>;
-  /** Delete all objects matching a prefix. */
-  deleteByPrefix(prefix: BlobPrefixPath): Promise<void>;
   /**
    * Generate a short-lived read-only SAS URL for the given blob key.
    * Only supported when `BLOB_STORAGE_PROVIDER=azure`.
@@ -157,29 +153,6 @@ function buildMinioClient(): BlobStorageClient {
       return keys;
     },
 
-    async deleteByPrefix(prefix: BlobPrefixPath): Promise<void> {
-      const keys = await this.list(prefix);
-      if (keys.length === 0) return;
-      const batches: string[][] = [];
-      for (let i = 0; i < keys.length; i += 1000) {
-        batches.push(keys.slice(i, i + 1000));
-      }
-      for (const batch of batches) {
-        await s3.send(
-          new DeleteObjectsCommand({
-            Bucket: bucket,
-            Delete: {
-              Objects: batch.map((k) => ({ Key: k })),
-              Quiet: true,
-            },
-          }),
-        );
-      }
-      if (_ledgerPrisma) {
-        await recordLedgerDeleteByPrefix(_ledgerPrisma, prefix);
-      }
-    },
-
     async generateSasUrl(
       _key: BlobFilePath,
       _expiryMinutes: number,
@@ -245,16 +218,6 @@ function buildAzureClient(): BlobStorageClient {
         keys.push(blob.name);
       }
       return keys;
-    },
-
-    async deleteByPrefix(prefix: BlobPrefixPath): Promise<void> {
-      const keys = await this.list(prefix);
-      await Promise.all(
-        keys.map((k) => container.getBlobClient(k).deleteIfExists()),
-      );
-      if (_ledgerPrisma) {
-        await recordLedgerDeleteByPrefix(_ledgerPrisma, prefix);
-      }
     },
 
     async generateSasUrl(

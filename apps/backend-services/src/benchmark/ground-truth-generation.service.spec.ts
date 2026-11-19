@@ -59,6 +59,7 @@ const mockDocumentService = {
 
 const mockReviewDb = {
   findReviewSession: jest.fn(),
+  findDocumentCorrections: jest.fn(),
 };
 
 const mockOcrService = {
@@ -219,6 +220,7 @@ describe("GroundTruthGenerationService", () => {
         id: versionId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "group-1" },
       });
       mockJobDb.findWorkflow.mockResolvedValue(null);
 
@@ -232,12 +234,58 @@ describe("GroundTruthGenerationService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it("treats a workflow version outside the dataset's group as not found", async () => {
+      mockJobDb.findVersionForValidation.mockResolvedValue({
+        id: versionId,
+        datasetId,
+        frozen: false,
+        storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "group-1" },
+      });
+      const workflowInOtherGroup = {
+        id: workflowVersionId,
+        config: {},
+        lineage: { group_id: "group-2" },
+      };
+      mockJobDb.findWorkflow.mockImplementation(
+        (id: string, groupId?: string) =>
+          Promise.resolve(
+            id === workflowInOtherGroup.id &&
+              (groupId === undefined ||
+                groupId === workflowInOtherGroup.lineage.group_id)
+              ? workflowInOtherGroup
+              : null,
+          ),
+      );
+      (mockBlobStorage.read as jest.Mock).mockResolvedValue(
+        Buffer.from(JSON.stringify(sampleManifest)),
+      );
+      mockJobDb.findStaleJobs.mockResolvedValue([]);
+      mockJobDb.findCompletedJobSampleIds.mockResolvedValue([]);
+      mockJobDb.createManyJobs.mockResolvedValue([]);
+
+      await expect(
+        service.startGeneration(
+          datasetId,
+          versionId,
+          workflowVersionId,
+          "user-1",
+        ),
+      ).rejects.toThrow(
+        new NotFoundException(
+          `Workflow version ${workflowVersionId} not found`,
+        ),
+      );
+      expect(mockJobDb.createManyJobs).not.toHaveBeenCalled();
+    });
+
     it("should create jobs only for samples without ground truth", async () => {
       mockJobDb.findVersionForValidation.mockResolvedValue({
         id: versionId,
         datasetId,
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "testgroup" },
       });
       mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,
@@ -279,6 +327,10 @@ describe("GroundTruthGenerationService", () => {
 
       expect(result.jobCount).toBe(2);
       expect(result.message).toContain("2 samples");
+      expect(mockJobDb.findWorkflow).toHaveBeenCalledWith(
+        workflowVersionId,
+        "testgroup",
+      );
       expect(mockJobDb.createManyJobs).toHaveBeenCalledTimes(1);
       expect(mockJobDb.createManyJobs.mock.calls[0][0]).toHaveLength(2);
     });
@@ -303,6 +355,7 @@ describe("GroundTruthGenerationService", () => {
         id: "version-1",
         frozen: false,
         storagePrefix: "datasets/dataset-1/version-1",
+        dataset: { group_id: "testgroup" },
       });
       mockJobDb.findWorkflow.mockResolvedValue({
         id: workflowVersionId,
@@ -438,21 +491,28 @@ describe("GroundTruthGenerationService", () => {
         },
       };
 
+      // The approving session saved nothing itself: the correction was saved
+      // in an earlier session of the same document, which the page showed.
       const session = {
-        id: "session-1",
+        id: "session-2",
         document_id: "doc-id-1",
-        corrections: [
-          {
-            field_key: "Date",
-            original_value: "2026-01-01",
-            corrected_value: "2026-01-15",
-            action: CorrectionAction.corrected,
-          },
-        ],
+        corrections: [],
       };
+      const documentCorrections = [
+        {
+          session_id: "session-1",
+          field_key: "Date",
+          original_value: "2026-01-01",
+          corrected_value: "2026-01-15",
+          action: CorrectionAction.corrected,
+        },
+      ];
 
       mockJobDb.findJobWithVersionAndDocument.mockResolvedValue(job);
       mockReviewDb.findReviewSession.mockResolvedValue(session);
+      mockReviewDb.findDocumentCorrections.mockResolvedValue(
+        documentCorrections,
+      );
       mockHitlDatasetService.buildGroundTruth.mockReturnValue({
         Name: "John",
         Date: "2026-01-15",
@@ -481,12 +541,15 @@ describe("GroundTruthGenerationService", () => {
         status: GroundTruthJobStatus.completed,
       });
 
-      await service.completeJob("job-1", "session-1");
+      await service.completeJob("job-1", "session-2");
 
-      // Should build ground truth
+      // Should build ground truth from every correction on the document
+      expect(mockReviewDb.findDocumentCorrections).toHaveBeenCalledWith(
+        "doc-id-1",
+      );
       expect(mockHitlDatasetService.buildGroundTruth).toHaveBeenCalledWith(
         job.document.ocr_result.keyValuePairs,
-        session.corrections,
+        documentCorrections,
       );
 
       // Should write ground truth JSON
@@ -610,8 +673,9 @@ describe("GroundTruthGenerationService", () => {
 
       expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
         expect.any(String),
-        { confidenceThreshold: 0 },
+        undefined,
         jobOverrides,
+        { confidenceThreshold: 0 },
       );
       expect(mockDocumentService.createDocument).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -663,8 +727,9 @@ describe("GroundTruthGenerationService", () => {
 
       expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
         expect.any(String),
-        { confidenceThreshold: 0 },
         undefined,
+        undefined,
+        { confidenceThreshold: 0 },
       );
     });
   });

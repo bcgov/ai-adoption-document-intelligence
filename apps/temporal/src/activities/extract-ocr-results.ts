@@ -4,8 +4,8 @@ import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import {
   isOcrPayloadRef,
-  loadOcrResponseFromPort,
   makeOcrPayloadRef,
+  readOcrPayloadBlobInGroup,
   requireDocumentId,
   resolveGroupIdForOcr,
   writeOcrPayloadBlob,
@@ -56,7 +56,10 @@ export async function extractOCRResults(params: {
 
     if (ocrResponse !== undefined && ocrResponse !== null) {
       ocrResponseObj = isOcrPayloadRef(ocrResponse)
-        ? await loadOcrResponseFromPort(ocrResponse)
+        ? await readOcrPayloadBlobInGroup<OCRResponse>(
+            ocrResponse,
+            params.groupId,
+          )
         : ocrResponse;
     }
 
@@ -67,8 +70,10 @@ export async function extractOCRResults(params: {
         );
       }
       const normalizedEndpoint = normalizeEndpoint(endpoint);
-      const normalizedModelId = modelId || "prebuilt-layout";
-      const url = `${normalizedEndpoint}/documentintelligence/documentModels/${normalizedModelId}/analyzeResults/${apimRequestId}?api-version=2024-11-30`;
+      const normalizedModelId = encodeURIComponent(
+        modelId || "prebuilt-layout",
+      );
+      const url = `${normalizedEndpoint}/documentintelligence/documentModels/${normalizedModelId}/analyzeResults/${encodeURIComponent(apimRequestId)}?api-version=2024-11-30`;
       const response = await axios.get<OCRResponse>(url, {
         headers: { "api-key": apiKey },
       });

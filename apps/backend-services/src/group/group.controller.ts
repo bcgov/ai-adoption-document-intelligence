@@ -1,4 +1,4 @@
-import { $Enums, GroupRole } from "@generated/client";
+import { $Enums } from "@generated/client";
 import {
   Body,
   Controller,
@@ -29,6 +29,7 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { requireUserId } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { BillingConfigService } from "@/billing/billing-config.service";
 import { GroupBillingConfigDto } from "@/billing/dto/group-billing-config.dto";
 import { SetBillingCapDto } from "@/billing/dto/set-billing-cap.dto";
@@ -303,7 +304,12 @@ export class GroupController {
     description: "A group with the given name already exists.",
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_UPDATE],
+    },
+  })
   @Patch(":groupId")
   async updateGroup(
     @Req() req: Request,
@@ -361,7 +367,12 @@ export class GroupController {
   @ApiBadRequestResponse({ description: "Invalid input." })
   @ApiParam({ name: "userId", description: "User ID", type: String })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_USER_ADD],
+    },
+  })
   @Post(":groupId/members/:userId")
   async addGroupMember(
     @Req() req: Request,
@@ -408,7 +419,12 @@ export class GroupController {
     description:
       "Optional status to filter membership requests (PENDING, APPROVED, DENIED).",
   })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_REQUESTS_RETRIEVE],
+    },
+  })
   @Get(":groupId/requests")
   async getGroupRequests(
     @Param("groupId") groupId: string,
@@ -446,8 +462,10 @@ export class GroupController {
   @ApiNotFoundResponse({ description: "Group not found." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_RETRIEVE],
+    },
   })
   @Get(":groupId/members")
   async getGroupMembers(
@@ -473,7 +491,12 @@ export class GroupController {
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @ApiParam({ name: "userId", description: "User ID to remove", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_USER_REMOVE],
+    },
+  })
   @Delete(":groupId/members/:userId")
   async removeGroupMember(
     @Req() req: Request,
@@ -507,7 +530,12 @@ export class GroupController {
   })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @ApiParam({ name: "userId", description: "User ID to update", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_USER_ROLE_UPDATE],
+    },
+  })
   @Patch(":groupId/members/:userId/role")
   async updateGroupMemberRole(
     @Req() req: Request,
@@ -536,10 +564,15 @@ export class GroupController {
   @ApiBadRequestResponse({
     description: "Caller is not a member of the group.",
   })
+  @ApiForbiddenResponse({
+    description: "Caller is not a member of the group or lacks GROUP_LEAVE.",
+  })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.GROUP_LEAVE],
+    },
   })
   @Delete(":groupId/leave")
   async leaveGroup(
@@ -567,7 +600,12 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" } })
+  @Identity({
+    groupPermissions: {
+      requiredPermissions: [Permission.GROUP_BILLING],
+      groupIdFrom: { param: "groupId" },
+    },
+  })
   @Get(":groupId/billing-config")
   async getGroupBillingConfig(
     @Param("groupId") groupId: string,
@@ -593,7 +631,12 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: "ADMIN" })
+  @Identity({
+    groupPermissions: {
+      requiredPermissions: [Permission.GROUP_BILLING],
+      groupIdFrom: { param: "groupId" },
+    },
+  })
   @Patch(":groupId/billing-config")
   async setGroupBillingCap(
     @Param("groupId") groupId: string,

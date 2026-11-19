@@ -24,6 +24,11 @@ export class QueueSessionSummaryDto {
 
   @ApiProperty()
   corrections_count!: number;
+
+  @ApiPropertyOptional({
+    description: "Note captured when the session was flagged",
+  })
+  flag_note?: string;
 }
 
 export class QueueDocumentDto {
@@ -39,14 +44,22 @@ export class QueueDocumentDto {
   @ApiPropertyOptional()
   model_id!: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "Name of the workflow the document was uploaded through, or null when it was uploaded without one",
+  })
+  workflow_name!: string | null;
+
   @ApiProperty()
   created_at!: Date;
 
   @ApiProperty()
   updated_at!: Date;
 
-  @ApiProperty({ type: QueueDocumentOcrDto })
-  ocr_result!: QueueDocumentOcrDto;
+  @ApiProperty()
+  average_confidence!: number;
 
   @ApiPropertyOptional({ type: QueueSessionSummaryDto })
   lastSession?: QueueSessionSummaryDto;
@@ -61,7 +74,10 @@ export class QueueResponseDto {
 }
 
 export class QueueStatsResponseDto {
-  @ApiProperty({ description: "Total documents in the review queue" })
+  @ApiProperty({
+    description:
+      "Documents that have entered the review pipeline (pending, claimed, flagged, or reviewed) — excludes documents a workflow completed without ever routing them to review",
+  })
   totalDocuments!: number;
 
   @ApiProperty({ description: "Documents requiring human review" })
@@ -152,6 +168,28 @@ export class ReviewSessionResponseDto {
     type: [ReviewPlanEntryDto],
   })
   reviewPlan?: ReviewPlanEntryDto[];
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Note captured when the session was flagged, explaining what stopped the previous reviewer",
+  })
+  flagNote?: string | null;
+}
+
+export class CorrectionAuthorDto {
+  @ApiProperty({
+    enum: ["user", "api_key", "unknown"],
+    description:
+      "user: a signed-in reviewer; api_key: the group's API key, including one since deleted; unknown: saved before authors were recorded",
+  })
+  type!: "user" | "api_key" | "unknown";
+
+  @ApiPropertyOptional({
+    description: "The reviewer's email, when type is user",
+  })
+  email?: string;
 }
 
 export class CorrectionRecordDto {
@@ -175,6 +213,12 @@ export class CorrectionRecordDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty({
+    type: CorrectionAuthorDto,
+    description: "Who made the correction",
+  })
+  author!: CorrectionAuthorDto;
 }
 
 export class SubmitCorrectionsResponseDto {
@@ -196,6 +240,63 @@ export class CorrectionsListResponseDto {
   corrections!: CorrectionRecordDto[];
 }
 
+export class ReviewSessionEventRecordDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({
+    enum: ["flagged", "rejected", "skipped", "approved", "reopened"],
+  })
+  eventType!: string;
+
+  @ApiProperty()
+  actorId!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Email of the reviewer who performed the action, or null when it was not a signed-in user",
+  })
+  actorName?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Flag note or rejection comment recorded with the event, depending on eventType",
+  })
+  comment?: string | null;
+
+  @ApiPropertyOptional({
+    enum: [
+      "INPUT_QUALITY",
+      "OCR_FAILURE",
+      "MODEL_MISMATCH",
+      "CONFIDENCE_TOO_LOW",
+      "SYSTEMIC_ERROR",
+    ],
+    nullable: true,
+    description: "Only set when eventType is 'rejected'",
+  })
+  rejectionReason?: string | null;
+
+  @ApiProperty()
+  createdAt!: Date;
+}
+
+export class ReviewSessionHistoryResponseDto {
+  @ApiProperty()
+  sessionId!: string;
+
+  @ApiProperty({
+    type: [ReviewSessionEventRecordDto],
+    description:
+      "Permanent record of flag/reject/skip/approve/reopen actions on this session, oldest first. Unlike corrections, these rows are never overwritten by a later reopen.",
+  })
+  events!: ReviewSessionEventRecordDto[];
+}
+
 export class SessionActionResponseDto {
   @ApiProperty()
   id!: string;
@@ -205,11 +306,6 @@ export class SessionActionResponseDto {
 
   @ApiPropertyOptional()
   completedAt?: Date | null;
-
-  @ApiPropertyOptional({
-    description: "Escalation reason (escalate endpoint only)",
-  })
-  reason?: string;
 
   @ApiProperty()
   message!: string;

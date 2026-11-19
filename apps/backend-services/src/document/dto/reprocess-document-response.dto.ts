@@ -7,8 +7,9 @@ export class ReprocessDocumentResponseDto {
   success!: boolean;
 
   @ApiProperty({
-    description: "Temporal workflow execution ID of the new run.",
-    example: "graph-65fafe87-9fa7-46e6-9f1e-ba2ef326e3be",
+    description:
+      "Temporal run ID (firstExecutionRunId) of the new execution attempt. Unique per re-run; use as the workflowExecutionId key for GET /api/usage/groups/:groupId/runs/:workflowExecutionId.",
+    example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   })
   workflowExecutionId!: string;
 

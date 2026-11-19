@@ -52,7 +52,15 @@ describe("PrismaService", () => {
       const result = await service.transaction(fn);
 
       expect(result).toBe("result");
-      expect(mockTransaction).toHaveBeenCalledWith(fn);
+      expect(mockTransaction).toHaveBeenCalledWith(fn, undefined);
+    });
+
+    it("should forward a timeout option to this.prisma.$transaction", async () => {
+      const fn = jest.fn().mockResolvedValue("result");
+
+      await service.transaction(fn, { timeout: 60_000 });
+
+      expect(mockTransaction).toHaveBeenCalledWith(fn, { timeout: 60_000 });
     });
 
     it("should pass the TransactionClient to the provided function", async () => {

@@ -86,7 +86,7 @@ export const BUILT_IN_CONFUSION_RULE_IDS = BUILT_IN_CONFUSION_RULES.map(
   (r) => r.id,
 );
 
-interface CharacterConfusionParams extends CorrectionToolParams {
+export interface CharacterConfusionParams extends CorrectionToolParams {
   /** LabelingProject id — loads field_schema for type-aware gating and rule subsets (same as ocr.normalizeFields `documentType`). */
   documentType?: string;
   /** When set, only these built-in rule IDs run. Empty/omitted means all built-in rules (before disabledRules). */
@@ -278,10 +278,13 @@ function stripSlashFromMap(
 
 async function loadConfusionProfileRules(
   profileId: string,
+  groupId: string,
 ): Promise<Record<string, string> | null> {
   const prisma = getPrismaClient();
-  const profile = await prisma.confusionProfile.findUnique({
-    where: { id: profileId },
+  // Limited to the run's group: a profile from another group is treated as
+  // not found.
+  const profile = await prisma.confusionProfile.findFirst({
+    where: { id: profileId, group_id: groupId },
   });
   if (!profile) return null;
 
@@ -311,7 +314,10 @@ export async function characterConfusionCorrection(
 
   let profileMap: Record<string, string> | null = null;
   if (params.confusionProfileId) {
-    profileMap = await loadConfusionProfileRules(params.confusionProfileId);
+    profileMap = await loadConfusionProfileRules(
+      params.confusionProfileId,
+      groupId,
+    );
   }
 
   const useProfile = profileMap !== null;
@@ -329,7 +335,7 @@ export async function characterConfusionCorrection(
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
     try {
-      fieldMap = await loadFieldMapFromProject(documentType.trim());
+      fieldMap = await loadFieldMapFromProject(documentType.trim(), groupId);
     } catch (err) {
       log.error("Character confusion: failed to load field schema", {
         event: "schema_load_error",

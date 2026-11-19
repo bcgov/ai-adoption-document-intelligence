@@ -1,9 +1,12 @@
 import { Prisma } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { getRequestContext } from "@/logging/request-context";
+import {
+  getRequestContext,
+  type RequestContextData,
+} from "@/logging/request-context";
 import type { CreateAuditEventInput } from "./audit.types";
-import { AuditDbService } from "./audit-db.service";
+import { AuditDbService, type AuditEventCreateData } from "./audit-db.service";
 
 @Injectable()
 export class AuditService {
@@ -19,6 +22,12 @@ export class AuditService {
    * and failures propagate (rolling back the transaction).
    * When request_id is omitted, it is filled from the current request context
    * (AsyncLocalStorage) when available.
+   *
+   * A multi-event call made with `tx` is the batch case: those events go
+   * through one `createMany` round trip instead of one insert per event, so
+   * recording many events does not by itself add much to the caller's
+   * transaction's time budget. A single event (with or without `tx`) keeps
+   * using `createAuditEvent`, unchanged.
    */
   async recordEvent(
     events: CreateAuditEventInput | CreateAuditEventInput[],
@@ -26,21 +35,25 @@ export class AuditService {
   ): Promise<void> {
     const ctx = getRequestContext();
     const list = Array.isArray(events) ? events : [events];
-    for (const e of list) {
-      const write = this.auditDb.createAuditEvent(
-        {
-          event_type: e.event_type,
-          resource_type: e.resource_type,
-          resource_id: e.resource_id,
-          actor_id: e.actor_id ?? ctx?.actorId ?? null,
-          document_id: e.document_id ?? null,
-          workflow_execution_id: e.workflow_execution_id ?? null,
-          group_id: e.group_id ?? null,
-          request_id: e.request_id ?? ctx?.requestId ?? null,
-          payload: e.payload,
-        },
-        tx,
-      );
+    const resolved: AuditEventCreateData[] = list.map((e) => ({
+      event_type: e.event_type,
+      resource_type: e.resource_type,
+      resource_id: e.resource_id,
+      actor_id: e.actor_id ?? ctx?.actorId ?? null,
+      document_id: e.document_id ?? null,
+      workflow_execution_id: e.workflow_execution_id ?? null,
+      group_id: e.group_id ?? null,
+      request_id: e.request_id ?? ctx?.requestId ?? null,
+      payload: withDynamicNodeRun(e.payload, ctx?.dynamicNodeRun),
+    }));
+
+    if (tx && resolved.length > 1) {
+      await this.auditDb.createAuditEvents(resolved, tx);
+      return;
+    }
+
+    for (const data of resolved) {
+      const write = this.auditDb.createAuditEvent(data, tx);
       if (tx) {
         await write;
         continue;
@@ -50,11 +63,32 @@ export class AuditService {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn("Audit event write failed (non-fatal)", {
-          event_type: e.event_type,
-          resource_id: e.resource_id,
+          event_type: data.event_type,
+          resource_id: data.resource_id,
           error: msg,
         });
       }
     }
   }
+}
+
+/**
+ * An event recorded while a custom step's call is handled names the step and
+ * the run it belongs to. The run's `workflow_run_started` event, which has the
+ * same Temporal run id, names the person or API key that started it.
+ */
+function withDynamicNodeRun(
+  payload: Record<string, unknown> | undefined,
+  run: RequestContextData["dynamicNodeRun"],
+): Record<string, unknown> | undefined {
+  if (!run) {
+    return payload;
+  }
+  return {
+    ...payload,
+    dynamic_node_run: {
+      workflow_execution_id: run.workflowExecutionId,
+      slug: run.slug,
+    },
+  };
 }

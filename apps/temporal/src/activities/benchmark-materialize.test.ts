@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import { ApplicationFailure } from "@temporalio/common";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import {
   loadDatasetManifest,
@@ -103,7 +104,7 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
       );
       expect(result.groupId).toBe("atestgroup");
       expect(blobStorageMock.list).toHaveBeenCalledWith(
@@ -133,7 +134,7 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result).toEqual({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         groupId: "atestgroup",
       });
       expect(result.materializedPath).toMatch(/^\/tmp\/test-cache\//);
@@ -152,11 +153,11 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
       );
       expect(result.groupId).toBe("atestgroup");
       expect(fsMock.access).toHaveBeenCalledWith(
-        "/tmp/test-cache/dataset-1-version-1/dataset-manifest.json",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1/dataset-manifest.json",
       );
 
       // Should not download
@@ -204,7 +205,34 @@ describe("materializeDataset activity", () => {
       );
 
       expect(fsMock.rm).toHaveBeenCalledWith(
-        "/tmp/test-cache/dataset-1-version-1",
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        { recursive: true, force: true },
+      );
+    });
+
+    it("keeps a group refusal non-retryable after cleaning up", async () => {
+      prismaMock.datasetVersion.findUnique.mockResolvedValue(
+        mockDatasetVersion,
+      );
+      fsMock.access.mockRejectedValue(new Error("ENOENT"));
+      fsMock.mkdir.mockResolvedValue(undefined);
+      fsMock.rm.mockResolvedValue(undefined);
+      blobStorageMock.list.mockResolvedValue([
+        "anothergroup/benchmark/datasets/dataset-1/version-1/inputs/doc1.pdf",
+      ]);
+
+      const failure = await materializeDataset({
+        datasetVersionId: "version-1",
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(ApplicationFailure);
+      expect((failure as ApplicationFailure).type).toBe(
+        "GROUP_SCOPE_VIOLATION",
+      );
+      expect((failure as ApplicationFailure).nonRetryable).toBe(true);
+      expect(blobStorageMock.read).not.toHaveBeenCalled();
+      expect(fsMock.rm).toHaveBeenCalledWith(
+        "/tmp/test-cache/atestgroup/dataset-1-version-1",
         { recursive: true, force: true },
       );
     });
@@ -230,11 +258,14 @@ describe("materializeDataset activity", () => {
       });
 
       expect(result.materializedPath).toBe(
-        "/tmp/benchmark-cache/dataset-1-version-1",
+        "/tmp/benchmark-cache/atestgroup/dataset-1-version-1",
       );
-      expect(fsMock.mkdir).toHaveBeenCalledWith("/tmp/benchmark-cache", {
-        recursive: true,
-      });
+      expect(fsMock.mkdir).toHaveBeenCalledWith(
+        "/tmp/benchmark-cache/atestgroup",
+        {
+          recursive: true,
+        },
+      );
     });
   });
 });
@@ -278,7 +309,7 @@ describe("loadDatasetManifest activity", () => {
     fsMock.readFile.mockResolvedValue(JSON.stringify(mockManifest));
 
     const result = await loadDatasetManifest({
-      materializedPath: "/tmp/test-cache/dataset-1-version-1",
+      materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
       datasetVersionId: "version-1",
     });
 
@@ -287,7 +318,7 @@ describe("loadDatasetManifest activity", () => {
       select: { manifestPath: true },
     });
     expect(fsMock.readFile).toHaveBeenCalledWith(
-      "/tmp/test-cache/dataset-1-version-1/dataset-manifest.json",
+      "/tmp/test-cache/atestgroup/dataset-1-version-1/dataset-manifest.json",
       "utf-8",
     );
     expect(result.manifest).toEqual(mockManifest);
@@ -298,10 +329,25 @@ describe("loadDatasetManifest activity", () => {
 
     await expect(
       loadDatasetManifest({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         datasetVersionId: "non-existent",
       }),
     ).rejects.toThrow("Dataset version not found: non-existent");
+  });
+
+  it.each([
+    "../dataset-2-version-1/dataset-manifest.json",
+    "/data/manifest.json",
+  ])("refuses a manifestPath outside the materialised dataset: %s", async (manifestPath) => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({ manifestPath });
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        datasetVersionId: "version-1",
+      }),
+    ).rejects.toThrow(/must stay inside the dataset/);
+    expect(fsMock.readFile).not.toHaveBeenCalled();
   });
 
   it("throws when manifest file does not exist", async () => {
@@ -314,9 +360,53 @@ describe("loadDatasetManifest activity", () => {
 
     await expect(
       loadDatasetManifest({
-        materializedPath: "/tmp/test-cache/dataset-1-version-1",
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
         datasetVersionId: "version-1",
       }),
     ).rejects.toThrow("Failed to load manifest");
+  });
+
+  function manifestWithSampleId(id: unknown): string {
+    return JSON.stringify({
+      schemaVersion: "1.0",
+      samples: [{ id, inputs: [], groundTruth: [], metadata: {} }],
+    });
+  }
+
+  it.each([
+    "../../../tmp/x",
+    "a/b",
+    "a\\b",
+    ".",
+    "..",
+    "",
+    "a\u0000b",
+    undefined,
+  ])("refuses a manifest whose sample id is not a single name: %j", async (sampleId) => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: "dataset-manifest.json",
+    });
+    fsMock.readFile.mockResolvedValue(manifestWithSampleId(sampleId));
+
+    await expect(
+      loadDatasetManifest({
+        materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+        datasetVersionId: "version-1",
+      }),
+    ).rejects.toThrow(/invalid sample id/);
+  });
+
+  it("accepts a sample id with dots that are not path separators", async () => {
+    prismaMock.datasetVersion.findUnique.mockResolvedValue({
+      manifestPath: "dataset-manifest.json",
+    });
+    fsMock.readFile.mockResolvedValue(manifestWithSampleId("inv.2024..v1"));
+
+    const result = await loadDatasetManifest({
+      materializedPath: "/tmp/test-cache/atestgroup/dataset-1-version-1",
+      datasetVersionId: "version-1",
+    });
+
+    expect(result.manifest.samples[0].id).toBe("inv.2024..v1");
   });
 });

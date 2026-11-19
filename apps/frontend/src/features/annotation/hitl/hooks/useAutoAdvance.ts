@@ -51,7 +51,9 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
   }, [benchmarkMatch]);
 
   const nextSessionMutation = useMutation({
-    mutationFn: async (): Promise<NextSessionResponse | null> => {
+    mutationFn: async (
+      excludeDocumentId?: string,
+    ): Promise<NextSessionResponse | null> => {
       if (benchmarkMatch) {
         // Dataset labeling mode: fetch next pending document from dataset queue
         const datasetId = benchmarkMatch[1];
@@ -78,6 +80,8 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
       if (activeGroup?.id) params.append("group_id", activeGroup.id);
+      if (excludeDocumentId)
+        params.append("excludeDocumentId", excludeDocumentId);
       const query = params.toString();
       const response = await apiService.post<NextSessionResponse>(
         `/hitl/sessions/next${query ? `?${query}` : ""}`,
@@ -111,9 +115,12 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
     },
   });
 
-  const advance = useCallback(() => {
-    nextSessionMutation.mutate();
-  }, [nextSessionMutation]);
+  const advance = useCallback(
+    (currentDocumentId?: string) => {
+      nextSessionMutation.mutate(currentDocumentId);
+    },
+    [nextSessionMutation],
+  );
 
   return { advance, isAdvancing: nextSessionMutation.isPending };
 };

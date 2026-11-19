@@ -207,8 +207,6 @@ AZURE_STORAGE_CONNECTION_STRING=$(require_cfg AZURE_STORAGE_CONNECTION_STRING)
 AZURE_STORAGE_ACCOUNT_NAME=$(require_cfg AZURE_STORAGE_ACCOUNT_NAME)
 AZURE_STORAGE_ACCOUNT_KEY=$(require_cfg AZURE_STORAGE_ACCOUNT_KEY)
 
-PG_BACKUP_STORAGE_SIZE=$(optional_cfg PG_BACKUP_STORAGE_SIZE 10Gi)
-
 DOCUMENT_INTELLIGENCE_MODE=$(optional_cfg DOCUMENT_INTELLIGENCE_MODE live)
 MOCK_AZURE_OCR=$(optional_cfg MOCK_AZURE_OCR false)
 
@@ -241,10 +239,6 @@ if [[ "${BLOB_STORAGE_PROVIDER}" == "minio" ]]; then
 fi
 
 GRAFANA_ADMIN_PASSWORD=$(optional_cfg GRAFANA_ADMIN_PASSWORD admin)
-LOKI_RETENTION_DAYS=$(optional_cfg LOKI_RETENTION_DAYS 30)
-LOKI_PVC_SIZE=$(optional_cfg LOKI_PVC_SIZE 2Gi)
-PROMETHEUS_PVC_SIZE=$(optional_cfg PROMETHEUS_PVC_SIZE 2Gi)
-METRICS_SCRAPE_INTERVAL=$(optional_cfg METRICS_SCRAPE_INTERVAL 15s)
 
 for bin in oc; do
   command -v "${bin}" >/dev/null 2>&1 || {
@@ -314,6 +308,7 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --backend-image "${IMAGE_BASE}/backend-services" \
   --frontend-image "${IMAGE_BASE}/frontend" \
   --worker-image "${IMAGE_BASE}/temporal" \
+  --deno-runner-image "${IMAGE_BASE}/deno-runner" \
   --image-tag "${IMAGE_TAG}" \
   --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
   --sso-realm "${SSO_REALM}" \
@@ -337,7 +332,6 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
   --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
   --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
-  --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE}" \
   --document-intelligence-mode "${DOCUMENT_INTELLIGENCE_MODE}" \
   --mock-azure-ocr "${MOCK_AZURE_OCR}" \
   --minio-endpoint "${MINIO_ENDPOINT_VALUE}" \
@@ -391,12 +385,17 @@ done
 
 BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
 echo "[INFO] Applying backend secret ${BACKEND_SECRET}..."
+# AZURE_OPENAI_API_KEY goes into BOTH secrets, from this one config value.
+# backend-services hosts the workflow chat agent, AI format suggestion and
+# benchmark recommendations; the worker hosts LLM enrichment. Same subscription
+# key, two per-deployment secrets.
 oc create secret generic "${BACKEND_SECRET}" \
   --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
   --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+  --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
   --dry-run=client -o yaml | oc apply -f - -n "${OC_NAMESPACE}"
 
 oc label secret "${BACKEND_SECRET}" \
@@ -425,11 +424,8 @@ if [[ "${DEPLOY_PLG_EFFECTIVE}" == true ]]; then
   helm upgrade --install "${PLG_RELEASE}" "${PLG_CHART_DIR}" \
     --namespace "${OC_NAMESPACE}" \
     -f "${PLG_CHART_DIR}/values-openshift.yaml" \
+    -f "${PLG_CHART_DIR}/values-${ENV_PROFILE}.yaml" \
     --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD}" \
-    --set "loki.retentionDays=${LOKI_RETENTION_DAYS}" \
-    --set "loki.pvcSize=${LOKI_PVC_SIZE}" \
-    --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE}" \
-    --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL}" \
     --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
     --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
     --wait --timeout 120s || echo "[WARN] PLG deployment failed or timed out (non-blocking)."

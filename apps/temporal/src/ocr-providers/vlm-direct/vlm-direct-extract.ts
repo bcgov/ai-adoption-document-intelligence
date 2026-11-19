@@ -26,14 +26,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
-import { getBlobStorageClient } from "../../blob-storage/blob-storage-client";
+import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
 import type { OCRResult, PreparedFileData } from "../../types";
 import {
@@ -56,22 +53,6 @@ function readEnv(name: string): string | undefined {
   return v && v.trim().length > 0 ? v.trim() : undefined;
 }
 
-async function readBlobData(blobKey: string): Promise<Buffer> {
-  if (path.isAbsolute(blobKey)) {
-    try {
-      return await fs.promises.readFile(blobKey);
-    } catch (_error) {
-      throw new Error(`File not found on disk: "${blobKey}"`);
-    }
-  }
-  const client = getBlobStorageClient();
-  try {
-    return await client.read(validateBlobFilePath(blobKey));
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
-  }
-}
-
 interface TemplateLoad {
   fieldDefs: VlmFieldDefRow[];
   builderInput: Array<{
@@ -83,12 +64,15 @@ interface TemplateLoad {
 
 async function loadTemplate(
   templateModelId: string,
+  groupId: string,
   log: ReturnType<typeof createActivityLogger>,
 ): Promise<TemplateLoad | null> {
   try {
     const prisma = getPrismaClient();
-    const tm = await prisma.templateModel.findUnique({
-      where: { id: templateModelId },
+    // Limited to the run's group: a template model from another group is
+    // treated as not found.
+    const tm = await prisma.templateModel.findFirst({
+      where: { id: templateModelId, group_id: groupId },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
     if (!tm || !tm.field_schema || tm.field_schema.length === 0) {
@@ -282,6 +266,7 @@ async function callAzureOpenAiVlm(
 
 export interface VlmDirectExtractParams {
   fileData: PreparedFileData;
+  groupId?: string | null;
   /** Labeling template id; loads `field_schema` to build the JSON schema. */
   templateModelId?: string;
   /** Global instruction; sent as the system message preamble. */
@@ -354,10 +339,17 @@ export async function vlmDirectExtract(
     useMock,
   });
 
+  const groupId = params.groupId;
+  if (!groupId) {
+    throw new Error(
+      "VLM-direct: groupId is required to read the document and its template model.",
+    );
+  }
+
   const templateModelId = params.templateModelId?.trim();
   let template: TemplateLoad | null = null;
   if (templateModelId) {
-    template = await loadTemplate(templateModelId, log);
+    template = await loadTemplate(templateModelId, groupId, log);
   }
   if (!template) {
     throw new Error(
@@ -414,7 +406,7 @@ export async function vlmDirectExtract(
     throw new Error("VLM-direct: AZURE_OPENAI_API_KEY not configured.");
   }
 
-  const buffer = await readBlobData(params.fileData.blobKey);
+  const buffer = await readGroupBlob(params.fileData.blobKey, groupId);
   const imageMimeType =
     params.fileData.contentType && params.fileData.contentType.trim().length > 0
       ? params.fileData.contentType

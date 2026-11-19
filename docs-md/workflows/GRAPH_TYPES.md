@@ -73,7 +73,7 @@ Values are referenced via `ValueRef`:
 Activities are identified by string keys (e.g., `"azureOcr.submit"`):
 
 - **Temporal runtime registry**: `apps/temporal/src/activity-registry.ts` -- maps activity type strings to actual Temporal activity functions, with `defaultTimeout`, `defaultRetry`, and `description`
-- **Temporal workflow-safe list**: `apps/temporal/src/activity-types.ts` -- `REGISTERED_ACTIVITY_TYPES` constant array (workflow code imports this instead of the worker registry to avoid non-determinism)
+- **Temporal workflow-safe list**: `apps/temporal/src/activity-types.ts` -- `REGISTERED_ACTIVITY_TYPES` constant array, the activity types a graph node may use (workflow code imports this instead of the worker registry to avoid non-determinism)
 - **Backend constant registry**: `apps/backend-services/src/workflow/activity-registry.ts` -- descriptions only, used for save-time validation
 
 Current activity types, grouped by category:
@@ -94,7 +94,7 @@ Current activity types, grouped by category:
 
 **Internal**: `getWorkflowGraphConfig` (used by `childWorkflow` nodes; not for direct use in user-defined graphs)
 
-**Benchmarking** (temporal-only; not in the backend registry): `benchmark.evaluate`, `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.updateRunStatus`, `benchmark.compareAgainstBaseline`, `benchmark.writePrediction`, `benchmark.materializeDataset`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`
+**Benchmarking** (worker-only: the benchmark workflows call these directly; they are in neither `REGISTERED_ACTIVITY_TYPES` nor the backend registry, so a graph node cannot use them): `benchmark.evaluate`, `benchmark.aggregate`, `benchmark.cleanup`, `benchmark.updateRunStatus`, `benchmark.compareAgainstBaseline`, `benchmark.writePrediction`, `benchmark.flattenPredictionFromRefs`, `benchmark.materializeDataset`, `benchmark.loadDatasetManifest`, `benchmark.loadOcrCache`, `benchmark.persistOcrCache`, `benchmark.persistEvaluationDetails`
 
 ## Validation
 
@@ -104,7 +104,7 @@ A single shared validator lives in `packages/graph-workflow/src/validator/valida
 - **Temporal** (`apps/temporal/src/graph-schema-validator.ts`): Thin wrapper that injects the runtime registry for execution-time defensive validation
 - **Frontend** (`apps/frontend/src/pages/WorkflowEditorPage.tsx`): Calls `validateGraphConfig()` directly without options; the `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` which skips activity-type/parameter checks (appropriate since the frontend has no activity registry)
 
-All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity.
+All callers check: schema version, node/edge integrity (including non-empty `label`), DAG structure (cycle detection), reachability, switch/map/join cross-references, port bindings, and expression validity. An output binding whose port the step's catalog entry does not declare is a **warning**: the engine copies `result[port]` into the variable, so a port the step does not return leaves the variable empty for the next step.
 
 ## Blob Storage
 
@@ -161,7 +161,7 @@ interface ExposedParam {
 - Edges between groups are aggregated (if multiple nodes in group A connect to group B, only one edge is shown)
 - Internal edges (both source and target in the same group) are hidden
 
-**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation to reference any field in the config.
+**Exposed Parameters**: `exposedParams` defines which configuration values should be editable in a simplified template-based UI (future feature). The `path` field uses dot notation and must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`). Benchmark definitions and ground-truth generation override values through these paths (see [workflow-config-overrides.md](./workflow-config-overrides.md)), so an override can change a node's settings but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value.
 
 ### Config Hash Behavior
 
@@ -172,12 +172,15 @@ interface ExposedParam {
 The backend and temporal validators perform lightweight checks on `nodeGroups`:
 - Each group's `nodeIds` must be non-empty
 - All referenced `nodeIds` must exist in `config.nodes`
+- `exposedParams` paths must name a node parameter (`nodes.<id>.parameters.<name>`, which may go deeper), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`); any other path is an error
+- Each segment of an `exposedParams` path must start with a letter and contain only letters, digits, `_` or `-` (the segments `applyWorkflowConfigOverrides` can set)
 - `exposedParams` paths starting with `nodes.` must reference existing nodes
+- An `exposedParams` path naming a ctx key the workflow does not declare produces a **warning**: it does not stop a stored workflow from running, and the workflow editor asks for it to be fixed before saving
 - A node appearing in multiple groups produces a **warning** (not an error)
 
 ### Example
 
-See [`docs-md/templates/standard-ocr-workflow.json`](./templates/standard-ocr-workflow.json) for a complete example with 5 node groups:
+See [`packages/graph-workflow/templates/standard-ocr-workflow.json`](../../packages/graph-workflow/templates/standard-ocr-workflow.json) for a complete example with 5 node groups:
 - `ocr-extraction`: 6 nodes (status updates, file prep, OCR submission, polling, extraction)
 - `cleanup`: 1 node (post-OCR cleanup)
 - `quality-gate`: 2 nodes (confidence check, switch)

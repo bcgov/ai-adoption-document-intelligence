@@ -1,11 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnnotationCanvas } from "../../features/annotation/core/canvas/AnnotationCanvas";
-import {
-  RENDER_SCALE,
-  usePdfPageImage,
-} from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
+import { useCallback, useMemo, useState } from "react";
 import type { ExtractedFields } from "../../shared/types";
-import { Paper, Text, useElementSize } from "../../ui";
+import { Paper, Text } from "../../ui";
+import { DocumentCanvas } from "./DocumentCanvas";
 
 interface DocumentViewerProps {
   imageUrl: string;
@@ -15,10 +11,6 @@ interface DocumentViewerProps {
   onToggleOverlays?: () => void;
   rotation?: number;
 }
-
-// PDF coordinate scale: Azure OCR coordinates are in inches
-// Multiply by (RENDER_SCALE * 72 DPI) to convert to rendered pixels
-const PIXELS_PER_INCH = RENDER_SCALE * 72;
 
 function getFieldDisplayValue(field: ExtractedFields[string]): string {
   if (field.valueSelectionMark !== undefined) {
@@ -48,29 +40,6 @@ export function DocumentViewer({
   /** API may send null; default `{}` does not apply when null is passed explicitly. */
   const fields = extractedFields ?? {};
 
-  const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
-  } = useElementSize();
-
-  const { imageUrl: pdfPageImageUrl, numPages } = usePdfPageImage(
-    imageUrl || null,
-    pageNumber,
-  );
-
-  const [canvasImageUrl, setCanvasImageUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (pdfPageImageUrl) {
-      setCanvasImageUrl(pdfPageImageUrl);
-    } else if (imageUrl && numPages === 0) {
-      const timer = setTimeout(() => setCanvasImageUrl(imageUrl), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [pdfPageImageUrl, imageUrl, numPages]);
-
-  const isPdf = numPages > 0;
-
   const boxes = useMemo(() => {
     if (!showOverlays) return [];
     return Object.entries(fields)
@@ -84,14 +53,6 @@ export function DocumentViewer({
         const br = field.boundingRegions!.find(
           (r) => r.pageNumber === pageNumber,
         )!;
-        const polygon = br.polygon;
-        const points = [];
-        for (let i = 0; i < polygon.length; i += 2) {
-          points.push({
-            x: polygon[i] * (isPdf ? PIXELS_PER_INCH : 1),
-            y: polygon[i + 1] * (isPdf ? PIXELS_PER_INCH : 1),
-          });
-        }
         const color =
           field.confidence >= 0.9
             ? "rgba(34, 197, 94, 1)"
@@ -100,15 +61,14 @@ export function DocumentViewer({
               : "rgba(239, 68, 68, 1)";
         return {
           id: fieldName,
-          box: { polygon: points },
+          polygon: br.polygon,
           label: fieldName,
           color,
           confidence: field.confidence,
         };
       });
-  }, [fields, pageNumber, showOverlays, isPdf]);
+  }, [fields, pageNumber, showOverlays]);
 
-  // Tooltip state — positioned relative to the canvas container
   const [tooltip, setTooltip] = useState<{
     fieldName: string;
     x: number;
@@ -117,11 +77,7 @@ export function DocumentViewer({
 
   const handleBoxHover = useCallback(
     (info: { boxId: string; x: number; y: number } | null) => {
-      if (!info) {
-        setTooltip(null);
-        return;
-      }
-      setTooltip({ fieldName: info.boxId, x: info.x, y: info.y });
+      setTooltip(info ? { fieldName: info.boxId, x: info.x, y: info.y } : null);
     },
     [],
   );
@@ -129,20 +85,14 @@ export function DocumentViewer({
   const tooltipField = tooltip ? fields[tooltip.fieldName] : undefined;
 
   return (
-    <div
-      ref={canvasRef}
-      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-    >
-      {canvasWidth > 0 && canvasHeight > 0 && canvasImageUrl && (
-        <AnnotationCanvas
-          imageUrl={canvasImageUrl}
-          width={canvasWidth}
-          height={canvasHeight}
-          boxes={boxes}
-          onBoxHover={handleBoxHover}
-          rotation={rotation}
-        />
-      )}
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      <DocumentCanvas
+        imageUrl={imageUrl || null}
+        pageNumber={pageNumber}
+        boxes={boxes}
+        onBoxHover={handleBoxHover}
+        rotation={rotation}
+      />
 
       {tooltip && tooltipField && (
         <Paper

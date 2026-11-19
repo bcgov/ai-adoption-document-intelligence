@@ -1,0 +1,8 @@
+# PLG sizing for test/dev environments.
+loki:
+  retentionDays: 30
+  pvcSize: 2Gi
+
+prometheus:
+  pvcSize: 2Gi
+  scrapeInterval: "15s"

@@ -413,5 +413,31 @@ describe("AzureBlobProviderService", () => {
       );
       await expect(service.deleteByPrefix("nothing/")).resolves.toBeUndefined();
     });
+
+    it("deletes contents before their directory entry", async () => {
+      // Hierarchical-namespace accounts list a directory before its contents.
+      mockContainerClient.listBlobsFlat.mockReturnValue(
+        (async function* () {
+          yield { name: "group/ocr/doc-1" };
+          yield { name: "group/ocr/doc-1/normalized.pdf" };
+          yield { name: "group/ocr/doc-1/original.pdf" };
+          yield { name: "group/ocr/doc-1/pages" };
+          yield { name: "group/ocr/doc-1/pages/1.png" };
+        })(),
+      );
+      await service.deleteByPrefix("group/ocr/doc-1");
+      const order: string[] = mockContainerClient.deleteBlob.mock.calls.map(
+        (call: unknown[]) => String(call[0]),
+      );
+      expect(order).toHaveLength(5);
+      for (const [childIndex, child] of order.entries()) {
+        const parentIndex = order.findIndex((name) =>
+          child.startsWith(`${name}/`),
+        );
+        if (parentIndex !== -1) {
+          expect(childIndex).toBeLessThan(parentIndex);
+        }
+      }
+    });
   });
 });

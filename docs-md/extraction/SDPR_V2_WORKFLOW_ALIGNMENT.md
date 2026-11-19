@@ -133,7 +133,7 @@ The +105 gap cells:
 
 Implements brief §8.4: `FieldMatchingRule.maxEdits`/`minLength` and
 `FieldMatchingRule.canonicalize`. Wired into
-`docs-md/workflows/templates/standard-ocr-workflow-sdpr.json`
+`packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json`
 `metadata.evaluatorConfig` as:
 
 - `defaultRule: { "rule": "exact" }` — checkboxes stay exact (P5).

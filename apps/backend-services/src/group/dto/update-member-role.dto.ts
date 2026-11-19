@@ -9,7 +9,7 @@ export class UpdateMemberRoleDto {
   @ApiProperty({
     description: "The new role to assign to the member",
     enum: GroupRole,
-    example: GroupRole.MEMBER,
+    example: GroupRole.EDITOR,
   })
   @IsEnum(GroupRole)
   role!: GroupRole;

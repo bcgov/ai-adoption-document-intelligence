@@ -82,9 +82,129 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added new docs for previously-undocumented merged subsystems: `workflows/TEMPORAL_PAYLOAD_FOOTPRINT.md` (gzip codec + OCR payload refs) and `extraction/OCR_RESULT_VIEWS.md` (AI-1445); routed both from `graph-workflows.md` / `extraction.md` and registered the codec package in `sources.md`.
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
+- Added canonical doc `extraction/OCR_RECOVER_NUMERIC_ZEROS.md` for the new `ocr.recoverNumericZerosFromCheckboxes` activity (blob-backed correction tool that recovers numeric zeros Azure DI misread as selection marks; three table-finder strategies). Relocated it from the `docs-md/` root into the `extraction/` topic folder and fixed its links after the develop merge renamed `graph-workflows/` → `workflows/`.
+- Wired it into `extraction.md` and noted the blob-backed correction-tool contract (`ocr-activity-ref-utils.ts`). The `extraction/` folder is already registered in `sources.md`.
+- Kept the generic `standard-ocr-workflow.json` free of the SDPR-specific config: moved the `recoverNumericZeros` node into a form-specific variant `standard-ocr-workflow-sdpr.json` (seeded as `seed-workflow-standard-ocr-sdpr`). Fixed the node's ctx wiring — it now reads/writes `ocrResultRef` in place (was reading an unpopulated `ocrResult` key, which left the recovery off the data path so `postOcrCleanup` never saw it).
+
+## [2026-07-17] ingest | pgBackRest restore runbook
+
+- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, patching `spec.backups.pgbackrest.restore` for a latest or named-backup restore, triggering the operator's in-place restore by annotation (the cluster is not shut down), monitoring it, removing the restore spec, and scaling back up.
+- Added the `pgBackRest List Backups` and `pgBackRest Database Restore` GitHub Actions workflows, which automate that runbook for the test and prod environments.
 
 ## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
 
 - Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
 - Added `billing.md` topic page routing to it and the `packages/billing/` + backend/temporal billing source areas; linked from `index.md` and registered in `sources.md` (routing row, stable-docs entry, code-adjacent sources).
 - Recorded the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift in `open-questions.md`.
+
+## [2026-08-01] ingest | HITL inline canvas editor, persist-before-gate, demo seed
+
+- `architecture/HITL_ARCHITECTURE.md`: corrected the queue-flow diagram (default queue status is `awaiting_review`, not `extracted`), documented how documents enter the queue (gated templates now run `persistOcr` before `reviewSwitch`; humanGate sets `awaiting_review`; post-gate store persists corrections), and added the inline canvas editor components (CanvasFieldOverlay, ConfidenceIndicator, useFieldFocus) to Frontend Architecture. Shipped on PR #184.
+- Relocated `hitl-demo-reset.md` from the docs-md root into `extraction/HITL_DEMO_RESET.md` (post-reorg straggler) and registered it as a canonical source on the hitl topic.
+- `hitl.md`: routing notes for the persist-before-gate ordering, the inline editor, and the demo seed.
+
+## [2026-08-18] maintenance | Retire resolved billing drift risks
+
+- Removed the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift from `open-questions.md` and `billing.md`: `REQUIREMENTS.md` now describes the cap as a best-effort soft cap, and `.env.sample` now carries the flag name the temporal code reads (`CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`).
+- Replaced them in `billing.md` with the standing risk that the backend and Temporal activity registries can diverge, leaving an activity unpriced and therefore silently free.
+- Dropped `billing.md`'s pointer to `open-questions.md`, which no longer carries a billing section.
+
+## [2026-08-25] ingest | HITL review outcomes: flag replaces escalate, skip abandons
+
+- `architecture/HITL_ARCHITECTURE.md`: rewrote the session state machine, transition table, queue states and terminal-action flows for the three-outcome model (`approved` / `flagged` / `abandoned`); documented the lock-expiry cron, the read-only Flagged tab, and the queue-wide statistics endpoint.
+- `hitl.md`: routing notes for the three session outcomes, lock reclamation, and the counting basis of the queue stats.
+
+## [2026-08-28] ingest | Flagged review becomes a hand-off
+
+- `architecture/HITL_ARCHITECTURE.md`: split the reopen transition in two — an approved session reopens for its own reviewer within five minutes, a flagged session is taken over by any group member with no time limit — and documented the Flagged tab's View/Take actions.
+- `hitl.md`: flagging is a hand-off rather than a terminal state; editing always holds a lock.
+
+## [2026-08-28] maintenance | Backup RPO/RTO doc
+
+- Created `docs-md/operations/BACKUP_RPO_RTO.md` recording the RPO, recovery window and RTO implied by PR #238's backup settings (weekly fulls, 4-hour incrementals, 2-full count retention).
+
+## [2026-09-19] ingest | Label suggestions move from rules to an LLM
+
+- `architecture/TEMPLATE_MODELS.md`: documented the `label-suggestions/` module (tagged-text rendering, the Azure OpenAI call, ref resolution), the bulk field-create and field-suggestion endpoints, the optional `FieldDefinition.description` column, and the new Field schema "Suggest fields" UI. The rule-based `suggestion.service.ts` this replaces is gone from the tree and the doc.
+- `extraction.md`: added a Design Notes bullet distinguishing label/field suggestions (one-shot, per-document) from the confusion-profile/format-suggestion feedback loops next to it.
+
+## [2026-09-29] ingest | Frontend route permissions and the reviewer role
+
+- `auth/FRONTEND_ROUTE_PERMISSIONS.md`: new — `appRoutes` in `routes.config.tsx`, `GroupPermissionGuard`, sidebar filtering, `HomeRedirect` landing pages, and the numeric permission list `/api/auth/me` sends.
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: roles table matches `RoleClaimsMap` (18 group-admin-only permissions; reviewers hold document view and download and leave-group).
+- `groups/GROUP_CONTEXT.md`: `Group.role` and `permissions`, `hasPermissionForGroup`, and the active group derived during render.
+- `groups/DELETE_GROUP.md`, `auth/AUTHENTICATION.md`: memberships in soft-deleted groups grant no access.
+- `auth-and-groups.md`: new canonical source, and the drift risk of the frontend's copy of the `Permission` enum.
+
+## [2026-10-05] ingest | HITL rejection marks the document rejected
+
+- `architecture/HITL_ARCHITECTURE.md`: the reject transition stores the reason and comment on the session and marks the document `rejected`; added the reject path, how the workflow's failure hook leaves `rejected` alone, who the approval and rejection name, and that Reject is hidden while labelling a dataset.
+- `extraction/OCR_FAILURE_HANDLING.md`, `architecture/DOCUMENT_RETENTION.md`, `architecture/EPHEMERAL_DOCUMENT_CLEANUP.md`, `operations/ENVIRONMENT_CONFIGURATION.md`: `rejected` is a terminal, purgeable document status, and rejected sessions age out like approved ones.
+- `hitl.md`: four session outcomes, rejection is final, and the drift risk of the rejection reasons being defined in both the schema and the frontend.
+
+## [2026-10-06] ingest | HITL flag notes and correction authors
+
+- `architecture/HITL_ARCHITECTURE.md`: flagging stores an optional note (`flag_note`) shown in the Flagged tab and as a banner; Take sits in the read-only view, hands the session to the reader and keeps the note; each correction records who made it (`field_corrections.actor_id`), which the analytics `reviewerId` filter uses.
+- `architecture/HITL_ARCHITECTURE.md`: approving, rejecting and flagging save the review page's unsaved corrections first, sending only fields that differ from their last saved correction; skipping discards them.
+- `architecture/HITL_ARCHITECTURE.md`: a lapsed lock returns a session that carries a flag note to `flagged` instead of `abandoned`, and the review page reports a released session when its heartbeat answers 409.
+- `hitl.md`: the flag note, Take handing the session over, per-correction authors, and lapsed hand-offs returning to `flagged`.
+
+## [2026-10-07] ingest | Group scope for references and the workflow worker
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: more reference rules (labeling upload and attach, upload `model_id` and `ctx_overrides`, thumbnails, HITL field schema, confusion-profile derivation, format suggestions, benchmark error detection, ground-truth generation, baseline history, classification results, blob path components, membership check), the blob path rules, and a Workflow Worker section.
+- `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/03-content-understanding-OCR.md`: child workflow refs resolve within the run's group; Content Understanding analyzers are named per group.
+- `auth-and-groups.md`: pointer to the worker rules, and the drift risk of a new activity trusting an id from its input.
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `auth-and-groups.md`: worker blob access goes through `getGroupBlobStorage` / `readGroupBlob`, enforced by a lint rule; the group-scope rule is also in `CLAUDE.md` and `.github/copilot-instructions.md`.
+
+## [2026-10-13] ingest | Group scope follow-ups
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`: API keys of a deleted group, the `group_id` filter on `GET /api/models`, one model-ownership rule for the upload check and the worker (trained or in training by another group, compared without case), the `manifestPath` rule, workflow overrides limited to node settings and ctx defaults, and template model ids on the shared Azure resource; worker rules for graph steps, sample ids and which refusals are not retried; benchmark runs take the dataset's group.
+- `architecture/BLOB_STORAGE.md`: the worker example uses `getGroupBlobStorage` / `readGroupBlob`; the file table and the import lint rule.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`, `workflows/DAG_WORKFLOW_ENGINE.md`, `workflows/WORKFLOW_NODE_CATALOG.md`: the exposed-parameter path rule; `benchmark.*` activities are worker-only, not palette nodes.
+- `workflows/03-content-understanding-OCR.md`: the iteration script deploys under the group prefix. `docs/_pages/benchmarking-technical.html`: the benchmark cache is per group.
+- `blob-storage.md`, `auth-and-groups.md`: worker blob routing, and the drift risk of ids on shared Azure resources.
+- `workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`: worker-only activities stay out of `REGISTERED_ACTIVITY_TYPES`. `extraction/ground-truth-generation.md`, `architecture/TEMPLATE_MODELS.md`: the override example and what `GET /api/models` lists.
+
+## [2026-10-15] ingest | Owner records for model ids, per-caller limits, undeclared ctx keys
+
+- `auth/GROUP_RESOURCE_AUTHORIZATION.md`, `architecture/TEMPLATE_MODELS.md`: owner records (`model_owners`) keep a model id its group's after the template is deleted; training claims the id with the job; deleting a template deletes its models from Azure, best effort.
+- `auth/AUTHENTICATION.md`: the per-IP limits count the caller's own address behind the cluster's proxies.
+- `workflows/GRAPH_TYPES.md`, `workflows/workflow-config-overrides.md`: an exposed ctx path whose key is not declared is a warning, and an override on it is refused.
+- `auth-and-groups.md`: a training records its model id's group.
+
+## [2026-10-16] ingest | Template deletion refusals, owner records for older trainings
+
+- `architecture/TEMPLATE_MODELS.md`: deleting a template answers `409` while one of its trainings is in progress or a benchmark definition names one of its versions; the owner records' migration also reads the training audit events.
+- `architecture/AUDIT.md`: the `template_model_deleted` payload lists the Azure model ids it deletes.
+- `auth/AUTHENTICATION.md`: the per-IP limits' `X-Forwarded-For` rule, stated for callers that come through the router.
+
+## [2026-10-22] maintenance | Workflow templates moved into graph-workflow
+
+- The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
+- `graph-workflows.md`: the source map names the templates' folder.
+
+## [2026-10-28] ingest | Integration tutorial page, post-gate store wording
+
+- `hitl.md`: the post-gate store writes the extracted result again; reviewer corrections stay in `field_corrections`.
+- `open-questions.md`: the From Zero to Integration tutorial is one of the published guides.
+
+## [2026-10-29] ingest | Post-gate store applies to some templates only
+
+- `hitl.md`: only templates with a post-gate store write the extracted result again; the base Standard OCR template has none.
+
+## [2026-11-02] ingest | HITL corrections across sessions, Save, skip back to Flagged
+
+- `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
+- `extraction/ground-truth-generation.md`, `extraction/hitl-dataset-creation.md`: ground truth is built from every correction on the document, not only the approving session's.
+- `hitl.md`: the session-end bullet covers skip back to Flagged and corrections carried into a new session.
+
+## [2026-11-03] maintenance | HITL skip and lock expiry follow the takeover, not the flag note
+
+- `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
+- `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
+
+## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
+
+- The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
+- `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
+- `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
