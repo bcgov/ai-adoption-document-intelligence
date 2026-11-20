@@ -57,14 +57,14 @@
     "preparedFileData": {
       "type": "object"
     },
-    "ocrResult": {
+    "ocrResultRef": {
       "type": "object"
     },
-    "ocrResponse": {
+    "ocrResponseRef": {
       "type": "object",
       "description": "Raw Foundry OCR response, emitted alongside ocrResult so the benchmark sample workflow's persistOcrCache step can write it to benchmark_ocr_cache."
     },
-    "cleanedResult": {
+    "cleanedResultRef": {
       "type": "object"
     },
     "averageConfidence": {
@@ -138,11 +138,11 @@
       "outputs": [
         {
           "port": "ocrResult",
-          "ctxKey": "ocrResult"
+          "ctxKey": "ocrResultRef"
         },
         {
           "port": "ocrResponse",
-          "ctxKey": "ocrResponse"
+          "ctxKey": "ocrResponseRef"
         }
       ],
       "timeout": {
@@ -244,13 +244,13 @@
       "inputs": [
         {
           "port": "ocrResult",
-          "ctxKey": "ocrResult"
+          "ctxKey": "ocrResultRef"
         }
       ],
       "outputs": [
         {
           "port": "cleanedResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         }
       ],
       "timeout": {
@@ -272,7 +272,7 @@
         },
         {
           "port": "ocrResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         },
         {
           "port": "threshold",
@@ -350,7 +350,7 @@
         },
         {
           "port": "ocrResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         }
       ],
       "timeout": {

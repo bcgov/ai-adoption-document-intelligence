@@ -208,3 +208,13 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
 - `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
 - `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
+
+## [2026-11-13] ingest | AI Hub TEST migration validation
+
+- Added routing to the canonical operator value map and migration validation runbook.
+- Kept deployment instructions and endpoint inventories out of the wiki.
+
+## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
+
+- Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
+- Updated the migration runbook to use existing tests and benchmark UI/APIs.

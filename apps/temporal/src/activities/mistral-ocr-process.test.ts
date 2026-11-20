@@ -26,23 +26,25 @@ import {
 } from "./mistral-ocr-process";
 
 const DOC_ID = "doc-mistral-test";
-const ocrBodies = new Map<string, OCRResult>();
+const ocrBodies = new Map<string, Buffer>();
 
 function ocrFromRef(ref: OcrPayloadRef): OCRResult {
   const body = ocrBodies.get(ref.blobPath);
   if (!body) {
     throw new Error(`missing OCR body for ${ref.blobPath}`);
   }
-  return body;
+  return JSON.parse(body.toString("utf8"));
 }
 
 jest.mock("axios");
 const axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
 
 const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
 jest.mock("../blob-storage/blob-storage-client", () => ({
   getBlobStorageClient: () => ({
     read: mockBlobRead,
+    write: mockBlobWrite,
   }),
 }));
 
@@ -169,6 +171,9 @@ describe("mistralOcrProcess", () => {
     ocrBodies.clear();
     process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "true" };
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
+    mockBlobWrite.mockImplementation(async (key: string, body: Buffer) => {
+      ocrBodies.set(key, body);
+    });
     templateRows = [];
     mockFindUnique.mockImplementation(
       async ({ where }: { where: { id: string } }) =>
@@ -185,18 +190,6 @@ describe("mistralOcrProcess", () => {
     jest
       .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
       .mockResolvedValue("gtestgroupidfortests01");
-    jest
-      .spyOn(ocrPayloadRef, "persistOcrArtifactRef")
-      .mockImplementation(async (_groupId, documentId, _file, body) => {
-        const ref: OcrPayloadRef = {
-          documentId,
-          blobPath: `gtestgroupidfortests01/ocr/${documentId}/ocr-result.json`,
-          storage: "blob",
-          status: "succeeded",
-        };
-        ocrBodies.set(ref.blobPath, body as OCRResult);
-        return ref;
-      });
   });
 
   afterEach(() => {
@@ -264,6 +257,7 @@ describe("mistralOcrProcess", () => {
     expect(axiosPost).toHaveBeenCalled();
     const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
     expect(callBody.document_annotation_format).toBeDefined();
+    expect(axiosPost.mock.calls[0][2]?.headers).not.toHaveProperty("api-key");
     expect(ocrFromRef(ref).pages.length).toBeGreaterThan(0);
   });
 
@@ -368,7 +362,12 @@ describe("mistralOcrProcess", () => {
       // Mock fixture exercises the bbox population path so polygons are non-empty.
       expect(ocrResult.pages[0].words[0].polygon.length).toBe(8);
       expect(ocrResponse).toBeDefined();
-      expect(ocrResponse.model).toBe("mistral-document-ai-2512");
+      const rawBody = ocrBodies.get(ocrResponse.blobPath);
+      if (!rawBody) throw new Error("Missing persisted raw Mistral response");
+      expect(JSON.parse(rawBody.toString("utf8")).model).toBe(
+        "mistral-document-ai-2512",
+      );
+      expect(mockBlobWrite).toHaveBeenCalledTimes(2);
       expect(axiosPost).not.toHaveBeenCalled();
     });
 
@@ -419,9 +418,14 @@ describe("mistralOcrProcess", () => {
       // Foundry rejects `confidence_scores_granularity` with HTTP 422.
       expect(body.confidence_scores_granularity).toBeUndefined();
       const opts = calledOptions as { headers?: Record<string, string> };
+      expect(opts.headers?.["api-key"]).toBe("test-foundry-key");
       expect(opts.headers?.Authorization).toBe("Bearer test-foundry-key");
       expect(ocrFromRef(ref).modelId).toBe("mistral-document-ai-2512");
-      expect(ocrResponse.pages?.length).toBeGreaterThan(0);
+      const rawBody = ocrBodies.get(ocrResponse.blobPath);
+      if (!rawBody) throw new Error("Missing persisted raw Mistral response");
+      expect(JSON.parse(rawBody.toString("utf8")).pages.length).toBeGreaterThan(
+        0,
+      );
 
       const fmt = body.document_annotation_format as {
         json_schema: {

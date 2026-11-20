@@ -2,9 +2,9 @@
  * VLM-direct extraction activity (E04).
  *
  * Sends a document image plus a strict JSON-Schema response_format to an
- * Azure OpenAI chat-completions deployment (vision-capable; gpt-5.4 by
- * default for E04). Returns the canonical {@link OCRResult} alongside the
- * raw response so the benchmark sample workflow's `persistOcrCache` step
+ * Azure OpenAI chat-completions deployment (vision-capable). Returns blob
+ * references to the canonical OCR result and raw response so the benchmark
+ * sample workflow's `persistOcrCache` step
  * can write a row to `benchmark_ocr_cache`.
  *
  * Skipped path — PDF input. Per the E04 SUMMARY ("Gaps"), this activity
@@ -14,15 +14,14 @@
  * or E05's hybrid pulls it in).
  *
  * Auth/endpoint env vars:
- *   - AZURE_OPENAI_ENDPOINT   resource hostname (e.g.
- *                             `https://strukalex-8338-resource.cognitiveservices.azure.com`)
- *   - AZURE_OPENAI_API_KEY        API key for the resource
+ *   - AZURE_OPENAI_ENDPOINT   AI Hub tenant root
+ *   - AZURE_OPENAI_API_KEY    Tenant APIM subscription key
  *   - AZURE_OPENAI_DEPLOYMENT default deployment name (overridable per
  *                             call via `params.azureOpenAiDeployment`)
  *   - AZURE_OPENAI_API_VERSION default `2024-12-01-preview`
  *
- * For E04, AZURE_OPENAI_ENDPOINT must point at the resource hosting
- * gpt-5.4 (the eastus2 `strukalex-8338-resource`, same one CU uses).
+ * Workflow deployment parameters override the environment. Historical E04
+ * versions pin gpt-5.4; publish a new version selecting the target deployment.
  */
 
 import { randomUUID } from "node:crypto";
@@ -31,7 +30,12 @@ import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
 import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
-import type { OCRResult, PreparedFileData } from "../../types";
+import {
+  type OcrPayloadRef,
+  persistOcrExtractionRefs,
+  requireDocumentId,
+} from "../../ocr-payload-ref";
+import type { PreparedFileData } from "../../types";
 import {
   buildVlmExtractionRequest,
   type TemplateFieldType,
@@ -265,6 +269,7 @@ async function callAzureOpenAiVlm(
 }
 
 export interface VlmDirectExtractParams {
+  documentId?: string;
   fileData: PreparedFileData;
   groupId?: string | null;
   /** Labeling template id; loads `field_schema` to build the JSON schema. */
@@ -287,18 +292,18 @@ export interface VlmDirectExtractParams {
 
 export interface VlmDirectExtractResult {
   /** Canonical mapped OCR result for downstream activities. */
-  ocrResult: OCRResult;
+  ocrResult: OcrPayloadRef;
   /**
-   * Raw VLM response — emitted on `ctx.ocrResponse` so the benchmark
+   * Raw VLM response reference — emitted on `ctx.ocrResponseRef` so the benchmark
    * sample workflow's `persistOcrCache` step writes it to
    * `benchmark_ocr_cache` (sync-provider cache emission convention).
    */
-  ocrResponse: VlmDirectRawResponse;
+  ocrResponse: OcrPayloadRef;
 }
 
 /**
  * Activity: VLM-direct extraction.
- * Returns a canonical {@link OCRResult} + the raw chat-completions response.
+ * Returns blob references to the canonical result and raw chat-completions response.
  */
 export async function vlmDirectExtract(
   params: VlmDirectExtractParams,
@@ -307,6 +312,7 @@ export async function vlmDirectExtract(
     ...(params.requestId && { requestId: params.requestId }),
   });
   const startTime = Date.now();
+  const documentId = requireDocumentId(params);
   const useMock = process.env.MOCK_VLM_DIRECT === "true";
   const requestId = `vlm-direct-${randomUUID()}`;
 
@@ -387,12 +393,18 @@ export async function vlmDirectExtract(
       },
       { fieldDefs: template.fieldDefs },
     );
+    const refs = await persistOcrExtractionRefs(
+      groupId,
+      documentId,
+      ocrResult,
+      mockResponse,
+    );
     log.info("VLM-direct extract complete (mock)", {
       event: "complete_mock",
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult, ocrResponse: mockResponse };
+    return refs;
   }
 
   const endpoint = readEnv("AZURE_OPENAI_ENDPOINT");
@@ -436,6 +448,12 @@ export async function vlmDirectExtract(
     { fieldDefs: template.fieldDefs },
   );
 
+  const refs = await persistOcrExtractionRefs(
+    groupId,
+    documentId,
+    ocrResult,
+    ocrResponse,
+  );
   log.info("VLM-direct extract complete", {
     event: "complete",
     requestId,
@@ -447,5 +465,5 @@ export async function vlmDirectExtract(
     fieldsCount: Object.keys(ocrResponse.parsed.fields).length,
   });
 
-  return { ocrResult, ocrResponse };
+  return refs;
 }
