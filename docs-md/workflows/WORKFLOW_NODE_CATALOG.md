@@ -324,7 +324,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the statu
 - **Visual:** Blue, upload-arrow icon
 - **Activity ID (internal):** `azureContentUnderstanding.analyze`
 - **One-line description:** Runs an Azure Content Understanding analyzer on the document and returns a canonical OCR result. Given a template model, it first deploys an analyzer built from the template's fields.
-- **When to use it:** In place of **Submit OCR** → **Wait for OCR Result** → **Extract OCR Result**, when a generative analyzer should extract a labeling template's fields in one step. See [03-content-understanding-OCR.md](03-content-understanding-OCR.md).
+- **When to use it:** In place of **Start OCR** → **Wait for OCR Result** → **Extract OCR Result**, when a generative analyzer should extract a labeling template's fields in one step. See [03-content-understanding-OCR.md](03-content-understanding-OCR.md).
 
 ### Settings panel
 
@@ -378,7 +378,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the statu
 - **Visual:** Blue, sparkle-document icon
 - **Activity ID (internal):** `vlmOcrHybrid.extract`
 - **One-line description:** Sends the document image and its OCR text from Azure Document Intelligence to an Azure OpenAI vision model, which returns the template's fields as strict JSON.
-- **When to use it:** After **Submit OCR** and **Wait for OCR Result** with markdown output, when the model should read the image with the OCR text beside it.
+- **When to use it:** After **Start OCR** and **Wait for OCR Result** with markdown output, when the model should read the image with the OCR text beside it.
 
 ### Settings panel
 

@@ -36,7 +36,7 @@
     "prepareFileData": {
       "id": "prepareFileData",
       "type": "activity",
-      "label": "Prepare File Data",
+      "label": "Prepare File",
       "activityType": "file.prepare",
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
@@ -50,7 +50,7 @@
     "submitOcr": {
       "id": "submitOcr",
       "type": "activity",
-      "label": "Submit Initial OCR",
+      "label": "Start Initial OCR",
       "activityType": "azureOcr.submit",
       "inputs": [{ "port": "fileData", "ctxKey": "preparedFileData" }],
       "outputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
@@ -71,7 +71,7 @@
     "pollOcrResults": {
       "id": "pollOcrResults",
       "type": "pollUntil",
-      "label": "Poll Initial OCR Results",
+      "label": "Wait for Initial OCR Result",
       "activityType": "azureOcr.poll",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
@@ -94,7 +94,7 @@
     "extractResults": {
       "id": "extractResults",
       "type": "activity",
-      "label": "Extract Initial OCR Results",
+      "label": "Extract Initial OCR Result",
       "activityType": "azureOcr.extract",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
@@ -330,7 +330,7 @@
     "storeResults": {
       "id": "storeResults",
       "type": "activity",
-      "label": "Store Results",
+      "label": "Store OCR Results",
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },

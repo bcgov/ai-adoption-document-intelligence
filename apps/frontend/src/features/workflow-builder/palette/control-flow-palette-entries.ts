@@ -56,7 +56,7 @@ export const CONTROL_FLOW_PALETTE_ENTRIES: ControlFlowPaletteEntry[] = [
   },
   {
     type: "pollUntil",
-    displayName: "Wait until condition",
+    displayName: "Wait & Retry",
     description:
       "Repeatedly run an activity until a condition over its result is satisfied.",
     iconHint: "pollUntil",

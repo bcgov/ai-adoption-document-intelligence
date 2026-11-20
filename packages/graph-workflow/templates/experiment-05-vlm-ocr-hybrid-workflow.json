@@ -104,7 +104,7 @@
     "prepareFileData": {
       "id": "prepareFileData",
       "type": "activity",
-      "label": "Prepare File Data",
+      "label": "Prepare File",
       "activityType": "file.prepare",
       "inputs": [
         {
@@ -148,7 +148,7 @@
     "submitOcr": {
       "id": "submitOcr",
       "type": "activity",
-      "label": "Submit to Azure OCR (prebuilt-layout, markdown)",
+      "label": "Start OCR (prebuilt-layout, markdown)",
       "activityType": "azureOcr.submit",
       "inputs": [
         {
@@ -172,7 +172,7 @@
     "pollOcrResults": {
       "id": "pollOcrResults",
       "type": "pollUntil",
-      "label": "Poll OCR Results",
+      "label": "Wait for OCR Result",
       "activityType": "azureOcr.poll",
       "inputs": [
         {
@@ -334,7 +334,7 @@
     "postOcrCleanup": {
       "id": "postOcrCleanup",
       "type": "activity",
-      "label": "Post-OCR Cleanup",
+      "label": "Cleanup",
       "activityType": "ocr.cleanup",
       "inputs": [
         {
@@ -358,7 +358,7 @@
     "checkConfidence": {
       "id": "checkConfidence",
       "type": "activity",
-      "label": "Check OCR Confidence",
+      "label": "Check Confidence",
       "activityType": "ocr.checkConfidence",
       "inputs": [
         {
@@ -420,7 +420,7 @@
     "humanReview": {
       "id": "humanReview",
       "type": "humanGate",
-      "label": "Human Review",
+      "label": "Require Human Review",
       "signal": {
         "name": "humanApproval",
         "payloadSchema": {
@@ -436,7 +436,7 @@
     "storeResults": {
       "id": "storeResults",
       "type": "activity",
-      "label": "Store Results",
+      "label": "Store OCR Results",
       "activityType": "ocr.storeResults",
       "inputs": [
         {
