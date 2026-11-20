@@ -5,7 +5,7 @@
  * tracking ID. Typically follows `file.prepare` and precedes a Wait & Retry
  * (poll) node for `azureOcr.poll`.
  *
- * See docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md → "Submit OCR".
+ * See docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md → "Start OCR".
  */
 
 import { z } from "zod/v4";
@@ -33,7 +33,7 @@ export const azureOcrSubmitParametersSchema = z.object({
 
 export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
   activityType: "azureOcr.submit",
-  displayName: "Submit OCR",
+  displayName: "Start OCR",
   category: "OCR (Azure)",
   description:
     "Sends a prepared document to Azure Document Intelligence and returns a tracking ID.",

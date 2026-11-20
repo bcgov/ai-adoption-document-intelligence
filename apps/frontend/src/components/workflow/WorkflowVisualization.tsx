@@ -58,18 +58,18 @@ const WORKFLOW_EDGES: Edge[] = [
 
 // Step labels for display
 const STEP_LABELS: Record<string, string> = {
-  updateStatus: "Update status",
-  prepareFileData: "Prepare file",
-  submitToAzureOCR: "Submit OCR",
-  updateApimRequestId: "Update request ID",
+  updateStatus: "Update Document Status",
+  prepareFileData: "Prepare File",
+  submitToAzureOCR: "Start OCR",
+  updateApimRequestId: "Update Request ID",
   waitBeforePoll: "Wait",
-  pollOCRResults: "Poll results",
-  extractOCRResults: "Extract results",
-  postOcrCleanup: "Cleanup",
-  enrichResults: "Enrich",
-  checkOcrConfidence: "Check confidence",
-  humanReview: "Human review",
-  storeResults: "Store results",
+  pollOCRResults: "Wait for OCR Result",
+  extractOCRResults: "Extract OCR Result",
+  postOcrCleanup: "Clean Up",
+  enrichResults: "Enrich OCR Results",
+  checkOcrConfidence: "Check Confidence",
+  humanReview: "Require Human Review",
+  storeResults: "Store OCR Results",
 };
 
 export function WorkflowVisualization({ config }: WorkflowVisualizationProps) {

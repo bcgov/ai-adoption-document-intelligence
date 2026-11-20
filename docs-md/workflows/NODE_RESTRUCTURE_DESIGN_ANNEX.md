@@ -179,7 +179,7 @@ constructs); two–four words; **no `activityType`, operation, port, context, or
 provider named only when the provider itself is the object of the action; the **same** default name in
 palette, settings heading, and initial canvas label.
 
-Examples: **Extract Text**, **Classify Document**, **Validate Fields**, **Generic Data Transform**,
+Examples: **Extract Text**, **Classify Document**, **Validate Fields**, **Transform Data**,
 **Reference Data Lookup**,
 **Look Up Table Value**, **Wait & Retry**, **Run Sub-workflow**, **Require Human Review**,
 **Save Results**.
@@ -229,7 +229,7 @@ Document Handling
   - Classify Document      (composite)
   - Split & Classify
   - Select Classified Pages
-  - Flatten Classified Documents
+  - Combine Classified Pages
   - Correct Orientation
 
 Post-processing
@@ -240,7 +240,7 @@ Validation
   - Validate Fields
 
 Data Transformation
-  - Generic Data Transform
+  - Transform Data
 
 Reference Data
   - Reference Data Lookup
@@ -330,8 +330,8 @@ unless intended as a terminal step), no-confidence-value behaviour, and branch-l
 
 ### 9.5 Kept as separate nodes
 
-Select Classified Pages and Flatten Classified Documents (opposing operations); Split & Classify
-(already a single runtime activity `document.splitAndClassify`); Correct Orientation; Generic Data Transform;
+Select Classified Pages and Combine Classified Pages (opposing operations); Split & Classify
+(already a single runtime activity `document.splitAndClassify`); Correct Orientation; Transform Data;
 Reference Data Lookup;
 Look Up Table Value; Enrich Results; Switch; Loop; Collect; Wait & Retry; Require Human Review; Run
 Sub-workflow; Save Results.
@@ -494,22 +494,22 @@ target for the display-name pass follow-on story — it is a recommendation, not
 | `activityType` | Current category | Current display name | Proposed display name | Target category | Exposure | Composite |
 |---|---|---|---|---|---|---|
 | `file.prepare` | File Handling | Prepare File | Prepare File | Extract Text | Advanced | Extract Text |
-| `azureOcr.submit` | OCR (Azure) | Submit OCR | Submit Azure Extraction | Extract Text | Advanced | Extract Text (Azure) |
+| `azureOcr.submit` | OCR (Azure) | Submit OCR | Start Azure Extraction | Extract Text | Advanced | Extract Text (Azure) |
 | `azureOcr.poll` | OCR (Azure) | Wait for OCR Result | Check Azure Extraction | Extract Text | Advanced | Extract Text (Azure) |
 | `azureOcr.extract` | OCR (Azure) | Extract OCR Result | Read Azure Results | Extract Text | Advanced | Extract Text (Azure) |
 | `mistralOcr.process` | OCR (Mistral) | Process with Mistral OCR | Extract with Mistral | Extract Text | Advanced | Extract Text (Mistral) |
 | — | — | — | **Extract Text** | Extract Text | Default | composite entry |
-| `azureClassify.submit` | OCR (Azure) | Submit Classify | Submit Classification | Document Handling | Advanced | Classify Document |
+| `azureClassify.submit` | OCR (Azure) | Submit Classify | Start Classification | Document Handling | Advanced | Classify Document |
 | `azureClassify.poll` | OCR (Azure) | Poll Classify | Check Classification | Document Handling | Advanced | Classify Document |
 | — | — | — | **Classify Document** | Document Handling | Default | composite entry |
 | `document.splitAndClassify` | Document Handling | Split & Classify | Split & Classify | Document Handling | Default | — |
 | `document.selectClassifiedPages` | Document Handling | Select Classified Pages | Select Classified Pages | Document Handling | Default | — |
-| `document.flattenClassifiedDocuments` | Document Handling | Flatten Classified Documents | Flatten Classified Documents | Document Handling | Default | — |
+| `document.flattenClassifiedDocuments` | Document Handling | Flatten Classified Documents | Combine Classified Pages | Document Handling | Default | — |
 | `document.normalizeOrientation` | Document Handling | Correct Orientation | Correct Orientation | Document Handling | Default | — |
 | `document.split` | Document Handling | Split Document | Split Document | Document Handling | Advanced | — |
 | `document.classify` | Document Handling | Classify Document | Classify Segment | Document Handling | Advanced | — |
 | `document.extractPageRange` | Document Handling | Extract Page Range | Extract Page Range | Document Handling | Advanced | — |
-| `segment.combineResult` | Document Handling | Combine Segment Result | Combine Segment Result | Document Handling | Advanced | — |
+| `segment.combineResult` | Document Handling | Combine Segment Result | Merge Segment Results | Document Handling | Advanced | — |
 | `ocr.cleanup` | OCR Cleanup & Correction | Cleanup | Clean Extracted Text | Post-processing | Advanced | Process Extracted Text |
 | `ocr.normalizeFields` | OCR Cleanup & Correction | Normalize Fields | Normalise Fields | Post-processing | Advanced | Process Extracted Text (optional) |
 | `ocr.characterConfusion` | OCR Cleanup & Correction | Character Confusion Fix | Correct Confused Characters | Post-processing | Advanced | Process Extracted Text (optional) |
@@ -523,13 +523,13 @@ target for the display-name pass follow-on story — it is a recommendation, not
 | `ocr.storeResults` | Storage | Store OCR Results | Save Results | Save Results | Default | — |
 | `document.updateStatus` | Storage | Update Document Status | Update Document Status | Save Results | Advanced | — |
 | `document.storeRejection` | Storage | Store Rejection | Save Rejected Document | Save Results | Advanced | — |
-| `blob.read` | File Handling | Read Blob | Read Blob | Document Handling | Advanced | — |
-| `document.extractToBase64` | File Handling | Extract Page to Blob | Extract Page to Blob | Document Handling | Advanced | — |
+| `blob.read` | File Handling | Read Blob | Load File | Document Handling | Advanced | — |
+| `document.extractToBase64` | File Handling | Extract Page to Blob | Save Page | Document Handling | Advanced | — |
 
 > Note: `blob.read` and `document.extractToBase64` are currently **File Handling**; since that
 > category dissolves, both move to **Document Handling / Advanced**. `document.extractToBase64` slices
 > a PDF page range (document manipulation) and `blob.read` loads file bytes — both are file-handling
-> utilities rather than text extraction, so they sit with the other document/blob utilities.
+> utilities rather than text extraction, so they sit with the other document/file utilities.
 
 ### A.2 Control-flow node types (structural — not activities)
 

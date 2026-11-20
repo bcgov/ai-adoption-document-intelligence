@@ -248,7 +248,7 @@ describe("ActivityPalette — Scenario 2: each entry has icon + display name + d
       map: "Run for each item",
       join: "Collect results",
       childWorkflow: "Sub-workflow",
-      pollUntil: "Wait until condition",
+      pollUntil: "Wait & Retry",
       humanGate: "Wait for approval",
     };
     for (const [type, displayName] of Object.entries(expectedDisplayNames) as [
