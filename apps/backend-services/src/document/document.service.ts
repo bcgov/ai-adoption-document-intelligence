@@ -132,6 +132,7 @@ export class DocumentService {
       } catch (error) {
         this.logger.error(
           `Failed to decode base64 file: ${getErrorMessage(error)}`,
+          { error },
         );
         throw new BadRequestException("Invalid base64 file data");
       }
@@ -217,6 +218,7 @@ export class DocumentService {
         } else {
           this.logger.error(
             `Unexpected normalization error: ${e instanceof Error ? e.message : String(e)}`,
+            { error: e },
           );
         }
 
@@ -290,9 +292,10 @@ export class DocumentService {
       };
     } catch (error) {
       this.logger.error(`Error uploading document: ${getErrorMessage(error)}`, {
+        error,
         alertType: "document_upload",
       });
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
       throw error;
     }
   }

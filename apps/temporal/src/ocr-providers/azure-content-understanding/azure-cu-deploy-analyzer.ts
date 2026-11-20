@@ -17,7 +17,6 @@
  * analyzer-id contract.
  */
 
-import { getErrorMessage } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../../logger";
 import {
   type CuAnalyzerDefinition,
@@ -247,7 +246,7 @@ export async function azureCuDeployAnalyzer(
       event: "deploy_error",
       analyzerId: params.analyzerId,
       httpStatus: status !== undefined ? String(status) : undefined,
-      error: getErrorMessage(err),
+      error: err,
     });
     throw new Error(
       `Azure CU deploy analyzer failed${status ? ` (${status})` : ""}: ${message}`,

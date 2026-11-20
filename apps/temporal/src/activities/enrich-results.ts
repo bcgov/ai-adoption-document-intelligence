@@ -175,11 +175,9 @@ export async function enrichResults(
               finalResult = { ...finalResult, documents: [doc] };
             }
           } catch (llmError) {
-            const msg =
-              llmError instanceof Error ? llmError.message : "Unknown error";
             log.error("Enrich results LLM error", {
               event: "llm_error",
-              error: msg,
+              error: llmError,
             });
           }
         }

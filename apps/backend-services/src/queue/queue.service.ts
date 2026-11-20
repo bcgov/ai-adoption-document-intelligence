@@ -66,6 +66,7 @@ export class QueueService {
     } catch (error) {
       this.logger.error(
         `Failed to process OCR for document ${message.documentId}: ${getErrorMessage(error)}`,
+        { error },
       );
       throw error;
     }

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { readGroupBlob } from "../blob-storage/read-group-blob";
@@ -165,7 +164,7 @@ async function loadMistralTemplateForAnnotation(
       {
         event: "annotation_skip",
         templateModelId,
-        error: getErrorMessage(error),
+        error,
       },
     );
     return null;
@@ -520,6 +519,7 @@ export async function mistralOcrProcess(
       const status = error.response?.status;
       const body = error.response?.data;
       log.error("Mistral OCR API error", {
+        error,
         event: "error",
         variant,
         httpStatus: status !== undefined ? String(status) : undefined,
@@ -533,7 +533,7 @@ export async function mistralOcrProcess(
     log.error("Mistral OCR process error", {
       event: "error",
       variant,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error,
       alertType: "mistral_ocr",
     });
     throw error;

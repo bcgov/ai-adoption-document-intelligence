@@ -454,8 +454,9 @@ export class DocumentController {
     } catch (error) {
       this.logger.error(
         `Error retrieving documents: ${getErrorMessage(error)}`,
+        { error },
       );
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       throw new NotFoundException(
         getErrorMessage(error) || "Failed to retrieve documents",
@@ -544,8 +545,9 @@ export class DocumentController {
     } catch (error) {
       this.logger.error(
         `Error retrieving OCR result: ${getErrorMessage(error)}`,
+        { error },
       );
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       if (
         error instanceof NotFoundException ||
@@ -630,6 +632,7 @@ export class DocumentController {
     } catch (error) {
       this.logger.error(
         `Failed to read normalized PDF for document ${documentId}: ${getErrorMessage(error)}`,
+        { error },
       );
       throw new NotFoundException(
         `Normalized PDF is not available for document: ${documentId}`,
@@ -774,8 +777,9 @@ export class DocumentController {
     } catch (error) {
       this.logger.error(
         `Error downloading document: ${getErrorMessage(error)}`,
+        { error },
       );
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       if (
         error instanceof NotFoundException ||

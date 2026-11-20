@@ -202,6 +202,7 @@ export class TemplateModelOcrService {
     } catch (error) {
       this.logger.error(
         `Labeling OCR failed for ${labelingDocumentId}: ${getErrorMessage(error)}`,
+        { error },
       );
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
         status: DocumentStatus.failed,
