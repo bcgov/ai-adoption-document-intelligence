@@ -208,3 +208,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
 - `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
 - `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
+
+## [2026-11-16] ingest | Local Azure Log Analytics mirror
+
+- Added routing to the Fluent Bit mirror guide and configuration, including the boundary between host-file collection and container stdout.
+
+## [2026-11-17] ingest | OpenShift Azure log mirror
+
+- Extended the canonical mirror guide to OpenShift sidecars, instance Secret provisioning, and nginx filtering; routed shared assets to `deployments/fluent-bit/`.

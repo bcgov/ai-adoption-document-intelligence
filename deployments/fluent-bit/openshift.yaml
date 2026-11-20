@@ -1,0 +1,47 @@
+service:
+  flush: 5
+  log_level: info
+  http_server: true
+  http_listen: 0.0.0.0
+  http_port: 2020
+  storage.path: /var/lib/fluent-bit/storage
+  storage.sync: normal
+  storage.backlog.mem_limit: 16M
+
+pipeline:
+  inputs:
+    - name: tail
+      path: /var/log/app/*.log
+      tag: app.${LOG_SERVICE}
+      key: RawData
+      db: /var/lib/fluent-bit/positions.db
+      db.sync: normal
+      read_from_head: true
+      refresh_interval: 5
+      skip_long_lines: true
+      buffer_chunk_size: 64k
+      buffer_max_size: 512k
+      mem_buf_limit: 16M
+      storage.type: filesystem
+
+  filters:
+    - name: lua
+      match: app.*
+      script: /fluent-bit/etc/filters.lua
+      call: ${LOG_FILTER}
+
+  outputs:
+    - name: azure_logs_ingestion
+      match: app.*
+      tenant_id: ${AZURE_LOGS_TENANT_ID}
+      client_id: ${AZURE_LOGS_CLIENT_ID}
+      client_secret: ${AZURE_LOGS_CLIENT_SECRET}
+      dce_url: ${AZURE_LOGS_DCE_URL}
+      dcr_id: ${AZURE_LOGS_DCR_ID}
+      table_name: ${AZURE_LOGS_TABLE_NAME}
+      time_key: TimeGenerated
+      time_generated: true
+      compress: true
+      workers: 1
+      retry_limit: 5
+      storage.total_limit_size: 64M

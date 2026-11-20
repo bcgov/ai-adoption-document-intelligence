@@ -203,6 +203,17 @@ AZURE_OPENAI_API_VERSION=$(optional_cfg AZURE_OPENAI_API_VERSION 2024-02-15-prev
 ENRICHMENT_REDACT_PII=$(optional_cfg ENRICHMENT_REDACT_PII false)
 AZURE_OPENAI_API_KEY=$(require_cfg AZURE_OPENAI_API_KEY)
 
+AZURE_LOGS_TENANT_ID=$(require_cfg AZURE_LOGS_TENANT_ID)
+AZURE_LOGS_CLIENT_ID=$(require_cfg AZURE_LOGS_CLIENT_ID)
+AZURE_LOGS_CLIENT_SECRET=$(require_cfg AZURE_LOGS_CLIENT_SECRET)
+AZURE_LOGS_DCE_URL=$(require_cfg AZURE_LOGS_DCE_URL)
+AZURE_LOGS_DCR_ID=$(require_cfg AZURE_LOGS_DCR_ID)
+AZURE_LOGS_TABLE_NAME=$(optional_cfg AZURE_LOGS_TABLE_NAME DocIntelLocal_CL)
+export AZURE_LOGS_TENANT_ID AZURE_LOGS_CLIENT_ID AZURE_LOGS_CLIENT_SECRET
+export AZURE_LOGS_DCE_URL AZURE_LOGS_DCR_ID AZURE_LOGS_TABLE_NAME
+source "${SCRIPT_DIR}/lib/azure-logs-secret.sh"
+validate_azure_logs_config
+
 AZURE_STORAGE_CONNECTION_STRING=$(require_cfg AZURE_STORAGE_CONNECTION_STRING)
 AZURE_STORAGE_ACCOUNT_NAME=$(require_cfg AZURE_STORAGE_ACCOUNT_NAME)
 AZURE_STORAGE_ACCOUNT_KEY=$(require_cfg AZURE_STORAGE_ACCOUNT_KEY)
@@ -357,6 +368,7 @@ if [[ "${WITH_MINIO}" == true ]]; then
 fi
 
 echo "[INFO] Applying Kustomize manifests via oc apply -k (uses oc's built-in kustomize)..."
+apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 oc apply -k "${OVERLAY_DIR}" -n "${OC_NAMESPACE}"
 
 if [[ "${WITH_MINIO}" == true ]]; then
@@ -428,6 +440,8 @@ if [[ "${DEPLOY_PLG_EFFECTIVE}" == true ]]; then
     --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD}" \
     --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
     --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
+    --set "azureLogs.secretName=${INSTANCE_NAME}-azure-logs-secrets" \
+    --set "azureLogs.configMapName=${INSTANCE_NAME}-fluent-bit-config" \
     --wait --timeout 120s || echo "[WARN] PLG deployment failed or timed out (non-blocking)."
 fi
 

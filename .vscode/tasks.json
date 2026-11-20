@@ -19,9 +19,9 @@
       "label": "temporal: dev",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "dev"],
+      "args": ["run", "dev:temporal-worker"],
       "options": {
-        "cwd": "${workspaceFolder}/apps/temporal"
+        "cwd": "${workspaceFolder}"
       },
       "isBackground": true,
       "problemMatcher": [],
@@ -175,8 +175,11 @@
     {
       "label": "monitoring: docker up",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "--profile", "monitoring", "up", "-d"],
+      "command": "bash",
+      "args": [
+        "-lc",
+        "mkdir -p logs && docker compose --profile monitoring up -d"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },

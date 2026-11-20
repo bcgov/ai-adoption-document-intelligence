@@ -401,6 +401,22 @@ jobs:
             fi
           done
 
+      - name: Configure Azure log mirror
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+          AZURE_LOGS_TENANT_ID: ${{ secrets.AZURE_LOGS_TENANT_ID }}
+          AZURE_LOGS_CLIENT_ID: ${{ secrets.AZURE_LOGS_CLIENT_ID }}
+          AZURE_LOGS_CLIENT_SECRET: ${{ secrets.AZURE_LOGS_CLIENT_SECRET }}
+          AZURE_LOGS_DCE_URL: ${{ secrets.AZURE_LOGS_DCE_URL }}
+          AZURE_LOGS_DCR_ID: ${{ secrets.AZURE_LOGS_DCR_ID }}
+          AZURE_LOGS_TABLE_NAME: ${{ secrets.AZURE_LOGS_TABLE_NAME || 'DocIntelLocal_CL' }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/oc-retry.sh
+          source scripts/lib/azure-logs-secret.sh
+          apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+
       - name: Generate overlay and deploy
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
@@ -690,6 +706,8 @@ jobs:
             --set "chesAdapter.imagePullSecret=${INSTANCE_NAME}-artifactory-pull" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
+            --set "azureLogs.secretName=${INSTANCE_NAME}-azure-logs-secrets" \
+            --set "azureLogs.configMapName=${INSTANCE_NAME}-fluent-bit-config" \
             --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
             --wait --timeout 300s
 
@@ -847,4 +865,3 @@ jobs:
 
           echo "Failed services: ${FAILED_SERVICES[*]}"
           bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
-

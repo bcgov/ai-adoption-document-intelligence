@@ -41,6 +41,22 @@ images:
 # configMapKeyRef, PVC claimName, service selector) automatically, but it does NOT
 # update string values embedded inside env var values or configmap data fields.
 patches:
+  - target:
+      kind: Deployment
+      name: (backend-services|frontend|temporal|temporal-worker)
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: log-mirror
+      spec:
+        template:
+          spec:
+            containers:
+              - name: fluent-bit
+                envFrom:
+                  - secretRef:
+                      name: __INSTANCE_NAME__-azure-logs-secrets
   # --- Route hostname patches ---
   - target:
       kind: Route
