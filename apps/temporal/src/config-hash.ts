@@ -3,4 +3,4 @@ export {
   computeConfigHashWithOverrides,
   stampConfigWithPersistedHash,
   stripPersistedConfigHash,
-} from "@ai-di/graph-workflow";
+} from "@ai-di/graph-workflow/dist/config-hash";

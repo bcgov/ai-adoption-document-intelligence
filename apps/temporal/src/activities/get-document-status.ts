@@ -4,15 +4,20 @@ import { getPrismaClient } from "./database-client";
 
 /**
  * Activity: Get document status from database
- * Returns the current status of a document
+ * Returns the current status of a document owned by `groupId`
  */
 export async function getDocumentStatus(params: {
   documentId: string;
+  /** Group of the running workflow; only that group's document is read. */
+  groupId?: string | null;
   requestId?: string;
 }): Promise<{ status: string }> {
   const activityName = "getDocumentStatus";
   const startTime = Date.now();
-  const { documentId, requestId } = params;
+  const { documentId, groupId, requestId } = params;
+  if (!groupId) {
+    throw new Error(`groupId is required to read document ${documentId}`);
+  }
   const log = createActivityLogger(activityName, {
     documentId,
     ...(requestId && { requestId }),
@@ -25,8 +30,8 @@ export async function getDocumentStatus(params: {
   try {
     const prisma = getPrismaClient();
 
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+    const document = await prisma.document.findFirst({
+      where: { id: documentId, group_id: groupId },
       select: { status: true },
     });
 

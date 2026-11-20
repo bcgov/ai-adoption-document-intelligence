@@ -75,7 +75,6 @@ function queueUrl(extra = {}) {
   const params = {
     group_id: groupId,
     reviewStatus,
-    maxConfidence,
     limit: queueLimit,
     ...extra,
   };
@@ -209,19 +208,15 @@ function runSessionRequests() {
 
   let actionRes = null;
   if (sessionMode === "submit") {
-    actionRes = http.post(sessionUrl(sessionId, "/submit"), null, {
+    actionRes = http.post(sessionUrl(sessionId, "/approve"), null, {
       headers: authHeaders(),
       timeout: "60s",
     });
-  } else if (sessionMode === "escalate") {
-    actionRes = http.post(
-      sessionUrl(sessionId, "/escalate"),
-      JSON.stringify({ reason: "Synthetic load-test escalation" }),
-      {
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        timeout: "60s",
-      },
-    );
+  } else if (sessionMode === "flag") {
+    actionRes = http.post(sessionUrl(sessionId, "/flag"), null, {
+      headers: authHeaders(),
+      timeout: "60s",
+    });
   } else {
     actionRes = http.post(sessionUrl(sessionId, "/skip"), null, {
       headers: authHeaders(),
@@ -273,9 +268,9 @@ export function setup() {
   if (!groupId) {
     throw new Error("Set LOAD_TEST_GROUP_ID to the disposable target group.");
   }
-  if (!["off", "skip", "submit", "escalate"].includes(sessionMode)) {
+  if (!["off", "skip", "submit", "flag"].includes(sessionMode)) {
     throw new Error(
-      'LOAD_TEST_HITL_SESSION_MODE must be one of "off", "skip", "submit", or "escalate".',
+      'LOAD_TEST_HITL_SESSION_MODE must be one of "off", "skip", "submit", or "flag".',
     );
   }
 

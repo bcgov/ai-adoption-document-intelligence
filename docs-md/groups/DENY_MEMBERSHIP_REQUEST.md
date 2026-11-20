@@ -34,7 +34,7 @@ Allows a group admin of the target group or a system admin to deny a pending gro
 
 1. The caller's identity is resolved by the `IdentityGuard` (`req.resolvedIdentity`) from the JWT token.
 2. The service verifies the request exists and is in `PENDING` status.
-3. The service verifies the caller is a group admin of the request's group or a system admin (`identityCanAccessGroup` with minimum role `ADMIN`); otherwise `403 Forbidden`.
+3. The service verifies the caller is a group admin of the request's group or a system admin (`identityCanAccessGroup` with `requiredPermissions: [Permission.GROUP_REQUESTS_APPROVE_DENY]`); otherwise `403 Forbidden`.
 4. The `GroupMembershipRequest` record is updated with:
    - `status` → `DENIED`
    - `resolved_at` → current timestamp

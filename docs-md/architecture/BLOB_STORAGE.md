@@ -34,7 +34,7 @@ Azure Document Intelligence model training always uses Azure Blob Storage regard
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
 │  │       BlobStorageClient (singleton)               │   │
-│  │   Same interface, non-NestJS factory pattern      │   │
+│  │   Per-object ops, non-NestJS factory pattern      │   │
 │  │   Reads BLOB_STORAGE_PROVIDER to select backend   │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
@@ -50,6 +50,10 @@ Set `BLOB_STORAGE_PROVIDER` in your environment:
 | `azure`   | Azure Blob Storage     | Production / cloud      |
 
 Default: `minio`
+
+### `deleteByPrefix` on Azure
+
+`AzureBlobProvider.deleteByPrefix` lists every blob under the prefix, then deletes them in reverse lexicographic order, so each path goes before its parent directory. On a storage account with a hierarchical namespace, directories are listed as entries of their own ahead of their contents, and Azure rejects deleting a non-empty directory; on a flat account the order makes no difference.
 
 ## Container / Bucket Structure
 
@@ -226,18 +230,30 @@ export class MyModule {}
 
 ## Temporal Worker Usage
 
-Temporal workers run outside NestJS and use a standalone singleton factory:
+Temporal workers run outside NestJS. Activities reach blob storage through two helpers bound to the run's group, which validate every key and prefix against that group before the storage client is called:
 
 ```typescript
-import { getBlobStorageClient } from '../blob-storage/blob-storage-client';
+import { getGroupBlobStorage } from '../blob-storage/group-blob-storage';
+import { readGroupBlob } from '../blob-storage/read-group-blob';
 
-export async function myActivity(blobKey: string): Promise<Buffer> {
-  const client = getBlobStorageClient();
-  return client.read(blobKey);
+export async function myActivity(input: {
+  blobKey: string;
+  resultKey: string;
+  groupId: string;
+}): Promise<void> {
+  // Document bytes: a blob key of the group, or a file in the group's benchmark cache
+  const fileBuffer = await readGroupBlob(input.blobKey, input.groupId);
+
+  // Any other operation goes through storage bound to the group
+  await getGroupBlobStorage(input.groupId).write(input.resultKey, fileBuffer);
 }
 ```
 
-The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and supports the same MinIO/Azure configuration.
+A key or prefix outside the group is refused with a `GROUP_SCOPE_VIOLATION` failure that Temporal does not retry. A missing `groupId` is an error.
+
+Both helpers sit on a standalone singleton client, `getBlobStorageClient()`. It reads the same `BLOB_STORAGE_PROVIDER` environment variable and supports the same MinIO/Azure configuration. It offers the per-object operations (`write`, `read`, `exists`, `delete`, `list`) plus `generateSasUrl`, but not `deleteByPrefix`: deleting a document's whole prefix (ephemeral cleanup, retention) happens in the backend.
+
+The worker's Biome config (`style/noRestrictedImports` in `apps/temporal/biome.json`) lets code outside `src/blob-storage/` import only `initStorageLedger` from `blob-storage-client`, so activities cannot reach the unchecked client. Tests are exempt.
 
 ## File Locations
 
@@ -256,7 +272,9 @@ The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and suppo
 
 | File                        | Purpose                                    |
 |-----------------------------|--------------------------------------------|
-| `blob-storage-client.ts`  | Standalone blob storage client (singleton)  |
+| `blob-storage-client.ts`  | Standalone blob storage client (singleton); used only inside `src/blob-storage/`  |
+| `group-blob-storage.ts`   | `getGroupBlobStorage(groupId)`: blob storage bound to one group; `validateGroupBlobKey(key, groupId)` |
+| `read-group-blob.ts`      | `readGroupBlob(key, groupId)`: document bytes from blob storage or the group's benchmark cache; `getGroupBenchmarkCacheDir(groupId)` |
 
 ## Local Development
 

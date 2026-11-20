@@ -1,0 +1,761 @@
+[
+  {
+    "id": "C-001",
+    "pass": "C",
+    "title": "Map body with >20 items executes the whole graph from entryNodeId, not the body subgraph",
+    "severity": "blocker",
+    "type": "impl-gap",
+    "evidence": "apps/temporal/src/graph-engine/node-executors.ts:613",
+    "surfaces": [
+      "settings-panel:map",
+      "canvas:map-body-box",
+      "run-state"
+    ],
+    "disposition": "fix",
+    "rationale": "Above MAP_CHILD_WORKFLOW_THRESHOLD the branch is dispatched as a child `graphWorkflow`, and `GraphWorkflowInput` (apps/temporal/src/graph-workflow-types.ts:50) carries no entry/exit override — the child re-enters at `config.entryNodeId`. `bodyEntryNodeId`/`bodyExitNodeId` are silently ignored, so a map's semantics flip on collection size. Every nesting cell below inherits this: nothing nested inside a map body is specified above 20 items."
+  },
+  {
+    "id": "C-002",
+    "pass": "C",
+    "title": "Nested map bodies produce overlapping synthetic groups; mergeNodeGroups only de-conflicts user-vs-synthetic",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/map-body-groups.ts:133",
+    "surfaces": [
+      "canvas:map-body-box",
+      "canvas:group-chip"
+    ],
+    "disposition": "fix",
+    "rationale": "`synthesizeMapBodyGroups` emits one group per map and its BFS walks straight through an inner map's body, so an inner body's nodes belong to both `__map_body_outer` and `__map_body_inner`. `mergeNodeGroups` filters only against user-named groups, never synthetic-vs-synthetic — two dashed green boxes claim the same cards. Map-inside-map was never specified as a supported nesting."
+  },
+  {
+    "id": "C-003",
+    "pass": "C",
+    "title": "A join outside a map body cannot see a map nested inside it — branch state gets a fresh mapBranchResults",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/temporal/src/graph-engine/node-executors.ts:989",
+    "surfaces": [
+      "settings-panel:join",
+      "settings-panel:map"
+    ],
+    "disposition": "fix",
+    "rationale": "`executeBranchSubgraph` allocates `mapBranchResults: new Map()` per iteration, so an inner map's results are discarded when the iteration ends. A join placed outside the outer body but pointed at the inner map throws `No results found for map node <id>` at runtime. Nothing static rejects the configuration."
+  },
+  {
+    "id": "C-004",
+    "pass": "C",
+    "title": "join.sourceMapNodeId may name a map in a switch branch that never executes — no co-reachability check",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/validator/validator.ts:571",
+    "surfaces": [
+      "settings-panel:join",
+      "validation-engine",
+      "validation-drawer"
+    ],
+    "disposition": "fix",
+    "rationale": "`validateMapJoinNodes` checks only that the referenced id exists and has type `map`. If the map sits behind a switch case and the other branch is taken, the join still becomes ready (its own incoming edge is satisfied) and throws at runtime. Scope/co-reachability between a join and its source map was never specified."
+  },
+  {
+    "id": "C-005",
+    "pass": "C",
+    "title": "Join source-map picker lists every map in the graph regardless of nesting scope",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/settings/control-flow/JoinNodeSettings.tsx:106",
+    "surfaces": [
+      "settings-panel:join",
+      "node-picker"
+    ],
+    "disposition": "fix",
+    "rationale": "`filterType=\"map\"` is the only filter. Maps inside another map's body, inside an unreached switch branch, or downstream of the join itself are all offered with no dimming and no warning — the picker actively invites the C-003/C-004 configurations."
+  },
+  {
+    "id": "C-006",
+    "pass": "C",
+    "title": "humanGate inside a map body registers one signal handler per iteration under the same name",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/temporal/src/graph-engine/node-executors.ts:809",
+    "surfaces": [
+      "settings-panel:human-gate",
+      "settings-panel:map"
+    ],
+    "disposition": "fix",
+    "rationale": "`executeHumanGateNode` calls `setHandler(defineSignal(node.signal.name), …)`. In-process map branches run concurrently in the same workflow, so N iterations register N handlers under one name — Temporal keeps the last, and one signal resolves at most one branch. The remaining iterations block to `timeout`. Per-iteration gating was never specified; neither was signal-name uniqueness across a graph."
+  },
+  {
+    "id": "C-007",
+    "pass": "C",
+    "title": "humanGate.signal.name is never validated; the palette skeleton ships an empty string",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/palette/control-flow-skeletons.ts:112",
+    "surfaces": [
+      "settings-panel:human-gate",
+      "validation-engine"
+    ],
+    "disposition": "fix",
+    "rationale": "No `signal` path appears anywhere in packages/graph-workflow/src/validator/validator.ts. A freshly dropped humanGate saves clean and produces `defineSignal(\"\")` at runtime — a gate nobody can ever open. Compounds C-006."
+  },
+  {
+    "id": "C-008",
+    "pass": "C",
+    "title": "Map body-entry/exit pickers have no node-type filter — source, join, humanGate or another map can be a body entry",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/settings/control-flow/MapNodeSettings.tsx:177",
+    "surfaces": [
+      "settings-panel:map",
+      "node-picker"
+    ],
+    "disposition": "fix",
+    "rationale": "The body-entry `NodePicker` passes no `filterType` and only excludes the map itself; body-exit adds reachability but no type filter. A `source` node as a body entry is meaningless (no inputs, runs once at graph entry), and a nested `map`/`join` entry walks straight into C-002/C-003. Which node types may open or close an iteration was never specified."
+  },
+  {
+    "id": "C-009",
+    "pass": "C",
+    "title": "childWorkflow inline graphs are never validated recursively",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "Grep `workflowRef` across packages/graph-workflow/src/validator/validator.ts — the only hit is a doc comment at :1238 about library refs. Repro: paste an inline graph with a dangling `entryNodeId` and a switch whose `defaultEdge` names a missing edge into settings-panel:child-workflow's Inline JSON box; topbar:validation-button stays green and Save succeeds.",
+    "surfaces": [
+      "settings-panel:child-workflow",
+      "validation-engine",
+      "topbar:validation-button"
+    ],
+    "disposition": "fix",
+    "rationale": "`workflowRef.inline.graph` is a full `GraphWorkflowConfig` that no validator pass descends into, so every rule this pass grids (edge refs, map/join refs, ctx declarations, reserved namespaces, kind assignability) is unenforced one level down. Inline nesting is a first-class container in the type but has no validation contract."
+  },
+  {
+    "id": "C-010",
+    "pass": "C",
+    "title": "childWorkflow library reference with an empty workflowId produces no validation error",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/palette/control-flow-skeletons.ts:88",
+    "surfaces": [
+      "settings-panel:child-workflow",
+      "validation-engine"
+    ],
+    "disposition": "fix",
+    "rationale": "The skeleton is `{ type: \"library\", workflowId: \"\" }` and the validator has no `workflowRef` rule, so an unconfigured childWorkflow node saves clean and fails only at execution."
+  },
+  {
+    "id": "C-011",
+    "pass": "C",
+    "title": "map.collectionCtxKey / map.itemCtxKey / join.resultsCtxKey empty strings are unvalidated",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/palette/control-flow-skeletons.ts:65",
+    "surfaces": [
+      "settings-panel:map",
+      "settings-panel:join",
+      "canvas:node-badge",
+      "validation-engine"
+    ],
+    "disposition": "fix",
+    "rationale": "Every control-flow skeleton ships these as `\"\"`. The validator emits errors for the empty `bodyEntryNodeId`/`bodyExitNodeId`/`sourceMapNodeId` (existence check against node ids) but has no rule at all for the three ctx-key fields, and `computeNodeInputIssues` returns `ok` for non-activity nodes — so a half-configured map/join carries no badge and no drawer row while its neighbours do."
+  },
+  {
+    "id": "C-012",
+    "pass": "C",
+    "title": "A map whose collection comes from a join, source or childWorkflow yields no loop-variable kind",
+    "severity": "major",
+    "type": "impl-gap",
+    "evidence": "packages/graph-workflow/src/auto-wire/resolve-input-port.ts:239",
+    "surfaces": [
+      "settings-panel:map",
+      "settings-panel:inputs",
+      "variable-picker",
+      "canvas:port-rows"
+    ],
+    "disposition": "fix",
+    "rationale": "`resolveMapElementKind` walks only `activity`/`pollUntil` nodes with a static catalog entry to strip `[]` off the collection producer's kind. Chain `map → join → map` (or `source → map`) and the element kind is `undefined`, so the `map-item` synthetic producer never fires and every typed input inside the body resolves `unsatisfied`. Nesting a map after any non-activity producer is unspecified."
+  },
+  {
+    "id": "C-013",
+    "pass": "C",
+    "title": "join.strategy \"any\" (first-to-complete fan-in) is deliberately not supported",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "packages/graph-workflow/src/types.ts:252",
+    "surfaces": [
+      "settings-panel:join"
+    ],
+    "disposition": "won't-support",
+    "rationale": "The type comment records the decision: the map eagerly awaits every branch, so there is nothing to race; `any` would require a different map executor. Writing it down here so the missing strategy select in JoinNodeSettings stops being rediscovered as a gap."
+  },
+  {
+    "id": "C-014",
+    "pass": "C",
+    "title": "The graph has no containment object — only map declares a body; switch/pollUntil/humanGate/join/childWorkflow do not nest",
+    "severity": "major",
+    "type": "non-goal",
+    "evidence": "packages/graph-workflow/src/types.ts:236",
+    "surfaces": [
+      "canvas",
+      "canvas:map-body-box",
+      "settings-panel:switch",
+      "settings-panel:poll-until"
+    ],
+    "disposition": "won't-support",
+    "rationale": "`bodyEntryNodeId`/`bodyExitNodeId` on `MapNode` is the model's ONLY scope marker; switch branches are plain edges, pollUntil repeats a single activity, humanGate/join are point nodes, and childWorkflow nests by embedding a separate config. Recording this as the non-goal it is: 'nesting' in Parts 3–9 means map bodies plus inline child graphs, nothing else. Everything the brief lists as a nesting combination therefore reduces to edge topology, which is why C-003/C-004 have nothing to check against."
+  },
+  {
+    "id": "C-015",
+    "pass": "C",
+    "title": "pollUntil resolves a catalog entry but renders no port rows or per-port handles on the canvas",
+    "severity": "minor",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/port-rows.ts:206",
+    "surfaces": [
+      "canvas:control-flow-card",
+      "canvas:port-rows",
+      "settings-panel:poll-until"
+    ],
+    "disposition": "fix",
+    "rationale": "`rendersPerPortHandle` returns false for anything but `activity`, and `estimateNodeHeight` sizes pollUntil as a control-flow rectangle. `computePortRows` and `resolveWireableInputRows` both accept pollUntil, so its inputs appear in the settings panel and in the problems badge but can never be dragged to on the canvas — the two surfaces disagree for exactly one node type."
+  },
+  {
+    "id": "C-020",
+    "pass": "C",
+    "title": "Kindless ports can never leave `unsatisfied` and have no settings row, yet render a canvas row and handle",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/auto-wire/resolve-input-port.ts:65",
+    "surfaces": [
+      "canvas:port-rows",
+      "settings-panel:inputs",
+      "settings-panel:advanced-bindings"
+    ],
+    "disposition": "fix",
+    "rationale": "`resolveInputPort` returns `unsatisfied` immediately when `port.kind === undefined`, and `resolveWireableInputRows` filters the port out entirely (`shouldAutoWirePort` is false). `computePortRows` still emits a row plus an `in-<port>` handle. So five of the six binding states are unreachable for this kind family and the only way to bind it is a canvas drag or the raw advanced-bindings editor."
+  },
+  {
+    "id": "C-021",
+    "pass": "C",
+    "title": "Optional base-Artifact ports render a canvas row and handle but have no Inputs row and no problem badge",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/settings/input-row-resolution.ts:159",
+    "surfaces": [
+      "settings-panel:inputs",
+      "canvas:port-rows",
+      "canvas:node-badge"
+    ],
+    "disposition": "fix",
+    "rationale": "The wireable-row filter admits `shouldAutoWirePort(p) || (p.kind === \"Artifact\" && p.required === true)`; `computeNodeInputIssues` applies the same rule. An OPTIONAL `Artifact` port is therefore invisible to the settings panel, the badge and the drawer while still owning a canvas handle a user can drag onto. The `Artifact × {ambiguous, unsatisfied, locked, locked-unbound, ctx-bound}` cells are unrenderable for optional ports."
+  },
+  {
+    "id": "C-022",
+    "pass": "C",
+    "title": "canvas:port-rows collapses all six binding states into bound/needs-source; locked-unbound renders as bound",
+    "severity": "major",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/port-rows.ts:144",
+    "surfaces": [
+      "canvas:port-rows",
+      "settings-panel:inputs"
+    ],
+    "disposition": "fix",
+    "rationale": "`bound = wireTargeting !== undefined || binding !== undefined` never consults `resolveInputPort`. `resolve-input-port.ts:59` documents exactly the case that breaks it: a ctxKey-less input stub can survive a canvas edge-delete, so the port is `locked-unbound` ('Disconnected by you', red CTA in the panel) while `binding !== undefined` makes the canvas draw it as satisfied with no amber ring. `ambiguous` on a required port and `unsatisfied` are also visually identical there."
+  },
+  {
+    "id": "C-023",
+    "pass": "C",
+    "title": "data-from-ctx uses an exact config.ctx lookup, so namespaced/dotted ctx keys never get the chip",
+    "severity": "minor",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/port-rows.ts:145",
+    "surfaces": [
+      "canvas:port-rows",
+      "settings-panel:inputs"
+    ],
+    "disposition": "fix",
+    "rationale": "`config.ctx[binding.ctxKey] !== undefined` is an exact-key test, but the validator resolves ctx bindings on the ROOT key (`getCtxRootKey`, validator.ts:681). A port bound to `doc.field` or `invoice.total` is `ctx-bound` in the settings panel ('from doc.field') and chip-less on the canvas."
+  },
+  {
+    "id": "C-024",
+    "pass": "C",
+    "title": "data-port-kind defaults to \"Artifact\" for kindless ports, erasing the kindless/wildcard distinction",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/PortRows.tsx:170",
+    "surfaces": [
+      "canvas:port-rows"
+    ],
+    "disposition": "defer",
+    "rationale": "`row.kind ?? \"Artifact\"` makes a port with no declared kind indistinguishable from a deliberate `Artifact` wildcard in the DOM and in the handle colour, even though the two behave differently in `isAssignable` (undefined is permissive on both sides; `Artifact` is only permissive as a target). Cosmetic today, but it is the attribute e2e assertions key on."
+  },
+  {
+    "id": "C-025",
+    "pass": "C",
+    "title": "ctx-bound is a frontend-only sixth state that auto-wire-status.ts does not model",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/auto-wire-status.ts:17",
+    "surfaces": [
+      "settings-panel:inputs",
+      "canvas:node-badge",
+      "validation-drawer",
+      "connect-summary"
+    ],
+    "disposition": "fix",
+    "rationale": "`NodeInputProblem.status` has three members and `computeNodeInputIssues` calls the 5-state resolver directly, so a ctx-bound port comes back `unsatisfied` and is only rescued downstream by an independently-implemented `manuallyBoundPorts` filter in auto-wire-validation.ts:27. Re-verified: `computeNodeStatus`, the unfiltered aggregate that would misreport a fully-bound node, has NO production caller (only auto-wire-status.test.ts), so there is no wrong pixel today. Downgraded to minor for that reason - the gap is that one concept has two implementations and one of them is unreachable dead code, which is a drift trap rather than a live defect."
+  },
+  {
+    "id": "C-026",
+    "pass": "C",
+    "title": "The map `collection` pseudo-port lives in the lock-list namespace but in none of the six binding states",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/auto-wire/resolver.ts:28",
+    "surfaces": [
+      "settings-panel:map",
+      "canvas:port-rows",
+      "settings-panel:inputs"
+    ],
+    "disposition": "fix",
+    "rationale": "The resolver honours `lockedInputPorts.includes(\"collection\")` and auto-fills `collectionCtxKey`, so `collection` is a real bindable port. It has no `PortDescriptor`, no `kind`, no row in `computePortRows`, no row in `resolveWireableInputRows`, and no `PortResolution`. Nothing tells the user whether the collection was auto-wired, pinned or disconnected — the whole binding-state axis is missing for the one port that drives every map."
+  },
+  {
+    "id": "C-027",
+    "pass": "C",
+    "title": "Only activity and pollUntil are auto-wire producers; source/map/join/switch/humanGate/childWorkflow outputs are invisible",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/auto-wire/resolve-input-port.ts:213",
+    "surfaces": [
+      "settings-panel:inputs",
+      "canvas:port-rows",
+      "canvas:wire",
+      "producer-picker"
+    ],
+    "disposition": "fix",
+    "rationale": "`outputPortsFor` returns `[]` for six of eight node types, so no consumer downstream of a source, join or humanGate can ever reach `auto-bound`. The canvas disagrees: `derive-wires.ts` special-cases `source.upload`/`source.api` into the producer index and draws their wires, and `resolve-producer-kind.ts` resolves their kinds. Producer-hood is defined twice with different answers. The code comment defers this to 'Tasks 13–15', which is a plan, not a specification."
+  },
+  {
+    "id": "C-028",
+    "pass": "C",
+    "title": "An unknown or typo'd kind fails closed to `unsatisfied` everywhere with no rule naming it as unrecognised",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/types/subtype-check.ts:102",
+    "surfaces": [
+      "settings-panel:inputs",
+      "validation-drawer",
+      "kind-select",
+      "canvas:node-handle"
+    ],
+    "disposition": "fix",
+    "rationale": "Failing closed is the documented intent (TYPED_IO_DESIGN §8), but no validator pass checks `PortDescriptor.kind` / `CtxDeclaration.kind` / `LibraryPortDescriptor` against the live registry. A typo presents as 'Needs a source' on every consumer with no hint the kind itself is the problem — and `handle-style.ts` greys the handle exactly as it does for a legitimate multi-port side."
+  },
+  {
+    "id": "C-029",
+    "pass": "C",
+    "title": "Cardinality mismatch (T vs T[]) reports through the same generic \"needs a source\" copy as \"no producer exists\"",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/types/subtype-check.ts:54",
+    "surfaces": [
+      "settings-panel:inputs",
+      "validation-drawer",
+      "producer-picker",
+      "variable-picker"
+    ],
+    "disposition": "fix",
+    "rationale": "`isAssignable` rejects on `arrayDepth` before it ever walks `baseKind`, so a `Document` producer feeding a `Document[]` port is indistinguishable from an empty upstream. The array/scalar cell of the kind axis has no dedicated message on any surface; only `variable-picker`'s `data-incompatible-reason` comes close, and it is not shown by the Inputs CTA path."
+  },
+  {
+    "id": "C-030",
+    "pass": "C",
+    "title": "ambiguous and unsatisfied deliberately carry no status badge in settings-panel:inputs",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "apps/frontend/src/features/workflow-builder/settings/InputsSection.tsx:294",
+    "surfaces": [
+      "settings-panel:inputs"
+    ],
+    "disposition": "won't-support",
+    "rationale": "Both branches set `primary` (a coloured CTA button) and leave `badge` null; `auto-bound`/`locked`/`locked-unbound` set `badge` and leave `primary` null. The badge column is for STATES, the CTA column is for ACTIONS — a row never needs both. Recording the asymmetry as intentional so the 'missing badge' cells stop being refiled."
+  },
+  {
+    "id": "C-031",
+    "pass": "C",
+    "title": "ctx-bound renders neither a badge nor a CTA — a satisfied state with no indicator",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "apps/frontend/src/features/workflow-builder/settings/InputsSection.tsx:380",
+    "surfaces": [
+      "settings-panel:inputs"
+    ],
+    "disposition": "won't-support",
+    "rationale": "The branch sets only `middle` ('from <ctxKey>') plus a 'Change source' overflow item. It is the one satisfied state with no badge, which is deliberate: a hand-authored ctx binding is the author's own decision and needs no system annotation. Distinguishing it from `locked`-via-ctx (which DOES show 'Pinned') is the sole remaining wrinkle and is a labelling choice, not a gap."
+  },
+  {
+    "id": "C-032",
+    "pass": "C",
+    "title": "The `locked` state never kind-checks the pinned ctxKey inside the resolver",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/auto-wire/resolve-input-port.ts:62",
+    "surfaces": [
+      "settings-panel:inputs",
+      "canvas:wire",
+      "validation-drawer"
+    ],
+    "disposition": "defer",
+    "rationale": "The lock check short-circuits before `port.kind` is ever read, so a pin to an incompatible producer resolves `locked` and the row reads 'Pinned ← <label>' as if healthy. The binding-walk validator (validator.ts:1481) does catch it, but only at the workflow level and only after the debounce — the row itself never turns red. `locked × incompatible-kind` is an unspecified cell on the Inputs surface."
+  },
+  {
+    "id": "C-040",
+    "pass": "C",
+    "title": "NodeStatusValue (`completed`) is an orphaned third union — no converter, no renderer, no consumer",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/types.ts:430",
+    "surfaces": [
+      "run-state",
+      "run-status-badge",
+      "preview-widget"
+    ],
+    "disposition": "fix",
+    "rationale": "The engine writes both `nodeStatuses` (this union, with `completed`) and `nodeRunStatuses` (the DTO union, with `succeeded`) in lockstep, and nothing in the frontend imports the former. Three unions for one concept means the run-status axis has no single domain definition to grid against — any surface added against `NodeStatusValue` would silently render nothing."
+  },
+  {
+    "id": "C-042",
+    "pass": "C",
+    "title": "wire-peek shows the cache-evicted recovery alert in replay for a producer that never ran or failed",
+    "severity": "major",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WirePeekPopover.tsx:119",
+    "surfaces": [
+      "wire-peek",
+      "cache-evicted-alert",
+      "run-state"
+    ],
+    "disposition": "fix",
+    "rationale": "The popover branches on `isReplay` alone. `PreviewWidget.tsx:49` added `producedOutput(status)` precisely so a 404 on a `failed` / `pending` / branch-not-taken node stops blaming the cache; `WirePeekPopover` never reads `nodeStatuses` at all. Peeking a wire out of an untaken switch branch offers a 'Re-run to repopulate' button that will repopulate nothing."
+  },
+  {
+    "id": "C-043",
+    "pass": "C",
+    "title": "wire-peek names the derived didn't-run state `no-run` and types `state` as bare string",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WirePeekPopover.tsx:43",
+    "surfaces": [
+      "wire-peek",
+      "preview-widget"
+    ],
+    "disposition": "fix",
+    "rationale": "`Shell({ state }: { state: string })` — nothing constrains the six literals, and `no-run` is emitted from two different causes (no active run at all, and a live-Try 404) that the user cannot tell apart. `preview-widget` calls the same concept `not-run`. One derived state, two names, no type."
+  },
+  {
+    "id": "C-044",
+    "pass": "C",
+    "title": "\"Branch not taken\" / \"never reached\" exists only as copy inside notRunMessage — no enum, no data attribute",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/preview/PreviewWidget.tsx:58",
+    "surfaces": [
+      "preview-widget",
+      "run-status-badge",
+      "canvas:wire"
+    ],
+    "disposition": "fix",
+    "rationale": "The concept the brief calls 'didn't run / branch not taken' is computed from `nodeStatus === \"failed\"` vs everything-else and emitted as prose under a shared `data-state=\"not-run\"`. Nothing distinguishes 'the switch chose the other branch' from 'the run is still in flight' from 'the node is absent from the map' — three very different user situations collapse into one string, and no other surface (badge, wire, group chip) expresses the concept at all."
+  },
+  {
+    "id": "C-045",
+    "pass": "C",
+    "title": "Three of preview-widget's eight outcomes return bare null with no data-state, including the unsupported-kind branch",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/preview/PreviewWidget.tsx:203",
+    "surfaces": [
+      "preview-widget",
+      "preview:dispatch"
+    ],
+    "disposition": "fix",
+    "rationale": "`if (content === null) return null` after a successful fetch is indistinguishable from 'no cache row' and from 'control-flow node'. A user who ran a node that DID produce output sees an empty card with no explanation and no way to tell whether the run failed, the cache expired, or the kind simply has no widget."
+  },
+  {
+    "id": "C-046",
+    "pass": "C",
+    "title": "Preview dispatch covers 3 scalar families plus Segment[]; scalar Segments, all other arrays, ValidationResult, Reference and Artifact render nothing",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/preview/render-kind-value.tsx:32",
+    "surfaces": [
+      "preview:dispatch",
+      "preview-widget",
+      "wire-peek"
+    ],
+    "disposition": "fix",
+    "rationale": "`isArray` routes to `SegmentArrayPreview` only when the family root is `Segment`, and the scalar switch handles `Document` / `OcrResult` / `Classification`. Of the 27 registered kinds plus their array forms that is roughly a third covered: a scalar `Segment<Table>`, `Document[]`, `OcrResult[]`, `PreparedFile[]`, `ValidationResult`, `Reference` and bare `Artifact` all fall through to `null` — and per C-045 that null is silent. `preview:json` exists as a generic fallback but the dispatcher never reaches for it (only `wire-peek` does, at WirePeekPopover.tsx:157)."
+  },
+  {
+    "id": "C-047",
+    "pass": "C",
+    "title": "LabeledDocumentMap routes to ClassificationPreview by family root though it is a dynamic-key record",
+    "severity": "minor",
+    "type": "impl-gap",
+    "evidence": "packages/graph-workflow/src/types/artifact-registry.ts:227",
+    "surfaces": [
+      "preview:dispatch",
+      "preview:classification",
+      "wire-peek"
+    ],
+    "disposition": "fix",
+    "rationale": "Its `baseKind` is `Classification`, so `resolveKindFamilyRoot` sends it to the label-pill + confidence-bar widget, which type-guards on `{label: string, confidence: number}` and will not match a `Record<label, Document[]>`. Family-root dispatch has no escape hatch for a subkind whose SHAPE diverges from its family — the registry entry itself flags the kind as deliberately schema-free."
+  },
+  {
+    "id": "C-048",
+    "pass": "C",
+    "title": "getAggregateStatus returns only 4 of 6 statuses — an all-cache-hit group reads succeeded, cancelled members read pending",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/run/RunStateContext.tsx:182",
+    "surfaces": [
+      "canvas:group-chip",
+      "run-status-badge"
+    ],
+    "disposition": "fix",
+    "rationale": "`allTerminalSucceededOrSkipped` folds `skipped` into `succeeded`, so a group every member of which was served from cache shows the green check rather than the violet lightning bolt that individually-rendered members would show. `cancelled` falls through to `pending`. Collapsing a group therefore loses two of the six statuses — the (skipped × group-chip) and (cancelled × group-chip) cells are unspecified."
+  },
+  {
+    "id": "C-049",
+    "pass": "C",
+    "title": "The backend DTO omits `cancelled` while TERMINAL_NODE_STATUSES includes it",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/backend-services/src/workflow/dto/node-statuses-response.dto.ts:44",
+    "surfaces": [
+      "run:polling",
+      "run-status-badge"
+    ],
+    "disposition": "defer",
+    "rationale": "Three unions, and the API contract is the narrowest of the three. Because the runtime never writes `cancelled`, a cancelled run's nodes stay `running` in the map and `run:polling` never satisfies its terminal-stop condition — it keeps polling at 1.5s until the component unmounts. Deferred rather than fixed because the cancel UX (US-141) owns the real answer; recording it so the polling behaviour is a known consequence, not a surprise."
+  },
+  {
+    "id": "C-050",
+    "pass": "C",
+    "title": "`cancelled` deliberately renders with the `pending` visual until the cancel UX lands",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "apps/frontend/src/features/workflow-builder/run/NodeStatusBadge.tsx:66",
+    "surfaces": [
+      "run-status-badge"
+    ],
+    "disposition": "won't-support",
+    "rationale": "The style map aliases `cancelled` to gray/IconCircle with an explicit comment deferring to US-141. Not a drift: it is a decision to render something sensible rather than crash on a status the design surface never specified a colour for. Recorded so the (cancelled × run-status-badge) cell reads 'deliberate alias', not 'missing'."
+  },
+  {
+    "id": "C-051",
+    "pass": "C",
+    "title": "Temporal Terminated / TimedOut / ContinuedAsNew deliberately collapse to `failed` in run history and are not separately filterable",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "apps/backend-services/src/workflow/workflow.controller.ts:1550",
+    "surfaces": [
+      "run-row",
+      "run-history-filters",
+      "run-history:query"
+    ],
+    "disposition": "won't-support",
+    "rationale": "`mapTemporalStatusToDtoStatus` maps `Unknown` → `failed` with a comment stating the intent ('so the row still renders with a sensible badge instead of being silently dropped'), and `RunSummaryStatus` is a deliberate 4-member narrowing of the 6-member node union. `pending` and `skipped` are node-level concepts with no run-level meaning. Recording the whole (run-status × run-history) narrowing as one decision."
+  },
+  {
+    "id": "C-052",
+    "pass": "C",
+    "title": "A data wire with no direct normal edge between its endpoints can never animate during a run",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:2137",
+    "surfaces": [
+      "canvas:wire",
+      "run:active-edges",
+      "wire-peek"
+    ],
+    "disposition": "fix",
+    "rationale": "The active-edge patch resolves a data wire's liveness through the normal edge stamped onto it (`wire.edgeId !== undefined && activeEdges.has(wire.edgeId)`). But `upstreamNodesWithDistance` is a multi-hop reverse BFS, so the resolver legitimately auto-binds a consumer to a producer several edges upstream; `deriveStructuralWires` only stamps an `edgeId` when a normal edge joins that exact pair. Such a wire has `edgeId === undefined` and is therefore hard-coded inactive for every run status. The (any-status x unstamped data wire) row of the grid is empty by construction, and nothing warns the author that a legal binding is invisible to run animation."
+  },
+  {
+    "id": "C-060",
+    "pass": "C",
+    "title": "30 of 32 validation-anchor shapes do not deep-link; only nodes.<id>.inputs.<port> does",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/validation/ValidationDrawer.tsx:74",
+    "surfaces": [
+      "validation-drawer",
+      "validation-engine",
+      "canvas:node-badge"
+    ],
+    "disposition": "fix",
+    "rationale": "`parseInputPortPath` matches exactly `/^nodes\\.(.+)\\.inputs\\.([^.]+)$/`. Every other anchor — `defaultEdge`, `cases[i].edgeId`, `bodyEntryNodeId`, `sourceMapNodeId`, `parameters<suffix>`, `sourceType`, `itemCtxKey`, `outputs.<port>` — names a specific FIELD in a specific settings form and still resolves only to 'select the node and close'. Both severities behave identically, so this is one gap spanning 60 of the 64 severity × anchor cells, not 60 gaps."
+  },
+  {
+    "id": "C-061",
+    "pass": "C",
+    "title": "Every workflow-level issue row is rendered non-clickable, including anchors that name a concrete edge, group or ctx key",
+    "severity": "major",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/validation/ValidationDrawer.tsx:202",
+    "surfaces": [
+      "validation-drawer",
+      "workflow-settings",
+      "settings-panel:group",
+      "canvas:wire"
+    ],
+    "disposition": "fix",
+    "rationale": "The workflow-level bucket passes `onClick={undefined}` unconditionally. `edges.<edgeId>.source`, `nodeGroups.<id>.nodeIds[i]`, `nodeGroups.<id>.exposedParams[i].path`, `entryNodeId`, `ctx.<key>` and `metadata.inputs[i].path` all identify a single artifact with a real editing surface, and all six are completely inert — not even 'Select node →'. Nine of the 32 anchor rows land here."
+  },
+  {
+    "id": "C-062",
+    "pass": "C",
+    "title": "Source nodes are explicitly excluded from the validation-badge sync, so source-node errors have no canvas indicator",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:1991",
+    "surfaces": [
+      "canvas:source-card",
+      "canvas:node-badge",
+      "validation-drawer"
+    ],
+    "disposition": "fix",
+    "rationale": "The badge-sync effect skips `n.type === \"source\"` with the comment \"Source nodes don't surface a validation badge in US-117 (no `errorCount` / `warningCount` fields on `SourceNodeData`)\" — so this is a scoped-out decision, not a renderer oversight. It is still an open cell: `nodes.<sourceId>.sourceType` (validator.ts:464, :506) and `nodes.<sourceId>.parameters<suffix>` (:477) are ERROR-severity anchors that appear in the drawer and in the top-bar count with no corner badge on the card, so the canvas shows a clean graph while the top bar says N issues. Either the data shape gains the two fields or the non-goal needs restating now that source nodes carry error-severity rules."
+  },
+  {
+    "id": "C-063",
+    "pass": "C",
+    "title": "canvas:group-chip carries no validation badge — simplified view hides every member node's issues",
+    "severity": "major",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:1983",
+    "surfaces": [
+      "canvas:group-chip",
+      "canvas:node-badge",
+      "topbar:more-menu"
+    ],
+    "disposition": "fix",
+    "rationale": "The badge-sync effect skips `n.type === \"group-chip\"` (\"Chips don't render a validation badge - they're a pure visual collapse, so they have no per-node counts to sync\"), while the chip DOES mount `GroupAggregateStatusBadgeOverlay`. So run status has an aggregate-to-chip rule and validation does not: collapsing a group in simplified view removes every member's problems badge from the canvas while the top-bar count keeps rising, and the user sees N issues with no node marked."
+  },
+  {
+    "id": "C-064",
+    "pass": "C",
+    "title": "nodeGroups.<id>.… anchors bucket workflow-level although settings-panel:group is their editing surface",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/validation/useGraphValidation.ts:116",
+    "surfaces": [
+      "validation-drawer",
+      "settings-panel:group",
+      "exposed-params-editor"
+    ],
+    "disposition": "fix",
+    "rationale": "`nodeIdFromPath` requires the literal `nodes.` prefix, so `nodeGroups.<id>.nodeIds[i]` (validator.ts:1113) and `nodeGroups.<id>.exposedParams[i].path` (:1136) land in the inert workflow bucket even though the first names a node id and the second names a param path in a form that exists. Group anchors were never given a routing rule."
+  },
+  {
+    "id": "C-065",
+    "pass": "C",
+    "title": "ctx.<key> and metadata.ctx anchors have no route to the workflow-settings ctx table",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/validator/validator.ts:523",
+    "surfaces": [
+      "validation-drawer",
+      "workflow-settings"
+    ],
+    "disposition": "fix",
+    "rationale": "`metadata.ctx` (warning, source.api vs isInput) and `ctx.<key>` (error, reserved namespace) both point at rows the `WorkflowSettingsDrawer` ctx table renders and edits. Both are workflow-level and therefore inert per C-061. Two of the four anchor shapes that carry a `warning` severity fall in this bucket, so warnings are disproportionately unactionable."
+  },
+  {
+    "id": "C-066",
+    "pass": "C",
+    "title": "nodeIdFromPath splits at the first dot while parseInputPortPath is greedy — a dotted node id buckets under a non-existent node",
+    "severity": "minor",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/validation/useGraphValidation.ts:119",
+    "surfaces": [
+      "validation-drawer",
+      "canvas:node-badge"
+    ],
+    "disposition": "defer",
+    "rationale": "`rest.slice(0, rest.indexOf(\".\"))` vs `/^nodes\\.(.+)\\.inputs\\./`. Node ids are author/agent-supplied strings with no charset rule in the validator, so an id containing a dot produces a bucket key that matches no node: the drawer heading falls back to the raw key, `config.nodes[nodeId]` is undefined, and clicking selects nothing. Deferred because it needs an id-charset decision first, which is not this pass's call."
+  },
+  {
+    "id": "C-067",
+    "pass": "C",
+    "title": "The full severity × anchor cross-product is not a design target — severity belongs to the rule, not the path",
+    "severity": "minor",
+    "type": "non-goal",
+    "evidence": "packages/graph-workflow/src/types.ts:423",
+    "surfaces": [
+      "validation-engine",
+      "validation-drawer",
+      "topbar:validation-button"
+    ],
+    "disposition": "won't-support",
+    "rationale": "Only 6 of the 32 anchor shapes ever carry `warning` (`metadata.ctx`, `nodes.<id>` reachability, `nodes.<id>` multi-group, `nodes.<id>.inputs.<port>` from auto-wire, `nodes.<mapId>.bodyExitNodeId` from map-body analysis) and every other shape is error-only. Grading the same anchor at two severities would be meaningless — a dangling `defaultEdge` cannot be 'a bit wrong'. Recording that the ~52 empty cells of the 64-cell grid are structurally empty, not overlooked, so no future pass tries to fill them."
+  },
+  {
+    "id": "C-068",
+    "pass": "C",
+    "title": "nodes.<id>.outputs.<port> looks like the deep-linkable input shape but is not matched",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "packages/graph-workflow/src/validator/validator.ts:1531",
+    "surfaces": [
+      "validation-drawer",
+      "settings-panel:advanced-bindings"
+    ],
+    "disposition": "fix",
+    "rationale": "The reserved-namespace check anchors output collisions at `nodes.<id>.outputs.<port>` — structurally the mirror of the one anchor that deep-links, and the only anchor shape that names a specific OUTPUT binding. It routes to 'Select node →' and the user then has to find the raw output binding under 'Show advanced'. The output half of the port axis has no deep-link at all."
+  },
+  {
+    "id": "C-069",
+    "pass": "C",
+    "title": "topbar:validation-button reports errors+warnings as one red \"N issues\" count",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:1440",
+    "surfaces": [
+      "topbar:validation-button",
+      "validation-drawer"
+    ],
+    "disposition": "defer",
+    "rationale": "`total = errorCount + warningCount` is used for the label whenever `errorCount > 0`, so 1 error plus 5 warnings reads '6 issues' in red — the severity split is only recoverable by opening the drawer. The per-node buckets and the node badge both keep the two counts separate, so the top bar is the one surface that erases the severity axis it summarises."
+  },
+  {
+    "id": "C-070",
+    "pass": "C",
+    "title": "canvas:wire and canvas:edge-label render no validation state — edge-anchored errors never mark the wire",
+    "severity": "minor",
+    "type": "design-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WorkflowEdge.tsx:222",
+    "surfaces": [
+      "canvas:wire",
+      "canvas:edge-label",
+      "validation-drawer"
+    ],
+    "disposition": "fix",
+    "rationale": "Edges get colour from their `type` and their label from `edge-labels.ts`; nothing consults the validation result. Five anchor shapes name an edge (`edges[i]`, `edges[i].source`, `edges[i].target`, `edges.<edgeId>`, `edges.<edgeId>.source`) and all five are invisible on the canvas and inert in the drawer (C-061). The (error × edge-anchor × canvas) row of the grid is entirely empty — nodes have a badge, edges have nothing."
+  },
+  {
+    "id": "C-071",
+    "pass": "C",
+    "title": "Two raw NUL bytes in WorkflowEditorCanvas.tsx make grep/ripgrep classify the feature's largest source file as binary",
+    "severity": "major",
+    "type": "impl-gap",
+    "evidence": "apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:2745",
+    "surfaces": [
+      "canvas"
+    ],
+    "disposition": "fix",
+    "rationale": "`dataWireSig` joins its parts with raw U+0000 bytes written literally into the source rather than as the `\\0` escape (verified: the file contains exactly 2 NUL bytes, both on this line). POSIX grep and ripgrep treat any file containing a NUL as binary and return NOTHING with exit status 1 - silently, and indistinguishably from 'no matches'. This is the most-edited file in Parts 3-9 (3180 lines, 119 KB) and it is the only file in apps/** or packages/** with this property, so every grep-driven search, IDE find-in-files, and code-review tool pointed at the feature has a hole in exactly the wrong place. Not hypothetical: it produced a false 'no caller' result in this very audit (a withdrawn finding claiming the active-edge animation was dead code, when it is wired at :2124 and :2143). Fix is one character per byte - `\\0` or a printable delimiter - with no behaviour change, since the string is only used as an internal de-dup key."
+  }
+]

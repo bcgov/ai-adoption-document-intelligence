@@ -1,11 +1,7 @@
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { validateBlobFilePath } from "@ai-di/blob-storage-paths";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import {
@@ -78,23 +74,6 @@ function buildAzureOcrUrl(endpoint: string): string {
   return `${endpoint.replace(/\/+$/, "")}${MISTRAL_AZURE_OCR_PATH}`;
 }
 
-async function readBlobData(blobKey: string): Promise<Buffer> {
-  if (path.isAbsolute(blobKey)) {
-    try {
-      return await fs.promises.readFile(blobKey);
-    } catch (_error) {
-      throw new Error(`File not found on disk: "${blobKey}"`);
-    }
-  }
-
-  const client = getBlobStorageClient();
-  try {
-    return await client.read(validateBlobFilePath(blobKey));
-  } catch (_error) {
-    throw new Error(`Blob not found: "${blobKey}"`);
-  }
-}
-
 function buildDataUrl(contentType: string, buffer: Buffer): string {
   const mime =
     contentType && contentType.trim().length > 0
@@ -126,6 +105,7 @@ export interface MistralTemplateLoadResult {
 
 async function loadMistralTemplateForAnnotation(
   templateModelId: string,
+  groupId: string,
   log: ReturnType<typeof createActivityLogger>,
   options: {
     fieldDescriptions?: Record<string, string>;
@@ -134,8 +114,10 @@ async function loadMistralTemplateForAnnotation(
 ): Promise<MistralTemplateLoadResult | null> {
   try {
     const prisma = getPrismaClient();
-    const templateModel = await prisma.templateModel.findUnique({
-      where: { id: templateModelId },
+    // Limited to the run's group: a template model from another group is
+    // treated as not found.
+    const templateModel = await prisma.templateModel.findFirst({
+      where: { id: templateModelId, group_id: groupId },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
 
@@ -182,7 +164,7 @@ async function loadMistralTemplateForAnnotation(
       {
         event: "annotation_skip",
         templateModelId,
-        error: getErrorMessage(error),
+        error,
       },
     );
     return null;
@@ -442,7 +424,13 @@ export async function mistralOcrProcess(
     timeoutMs = 600_000;
   }
 
-  const buffer = await readBlobData(fileData.blobKey);
+  const runGroupId = params.groupId;
+  if (!runGroupId) {
+    throw new Error(
+      "groupId is required to read the document and its template model",
+    );
+  }
+  const buffer = await readGroupBlob(fileData.blobKey, runGroupId);
   const documentUrl = buildDataUrl(fileData.contentType, buffer);
 
   let documentAnnotationFormat: MistralDocumentAnnotationFormat | null = null;
@@ -450,6 +438,7 @@ export async function mistralOcrProcess(
   if (templateModelIdRaw) {
     const loaded = await loadMistralTemplateForAnnotation(
       templateModelIdRaw,
+      runGroupId,
       log,
       isAzure
         ? {
@@ -530,6 +519,7 @@ export async function mistralOcrProcess(
       const status = error.response?.status;
       const body = error.response?.data;
       log.error("Mistral OCR API error", {
+        error,
         event: "error",
         variant,
         httpStatus: status !== undefined ? String(status) : undefined,
@@ -543,7 +533,7 @@ export async function mistralOcrProcess(
     log.error("Mistral OCR process error", {
       event: "error",
       variant,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error,
       alertType: "mistral_ocr",
     });
     throw error;

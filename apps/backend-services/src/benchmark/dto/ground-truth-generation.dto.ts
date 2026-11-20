@@ -22,7 +22,7 @@ export class StartGroundTruthGenerationDto {
 
   @ApiPropertyOptional({
     description:
-      "Optional workflow config overrides keyed by exposed-parameter path (e.g. { 'ctx.modelId': 'prebuilt-layout' }).",
+      "Optional workflow config overrides keyed by exposed-parameter path (e.g. { 'ctx.modelId.defaultValue': 'prebuilt-layout' }).",
     type: "object",
     additionalProperties: true,
   })

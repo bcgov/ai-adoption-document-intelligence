@@ -2,7 +2,7 @@
  * Experiment 05 — VLM + OCR hybrid (gpt-5.4)
  *
  * Two-layer test suite for the
- * `docs-md/workflows/templates/experiment-05-vlm-ocr-hybrid-workflow.json`
+ * `packages/graph-workflow/templates/experiment-05-vlm-ocr-hybrid-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (no
@@ -38,8 +38,8 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
-  SAMPLE_IMAGE_ABS_PATH,
   seedTestDocument,
+  stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
@@ -67,8 +67,8 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "..",
-  "docs-md",
-  "workflows",
+  "packages",
+  "graph-workflow",
   "templates",
   "experiment-05-vlm-ocr-hybrid-workflow.json",
 );
@@ -308,8 +308,10 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       const graph = loadTemplate();
       const node = graph.nodes?.pollOcrResults as PollUntilNode | undefined;
       const outputs = (node?.outputs ?? []).map((o) => o.port);
-      expect(outputs).toContain("response");
-      const responseOutput = node?.outputs?.find((o) => o.port === "response");
+      expect(outputs).toContain("ocrResponse");
+      const responseOutput = node?.outputs?.find(
+        (o) => o.port === "ocrResponse",
+      );
       expect(responseOutput?.ctxKey).toBe("ocrResponseRef");
       expect(graph.ctx?.ocrResponseRef).toBeDefined();
     });
@@ -545,7 +547,7 @@ describeRuntime(
       // diModelId/outputFormat come from the graph ctx defaults.
       return {
         documentId,
-        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        blobKey: stageSampleImage(),
         fileName: "1 81.jpg",
         fileType: "image",
         contentType: "image/jpeg",

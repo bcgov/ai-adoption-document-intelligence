@@ -89,7 +89,10 @@ export async function recordLedgerWrite(
     });
   } catch (error: unknown) {
     const err = error as Error;
-    log.error(`Failed to record ledger write for key "${key}": ${err.message}`);
+    log.error(
+      `Failed to record ledger write for key "${key}": ${err.message}`,
+      { error },
+    );
   }
 }
 
@@ -112,6 +115,7 @@ export async function recordLedgerDelete(
     const err = error as Error;
     log.error(
       `Failed to record ledger delete for key "${key}": ${err.message}`,
+      { error },
     );
   }
 }
@@ -170,30 +174,7 @@ export async function recordLedgerRead(
     const err = error as Error;
     log.error(
       `Failed to record blob read billing for key "${key}": ${err.message}`,
-    );
-  }
-}
-
-/**
- * Sets deleted_at on all GroupStorageLedger rows whose blob_key begins with
- * the given prefix. Uses a single bulk UPDATE query.
- *
- * @param prisma - Prisma client instance
- * @param prefix - The blob key prefix used for deletion
- */
-export async function recordLedgerDeleteByPrefix(
-  prisma: PrismaClient,
-  prefix: string,
-): Promise<void> {
-  try {
-    await prisma.groupStorageLedger.updateMany({
-      where: { blob_key: { startsWith: prefix }, deleted_at: null },
-      data: { deleted_at: new Date() },
-    });
-  } catch (error: unknown) {
-    const err = error as Error;
-    log.error(
-      `Failed to record ledger deleteByPrefix for prefix "${prefix}": ${err.message}`,
+      { error },
     );
   }
 }

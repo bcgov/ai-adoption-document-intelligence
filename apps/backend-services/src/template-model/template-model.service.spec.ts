@@ -3,13 +3,19 @@ import {
   LabelingStatus,
   FieldType as PrismaFieldType,
 } from "@generated/client";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
-import { ResolvedIdentity } from "@/auth/types";
+import { AzureService } from "@/azure/azure.service";
+import { BenchmarkDefinitionDbService } from "@/benchmark/benchmark-definition-db.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { TrainingDbService } from "@/training/training-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -24,7 +30,6 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelService } from "./template-model.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import {
@@ -38,13 +43,20 @@ describe("TemplateModelService", () => {
   let mockTemplateModelDbService: jest.Mocked<TemplateModelDbService>;
   let mockOcrService: jest.Mocked<TemplateModelOcrService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
-  let mockSuggestionService: jest.Mocked<SuggestionService>;
+  let mockAzureService: { deleteDocumentModel: jest.Mock };
+  let mockAuditService: { recordEvent: jest.Mock };
+  let mockTrainingDb: { findInFlightJobForTemplate: jest.Mock };
+  let mockBenchmarkDefinitionDb: {
+    countDefinitionsReferencingModelId: jest.Mock;
+  };
+  let mockPrismaService: { transaction: jest.Mock };
 
   const mockTemplateModel: TemplateModelData = {
     id: "tm-1",
     name: "Test Template Model",
     model_id: "test-template-model",
     description: "Test Description",
+    group_id: "group-1",
     created_by: "user-1",
     created_at: new Date(),
     updated_at: new Date(),
@@ -76,6 +88,7 @@ describe("TemplateModelService", () => {
     updated_at: new Date(),
     apim_request_id: null,
     model_id: "prebuilt-layout",
+    group_id: "group-1",
     ocr_result: {
       analyzeResult: {
         apiVersion: "2024-11-30",
@@ -124,10 +137,12 @@ describe("TemplateModelService", () => {
       findAllTemplateModels: jest.fn(),
       createTemplateModel: jest.fn(),
       findTemplateModel: jest.fn(),
-      findTemplateModelByModelId: jest.fn(),
+      isModelIdTaken: jest.fn(),
       updateTemplateModel: jest.fn(),
       deleteTemplateModel: jest.fn(),
+      findAzureModelIdsForTemplate: jest.fn().mockResolvedValue([]),
       createFieldDefinition: jest.fn(),
+      createFieldDefinitions: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
       findLabeledDocuments: jest.fn(),
@@ -151,10 +166,6 @@ describe("TemplateModelService", () => {
       processOcrForLabelingDocument: jest.fn(),
     };
 
-    const mockSuggestions = {
-      generateSuggestions: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemplateModelService,
@@ -172,10 +183,6 @@ describe("TemplateModelService", () => {
           useValue: mockOcr,
         },
         {
-          provide: SuggestionService,
-          useValue: mockSuggestions,
-        },
-        {
           provide: PrismaService,
           useValue: {
             transaction: jest.fn(async (fn) => fn({})),
@@ -185,14 +192,36 @@ describe("TemplateModelService", () => {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: AzureService,
+          useValue: {
+            deleteDocumentModel: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: TrainingDbService,
+          useValue: {
+            findInFlightJobForTemplate: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: BenchmarkDefinitionDbService,
+          useValue: {
+            countDefinitionsReferencingModelId: jest.fn().mockResolvedValue(0),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<TemplateModelService>(TemplateModelService);
+    mockAzureService = module.get(AzureService);
+    mockAuditService = module.get(AuditService);
+    mockTrainingDb = module.get(TrainingDbService);
+    mockBenchmarkDefinitionDb = module.get(BenchmarkDefinitionDbService);
     mockTemplateModelDbService = module.get(TemplateModelDbService);
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(TemplateModelOcrService);
-    mockSuggestionService = module.get(SuggestionService);
+    mockPrismaService = module.get(PrismaService);
   });
 
   // ========== MODEL ID GENERATION ==========
@@ -234,33 +263,72 @@ describe("TemplateModelService", () => {
     it("should handle special characters", () => {
       expect(service.generateModelIdBase("Model (v2.1)")).toBe("model-v2.1");
     });
+
+    it.each([
+      ["Prebuilt Invoice", "model-prebuilt-invoice"],
+      ["Prebuilt", "model-prebuilt"],
+    ])("keeps %j out of Azure's prebuilt- namespace: %s", (name, expected) => {
+      expect(service.generateModelIdBase(name)).toBe(expected);
+    });
+
+    it("leaves a name that only begins with the letters prebuilt alone", () => {
+      expect(service.generateModelIdBase("Prebuilts")).toBe("prebuilts");
+    });
   });
 
   describe("generateUniqueModelId", () => {
     it("should return base model_id when no collision", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
-        null,
-      );
+      mockTemplateModelDbService.isModelIdTaken.mockResolvedValue(false);
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template");
     });
 
     it("should append suffix on collision", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId
-        .mockResolvedValueOnce(mockTemplateModel) // base collides
-        .mockResolvedValueOnce(null); // -2 is free
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true) // base is taken
+        .mockResolvedValueOnce(false); // -2 is free
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template-2");
     });
 
     it("should increment suffix until unique", async () => {
-      mockTemplateModelDbService.findTemplateModelByModelId
-        .mockResolvedValueOnce(mockTemplateModel) // base collides
-        .mockResolvedValueOnce(mockTemplateModel) // -2 collides
-        .mockResolvedValueOnce(mockTemplateModel) // -3 collides
-        .mockResolvedValueOnce(null); // -4 is free
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true) // base is taken
+        .mockResolvedValueOnce(true) // -2 is taken
+        .mockResolvedValueOnce(true) // -3 is taken
+        .mockResolvedValueOnce(false); // -4 is free
       const result = await service.generateUniqueModelId("My Template");
       expect(result).toBe("my-template-4");
+    });
+
+    it("checks each candidate against every template's and trained model's ids", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      await service.generateUniqueModelId("Invoice v2");
+      expect(mockTemplateModelDbService.isModelIdTaken.mock.calls).toEqual([
+        ["invoice-v2"],
+        ["invoice-v2-2"],
+      ]);
+    });
+
+    it("shortens a 64-character base so its suffix fits", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      const result = await service.generateUniqueModelId("a".repeat(70));
+      expect(result).toBe(`${"a".repeat(62)}-2`);
+      expect(result).toHaveLength(64);
+    });
+
+    it("drops a hyphen the shortening leaves before the suffix", async () => {
+      mockTemplateModelDbService.isModelIdTaken
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      const result = await service.generateUniqueModelId(
+        `${"x".repeat(61)} yz`,
+      );
+      expect(result).toBe(`${"x".repeat(61)}-2`);
     });
   });
 
@@ -304,9 +372,7 @@ describe("TemplateModelService", () => {
         group_id: "group-1",
       };
 
-      mockTemplateModelDbService.findTemplateModelByModelId.mockResolvedValue(
-        null,
-      );
+      mockTemplateModelDbService.isModelIdTaken.mockResolvedValue(false);
       mockTemplateModelDbService.createTemplateModel.mockResolvedValueOnce(
         mockTemplateModel,
       );
@@ -406,6 +472,138 @@ describe("TemplateModelService", () => {
         NotFoundException,
       );
     });
+
+    it("lists the template's model ids before deleting it, and deletes those models from Azure afterwards", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub", "pay-stub-v2"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+
+      await service.deleteTemplateModel("tm-1");
+
+      expect(
+        mockTemplateModelDbService.findAzureModelIdsForTemplate,
+      ).toHaveBeenCalledWith("tm-1");
+      // The rows that name the ids cascade away with the template, so a
+      // listing made after the delete would find none.
+      expect(
+        mockTemplateModelDbService.findAzureModelIdsForTemplate.mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(
+        mockTemplateModelDbService.deleteTemplateModel.mock
+          .invocationCallOrder[0],
+      );
+      expect(mockAzureService.deleteDocumentModel.mock.calls).toEqual([
+        ["pay-stub"],
+        ["pay-stub-v2"],
+      ]);
+      expect(
+        mockTemplateModelDbService.deleteTemplateModel.mock
+          .invocationCallOrder[0],
+      ).toBeLessThan(
+        mockAzureService.deleteDocumentModel.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("refuses while a training job is in progress, and deletes nothing", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTrainingDb.findInFlightJobForTemplate.mockResolvedValueOnce({
+        id: "job-1",
+        status: "TRAINING",
+      });
+
+      await expect(service.deleteTemplateModel("tm-1")).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockTrainingDb.findInFlightJobForTemplate).toHaveBeenCalledWith(
+        "tm-1",
+      );
+      expect(
+        mockTemplateModelDbService.deleteTemplateModel,
+      ).not.toHaveBeenCalled();
+      expect(mockAzureService.deleteDocumentModel).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
+    });
+
+    it("refuses while a benchmark definition names one of its versions, and deletes nothing", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub", "pay-stub-v2"],
+      );
+      mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mockImplementation(
+        async (modelId: string) => (modelId === "pay-stub-v2" ? 2 : 0),
+      );
+
+      await expect(service.deleteTemplateModel("tm-1")).rejects.toThrow(
+        new ConflictException(
+          "Cannot delete: 2 benchmark definition(s) reference a version of this template. Detach them first.",
+        ),
+      );
+      expect(
+        mockBenchmarkDefinitionDb.countDefinitionsReferencingModelId.mock.calls,
+      ).toEqual([["pay-stub"], ["pay-stub-v2"]]);
+      expect(
+        mockTemplateModelDbService.deleteTemplateModel,
+      ).not.toHaveBeenCalled();
+      expect(mockAzureService.deleteDocumentModel).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
+    });
+
+    it("still deletes the template when deleting one of its Azure models fails", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub", "pay-stub-v2"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+      mockAzureService.deleteDocumentModel.mockRejectedValueOnce(
+        new Error("Azure unavailable"),
+      );
+
+      await expect(service.deleteTemplateModel("tm-1")).resolves.toEqual({
+        success: true,
+        id: "tm-1",
+      });
+      expect(mockAzureService.deleteDocumentModel).toHaveBeenCalledWith(
+        "pay-stub-v2",
+      );
+    });
+
+    it("records the Azure model ids it deletes in the audit event", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.findAzureModelIdsForTemplate.mockResolvedValueOnce(
+        ["pay-stub"],
+      );
+      mockTemplateModelDbService.deleteTemplateModel.mockResolvedValueOnce(
+        true,
+      );
+
+      await service.deleteTemplateModel("tm-1");
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "template_model_deleted",
+          payload: {
+            name: mockTemplateModel.name,
+            azure_model_ids: ["pay-stub"],
+          },
+        }),
+      );
+    });
   });
 
   // ========== FIELD SCHEMA OPERATIONS ==========
@@ -446,6 +644,7 @@ describe("TemplateModelService", () => {
         field_type: PrismaFieldType.number,
         field_format: null,
         format_spec: null,
+        description: null,
         display_order: 1,
         template_model_id: "tm-1",
       };
@@ -649,6 +848,25 @@ describe("TemplateModelService", () => {
           labelingDocumentId: "non-existent",
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should treat a template model from another group as not found", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce({
+        ...mockTemplateModel,
+        group_id: "group-2",
+      });
+      mockLabelingDocumentDbService.findLabelingDocument.mockResolvedValueOnce(
+        mockLabelingDocument as never,
+      );
+
+      await expect(
+        service.addDocumentToTemplateModel("tm-1", {
+          labelingDocumentId: "labeling-doc-1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -907,92 +1125,6 @@ describe("TemplateModelService", () => {
     });
   });
 
-  describe("generateDocumentSuggestions", () => {
-    it("should generate suggestions for a document", async () => {
-      const suggestions = [
-        {
-          field_key: "name",
-          label_name: "name",
-          value: "John Smith",
-          page_number: 1,
-          element_ids: ["p1-w1", "p1-w2"],
-          bounding_box: { polygon: [1, 1, 2, 1, 2, 2, 1, 2] },
-          source_type: "keyValuePair",
-          confidence: 0.99,
-        },
-      ];
-
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        mockLabeledDocument,
-      );
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
-        mockTemplateModel,
-      );
-      mockSuggestionService.generateSuggestions.mockReturnValueOnce(
-        suggestions as never,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      const result = await service.generateDocumentSuggestions(
-        "tm-1",
-        "labeled-doc-1",
-        mockIdentity,
-      );
-
-      expect(mockSuggestionService.generateSuggestions).toHaveBeenCalled();
-      expect(result).toEqual(suggestions);
-    });
-
-    it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        null,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "missing-doc",
-          mockIdentity,
-        ),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it("should throw NotFoundException when OCR result not found", async () => {
-      const noOcrDoc = {
-        ...mockLabeledDocument,
-        labeling_document: {
-          ...mockLabelingDocument,
-          ocr_result: null,
-        },
-      } as unknown as LabeledDocumentData;
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        noOcrDoc,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "labeled-doc-1",
-          mockIdentity,
-        ),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
   // ========== EXPORT ==========
 
   describe("exportTemplateModel", () => {
@@ -1125,6 +1257,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.date,
             field_format: "ymd",
             format_spec: null,
+            description: null,
             display_order: 1,
             template_model_id: "tm-1",
           },
@@ -1172,6 +1305,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.selectionMark,
             field_format: null,
             format_spec: null,
+            description: null,
             display_order: 0,
             template_model_id: "tm-1",
           },
@@ -1286,6 +1420,214 @@ describe("TemplateModelService", () => {
           file: "base64",
           file_type: LabelingFileType.PDF,
           group_id: "group-1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should reject a group_id that does not match the template model's group", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce({
+        ...mockTemplateModel,
+        group_id: "group-2",
+      });
+
+      await expect(
+        service.uploadLabelingDocument("tm-1", {
+          title: "test",
+          file: "data:application/pdf;base64,dGVzdA==",
+          file_type: LabelingFileType.PDF,
+          group_id: "group-1",
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockOcrService.prepareLabelingDocument).not.toHaveBeenCalled();
+      expect(
+        mockLabelingDocumentDbService.createLabelingDocument,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockTemplateModelDbService.addDocumentToTemplateModel,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("field descriptions", () => {
+    it("stores a trimmed description when adding a field", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinition.mockResolvedValueOnce({
+        ...mockTemplateModel.field_schema[0],
+        id: "field-2",
+        field_key: "filing_date",
+        description: "Date at the bottom of the form",
+      });
+
+      await service.addField(
+        "tm-1",
+        {
+          field_key: "filing_date",
+          field_type: FieldType.DATE,
+          description: "  Date at the bottom of the form  ",
+        },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          description: "Date at the bottom of the form",
+        }),
+      );
+    });
+
+    it("clears the description when an update sends only whitespace", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { description: "   " },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.updateFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "field-1",
+        "tm-1",
+        expect.objectContaining({ description: null }),
+      );
+    });
+
+    it("leaves the description alone when an update omits it", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { display_order: 3 },
+        "actor-1",
+      );
+
+      const data =
+        mockTemplateModelDbService.updateFieldDefinition.mock.calls[0][2];
+      expect(data.description).toBeUndefined();
+    });
+  });
+
+  describe("addFields", () => {
+    it("creates the fields in one batched call after the current last order, audited through the same transaction", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinitions.mockResolvedValueOnce([
+        {
+          ...mockTemplateModel.field_schema[0],
+          id: "field-2",
+          field_key: "file_number",
+        },
+        {
+          ...mockTemplateModel.field_schema[0],
+          id: "field-3",
+          field_key: "consents",
+          field_type: PrismaFieldType.selectionMark,
+        },
+      ]);
+
+      const created = await service.addFields(
+        "tm-1",
+        {
+          fields: [
+            {
+              field_key: "file_number",
+              field_type: FieldType.STRING,
+              description: "Court file number",
+            },
+            { field_key: "consents", field_type: FieldType.SELECTION_MARK },
+          ],
+        },
+        "actor-1",
+      );
+
+      expect(created.map((f) => f.field_key)).toEqual([
+        "file_number",
+        "consents",
+      ]);
+      expect(mockPrismaService.transaction).toHaveBeenCalledTimes(1);
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledWith(
+        "tm-1",
+        [
+          expect.objectContaining({
+            field_key: "file_number",
+            description: "Court file number",
+            display_order: 1,
+          }),
+          expect.objectContaining({
+            field_key: "consents",
+            display_order: 2,
+          }),
+        ],
+        {},
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            event_type: "template_model_field_created",
+            resource_id: "tm-1",
+            payload: { field_id: "field-2", field_key: "file_number" },
+          }),
+          expect.objectContaining({
+            payload: { field_id: "field-3", field_key: "consents" },
+          }),
+        ],
+        {},
+      );
+    });
+
+    it("refuses keys that already exist or repeat, naming them", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+
+      const error = await service
+        .addFields("tm-1", {
+          fields: [
+            { field_key: "invoice_number", field_type: FieldType.STRING },
+            { field_key: "total", field_type: FieldType.NUMBER },
+            { field_key: "total", field_type: FieldType.NUMBER },
+          ],
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual(
+        expect.objectContaining({ field_keys: ["invoice_number", "total"] }),
+      );
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unknown template model", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(null);
+      await expect(
+        service.addFields("missing", {
+          fields: [{ field_key: "a", field_type: FieldType.STRING }],
         }),
       ).rejects.toThrow(NotFoundException);
     });

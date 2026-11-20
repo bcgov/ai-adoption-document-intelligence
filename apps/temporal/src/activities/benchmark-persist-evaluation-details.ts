@@ -17,7 +17,7 @@ import {
   buildBlobFilePath,
   OperationCategory,
 } from "@ai-di/blob-storage-paths";
-import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+import { getGroupBlobStorage } from "../blob-storage/group-blob-storage";
 import type { Prisma } from "../generated";
 import { createActivityLogger } from "../logger";
 import { getPrismaClient } from "./database-client";
@@ -77,7 +77,7 @@ export async function benchmarkPersistEvaluationDetails(
     `${input.sampleId}.json`,
   );
 
-  const blobStorage = getBlobStorageClient();
+  const blobStorage = getGroupBlobStorage(groupId);
   const data = Buffer.from(
     JSON.stringify({
       sampleId: input.sampleId,

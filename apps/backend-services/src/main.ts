@@ -1,22 +1,28 @@
 // Load .env before any module is resolved so that process.env is populated
 // when decorators (e.g. @Throttle) are evaluated at import time.
-// Loads external secret override first ($DI_SECRETS_DIR/backend-services.env),
-// then repo-local .env for non-sensitive defaults. MUST remain first import.
+// Loads the repo-root .env. MUST remain first import.
 import "./env-loader";
 
-import { createLogger } from "@ai-di/shared-logging";
+import { createLogger, installCrashHandlers } from "@ai-di/shared-logging";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "body-parser";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { applyTrustProxy } from "./trust-proxy";
 
 const logger = createLogger("backend-services");
+installCrashHandlers(logger);
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // request.ip is the caller's own address behind the cluster's proxies, so the
+  // per-IP limits count each caller separately (see trust-proxy.ts).
+  applyTrustProxy(app);
 
   // Enable graceful shutdown: allows NestJS to call onModuleDestroy hooks
   // when receiving SIGTERM (Kubernetes pod termination signal).
@@ -118,4 +124,10 @@ async function bootstrap(): Promise<void> {
   logger.info(`Upload endpoint: http://localhost:${port}/api/upload`);
 }
 
-bootstrap();
+bootstrap().catch((err: unknown) => {
+  logger.error("Backend services failed to start", {
+    event: "fatal_error",
+    error: err,
+  });
+  process.exit(1);
+});

@@ -134,7 +134,7 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 | # | Item | Status | Notes |
 |---|---|---|---|
 | 1 | Map engine output to canonical `OCRResult` | ✅ | `apps/temporal/src/ocr-providers/azure-content-understanding/cu-to-ocr-result.ts`; produces `documents[0].fields` (Azure-shape) + parallel `keyValuePairs` from `result.contents[0].fields`, anchored against the captured fixture. |
-| 2 | Activity-type registration | ✅ | `azureContentUnderstanding.deployAnalyzer` (idempotent PUT, 3 retries) and `azureContentUnderstanding.analyze` (async, polls internally; 30 attempts × 15 s × 1.5x × 60 s cap retry; 20 m start-to-close) registered in all three registries. |
+| 2 | Activity-type registration | ✅ | `azureContentUnderstanding.analyze` (async, polls internally; 30 attempts × 15 s × 1.5x × 60 s cap retry; 20 m start-to-close) registered in all three registries. It deploys the analyzer itself through the `azureCuDeployAnalyzer` helper (idempotent PUT), which is not a registered activity. |
 | 3 | Field schema → engine format | ✅ | `analyzer-schema-builder.ts` maps `FieldDefinition[]` → CU analyzer JSON (`fieldSchema.fields`) with descriptions + classify-with-enum for selection marks + nullable-numeric description hint. |
 | 4 | Confidence values 0–1 | ✅ | CU per-field `confidence` ∈ [0,1] when `estimateFieldSourceAndConfidence: true`. Mapper computes page-level mean confidence; falls back to 0.95 when missing. |
 | 5 | Bounding-box convention | ⚠️ | CU's `contents[*].fields[*]` shape exposes `spans` (offset/length into markdown) + a `source` descriptor — no per-word polygon. The mapper synthesises one Word per page from markdown with empty polygon (matches the Mistral fallback). |

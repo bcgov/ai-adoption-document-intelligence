@@ -5,6 +5,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "./identity.helpers";
+import { Permission } from "./role-permissions";
 
 describe("getIdentityGroupIds", () => {
   it("should return an empty array when identity is undefined", () => {
@@ -14,9 +15,10 @@ describe("getIdentityGroupIds", () => {
 
   it("should return a single-element array for an API key identity", () => {
     const result = getIdentityGroupIds({
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       isSystemAdmin: false,
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual(["group-abc"]);
   });
@@ -27,6 +29,7 @@ describe("getIdentityGroupIds", () => {
       isSystemAdmin: true,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toBeUndefined();
   });
@@ -36,10 +39,11 @@ describe("getIdentityGroupIds", () => {
       userId: "user-abc",
       isSystemAdmin: false,
       groupRoles: {
-        "group-1": GroupRole.MEMBER,
+        "group-1": GroupRole.EDITOR,
         "group-2": GroupRole.ADMIN,
       },
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual(expect.arrayContaining(["group-1", "group-2"]));
     expect(result).toHaveLength(2);
@@ -51,6 +55,7 @@ describe("getIdentityGroupIds", () => {
       isSystemAdmin: false,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual([]);
   });
@@ -71,8 +76,10 @@ describe("identityCanAccessGroup", () => {
             isSystemAdmin: false,
             groupRoles: {},
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           null,
+          [Permission.DOCUMENT_RETRIEVE],
         ),
       ).toThrow(NotFoundException);
     });
@@ -81,34 +88,40 @@ describe("identityCanAccessGroup", () => {
       expect(() =>
         identityCanAccessGroup(
           {
-            groupRoles: { "group-1": GroupRole.MEMBER },
+            groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           null,
+          [Permission.DOCUMENT_RETRIEVE],
         ),
       ).toThrow(NotFoundException);
     });
 
     it("should throw NotFoundException when identity is undefined", () => {
-      expect(() => identityCanAccessGroup(undefined, null)).toThrow(
-        NotFoundException,
-      );
+      expect(() =>
+        identityCanAccessGroup(undefined, null, [Permission.DOCUMENT_RETRIEVE]),
+      ).toThrow(NotFoundException);
     });
   });
 
   describe("when identity is undefined", () => {
     it("should throw ForbiddenException", () => {
-      expect(() => identityCanAccessGroup(undefined, "group-1")).toThrow(
-        ForbiddenException,
-      );
+      expect(() =>
+        identityCanAccessGroup(undefined, "group-1", [
+          Permission.DOCUMENT_RETRIEVE,
+        ]),
+      ).toThrow(ForbiddenException);
     });
   });
 
   describe("when identity is an empty object", () => {
     it("should throw ForbiddenException", () => {
       expect(() =>
-        identityCanAccessGroup({} as unknown as ResolvedIdentity, "group-1"),
+        identityCanAccessGroup({} as unknown as ResolvedIdentity, "group-1", [
+          Permission.DOCUMENT_RETRIEVE,
+        ]),
       ).toThrow(ForbiddenException);
     });
   });
@@ -122,8 +135,10 @@ describe("identityCanAccessGroup", () => {
             isSystemAdmin: true,
             groupRoles: {},
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           "group-1",
+          [Permission.DOCUMENT_RETRIEVE],
         ),
       ).not.toThrow();
     });
@@ -134,11 +149,13 @@ describe("identityCanAccessGroup", () => {
       expect(() =>
         identityCanAccessGroup(
           {
-            groupRoles: { "group-1": GroupRole.MEMBER },
+            groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           "group-1",
+          [Permission.DOCUMENT_RETRIEVE],
         ),
       ).not.toThrow();
     });
@@ -148,39 +165,43 @@ describe("identityCanAccessGroup", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "group-2": GroupRole.MEMBER },
+          groupRoles: { "group-2": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
+        [Permission.DOCUMENT_RETRIEVE],
       ),
     ).toThrow(ForbiddenException);
   });
 
-  it("should throw ForbiddenException when role is below minimumRole", () => {
+  it("should throw ForbiddenException when role lacks required permissions", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
-        GroupRole.ADMIN,
+        [Permission.GROUP_UPDATE],
       ),
     ).toThrow(ForbiddenException);
   });
 
-  it("should not throw when role meets minimumRole", () => {
+  it("should not throw when role has required permissions", () => {
     expect(() =>
       identityCanAccessGroup(
         {
           groupRoles: { "group-1": GroupRole.ADMIN },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
-        GroupRole.ADMIN,
+        [Permission.GROUP_UPDATE],
       ),
     ).not.toThrow();
   });
@@ -196,11 +217,13 @@ describe("prototype property bypass prevention", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "real-group": GroupRole.MEMBER },
+          groupRoles: { "real-group": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         groupId,
+        [Permission.DOCUMENT_RETRIEVE],
       ),
     ).toThrow(ForbiddenException);
   });
@@ -215,8 +238,10 @@ describe("userId-only path (no groupRoles on identity)", () => {
           isSystemAdmin: false,
           groupRoles: {},
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
+        [Permission.DOCUMENT_RETRIEVE],
       ),
     ).toThrow(ForbiddenException);
   });

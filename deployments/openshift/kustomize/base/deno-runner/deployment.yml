@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deno-runner
+  labels:
+    app: deno-runner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: deno-runner
+  template:
+    metadata:
+      labels:
+        app: deno-runner
+    spec:
+      containers:
+      - name: deno-runner
+        # Tag is resolved only when a NEW pod is created. After pushing a new image,
+        # run: oc rollout restart deployment/deno-runner -n <namespace>
+        image: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner:main-latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 9090
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "9090"
+        - name: HOST
+          value: "0.0.0.0"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          runAsNonRoot: true
+          # The denoland/deno:alpine image runs as UID 1000 (the `deno` user). OpenShift's
+          # restricted-v2 SCC reassigns the UID per-namespace; the deno-runner image works
+          # with arbitrary UIDs since /tmp is world-writable.

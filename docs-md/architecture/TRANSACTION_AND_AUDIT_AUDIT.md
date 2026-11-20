@@ -82,7 +82,7 @@ All of the following perform multiple DB writes without a shared transaction:
 | `startSession` | `createReviewSession` + `acquireDocumentLock` | Session exists without lock, or lock without session |
 | `submitCorrections` | N × `createFieldCorrection` (parallel, not transactional) | Partial corrections persisted |
 | `approveSession` | `updateReviewSession` + `documentService.updateDocument` + `releaseDocumentLock` | Document status and session can diverge |
-| `escalateSession` | `createFieldCorrection` + `updateReviewSession` + `releaseDocumentLock` | Partial completion |
+| `flagSession` | `updateReviewSession` + `releaseDocumentLock` | Partial completion |
 | `skipSession` | `updateReviewSession` + `releaseDocumentLock` | Lock leaked if update fails |
 | `reopenSession` | `updateReviewSession` + `acquireDocumentLock` | Session reopened without lock |
 
@@ -133,7 +133,7 @@ Transactional where needed (`createWorkflow`, version append, `promoteCandidateW
 - `group-db.service.ts`: `approveRequestTransaction`, `cancelRequestTransaction`
 - `tables-db.service.ts`: `addColumnAndBackfill`, row upsert batch
 - `benchmark-run-db.service.ts`: `postTemporalStartTransaction`, `promoteRunToBaseline`, `deleteBenchmarkRun`
-- `actor/api-key-db.service.ts`: `createApiKey`, `deleteApiKeyById`
+- `actor/api-key-db.service.ts`: `createApiKey`
 - `training-db.service.ts`: `replaceActiveTrainedModel` (internal only)
 - `ground-truth-job-db.service.ts`: `createManyJobs`, `deleteJobsForVersions`
 - `template-model-db.service.ts`: `replaceDocumentLabels`
@@ -254,7 +254,9 @@ Benchmark lifecycle events not covered by the limited `AuditAction` enum use glo
 | Area | Notes |
 |------|--------|
 | HITL `heartbeat`, API key `last_used` | Housekeeping |
-| `EphemeralDocumentCleanupService`, `ClassifierOrphanCleanupService` | Background janitors |
+| `EphemeralDocumentCleanupService` | Background janitor; no audit event |
+| `ClassifierOrphanCleanupService` | Background janitor; records `classifier_orphan_deleted` per deleted orphan, outside any transaction |
+| `DocumentRetentionService` | Background janitor. Records one audit event per run rather than per deleted row; see [DOCUMENT_RETENTION.md § Audit](./DOCUMENT_RETENTION.md#audit) for when each event is written and what its payload means |
 | Benchmark `startRun` | Create → Temporal → `postTemporalStartTransaction` with failure compensation |
 | Classifier / training delete | DB-first then best-effort external cleanup (audit still required) |
 | Blob-then-DB uploads | External storage before DB is not a multi-DB-write atomicity issue |

@@ -5,7 +5,6 @@ import { UploadNormalizationLimiter } from "../upload/upload-normalization-limit
 import { DocumentController } from "./document.controller";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
-import { EphemeralDocumentCleanupService } from "./ephemeral-document-cleanup.service";
 import { PdfNormalizationService } from "./pdf-normalization.service";
 
 @Module({
@@ -13,7 +12,6 @@ import { PdfNormalizationService } from "./pdf-normalization.service";
   providers: [
     DocumentDbService,
     DocumentService,
-    EphemeralDocumentCleanupService,
     PdfNormalizationService,
     UploadNormalizationLimiter,
   ],

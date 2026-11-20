@@ -1,7 +1,6 @@
 import type { PrismaClient } from "@generated/client";
 import {
   recordLedgerDelete,
-  recordLedgerDeleteByPrefix,
   recordLedgerRead,
   recordLedgerWrite,
 } from "./storage-ledger";
@@ -111,34 +110,6 @@ describe("recordLedgerDelete", () => {
 
     await expect(
       recordLedgerDelete(prisma, "group-abc/file.pdf"),
-    ).resolves.not.toThrow();
-  });
-});
-
-describe("recordLedgerDeleteByPrefix", () => {
-  it("performs a single bulk updateMany with startsWith filter", async () => {
-    const prisma = makeMockPrisma();
-    await recordLedgerDeleteByPrefix(prisma, "group-abc/docs/");
-
-    expect(
-      prisma.groupStorageLedger.updateMany as jest.Mock,
-    ).toHaveBeenCalledWith({
-      where: {
-        blob_key: { startsWith: "group-abc/docs/" },
-        deleted_at: null,
-      },
-      data: { deleted_at: expect.any(Date) },
-    });
-  });
-
-  it("does not throw if bulk update fails", async () => {
-    const prisma = makeMockPrisma();
-    (prisma.groupStorageLedger.updateMany as jest.Mock).mockRejectedValueOnce(
-      new Error("DB error"),
-    );
-
-    await expect(
-      recordLedgerDeleteByPrefix(prisma, "group-abc/"),
     ).resolves.not.toThrow();
   });
 });

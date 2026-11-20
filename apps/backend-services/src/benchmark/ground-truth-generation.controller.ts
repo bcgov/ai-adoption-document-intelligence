@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import {
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -11,6 +12,7 @@ import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DatasetService } from "./dataset.service";
 import {
   GroundTruthJobsListResponseDto,
@@ -37,7 +39,9 @@ export class GroundTruthGenerationController {
     req: Request,
   ): Promise<string> {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId, [
+      Permission.BENCHMARK_GROUND_TRUTH,
+    ]);
     return dataset.groupId;
   }
 
@@ -54,6 +58,10 @@ export class GroundTruthGenerationController {
   @ApiCreatedResponse({
     description: "Ground truth generation started",
     type: StartGroundTruthGenerationResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      "Dataset version not found, or workflow version not found in the dataset's group",
   })
   async startGeneration(
     @Param("id") datasetId: string,

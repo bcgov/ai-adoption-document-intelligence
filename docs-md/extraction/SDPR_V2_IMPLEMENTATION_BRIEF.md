@@ -174,7 +174,7 @@ You are building on **`develop`**. Be aware of what `develop` does and does not 
 | **Visual workflow builder (canvas UI)** | ❌ — lives on `feature/visual-workflow-builder` (PR #230), ~541 commits ahead |
 | **Dynamic / custom code nodes + `deno-runner`** | ❌ — same branch |
 
-**Practical consequence:** you author workflows as **JSON configs** (the `docs-md/workflows/templates/*.json` pattern, seeded via `apps/shared/prisma/seed.ts`) and push them through the workflow API. There is no canvas, and no code-node escape hatch. See §6 for why that's fine — and actually the outcome we want.
+**Practical consequence:** you author workflows as **JSON configs** (the `packages/graph-workflow/templates/*.json` pattern, seeded via `apps/shared/prisma/seed.ts`) and push them through the workflow API. There is no canvas, and no code-node escape hatch. See §6 for why that's fine — and actually the outcome we want.
 
 ### 4.2 PR #169 already builds the hardest piece
 
@@ -184,7 +184,7 @@ You are building on **`develop`**. Be aware of what `develop` does and does not 
 - Registration in both activity registries and the graph schema validator
 - `apps/temporal/src/types.ts` — adds `selectionMarks?: SelectionMark[]` to `Page` (the app previously **dropped** selection marks, which is why the Python had to read the raw Azure cache instead)
 - `docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md` — full algorithm documentation
-- `docs-md/workflows/templates/standard-ocr-workflow-sdpr.json` — a seeded SDPR variant workflow with the node wired in
+- `packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json` — a seeded SDPR variant workflow with the node wired in
 - Seed wiring for the variant workflow
 
 The node implements all three table-finder strategies the Python has (title anchor, row-label anchor, positional anchor), is blob-backed like the other correction activities (reads `ocrResultRef`, writes a new ref, never mutates its input), and is a **no-op when no table config is supplied** — so it is safe in generic workflows.
@@ -404,7 +404,7 @@ Terminal step after the human gate (or after the gate is skipped). Spec in §8.8
 
 ### 8.1 The workflow
 
-Start from `docs-md/workflows/templates/standard-ocr-workflow-sdpr.json` (PR #169) and extend to:
+Start from `packages/graph-workflow/templates/standard-ocr-workflow-sdpr.json` (PR #169) and extend to:
 
 ```
 prepareFileData
@@ -817,7 +817,7 @@ Recorded so you don't re-litigate them. All confirmed by Alex on 2026-07-29.
 - [`docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`](../workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md) — how to add a node properly
 - [`docs-md/local-datasets-seeding.md`](../local-datasets-seeding.md) — local dataset loading
 - [`apps/temporal/src/evaluators/schema-aware-evaluator.ts`](../../apps/temporal/src/evaluators/schema-aware-evaluator.ts) — the scorer
-- `docs-md/workflows/templates/*.json` — workflow templates, including `metadata.evaluatorConfig` examples
+- `packages/graph-workflow/templates/*.json` — workflow templates, including `metadata.evaluatorConfig` examples
 
 **Outside the repo**
 

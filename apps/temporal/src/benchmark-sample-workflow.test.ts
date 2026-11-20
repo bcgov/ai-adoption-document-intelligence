@@ -40,7 +40,7 @@ const baseInput: BenchmarkSampleWorkflowInput = {
 };
 
 describe("benchmarkSampleWorkflow", () => {
-  it("forwards groupId to graphWorkflow child for OCR blob tenant scope", async () => {
+  it("forwards groupId to the graphWorkflow child and the prediction writer", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
@@ -65,6 +65,9 @@ describe("benchmarkSampleWorkflow", () => {
           }),
         ],
       }),
+    );
+    expect(mockWritePrediction).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: "benchmark-tenant-group" }),
     );
   });
 

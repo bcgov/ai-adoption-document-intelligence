@@ -17,7 +17,6 @@
  * analyzer-id contract.
  */
 
-import { getErrorMessage } from "@ai-di/shared-logging";
 import { createActivityLogger } from "../../logger";
 import {
   type CuAnalyzerDefinition,
@@ -25,6 +24,7 @@ import {
 } from "./analyzer-schema-builder";
 import {
   analyzerDefinitionMatches,
+  assertGroupAnalyzerId,
   type CuAuthMode,
   createCuAxiosInstance,
   cuAnalyzerUrl,
@@ -37,6 +37,8 @@ const deployCache = new Map<string, string>();
 
 export interface AzureCuDeployAnalyzerParams {
   analyzerId: string;
+  /** Group of the running workflow; `analyzerId` must be one of its analyzers. */
+  groupId?: string | null;
   analyzer: CuAnalyzerDefinition;
   endpoint?: string;
   apiKey?: string;
@@ -102,6 +104,10 @@ export async function azureCuDeployAnalyzer(
   if (!params.analyzerId.trim()) {
     throw new Error("azureCuDeployAnalyzer: analyzerId is required.");
   }
+  if (!params.groupId) {
+    throw new Error("azureCuDeployAnalyzer: groupId is required.");
+  }
+  assertGroupAnalyzerId(params.analyzerId, params.groupId);
 
   const bodyHash = hashCuAnalyzerDefinition(params.analyzer);
   const cacheKey = `${params.analyzerId}::${bodyHash}`;
@@ -240,7 +246,7 @@ export async function azureCuDeployAnalyzer(
       event: "deploy_error",
       analyzerId: params.analyzerId,
       httpStatus: status !== undefined ? String(status) : undefined,
-      error: getErrorMessage(err),
+      error: err,
     });
     throw new Error(
       `Azure CU deploy analyzer failed${status ? ` (${status})` : ""}: ${message}`,

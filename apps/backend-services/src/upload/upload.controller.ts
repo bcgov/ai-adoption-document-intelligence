@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  NotFoundException,
   Post,
   Req,
 } from "@nestjs/common";
@@ -14,6 +15,7 @@ import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -23,10 +25,11 @@ import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated";
+import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { QueueService } from "../queue/queue.service";
+import { TrainingService } from "../training/training.service";
 import { WorkflowService } from "../workflow/workflow.service";
 import { UploadConversionFailedResponseDto } from "./dto/upload-conversion-failed-response.dto";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
@@ -39,6 +42,7 @@ export class UploadController {
     private readonly documentService: DocumentService,
     private readonly queueService: QueueService,
     private readonly workflowService: WorkflowService,
+    private readonly trainingService: TrainingService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
   ) {}
@@ -62,6 +66,10 @@ export class UploadController {
   @ApiForbiddenResponse({
     description:
       "Access denied: not a member of the requested group or insufficient role",
+  })
+  @ApiNotFoundResponse({
+    description:
+      "The workflow was not found in the group, or model_id names a model another group trained or is training",
   })
   async uploadDocument(
     @Body() uploadDto: UploadDocumentDto,
@@ -88,7 +96,9 @@ export class UploadController {
           "group_id is required when not authenticating with an API key",
         );
       }
-      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+      identityCanAccessGroup(req.resolvedIdentity, groupId, [
+        Permission.DOCUMENT_CREATE,
+      ]);
 
       // Validate base64 file data
       if (!uploadDto.file || uploadDto.file.trim().length === 0) {
@@ -123,6 +133,18 @@ export class UploadController {
         throw new BadRequestException(
           "model_id is required when the workflow does not declare a default",
         );
+      }
+
+      // A trained (custom) model, or one being trained, belongs to its template
+      // model's group; another group's reads as not found. Azure prebuilt
+      // models and other engines' models are not group-owned.
+      if (
+        await this.trainingService.isModelIdOwnedByAnotherGroup(
+          modelId,
+          groupId,
+        )
+      ) {
+        throw new NotFoundException(`Model not found: ${modelId}`);
       }
 
       this.logger.debug(
@@ -197,8 +219,9 @@ export class UploadController {
         .catch((error) => {
           this.logger.error(
             `Background OCR processing failed for document ${uploadedDocument.id}: ${getErrorMessage(error)}`,
+            { error },
           );
-          this.logger.error(`Stack: ${getErrorStack(error)}`);
+          this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
         });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
@@ -217,8 +240,10 @@ export class UploadController {
         },
       };
     } catch (error) {
-      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`, {
+        error,
+      });
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       if (
         error instanceof HttpException ||

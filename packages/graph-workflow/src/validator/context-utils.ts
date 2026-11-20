@@ -46,3 +46,61 @@ export function getRefCtxRootKey(refPath: string): string | undefined {
   if (namespace === "ctx" && parts.length >= 2) return parts[1];
   return CTX_NAMESPACE_PREFIXES[namespace];
 }
+
+/** Rejects path segments that would be unsafe as plain object property names. */
+function isSafeContextKeySegment(key: string): boolean {
+  return (
+    key.length > 0 &&
+    key !== "__proto__" &&
+    key !== "constructor" &&
+    key !== "prototype"
+  );
+}
+
+/**
+ * Substitutes a leading namespace prefix (e.g. `doc.`) with the underlying
+ * ctx key (e.g. `documentMetadata.`). Paths without a known namespace are
+ * returned unchanged. Single source of truth for the prefix remap shared by
+ * the runtime ctx resolver and the cache input-hash.
+ */
+export function applyCtxNamespace(ctxKey: string): string {
+  const dotIdx = ctxKey.indexOf(".");
+  if (dotIdx === -1) return CTX_NAMESPACE_PREFIXES[ctxKey] ?? ctxKey;
+  const ns = ctxKey.slice(0, dotIdx);
+  const remap = CTX_NAMESPACE_PREFIXES[ns];
+  return remap ? `${remap}${ctxKey.slice(dotIdx)}` : ctxKey;
+}
+
+/**
+ * Resolve a port binding's `ctxKey` to its value in `ctx`, applying the same
+ * namespace remap + dot-path traversal that execution uses
+ * (`doc.field` → `ctx.documentMetadata.field`,
+ * `segment.field` → `ctx.currentSegment.field`).
+ *
+ * Returns `undefined` when any path segment is unsafe or the traversal hits a
+ * non-object before reaching the leaf. Shared by the Temporal runtime resolver
+ * and the cache input-hash so both read the SAME value for a given binding.
+ */
+export function resolveCtxBinding(
+  ctxKey: string,
+  ctx: Record<string, unknown>,
+): unknown {
+  const resolvedKey = applyCtxNamespace(ctxKey);
+  const keys = resolvedKey.split(".");
+
+  for (const key of keys) {
+    if (!isSafeContextKeySegment(key)) {
+      return undefined;
+    }
+  }
+
+  let value: unknown = ctx;
+  for (const key of keys) {
+    if (value == null || typeof value !== "object") {
+      return undefined;
+    }
+    value = (value as Record<string, unknown>)[key];
+  }
+
+  return value;
+}

@@ -2,10 +2,15 @@ import {
   buildFlatConfidenceMapFromCtx,
   buildFlatPredictionMapFromCtx,
 } from "../azure-ocr-field-display-value";
-import { type OcrPayloadRef, readOcrPayloadBlob } from "../ocr-payload-ref";
+import {
+  type OcrPayloadRef,
+  readOcrPayloadBlobInGroup,
+} from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 
 export interface BenchmarkFlattenPredictionInput {
+  /** Group that owns the run; refs must point into its blobs */
+  groupId?: string;
   cleanedResultRef?: OcrPayloadRef;
   ocrResultRef?: OcrPayloadRef;
 }
@@ -26,7 +31,10 @@ export async function benchmarkFlattenPredictionFromRefs(
     return { predictionData: {}, confidenceData: {} };
   }
 
-  const ocrResult = await readOcrPayloadBlob<OCRResult>(ref);
+  const ocrResult = await readOcrPayloadBlobInGroup<OCRResult>(
+    ref,
+    input.groupId,
+  );
   const ctx = {
     cleanedResult: ocrResult,
     ocrResult,

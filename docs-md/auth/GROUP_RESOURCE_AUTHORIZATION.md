@@ -1,6 +1,20 @@
 # Group Resource Authorization
 
-This document describes how group membership is enforced when creating or accessing top-level resources in the system.
+This document describes how group membership and permissions are enforced when creating or accessing top-level resources in the system.
+
+## Roles and Permissions
+
+Group members are assigned one of three roles defined in the `GroupRole` enum. Permissions are granular capabilities defined in the `Permission` enum (`apps/backend-services/src/auth/role-permissions.ts`) and mapped to roles via `RoleClaimsMap`:
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| `ADMIN` | Full access to all group operations, including member management, API keys, billing and table schemas | All permissions |
+| `EDITOR` | Standard contributor access — can create, read, update, and delete resources, but cannot manage the group or its members, API keys, billing or table schemas, or delete classifiers | All permissions except the group-admin-only set: `API_KEY_*`, `CLASSIFIER_DELETE`, `GROUP_UPDATE`, `GROUP_REQUESTS_RETRIEVE`, `GROUP_REQUESTS_APPROVE_DENY`, `GROUP_USER_ADD`, `GROUP_USER_REMOVE`, `GROUP_USER_ROLE_UPDATE`, `GROUP_BILLING`, `USAGE_RETRIEVE`, `TABLE_CREATE`, `TABLE_UPDATE`, `TABLE_DELETE`, `TABLE_COLUMN_*` |
+| `REVIEWER` | Limited access focused on HITL review workflows | `HITL_QUEUE_RETRIEVE`, `HITL_SESSION_*`, `HITL_CORRECTION_*`, `HITL_APPROVE_DENY`, `DOCUMENT_VIEW`, `DOCUMENT_DOWNLOAD`, `GROUP_RETRIEVE`, `GROUP_LEAVE` |
+
+New members are assigned `EDITOR` by default. API keys are always granted `EDITOR` within their scoped group, and a key stops authenticating once its group is soft-deleted.
+
+The frontend reads each group's permissions from `GET /api/auth/me` to decide which pages and sidebar entries to show; see [FRONTEND_ROUTE_PERMISSIONS.md](./FRONTEND_ROUTE_PERMISSIONS.md). Those checks only shape the UI — the backend enforcement described below is what authorizes each request.
 
 ## Overview
 
@@ -34,7 +48,7 @@ A system admin can create a group with `POST /api/groups` and body `{ "name": "G
 
 Group membership is enforced through two mechanisms, both at the HTTP boundary:
 
-1. **Declarative** — when the group ID is present directly in the request (route param, query param, or body field), the controller method declares it via `@Identity({ groupIdFrom: { param | query | body }, minimumRole? })` and `IdentityGuard` performs the membership/role check before the handler runs. Most creation endpoints use this (e.g. `POST /api/template-models`, `POST /api/api-key`, `POST /api/benchmark/projects`, `POST /api/benchmark/datasets`).
+1. **Declarative** — when the group ID is present directly in the request (route param, query param, or body field), the controller method declares it via `@Identity({ groupPermissions: { groupIdFrom: { param | query | body }, requiredPermissions: [...] } })` and `IdentityGuard` performs the membership/permission check before the handler runs. Most creation endpoints use this (e.g. `POST /api/template-models`, `POST /api/api-key`, `POST /api/benchmark/projects`, `POST /api/benchmark/datasets`).
 2. **Imperative** — when the group ID must be derived from a fetched resource, the controller calls `identityCanAccessGroup` from `apps/backend-services/src/auth/identity.helpers.ts` before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling. (A few service methods also call the helper directly where the resource lookup lives in the service: group membership-request approval/denial in `GroupService`, and labeling-document suggestion generation in `TemplateModelService`.)
 
 ## Covered Endpoints
@@ -67,7 +81,6 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | Document | `PATCH /api/documents/:id` | `DocumentController.updateDocument` |
 | Document | `DELETE /api/documents/:id` | `DocumentController.deleteDocument` |
 | Document | `GET /api/documents/:id/ocr` / `/view` / `/download` / `/thumbnail` | `DocumentController.*` |
-| Document | `POST /api/documents/:id/approve` | `DocumentController.approveDocument` |
 | Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
 | Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
 | Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
@@ -106,8 +119,9 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | ReviewSession | `GET /api/hitl/sessions/:id` | `HitlController.getSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/corrections` | `HitlController.submitCorrections` |
 | ReviewSession | `GET /api/hitl/sessions/:id/corrections` | `HitlController.getCorrections` |
-| ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
-| ReviewSession | `POST /api/hitl/sessions/:id/escalate` | `HitlController.escalateSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/approve` | `HitlController.approveSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/reject` | `HitlController.rejectSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/flag` | `HitlController.flagSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/heartbeat` | `HitlController.heartbeat` |
 | ReviewSession | `POST /api/hitl/sessions/:id/reopen` | `HitlController.reopenSession` |
@@ -129,7 +143,7 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | BenchmarkRun | `POST/GET/DELETE /api/benchmark/projects/:pid/runs/**` | `BenchmarkRunController.*` |
 | ClassifierModel | `GET/POST/PATCH/DELETE /api/azure/classifier/**` (group from query/body) and `DELETE /api/azure/classifiers/:groupId/:classifierName` | `AzureController.*` |
 | ConfusionProfile | `POST/GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/**` (group from route param) | `ConfusionProfileController.*` |
-| ReferenceTable | `GET/POST/PATCH/DELETE /api/tables/**` (table/column/lookup mutations require `GroupRole.ADMIN`; row reads/writes require `MEMBER`) | `TablesController.*` |
+| ReferenceTable | `GET/POST/PATCH/DELETE /api/tables/**` (table/column/lookup mutations require `GroupRole.ADMIN`; row reads/writes require `EDITOR`) | `TablesController.*` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
@@ -147,17 +161,17 @@ For `Dataset` sub-resource endpoints (versions, splits, samples, ground truth, f
 
 ### List Endpoints
 
-List endpoints (e.g. `GET /api/documents`, `GET /api/workflows`, `GET /api/template-models`, `GET /api/benchmark/projects`) accept an optional `group_id` query parameter. When provided, `identityCanAccessGroup` validates access to that group and results are scoped to it. When omitted, results are filtered to the identity's accessible groups via `getIdentityGroupIds` (same helper file) — system admins receive results across all groups, API keys are scoped to their key's group, and unauthenticated identities get nothing.
+List endpoints (e.g. `GET /api/documents`, `GET /api/workflows`, `GET /api/template-models`, `GET /api/benchmark/projects`, `GET /api/models`) accept an optional `group_id` query parameter. When provided, `identityCanAccessGroup` validates access to that group and results are scoped to it. When omitted, results are filtered to the identity's accessible groups via `getIdentityGroupIds` (same helper file) — system admins receive results across all groups, API keys are scoped to their key's group, and unauthenticated identities get nothing.
 
 ## Authorization Logic
 
-The `identityCanAccessGroup(identity, groupId, minimumRole?)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
+The `identityCanAccessGroup(identity, groupId, requiredPermissions)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
 
 1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
 2. If `identity` is `undefined`, throws `403 Forbidden`.
 3. If `identity.isSystemAdmin` is `true`, access is always allowed (system admins bypass group checks).
-4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` via a `findUserWithGroups` DB lookup for JWT, or directly from the key's scoped group with role `MEMBER` for API keys).
-5. Checks that the identity's role within the group meets `minimumRole` (default `GroupRole.MEMBER`; role order `MEMBER` < `ADMIN`, see `src/auth/role-order.ts`). Throws `403 Forbidden` if insufficient.
+4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` via a `findUserWithGroups` DB lookup for JWT, or directly from the key's scoped group with role `EDITOR` for API keys).
+5. Checks that the identity's role grants all `requiredPermissions` (defined per endpoint via `@Identity({ groupPermissions })` or passed directly to `identityCanAccessGroup`). Throws `403 Forbidden` if any permission is missing. See `src/auth/role-permissions.ts` for the full `RoleClaimsMap`.
 
 ## Request DTOs
 
@@ -181,7 +195,7 @@ All creation DTOs include a `group_id` (or `groupId`) field. Except for `UploadD
 | Status | Condition |
 |---|---|
 | `400 Bad Request` | `group_id` is missing or empty in the request body (for `POST /api/upload`, only when no API-key group can be inferred) |
-| `403 Forbidden` | Requestor identity is absent, identity does not belong to the specified group, or the identity's role is below the endpoint's `minimumRole` |
+| `403 Forbidden` | Requestor identity is absent, identity does not belong to the specified group, or the identity's role does not grant the required permissions |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
 ## Auditing
@@ -225,7 +239,30 @@ leaked across groups.
 | Benchmark candidate promote | `POST .../apply-candidate-to-base`, `.../promote-candidate-workflow` | Both the candidate and the **base lineage being written into** must be in the project's group | `BenchmarkDefinitionService.applyToBaseWorkflow` / `promoteCandidateWorkflow` |
 | Confusion profiles | `GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/:id` | The profile row is loaded/mutated only when `group_id` matches the path group (not just membership in the path group) | `ConfusionProfileService.findById` / `update` / `delete` |
 | Template field/label children | `PUT/DELETE .../template-models/:id/fields/:fieldId`, `DELETE .../documents/:docId/labels/:labelId` | The child write is scoped to the owning template model (and labeling document); a child id from another group's template matches nothing | `TemplateModelDbService.updateFieldDefinition` / `deleteFieldDefinition` / `deleteDocumentLabel` |
-| Trained model listing | `GET /api/models` | The trained-model picker is filtered to the caller's groups (via `getIdentityGroupIds`); prebuilt models remain global | `TrainingDbService.findAllTrainedModelIds` |
+| Trained model listing | `GET /api/models` (`group_id`) | Trained models are listed for `group_id` after a membership check (`GROUP_RETRIEVE`), or for all of the caller's groups when it is omitted (via `getIdentityGroupIds`); prebuilt models remain global. The frontend passes the active group, so a picker offers only models that group can run | `OcrController.getModels`, `TrainingDbService.findAllTrainedModelIds` |
+| Labeling upload target | `POST /api/template-models/:id/upload` | The template model must belong to the body's `group_id`; a mismatch is `400` | `TemplateModelService.uploadLabelingDocument` |
+| Labeling document attach | `POST /api/template-models/:id/documents` | The template model must be in the labeling document's group; otherwise the template model is not found | `TemplateModelService.addDocumentToTemplateModel` |
+| Upload model | `POST /api/upload` (`model_id`, or the workflow's `ctx.modelId` default) | A model id belongs to a group when its owner record names the group (written when the group starts training it, and kept after the template is deleted), or one of the group's template models trained it or has a training job in flight that will produce it, compared without case; another group's is not found. Other ids (Azure prebuilt models, other engines) belong to no group. This checks the model the upload names; a model id that reaches the OCR step any other way is checked in the worker (see [Workflow Worker](#workflow-worker)) | `UploadController.uploadDocument`, `TrainingDbService.isModelIdOwnedByAnotherGroup` |
+| Upload ctx overrides | `POST /api/upload` (`ctx_overrides`) | Only ctx keys the workflow declares with a `defaultValue` are applied, and never the values the server derives from the stored document (`documentId`, `groupId`, `blobKey`, `fileName`, `fileType`, `contentType`, `modelId`, `documentMetadata`) | `OcrService.requestOcr` |
+| Document thumbnails | `GET /api/documents/thumbnails` | The requested ids are resolved within `group_id`; ids outside it return no thumbnail | `DocumentController.getBulkThumbnails`, `DocumentDbService.findDocumentIdsInGroup` |
+| HITL field schema | `GET /api/hitl/sessions/:id` | `metadata.templateModelId` is resolved only within the document's group | `ReviewDbService.findFieldDefinitionsForDocument` |
+| Confusion profile derivation | `POST /api/groups/:groupId/confusion-profiles/derive` | `benchmarkRunIds` (via the run's project) and `templateModelIds` are read only from the profile's group; other ids are skipped like unknown ones | `ConfusionProfileService` |
+| Format suggestions | `POST /api/template-models/:id/suggest-formats` | Benchmark runs are read only from projects in the template model's group | `FormatSuggestionService` |
+| Error-detection analysis | `GET .../projects/:projectId/runs/:runId/error-detection-analysis` | A cached analysis is returned only for the project that owns the run | `BenchmarkErrorDetectionService` |
+| Ground-truth generation | `POST /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation` (`workflowVersionId`) | The workflow version's lineage must be in the dataset's group | `GroundTruthGenerationService`, `GroundTruthJobDbService.findWorkflow` |
+| Baseline history | `GET .../projects/:projectId/definitions/:definitionId/baseline-history` | The definition must belong to the project before audit rows are read | `BenchmarkDefinitionController` |
+| Classification result | `GET /api/azure/classifier/classify` | Requires `group_id`; the operation location must name an existing classifier of that group | `AzureController`, `ClassifierService` |
+| Blob path components | Classifier `name` / `label` / `folder`; dataset version `manifestPath` | Classifier values may not contain a `.` or `..` segment; `manifestPath` may not start with `/` or contain a `..` segment; rejected with `400` | Classifier request DTOs, `CreateVersionDto` |
+| Group membership check | All `groupPermissions` routes | Membership counts only the identity's own group entries (`Object.hasOwn`) | `IdentityGuard` |
+| API keys of a deleted group | Every API-key request | A key whose group is soft-deleted does not authenticate (`401`) | `ApiKeyDbService.findApiKeysByPrefix` |
+| Workflow overrides | `POST/PUT .../projects/:projectId/definitions`, `POST .../ground-truth-generation` (`workflowConfigOverrides`) | An override path must be one of the workflow's exposed parameters, and an exposed parameter may only name a node parameter (`nodes.<id>.parameters.<name>`), a node timeout (`nodes.<id>.timeout` on a humanGate or pollUntil node, `nodes.<id>.timeout.startToClose` on an activity node) or a ctx default (`ctx.<key>.defaultValue`), with each segment starting with a letter and holding only letters, digits, `_` or `-`. An override can change a node's settings, but not its activity type, port bindings or edges; a parameter named after an input port replaces that port's value | `validateWorkflowConfigOverrides`, `@ai-di/graph-workflow` validator |
+| Template model ids | `POST /api/template-models`, `POST /api/template-models/:modelId/training/train` | Azure model ids are shared by every group. A new template's `model_id` may not equal another template, trained model or owned model id, a version id of one (`<id>-v<n>`), or the template it would read as a version of; a name whose id would be `prebuilt` or start with `prebuilt-` gets a `model-` prefix. Training records the id's group in an owner record, in the transaction that creates the job, and answers `409` when the next version id belongs to another template or another group. Owner records are kept when a template is deleted, since its models can remain in Azure; deleting a template also deletes them from Azure, best effort | `TemplateModelDbService.isModelIdTaken`, `TrainingService.startTraining`, `TrainingDbService.claimModelId`, `TemplateModelService.deleteTemplateModel` |
+
+**Blob paths.** `@ai-di/blob-storage-paths` rejects `.` and `..` segments, and
+backslashes (which Azure reads as `/`), when it builds or validates a path, so a
+path component can never move a key into another group's `{groupId}/` prefix.
+`validateBlobFilePathInGroup(key, groupId)` additionally requires the key to
+belong to `groupId`.
 
 **Pattern for new code:** when an endpoint accepts a resource id (or a reference
 to another entity) that is not itself the group, scope the database query to the
@@ -234,6 +271,57 @@ via the owning parent relation (`where: { id, lineage: { group_id } }`,
 `template_model_id`, project group, etc.) for child rows that have no `group_id`
 of their own. Prefer reporting cross-group references as not-found over an
 explicit "forbidden" so existence is not disclosed.
+
+## Workflow Worker
+
+Graph workflows run in the Temporal worker without an HTTP identity, so the
+worker enforces the group itself:
+
+- **The run's group comes from execution state.** The backend starts a document's
+  graph workflow with the document's `groupId`; a benchmark run starts each
+  sample's workflow with the dataset's group. The engine injects it into each
+  activity's input last and drops any `groupId` set by node parameters or port
+  bindings. Activities that touch group data refuse to run without it.
+- **Blob storage is reached only through group-bound helpers.**
+  `getGroupBlobStorage(groupId)` validates every key and prefix against the group
+  before reading, writing, listing or signing it, and `readGroupBlob(key, groupId)`
+  reads document bytes from blob storage or the group's benchmark cache. This
+  covers blob keys, OCR payload refs and keys built from `documentId`. The
+  worker's Biome config (`style/noRestrictedImports`) lets code outside
+  `src/blob-storage/` import only `initStorageLedger` from `blob-storage-client`.
+- **Local files** are read and written only inside the group's benchmark cache,
+  `{BENCHMARK_CACHE_DIR}/{groupId}`, where benchmark runs materialise their
+  datasets. Manifest paths must stay inside the materialised dataset. Each sample
+  id in the manifest must be a non-empty name with no `/`, `\` or NUL byte, and
+  not `.` or `..`, because it names the sample's output folder. The prediction
+  writer and benchmark cleanup both stay inside the group's cache.
+- **Rows loaded by an id from ctx or node parameters are scoped to the group:**
+  documents (`{ id, group_id }`, so a status or OCR write to another group's
+  document matches nothing), template models, confusion profiles, and child
+  workflow refs (`getWorkflowGraphConfig` resolves version ids, lineage ids and
+  lineage names only among the group's workflows).
+- **Azure Content Understanding analyzers** live on a shared resource, so each
+  group deploys under its own prefix (`{prefix}{groupId}…`); an explicit
+  `analyzerId` must be a `prebuilt-*` analyzer or one of the group's own.
+- **Azure Document Intelligence models** also live on a shared resource. Before
+  `azureOcr.submit` sends a document to Azure, it refuses a model that another
+  group owns, trained or is training (`assertModelUsableByGroup`, the same rule as the
+  upload check); another group's model is not found. This covers a model id from
+  any source: the upload, a node parameter, a ctx key, or a benchmark or
+  ground-truth override. No id is skipped by name, since a template's model id
+  can start with `prebuilt-` too; ids that no group trained or is training, such
+  as Azure's prebuilt models, belong to no group.
+- **Graph steps** may use only the activity types in `REGISTERED_ACTIVITY_TYPES`.
+  The benchmark orchestration activities (`benchmark.*`) are not among them: the
+  benchmark workflows call them directly, and a graph that names one fails
+  validation when it is saved and when the worker loads it.
+- **Group refusals fail without retries.** A blob key or prefix that is outside
+  the run's group or fails validation, a local path outside its benchmark cache (when reading, writing a
+  prediction or cleaning up), another group's Document Intelligence model, an
+  analyzer id outside the group's prefix, and a rejection for a document outside
+  the group throw a non-retryable `GROUP_SCOPE_VIOLATION` failure. A missing
+  `groupId`, and a row that a group-scoped lookup does not find, are ordinary
+  errors that Temporal retries.
 
 ## Related
 

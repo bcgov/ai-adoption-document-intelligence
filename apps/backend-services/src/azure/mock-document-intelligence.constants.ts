@@ -6,11 +6,16 @@ export const MOCK_DOCUMENT_INTELLIGENCE_ENDPOINT =
 
 const MOCK_CLASSIFY_OPERATION_ID = "mock-classify-operation";
 
+/**
+ * Builds a mock classify operation location with the same shape Azure returns:
+ * `{endpoint}/documentintelligence/documentClassifiers/{classifierId}/analyzeResults/{resultId}`.
+ */
 export function buildMockClassificationOperationLocation(
   endpointBase: string,
+  classifierId: string,
 ): string {
   const base = endpointBase.replace(/\/$/, "");
-  return `${base}/documentintelligence/analyzeResults/${MOCK_CLASSIFY_OPERATION_ID}`;
+  return `${base}/documentintelligence/documentClassifiers/${encodeURIComponent(classifierId)}/analyzeResults/${MOCK_CLASSIFY_OPERATION_ID}`;
 }
 
 /** Minimal poll body compatible with `ClassificationResultDto` when cast from controller. */

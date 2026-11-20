@@ -6,8 +6,6 @@ resources:
   - route.yml
   - configmap.yml
   - secret.yml
-  - pvc-logs.yml
-  - logrotate-configmap.yml
   - promtail-configmap.yml
   - networkpolicy.yml
   - poddisruptionbudget.yml

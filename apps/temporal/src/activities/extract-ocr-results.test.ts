@@ -8,6 +8,13 @@ jest.mock("../logger", () => ({
   }),
 }));
 
+const mockBlobRead = jest.fn();
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    read: mockBlobRead,
+  }),
+}));
+
 import axios from "axios";
 import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResponse } from "../types";
@@ -119,5 +126,104 @@ describe("extractOCRResults activity", () => {
 
     expect(result.ocrResult.blobPath).toContain("ocr-result.json");
     expect(axiosMock.get).toHaveBeenCalled();
+  });
+
+  it("encodes modelId and apimRequestId as single URL path segments", async () => {
+    axiosMock.get.mockResolvedValue({
+      data: sampleResponse(),
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {} as never,
+    });
+
+    await extractOCRResults({
+      apimRequestId: "request/id?x=1",
+      fileName: "test.pdf",
+      fileType: "pdf",
+      modelId: "custom/model#1",
+      documentId: TEST_DOCUMENT_ID,
+      groupId: TEST_GROUP_ID,
+    });
+
+    expect(axiosMock.get).toHaveBeenCalledWith(
+      "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/custom%2Fmodel%231/analyzeResults/request%2Fid%3Fx%3D1?api-version=2024-11-30",
+      expect.anything(),
+    );
+  });
+
+  describe("OCR response ref limited to the run's group", () => {
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    beforeEach(() => {
+      mockBlobRead.mockResolvedValue(
+        Buffer.from(JSON.stringify(sampleResponse()), "utf8"),
+      );
+    });
+
+    it("loads a ref whose blob path is in the run's group", async () => {
+      const ref = ocrPayloadRef.makeOcrPayloadRef(
+        TEST_DOCUMENT_ID,
+        `${TEST_GROUP_ID}/ocr/${TEST_DOCUMENT_ID}/azure-response.json`,
+        "succeeded",
+      );
+
+      await extractOCRResults({
+        apimRequestId: "test-request-id",
+        fileName: "test.pdf",
+        fileType: "pdf",
+        modelId: "prebuilt-layout",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+        ocrResponse: ref,
+      });
+
+      expect(mockBlobRead).toHaveBeenCalledWith(ref.blobPath);
+      expect(axiosMock.get).not.toHaveBeenCalled();
+    });
+
+    it("refuses a ref whose blob path is in another group", async () => {
+      const ref = ocrPayloadRef.makeOcrPayloadRef(
+        TEST_DOCUMENT_ID,
+        `${OTHER_GROUP}/ocr/${TEST_DOCUMENT_ID}/azure-response.json`,
+        "succeeded",
+      );
+
+      await expect(
+        extractOCRResults({
+          apimRequestId: "test-request-id",
+          fileName: "test.pdf",
+          fileType: "pdf",
+          modelId: "prebuilt-layout",
+          documentId: TEST_DOCUMENT_ID,
+          groupId: TEST_GROUP_ID,
+          ocrResponse: ref,
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+      expect(ocrPayloadRef.writeOcrPayloadBlob).not.toHaveBeenCalled();
+    });
+
+    it("refuses to load a ref when the run has no groupId", async () => {
+      const ref = ocrPayloadRef.makeOcrPayloadRef(
+        TEST_DOCUMENT_ID,
+        `${TEST_GROUP_ID}/ocr/${TEST_DOCUMENT_ID}/azure-response.json`,
+        "succeeded",
+      );
+
+      await expect(
+        extractOCRResults({
+          apimRequestId: "test-request-id",
+          fileName: "test.pdf",
+          fileType: "pdf",
+          modelId: "prebuilt-layout",
+          documentId: TEST_DOCUMENT_ID,
+          ocrResponse: ref,
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+    });
   });
 });

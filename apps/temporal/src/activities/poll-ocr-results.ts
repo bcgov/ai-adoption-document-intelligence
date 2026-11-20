@@ -27,7 +27,9 @@ function throwFailedOcrResponse(responseBody: OCRResponse): never {
 
 /**
  * Activity: Poll Azure Document Intelligence for OCR results.
- * Returns a lightweight OcrPayloadRef on port `response` (no inline JSON in history).
+ * Returns a lightweight OcrPayloadRef on port `ocrResponse` (no inline JSON in
+ * history). The port name must match the `azureOcr.poll` catalog entry — see
+ * `PollResult` in `../types`.
  */
 export async function pollOCRResults(params: {
   apimRequestId: string;
@@ -55,7 +57,7 @@ export async function pollOCRResults(params: {
     if (status === "running") {
       return {
         status: "running",
-        response: makeOcrPayloadRef(documentId, "", "running"),
+        ocrResponse: makeOcrPayloadRef(documentId, "", "running"),
       };
     }
     if (status === "failed") {
@@ -70,7 +72,7 @@ export async function pollOCRResults(params: {
     );
     return {
       status: "succeeded",
-      response: makeOcrPayloadRef(
+      ocrResponse: makeOcrPayloadRef(
         documentId,
         blobPath,
         "succeeded",
@@ -135,7 +137,7 @@ export async function pollOCRResults(params: {
 
     return {
       status: "succeeded",
-      response: makeOcrPayloadRef(
+      ocrResponse: makeOcrPayloadRef(
         documentId,
         blobPath,
         "succeeded",
@@ -186,9 +188,22 @@ export async function pollOCRResults(params: {
         event: "error",
         error: "azure_api_error",
         status: response.status,
+        modelId: normalizedModelId,
         body: response.body,
       });
-      throw new Error(`Failed to poll OCR results. Status: ${response.status}`);
+      // A 404 here almost always means this node is polling a DIFFERENT model
+      // from the one Submit OCR analysed under: the analyze-result id is
+      // scoped to its model, so `GET /documentModels/{other}/analyzeResults/{id}`
+      // is a miss even though the submission succeeded. Say so — the bare
+      // "Status: 404" sent a developer hunting through the engine for a
+      // regression that was really a two-models-one-run mismatch.
+      const hint =
+        Number(response.status) === 404
+          ? ` No analyze result "${apimRequestId}" under model "${normalizedModelId}". An analyze result belongs to the model it was submitted with, so check that this step polls the SAME model id the Submit OCR step used, and that AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT points at the resource the document was submitted to. Azure also discards analyze results after 24 hours.`
+          : "";
+      throw new Error(
+        `Failed to poll OCR results. Status: ${response.status}${hint}`,
+      );
     }
 
     const responseBody = response.body as OCRResponse;
@@ -207,7 +222,7 @@ export async function pollOCRResults(params: {
     if (status === "running") {
       return {
         status: "running",
-        response: makeOcrPayloadRef(documentId, "", "running"),
+        ocrResponse: makeOcrPayloadRef(documentId, "", "running"),
       };
     }
 
@@ -225,7 +240,7 @@ export async function pollOCRResults(params: {
 
     return {
       status: "succeeded",
-      response: makeOcrPayloadRef(
+      ocrResponse: makeOcrPayloadRef(
         documentId,
         blobPath,
         "succeeded",

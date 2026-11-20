@@ -36,11 +36,21 @@ import * as fs from "node:fs";
 
 const readFileMock = fs.promises.readFile as jest.Mock;
 
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 describe("prepareFileData activity", () => {
+  const ORIGINAL_CACHE_DIR = process.env.BENCHMARK_CACHE_DIR;
+
   beforeEach(() => {
     mockRead.mockReset();
     readFileMock.mockReset();
     mockWarn.mockClear();
+    process.env.BENCHMARK_CACHE_DIR = "/tmp/benchmark-cache";
+  });
+
+  afterAll(() => {
+    process.env.BENCHMARK_CACHE_DIR = ORIGINAL_CACHE_DIR;
   });
 
   it("prepares PDF file data with defaults", async () => {
@@ -49,6 +59,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-1",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/test.pdf",
     };
 
@@ -68,6 +79,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-2",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/scan.png",
       fileName: "scan.png",
       fileType: "image",
@@ -88,6 +100,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-3",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/invoice.pdf",
       modelId: "custom-invoice-model",
     };
@@ -103,6 +116,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-4",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/photo.jpg",
     };
 
@@ -115,6 +129,7 @@ describe("prepareFileData activity", () => {
   it("throws error for missing blobKey", async () => {
     const input: PrepareFileDataInput = {
       documentId: "doc-5",
+      groupId: "atestgroup",
       blobKey: "",
     };
 
@@ -128,6 +143,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-6",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/missing.pdf",
     };
 
@@ -140,35 +156,77 @@ describe("prepareFileData activity", () => {
     const pdfBuffer = Buffer.from("%PDF-1.4\nbenchmark file");
     readFileMock.mockResolvedValue(pdfBuffer);
 
+    const localPath = `/tmp/benchmark-cache/${GROUP}/dataset-123/inputs/invoice.pdf`;
     const input: PrepareFileDataInput = {
       documentId: "benchmark-sample-1",
-      blobKey: "/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf",
+      groupId: GROUP,
+      blobKey: localPath,
     };
 
     const result = await prepareFileData(input);
 
-    expect(readFileMock).toHaveBeenCalledWith(
-      "/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf",
-    );
+    expect(readFileMock).toHaveBeenCalledWith(localPath);
     expect(mockRead).not.toHaveBeenCalled();
     expect(result.preparedData.fileName).toBe("invoice.pdf");
     expect(result.preparedData.fileType).toBe("pdf");
-    expect(result.preparedData.blobKey).toBe(
-      "/tmp/benchmark-cache/dataset-123/inputs/invoice.pdf",
-    );
+    expect(result.preparedData.blobKey).toBe(localPath);
   });
 
   it("throws error when local file not found", async () => {
     readFileMock.mockRejectedValue(new Error("ENOENT: no such file"));
 
+    const localPath = `/tmp/benchmark-cache/${GROUP}/dataset-123/inputs/missing.pdf`;
     const input: PrepareFileDataInput = {
       documentId: "benchmark-sample-2",
-      blobKey: "/tmp/benchmark-cache/dataset-123/inputs/missing.pdf",
+      groupId: GROUP,
+      blobKey: localPath,
     };
 
     await expect(prepareFileData(input)).rejects.toThrow(
-      'File not found on disk: "/tmp/benchmark-cache/dataset-123/inputs/missing.pdf"',
+      `File not found on disk: "${localPath}"`,
     );
+  });
+
+  it("refuses a blob key that belongs to another group", async () => {
+    mockRead.mockResolvedValue(Buffer.from("%PDF-1.4\ntest content"));
+
+    const input: PrepareFileDataInput = {
+      documentId: "doc-9",
+      groupId: GROUP,
+      blobKey: `${OTHER_GROUP}/ocr/doc-9/original.pdf`,
+    };
+
+    await expect(prepareFileData(input)).rejects.toThrow(
+      /does not belong to group/,
+    );
+    expect(mockRead).not.toHaveBeenCalled();
+  });
+
+  it("refuses a local file outside the run's group benchmark cache", async () => {
+    readFileMock.mockResolvedValue(Buffer.from("%PDF-1.4\nbenchmark file"));
+
+    const input: PrepareFileDataInput = {
+      documentId: "benchmark-sample-3",
+      groupId: GROUP,
+      blobKey: `/tmp/benchmark-cache/${OTHER_GROUP}/dataset-123/inputs/invoice.pdf`,
+    };
+
+    await expect(prepareFileData(input)).rejects.toThrow(
+      /outside the group's benchmark cache/,
+    );
+    expect(readFileMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to read the document without a groupId", async () => {
+    mockRead.mockResolvedValue(Buffer.from("%PDF-1.4\ntest content"));
+
+    const input: PrepareFileDataInput = {
+      documentId: "doc-10",
+      blobKey: `${GROUP}/ocr/doc-10/original.pdf`,
+    };
+
+    await expect(prepareFileData(input)).rejects.toThrow(/groupId is required/);
+    expect(mockRead).not.toHaveBeenCalled();
   });
 
   it("warns for invalid PDF signature", async () => {
@@ -177,6 +235,7 @@ describe("prepareFileData activity", () => {
 
     const input: PrepareFileDataInput = {
       documentId: "doc-8",
+      groupId: "atestgroup",
       blobKey: "atestgroup/ocr/fake.pdf",
       fileType: "pdf",
     };

@@ -1,15 +1,71 @@
 import {
-  Document,
   DocumentLock,
   DocumentStatus,
   Prisma,
   PrismaClient,
+  RejectionReason,
   ReviewStatus,
 } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { PrismaService } from "../database/prisma.service";
 import type { ReviewSessionData } from "./review-db.types";
+
+/** Filter criteria shared by the review queue page, its total, and its stats. */
+export interface ReviewQueueFilters {
+  statuses: DocumentStatus[];
+  modelId?: string;
+  workflowId?: string;
+  minConfidence?: number;
+  limit?: number;
+  offset?: number;
+  reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
+  groupIds?: string[];
+  currentReviewerId?: string;
+  search?: string;
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+  sortDir?: "asc" | "desc";
+}
+
+/** A FieldCorrection row with the actor relation needed to display who made it. */
+export type FieldCorrectionWithActor = Prisma.FieldCorrectionGetPayload<{
+  include: {
+    actor: {
+      select: {
+        user: { select: { email: true } };
+        apiKeyGroup: { select: { id: true } };
+      };
+    };
+  };
+}>;
+
+/**
+ * What the review queue loads for each document. Only the OCR field payload is
+ * selected: `content` holds the full extracted text and page lines, which the
+ * queue never shows, and the queue page re-reads every tab every 30 seconds.
+ * `review_sessions` carries at most the one session the tab in view needs.
+ */
+function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
+  return {
+    ocr_result: { select: { keyValuePairs: true } },
+    lock: true,
+    workflowVersion: { select: { lineage: { select: { name: true } } } },
+    review_sessions: {
+      // Exclude in_progress — lock record determines "In review" display; these are noise
+      where: { status: { in: lastSessionStatuses } },
+      include: {
+        corrections: true,
+      },
+      orderBy: { started_at: "desc" },
+      take: 1,
+    },
+  } satisfies Prisma.DocumentInclude;
+}
+
+/** One review-queue document, exactly as `findReviewQueue` loads it. */
+export type ReviewQueueDocument = Prisma.DocumentGetPayload<{
+  include: ReturnType<typeof reviewQueueInclude>;
+}>;
 
 @Injectable()
 export class ReviewDbService {
@@ -89,27 +145,14 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds documents in the review queue based on filter criteria.
-   * @param filters - Filtering options for the queue.
-   * @returns Array of documents matching the filter criteria.
+   * Builds the document filter shared by the queue page, its total, and the
+   * queue statistics, so a document counted in a stat is the same document the
+   * queue would list.
    */
-  async findReviewQueue(
-    filters: {
-      statuses: DocumentStatus[];
-      modelId?: string;
-      minConfidence?: number;
-      maxConfidence?: number;
-      limit?: number;
-      offset?: number;
-      reviewStatus?: "pending" | "reviewed" | "all";
-      groupIds?: string[];
-      currentReviewerId?: string;
-    },
-    tx?: Prisma.TransactionClient,
-  ): Promise<Document[]> {
-    const client = tx ?? this.prisma;
-    this.logger.debug("Finding review queue");
-
+  private buildReviewQueueWhere(
+    filters: ReviewQueueFilters,
+  ): Prisma.DocumentWhereInput {
+    const now = new Date();
     const where: Prisma.DocumentWhereInput = {
       status: { in: filters.statuses },
       // Only documents ingested through the regular API/upload pipeline are
@@ -123,7 +166,7 @@ export class ReviewDbService {
       // Exclude documents locked by other reviewers (keep own locks visible)
       NOT: {
         lock: {
-          expires_at: { gt: new Date() },
+          expires_at: { gt: now },
           ...(filters.currentReviewerId
             ? { reviewer_id: { not: filters.currentReviewerId } }
             : {}),
@@ -139,66 +182,207 @@ export class ReviewDbService {
       where.model_id = filters.modelId;
     }
 
-    if (filters.reviewStatus === "pending") {
-      where.OR = [
-        { review_sessions: { none: {} } },
-        {
-          review_sessions: {
-            every: { status: ReviewStatus.in_progress },
-          },
-        },
-      ];
-    } else if (filters.reviewStatus === "reviewed") {
-      where.review_sessions = {
-        some: {
-          status: {
-            in: [
-              ReviewStatus.approved,
-              ReviewStatus.escalated,
-              ReviewStatus.skipped,
-            ],
-          },
-        },
+    // The filter offers workflows (lineages), while a document records the
+    // workflow version it was uploaded through, so match on the version's
+    // lineage — every version of the chosen workflow counts.
+    if (filters.workflowId) {
+      where.workflowVersion = { lineage_id: filters.workflowId };
+    }
+
+    if (filters.search) {
+      where.original_filename = {
+        contains: filters.search,
+        mode: "insensitive",
       };
     }
 
-    return client.document.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      take: filters.limit ?? 50,
-      skip: filters.offset ?? 0,
-      include: {
-        ocr_result: true,
-        review_sessions: {
-          where: {
-            status: {
-              in: [
-                ReviewStatus.in_progress,
-                ReviewStatus.approved,
-                ReviewStatus.escalated,
-                ReviewStatus.skipped,
-              ],
+    // Not yet approved or flagged — still awaiting a decision either way.
+    const undecidedSessions: Prisma.DocumentWhereInput = {
+      OR: [
+        { review_sessions: { none: {} } },
+        {
+          review_sessions: {
+            every: {
+              status: {
+                in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
+              },
             },
           },
-          include: {
-            corrections: true,
-          },
-          orderBy: { started_at: "desc" },
-          take: 1,
         },
+      ],
+    };
+
+    if (filters.reviewStatus === "pending") {
+      // Unclaimed: no active lock at all. A document the caller has claimed
+      // belongs on the "claimed" tab instead.
+      where.AND = [
+        undecidedSessions,
+        { OR: [{ lock: null }, { lock: { expires_at: { lte: now } } }] },
+      ];
+    } else if (filters.reviewStatus === "claimed") {
+      where.AND = [
+        undecidedSessions,
+        {
+          lock: {
+            is: {
+              expires_at: { gt: now },
+              reviewer_id: filters.currentReviewerId ?? "__no-reviewer__",
+            },
+          },
+        },
+      ];
+    } else if (filters.reviewStatus === "flagged") {
+      where.review_sessions = {
+        some: { status: ReviewStatus.flagged },
+        none: { status: ReviewStatus.approved },
+      };
+    } else if (filters.reviewStatus === "reviewed") {
+      where.review_sessions = {
+        some: { status: ReviewStatus.approved },
+      };
+    }
+
+    return where;
+  }
+
+  /**
+   * Counts every document the queue filter matches, ignoring pagination.
+   * @param filters - The same filters passed to findReviewQueue.
+   * @returns The number of matching documents.
+   */
+  async countReviewQueue(
+    filters: ReviewQueueFilters,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.document.count({
+      where: this.buildReviewQueueWhere(filters),
+    });
+  }
+
+  /**
+   * Reads the extracted fields of every document that matches any of the
+   * filters, without pagination, so an average over them covers the whole
+   * queue. Pass one filter per queue tab and the result is exactly the
+   * documents the tabs list between them, each read once. Only the OCR field
+   * payload is selected — the rest of the document row is not needed.
+   * @param filters - Filters in the shape findReviewQueue takes; a document
+   *   matching any one of them is included.
+   * @returns One entry per matching document that has an OCR result.
+   */
+  async findQueueFieldPayloads(
+    filters: ReviewQueueFilters[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.JsonValue[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.document.findMany({
+      where: {
+        OR: filters.map((filter) => this.buildReviewQueueWhere(filter)),
+        ocr_result: { isNot: null },
+      },
+      select: { ocr_result: { select: { keyValuePairs: true } } },
+    });
+    return rows
+      .map((row) => row.ocr_result?.keyValuePairs)
+      .filter((fields): fields is Prisma.JsonValue => fields != null);
+  }
+
+  /**
+   * Counts sessions approved within a time window.
+   * @param since - Start of the window (inclusive).
+   * @param groupIds - Restrict to documents in these groups.
+   * @returns The number of sessions approved since `since`.
+   */
+  async countApprovedSessionsSince(
+    since: Date,
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.reviewSession.count({
+      where: {
+        status: ReviewStatus.approved,
+        completed_at: { gte: since },
+        ...(groupIds ? { document: { group_id: { in: groupIds } } } : {}),
       },
     });
   }
 
   /**
-   * Updates a review session's status and/or completion timestamp.
+   * Finds documents in the review queue based on filter criteria.
+   * @param filters - Filtering options for the queue.
+   * @returns Array of documents matching the filter criteria.
+   */
+  async findReviewQueue(
+    filters: ReviewQueueFilters,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ReviewQueueDocument[]> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Finding review queue");
+
+    const where = this.buildReviewQueueWhere(filters);
+    const sortFieldByKey = {
+      filename: "original_filename",
+      model: "model_id",
+      created_at: "created_at",
+    } as const;
+    const sortBy = filters.sortBy ?? "created_at";
+    const sortDir = filters.sortDir ?? "desc";
+    // Workflow sorts by the name the Workflow column shows, through the
+    // version's lineage, as the Documents page does. Documents that share the
+    // sorted value come back in no fixed order, and each page is a separate
+    // query, so the id settles ties; without it a page can repeat a document
+    // from the page before and skip another.
+    const orderBy: Prisma.DocumentOrderByWithRelationInput[] = [
+      sortBy === "workflow"
+        ? { workflowVersion: { lineage: { name: sortDir } } }
+        : { [sortFieldByKey[sortBy]]: sortDir },
+      { id: "asc" },
+    ];
+
+    // `lastSession` must be the session relevant to the tab being viewed, not
+    // just whichever terminal session started most recently: a flagged
+    // document that was claimed and then abandoned (e.g. an expired lock)
+    // would otherwise surface that newer `abandoned` session instead of the
+    // `flagged` one the Flagged tab's "Take" action needs to reopen.
+    const lastSessionStatuses: ReviewStatus[] =
+      filters.reviewStatus === "flagged"
+        ? [ReviewStatus.flagged]
+        : filters.reviewStatus === "reviewed"
+          ? [ReviewStatus.approved]
+          : [
+              ReviewStatus.approved,
+              ReviewStatus.flagged,
+              ReviewStatus.abandoned,
+            ];
+
+    return client.document.findMany({
+      where,
+      orderBy,
+      take: filters.limit ?? 50,
+      skip: filters.offset ?? 0,
+      include: reviewQueueInclude(lastSessionStatuses),
+    });
+  }
+
+  /**
+   * Updates a review session: its status, completion time, reviewer, flag note
+   * or rejection details.
    * @param id - The review session ID.
    * @param data - Fields to update on the session.
    * @returns The updated session, or null if not found.
    */
   async updateReviewSession(
     id: string,
-    data: { status?: ReviewStatus; completed_at?: Date | null },
+    data: {
+      status?: ReviewStatus;
+      completed_at?: Date | null;
+      actor_id?: string;
+      flag_note?: string | null;
+      rejection_reason?: RejectionReason | null;
+      rejection_comment?: string | null;
+      reopened_from_status?: ReviewStatus | null;
+    },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
     const client = tx ?? this.prisma;
@@ -227,6 +411,64 @@ export class ReviewDbService {
   }
 
   /**
+   * Records a permanent event on a review session (flagged, rejected, skipped,
+   * approved or reopened). Unlike the denormalized status columns on
+   * ReviewSession, these rows are never overwritten, so a session's history
+   * survives a handoff/reopen cycle.
+   * @param sessionId - The review session the event belongs to.
+   * @param data - The event's type, actor, and optional comment/rejection reason.
+   * @returns The created ReviewSessionEvent record.
+   */
+  async createReviewSessionEvent(
+    sessionId: string,
+    data: {
+      event_type: import("@generated/client").ReviewSessionEventType;
+      actor_id: string;
+      comment?: string | null;
+      rejection_reason?: RejectionReason | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewSessionEvent> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Recording review session event", {
+      sessionId,
+      event_type: data.event_type,
+    });
+    return client.reviewSessionEvent.create({
+      data: {
+        review_session_id: sessionId,
+        ...data,
+      },
+    });
+  }
+
+  /**
+   * Finds all recorded events for a review session, oldest first.
+   * @param sessionId - The review session ID.
+   * @returns Array of ReviewSessionEvent records with the acting reviewer included.
+   */
+  async findSessionEvents(
+    sessionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewSessionEvent & {
+        actor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Finding events for session", { sessionId });
+    return client.reviewSessionEvent.findMany({
+      where: { review_session_id: sessionId },
+      orderBy: { created_at: "asc" },
+      include: {
+        actor: { select: { user: { select: { email: true } } } },
+      },
+    });
+  }
+
+  /**
    * Creates a field correction record for a review session.
    * @param sessionId - The review session ID.
    * @param data - The correction data.
@@ -240,6 +482,7 @@ export class ReviewDbService {
       corrected_value?: string;
       original_conf?: number;
       action: import("@generated/client").CorrectionAction;
+      actor_id?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").FieldCorrection> {
@@ -254,20 +497,57 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds all field corrections for a review session.
-   * @param sessionId - The review session ID.
+   * Finds all field corrections for a document, across every review session
+   * it has had, including the author (user email, or the group's API-key
+   * identity, which outlives the group's keys) of each correction. A document can get a new session after its old one ends
+   * without finishing the review (skip, abandonment, flag handoff), so
+   * scoping to one session would hide corrections from earlier sessions.
+   * @param documentId - The document ID.
    * @returns Array of FieldCorrection records ordered by creation time.
    */
-  async findSessionCorrections(
-    sessionId: string,
+  async findDocumentCorrections(
+    documentId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<import("@generated/client").FieldCorrection[]> {
+  ): Promise<FieldCorrectionWithActor[]> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding corrections for session", { sessionId });
+    this.logger.debug("Finding corrections for document", { documentId });
     return client.fieldCorrection.findMany({
-      where: { session_id: sessionId },
+      where: { session: { document_id: documentId } },
       orderBy: { created_at: "asc" },
+      include: {
+        actor: {
+          select: {
+            user: { select: { email: true } },
+            apiKeyGroup: { select: { id: true } },
+          },
+        },
+      },
     });
+  }
+
+  /**
+   * Counts the field corrections on each document across every review
+   * session it has had, the same rows findDocumentCorrections returns.
+   * @param documentIds - The document IDs.
+   * @returns Correction count per document ID; a document with none is absent.
+   */
+  async countDocumentCorrections(
+    documentIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<Map<string, number>> {
+    const client = tx ?? this.prisma;
+    const sessions = await client.reviewSession.findMany({
+      where: { document_id: { in: documentIds } },
+      select: { document_id: true, _count: { select: { corrections: true } } },
+    });
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      counts.set(
+        session.document_id,
+        (counts.get(session.document_id) ?? 0) + session._count.corrections,
+      );
+    }
+    return counts;
   }
 
   /**
@@ -361,6 +641,98 @@ export class ReviewDbService {
   }
 
   /**
+   * Finds locks whose expiry has passed, with the group and workflow context an
+   * audit event needs, and whether the locked session is a reopened handoff that
+   * should restore to its prior status if it never gets a decision.
+   * @param now - The cutoff time; locks expiring at or before it are returned.
+   * @returns One entry per expired lock.
+   */
+  async findExpiredLocks(
+    now: Date,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<{
+      session_id: string;
+      document_id: string;
+      group_id: string;
+      workflow_execution_id: string | null;
+      reopened_from_status: ReviewStatus | null;
+    }>
+  > {
+    const client = tx ?? this.prisma;
+    const locks = await client.documentLock.findMany({
+      where: { expires_at: { lte: now } },
+      select: {
+        session_id: true,
+        document_id: true,
+        document: {
+          select: { group_id: true, workflow_execution_id: true },
+        },
+        session: { select: { reopened_from_status: true } },
+      },
+    });
+    return locks.map((lock) => ({
+      session_id: lock.session_id,
+      document_id: lock.document_id,
+      group_id: lock.document.group_id,
+      workflow_execution_id: lock.document.workflow_execution_id,
+      reopened_from_status: lock.session.reopened_from_status,
+    }));
+  }
+
+  /**
+   * Returns in-progress sessions to `flagged`, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
+   * @param sessionIds - The sessions to return to flagged.
+   * @returns How many sessions were updated.
+   */
+  async returnSessionsToFlagged(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewSession.updateMany({
+      where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
+      data: { status: ReviewStatus.flagged, reopened_from_status: null },
+    });
+    return result.count;
+  }
+
+  /**
+   * Marks in-progress sessions as abandoned, clearing the reopened-from marker
+   * now that it has been resolved. Sessions in any other status are left alone,
+   * so a session that finished between the scan and this write keeps its outcome.
+   * @param sessionIds - The sessions to abandon.
+   * @returns How many sessions were updated.
+   */
+  async abandonSessions(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewSession.updateMany({
+      where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
+      data: { status: ReviewStatus.abandoned, reopened_from_status: null },
+    });
+    return result.count;
+  }
+
+  /**
+   * Releases locks for several sessions at once.
+   * @param sessionIds - The sessions whose locks should be released.
+   */
+  async releaseDocumentLocks(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.documentLock.deleteMany({
+      where: { session_id: { in: sessionIds } },
+    });
+  }
+
+  /**
    * Finds field definitions for the template model that processed a document.
    *
    * Prefers the explicit templateModelId (recorded on Document.metadata at OCR time)
@@ -368,14 +740,18 @@ export class ReviewDbService {
    * used for this document. Falls back to the first TemplateModel in the group for
    * documents that predate metadata.templateModelId being recorded.
    *
+   * Both lookups are scoped to the document's group: a templateModelId that
+   * names a template model in another group resolves to nothing, exactly like
+   * an unknown id.
+   *
    * @param opts.templateModelId - The TemplateModel.id used by the OCR workflow, if known.
-   * @param opts.groupId - The document's group ID, used as fallback.
+   * @param opts.groupId - The document's group ID.
    * @returns Array of { field_key, format_spec } objects, or [] if nothing resolves.
    */
   async findFieldDefinitionsForDocument(
     opts: {
       templateModelId?: string | null;
-      groupId?: string | null;
+      groupId: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<Array<{ field_key: string; format_spec: string | null }>> {
@@ -391,17 +767,12 @@ export class ReviewDbService {
     // was recorded at OCR time won't carry it, so we look up by group_id instead.
     // A Group can hold multiple TemplateModels, so this fallback may pick the wrong
     // one — accepted only for legacy docs that predate the metadata field.
-    const templateModel = opts.templateModelId
-      ? await client.templateModel.findUnique({
-          where: { id: opts.templateModelId },
-          include: fieldSchemaInclude,
-        })
-      : opts.groupId
-        ? await client.templateModel.findFirst({
-            where: { group_id: opts.groupId },
-            include: fieldSchemaInclude,
-          })
-        : null;
+    const templateModel = await client.templateModel.findFirst({
+      where: opts.templateModelId
+        ? { id: opts.templateModelId, group_id: opts.groupId }
+        : { group_id: opts.groupId },
+      include: fieldSchemaInclude,
+    });
 
     return (
       templateModel?.field_schema?.map((f) => ({
@@ -453,26 +824,36 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     this.logger.debug("Getting review analytics");
 
-    const where: Prisma.ReviewSessionWhereInput = {};
+    // Scope shared by both queries: date range and group. Reviewer identity is
+    // applied separately below since sessions and corrections attribute it differently.
+    const scope: Prisma.ReviewSessionWhereInput = {};
     if (filters.startDate || filters.endDate) {
-      where.started_at = {};
-      if (filters.startDate) where.started_at.gte = filters.startDate;
-      if (filters.endDate) where.started_at.lte = filters.endDate;
-    }
-    if (filters.reviewerId) {
-      where.actor_id = filters.reviewerId;
+      scope.started_at = {};
+      if (filters.startDate) scope.started_at.gte = filters.startDate;
+      if (filters.endDate) scope.started_at.lte = filters.endDate;
     }
     if (filters.groupIds) {
-      where.document = { group_id: { in: filters.groupIds } };
+      scope.document = { group_id: { in: filters.groupIds } };
+    }
+
+    // Session ownership still reflects whoever currently holds the session (reassigned on takeover).
+    const sessionWhere: Prisma.ReviewSessionWhereInput = { ...scope };
+    if (filters.reviewerId) {
+      sessionWhere.actor_id = filters.reviewerId;
+    }
+
+    // Correction throughput is attributed to whoever actually made each correction,
+    // not whoever currently owns the session it lives in.
+    const correctionWhere: Prisma.FieldCorrectionWhereInput = {
+      session: scope,
+    };
+    if (filters.reviewerId) {
+      correctionWhere.actor_id = filters.reviewerId;
     }
 
     const [sessions, corrections] = await Promise.all([
-      client.reviewSession.findMany({ where }),
-      client.fieldCorrection.findMany({
-        where: {
-          session: where,
-        },
-      }),
+      client.reviewSession.findMany({ where: sessionWhere }),
+      client.fieldCorrection.findMany({ where: correctionWhere }),
     ]);
 
     const correctionsByAction = corrections.reduce(

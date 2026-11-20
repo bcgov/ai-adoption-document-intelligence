@@ -81,6 +81,31 @@ export class AzureService {
     return this.endpoint;
   }
 
+  /**
+   * Deletes a Document Intelligence model. A model that is already gone counts
+   * as deleted. Does nothing in mock mode, where no model exists in Azure.
+   *
+   * @param modelId - The Azure model id.
+   */
+  async deleteDocumentModel(modelId: string): Promise<void> {
+    if (this.mode === "mock") {
+      return;
+    }
+    const response = await this.client
+      .path("/documentModels/{modelId}", modelId)
+      .delete();
+    if (response.status === "204" || response.status === "404") {
+      return;
+    }
+    const azureMessage = (
+      response.body as DocumentIntelligenceErrorResponseOutput | undefined
+    )?.error?.message;
+    throw new Error(
+      azureMessage ??
+        `Failed to delete Azure model ${modelId} (status ${response.status})`,
+    );
+  }
+
   private asPollResult(value: unknown): PollOperationResult {
     return value as PollOperationResult;
   }

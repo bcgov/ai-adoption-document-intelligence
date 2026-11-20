@@ -14,13 +14,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
 import { getPrismaClient } from "../src/activities/database-client";
+import { getGroupBenchmarkCacheDir } from "../src/blob-storage/read-group-blob";
 import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
 
 const FOUNDRY_PATH = "/providers/mistral/azure/ocr";
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "1 81";
-const SAMPLES_DIR =
-  "/tmp/benchmark-cache/seed-local-samples-mix-public-seed-local-samples-mix-public-v1/inputs";
+/** The materialised dataset whose inputs the samples come from. */
+const DATASET_VERSION_ID = "seed-local-samples-mix-public-v1";
 
 async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;
@@ -35,14 +36,28 @@ async function main(): Promise<void> {
     );
   }
 
-  const filePath = path.join(SAMPLES_DIR, `${sampleId}.jpg`);
+  const prisma = getPrismaClient();
+  const datasetVersion = await prisma.datasetVersion.findUnique({
+    where: { id: DATASET_VERSION_ID },
+    select: { datasetId: true, dataset: { select: { group_id: true } } },
+  });
+  if (!datasetVersion) {
+    throw new Error(`Dataset version ${DATASET_VERSION_ID} not found.`);
+  }
+  // Benchmark runs materialise a dataset at
+  // {BENCHMARK_CACHE_DIR}/{groupId}/{datasetId}-{datasetVersionId}.
+  const samplesDir = path.join(
+    getGroupBenchmarkCacheDir(datasetVersion.dataset.group_id),
+    `${datasetVersion.datasetId}-${DATASET_VERSION_ID}`,
+    "inputs",
+  );
+  const filePath = path.join(samplesDir, `${sampleId}.jpg`);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Sample not found at ${filePath}`);
   }
   const buffer = await fs.promises.readFile(filePath);
   const dataUrl = `data:image/jpeg;base64,${buffer.toString("base64")}`;
 
-  const prisma = getPrismaClient();
   const tm = await prisma.templateModel.findUnique({
     where: { id: TEMPLATE_MODEL_ID },
     include: { field_schema: { orderBy: { display_order: "asc" } } },

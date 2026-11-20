@@ -5,18 +5,20 @@ import {
   LabelingStatus,
 } from "@generated/client";
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { ResolvedIdentity } from "@/auth/types";
+import { AzureService } from "@/azure/azure.service";
+import { BenchmarkDefinitionDbService } from "@/benchmark/benchmark-definition-db.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { AnalysisResponse, Page } from "@/ocr/azure-types";
+import { Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
 import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
+import { TrainingDbService } from "@/training/training-db.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
 import {
   CreateTemplateModelDto,
@@ -25,17 +27,25 @@ import {
 import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
+  CreateFieldDefinitionsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import type {
   LabeledDocumentData,
   TemplateModelData,
 } from "./template-model-db.types";
+
+/** Trims a field description; blank becomes null, and an absent one stays absent. */
+function normalizeDescription(
+  value: string | undefined,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 @Injectable()
 export class TemplateModelService {
@@ -43,10 +53,12 @@ export class TemplateModelService {
     private readonly templateModelDb: TemplateModelDbService,
     private readonly templateModelOcrService: TemplateModelOcrService,
     private readonly logger: AppLoggerService,
-    private readonly suggestionService: SuggestionService,
     private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly prismaService: PrismaService,
     private readonly auditService: AuditService,
+    private readonly azureService: AzureService,
+    private readonly trainingDb: TrainingDbService,
+    private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
   ) {}
 
   // ========== MODEL ID GENERATION ==========
@@ -60,7 +72,10 @@ export class TemplateModelService {
    * 5. Trim leading/trailing `-`
    * 6. Truncate to 64 chars
    * 7. Ensure starts with letter/number
-   * 8. On uniqueness collision, append `-2`, `-3`, etc.
+   * 8. Prefix `model-` when it is `prebuilt` or starts with `prebuilt-`, so
+   *    neither the id nor its versions (`-v<n>`) or suffixes (`-<n>`) fall in
+   *    the namespace of Azure's shared prebuilt models
+   * 9. On uniqueness collision, append `-2`, `-3`, etc.
    */
   generateModelIdBase(name: string): string {
     const slug = name
@@ -70,23 +85,29 @@ export class TemplateModelService {
       .filter(Boolean)
       .join("-");
     const trimmed = slug.replace(/^[^a-z0-9]+/, "").slice(0, 64);
+    if (trimmed === "prebuilt" || trimmed.startsWith("prebuilt-")) {
+      return `model-${trimmed}`.slice(0, 64);
+    }
     return trimmed || "model";
   }
 
+  /**
+   * Picks a model_id no other template model or trained model uses or will
+   * use: see `TemplateModelDbService.isModelIdTaken`.
+   */
   async generateUniqueModelId(name: string): Promise<string> {
     const base = this.generateModelIdBase(name);
-    const existing =
-      await this.templateModelDb.findTemplateModelByModelId(base);
-    if (!existing) {
+    if (!(await this.templateModelDb.isModelIdTaken(base))) {
       return base;
     }
 
     let suffix = 2;
     while (suffix <= 1000) {
-      const candidate = `${base}-${suffix}`.slice(0, 64);
-      const exists =
-        await this.templateModelDb.findTemplateModelByModelId(candidate);
-      if (!exists) {
+      // Shorten the base so the suffix fits within Azure's 64 characters;
+      // truncating after appending would cut the suffix off a 64-character base.
+      const tail = `-${suffix}`;
+      const candidate = `${base.slice(0, 64 - tail.length).replace(/-+$/, "")}${tail}`;
+      if (!(await this.templateModelDb.isModelIdTaken(candidate))) {
         return candidate;
       }
       suffix++;
@@ -162,6 +183,34 @@ export class TemplateModelService {
     if (!existing) {
       throw new NotFoundException(`Template model with id ${id} not found`);
     }
+    // A build still running in Azure would finish after its job row is gone,
+    // leaving a model nothing deletes.
+    const inFlight = await this.trainingDb.findInFlightJobForTemplate(id);
+    if (inFlight) {
+      throw new ConflictException(
+        `A training job is in progress for this template (job ${inFlight.id}, status ${inFlight.status}). Wait for it to finish or cancel it before deleting the template.`,
+      );
+    }
+    // Read before the delete: the trained model and training job rows that
+    // name these ids are deleted with the template.
+    const azureModelIds =
+      await this.templateModelDb.findAzureModelIdsForTemplate(id);
+    // Deleting one version refuses the same way: a benchmark definition that
+    // names a deleted model fails every run.
+    const referencingCounts = await Promise.all(
+      azureModelIds.map((modelId) =>
+        this.benchmarkDefinitionDb.countDefinitionsReferencingModelId(modelId),
+      ),
+    );
+    const referencingDefinitions = referencingCounts.reduce(
+      (total, count) => total + count,
+      0,
+    );
+    if (referencingDefinitions > 0) {
+      throw new ConflictException(
+        `Cannot delete: ${referencingDefinitions} benchmark definition(s) reference a version of this template. Detach them first.`,
+      );
+    }
     const deleted = await this.templateModelDb.deleteTemplateModel(id);
     if (!deleted) {
       throw new NotFoundException(`Template model with id ${id} not found`);
@@ -172,9 +221,27 @@ export class TemplateModelService {
       resource_id: id,
       actor_id: actorId,
       group_id: existing.group_id,
-      payload: { name: existing.name },
+      payload: { name: existing.name, azure_model_ids: azureModelIds },
     });
+    await this.deleteAzureModels(azureModelIds);
     return { success: true, id };
+  }
+
+  /**
+   * Deletes a deleted template's models from Azure. A failure is logged, not
+   * thrown: the template is already gone, and the models' owner records keep
+   * them the group's for as long as they remain in Azure.
+   */
+  private async deleteAzureModels(modelIds: string[]): Promise<void> {
+    for (const modelId of modelIds) {
+      try {
+        await this.azureService.deleteDocumentModel(modelId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete Azure model ${modelId} of a deleted template: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   // ========== FIELD SCHEMA OPERATIONS ==========
@@ -226,6 +293,7 @@ export class TemplateModelService {
         field_type: dto.field_type as unknown as FieldType,
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );
@@ -238,6 +306,74 @@ export class TemplateModelService {
       payload: { field_id: field.id, field_key: field.field_key },
     });
     return field;
+  }
+
+  async addFields(
+    templateModelId: string,
+    dto: CreateFieldDefinitionsDto,
+    actorId?: string,
+  ): Promise<FieldDefinition[]> {
+    this.logger.debug(
+      `Adding ${dto.fields.length} fields to template model: ${templateModelId}`,
+    );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
+    if (!templateModel) {
+      throw new NotFoundException(
+        `Template model with id ${templateModelId} not found`,
+      );
+    }
+
+    const existing = new Set(
+      templateModel.field_schema.map((f) => f.field_key),
+    );
+    const seen = new Set<string>();
+    const conflicts = new Set<string>();
+    for (const field of dto.fields) {
+      if (existing.has(field.field_key) || seen.has(field.field_key)) {
+        conflicts.add(field.field_key);
+      }
+      seen.add(field.field_key);
+    }
+    if (conflicts.size > 0) {
+      throw new ConflictException({
+        message: "These field keys already exist or repeat in the request",
+        field_keys: [...conflicts],
+      });
+    }
+
+    const firstOrder =
+      templateModel.field_schema.reduce(
+        (max, field) => Math.max(max, field.display_order),
+        -1,
+      ) + 1;
+
+    return this.prismaService.transaction(async (tx) => {
+      const created = await this.templateModelDb.createFieldDefinitions(
+        templateModelId,
+        dto.fields.map((field, index) => ({
+          field_key: field.field_key,
+          field_type: field.field_type as unknown as FieldType,
+          field_format: field.field_format,
+          format_spec: field.format_spec,
+          description: normalizeDescription(field.description),
+          display_order: firstOrder + index,
+        })),
+        tx,
+      );
+      await this.auditService.recordEvent(
+        created.map((field) => ({
+          event_type: "template_model_field_created",
+          resource_type: "template_model",
+          resource_id: templateModelId,
+          actor_id: actorId,
+          group_id: templateModel.group_id,
+          payload: { field_id: field.id, field_key: field.field_key },
+        })),
+        tx,
+      );
+      return created;
+    });
   }
 
   async updateField(
@@ -257,6 +393,7 @@ export class TemplateModelService {
       {
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );
@@ -341,6 +478,14 @@ export class TemplateModelService {
     if (!document) {
       throw new NotFoundException(
         `Labeling document with id ${dto.labelingDocumentId} not found`,
+      );
+    }
+
+    // The caller is authorized against the labeling document's group, so the
+    // template model must live in that same group.
+    if (templateModel.group_id !== document.group_id) {
+      throw new NotFoundException(
+        `Template model with id ${templateModelId} not found`,
       );
     }
 
@@ -544,50 +689,6 @@ export class TemplateModelService {
     return labeledDoc.labeling_document.ocr_result;
   }
 
-  async generateDocumentSuggestions(
-    templateModelId: string,
-    documentId: string,
-    identity: ResolvedIdentity,
-  ): Promise<LabelSuggestionDto[]> {
-    this.logger.debug(
-      `Generating suggestions for document ${documentId} in template model: ${templateModelId}`,
-    );
-
-    const labeledDoc = await this.templateModelDb.findLabeledDocument(
-      templateModelId,
-      documentId,
-    );
-    if (!labeledDoc) {
-      throw new NotFoundException(
-        `Document ${documentId} not found in template model ${templateModelId}`,
-      );
-    }
-
-    if (!labeledDoc.labeling_document?.ocr_result) {
-      throw new NotFoundException(
-        `OCR result not found for labeling document ${documentId}`,
-      );
-    }
-
-    const templateModel =
-      await this.templateModelDb.findTemplateModel(templateModelId);
-    if (!templateModel) {
-      throw new NotFoundException(
-        `Template model with id ${templateModelId} not found`,
-      );
-    }
-
-    identityCanAccessGroup(identity, templateModel.group_id);
-
-    const ocrResult = labeledDoc.labeling_document
-      .ocr_result as unknown as AnalysisResponse;
-    return this.suggestionService.generateSuggestions(
-      ocrResult,
-      templateModel.field_schema,
-      null,
-    );
-  }
-
   // ========== EXPORT ==========
 
   async exportTemplateModel(templateModelId: string, options: ExportDto) {
@@ -785,6 +886,13 @@ export class TemplateModelService {
     if (!templateModel) {
       throw new NotFoundException(
         `Template model with id ${templateModelId} not found`,
+      );
+    }
+    // The caller is authorized against dto.group_id, so the template model
+    // must belong to that group.
+    if (templateModel.group_id !== dto.group_id) {
+      throw new BadRequestException(
+        "group_id does not match the template model's group",
       );
     }
 

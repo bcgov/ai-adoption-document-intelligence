@@ -31,7 +31,7 @@ Returns an array of group objects with the user's role:
   {
     "id": "group-uuid",
     "name": "Group Name",
-    "role": "MEMBER",
+    "role": "EDITOR",
     "description": "Optional description"
   }
 ]

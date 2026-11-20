@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { useGroup } from "./GroupContext";
+import { Permission } from "./permissions";
 
 interface NoGroupGuardProps {
   children: ReactNode;
@@ -57,6 +58,35 @@ export function MembershipPageGuard({
   }
 
   if (isSystemAdmin || availableGroups.length > 0) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+interface GroupPermissionGuardProps {
+  children: ReactNode;
+  requiredPermissions: Permission[];
+}
+
+export function GroupPermissionGuard({
+  children,
+  requiredPermissions,
+}: GroupPermissionGuardProps): ReactNode {
+  const { isLoading, isSystemAdmin } = useAuth();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
+
+  if (isLoading) {
+    return null;
+  }
+
+  // Get the user's active group, and check if they have permission to be here.
+  // A system admin always has permission.
+  if (isSystemAdmin || requiredPermissions.length === 0) return children;
+  if (
+    activeGroup == null ||
+    !hasPermissionForGroup(activeGroup.id, requiredPermissions)
+  ) {
     return <Navigate to="/" replace />;
   }
 

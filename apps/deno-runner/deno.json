@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-read=src,/tmp --allow-write=/tmp --allow-run=deno --allow-env src/main.ts"
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-explicit-any"]
+    }
+  },
+  "fmt": {
+    "indentWidth": 2,
+    "lineWidth": 100
+  }
+}

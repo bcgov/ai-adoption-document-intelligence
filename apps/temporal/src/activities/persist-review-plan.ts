@@ -20,14 +20,20 @@ import type { ReviewPlanEntry } from "./hitl-apply-review-criteria";
 export interface PersistReviewPlanParams {
   documentId: string;
   reviewPlan: ReviewPlanEntry[];
-  groupId?: string;
+  /** Group of the running workflow; only that group's document is updated. */
+  groupId?: string | null;
 }
 
 export async function persistReviewPlan(
   params: PersistReviewPlanParams,
 ): Promise<void> {
   const activityName = "persistReviewPlan";
-  const { documentId, reviewPlan } = params;
+  const { documentId, reviewPlan, groupId } = params;
+  if (!groupId) {
+    throw new Error(
+      `groupId is required to persist the review plan for document ${documentId}`,
+    );
+  }
   const log = createActivityLogger(activityName, { documentId });
   const startTime = Date.now();
 
@@ -45,32 +51,25 @@ export async function persistReviewPlan(
   try {
     const prisma = getPrismaClient();
 
-    // In benchmark mode, the documentId has a "benchmark-" prefix and no
-    // corresponding document record exists in the DB. Detect this early and
-    // skip the Prisma operations to avoid noisy FK-constraint error logs
-    // (same pattern as upsertOcrResult).
-    if (documentId.startsWith("benchmark-")) {
-      const doc = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: { id: true },
-      });
-      if (!doc) {
-        const duration = Date.now() - startTime;
-        log.info("Persist review plan skipped", {
-          event: "skipped",
-          reason: "benchmark_mode_no_document",
-          durationMs: duration,
-        });
-        return;
-      }
-    }
-
-    await prisma.document.update({
-      where: { id: documentId },
+    const { count } = await prisma.document.updateMany({
+      where: { id: documentId, group_id: groupId },
       data: {
         review_plan: reviewPlan as unknown as Prisma.InputJsonValue,
       },
     });
+
+    // No row matches in this group. Benchmark runs use synthetic
+    // "benchmark-" document ids with no document record, so this is expected
+    // there. Log and move on without an audit event.
+    if (count === 0) {
+      const duration = Date.now() - startTime;
+      log.info("Persist review plan skipped", {
+        event: "skipped",
+        reason: "document_not_found",
+        durationMs: duration,
+      });
+      return;
+    }
 
     try {
       await prisma.auditEvent.create({
@@ -79,7 +78,7 @@ export async function persistReviewPlan(
           resource_type: "document",
           resource_id: documentId,
           document_id: documentId,
-          group_id: params.groupId ?? null,
+          group_id: groupId,
           payload: {
             field_count: fieldCount,
             review_field_count: reviewFieldCount,
@@ -101,23 +100,6 @@ export async function persistReviewPlan(
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-
-    // P2003 = FK constraint violation, P2025 = record not found.
-    // In benchmark mode the document doesn't exist in the DB, so DB writes
-    // are expected to fail. Log and move on.
-    const prismaCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-    if (prismaCode === "P2003" || prismaCode === "P2025") {
-      log.info("Persist review plan skipped", {
-        event: "skipped",
-        reason: "document_not_found",
-        durationMs: duration,
-      });
-      return;
-    }
-
     log.error("Persist review plan error", {
       event: "error",
       error: getErrorMessage(error),

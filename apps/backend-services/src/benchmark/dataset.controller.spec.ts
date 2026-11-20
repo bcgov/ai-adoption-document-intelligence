@@ -154,7 +154,7 @@ describe("DatasetController", () => {
       mockDatasetService.listDatasets.mockResolvedValue(mockResponse);
 
       const result = await controller.listDatasets(
-        undefined,
+        "test-group",
         undefined,
         undefined,
         mockReq,
@@ -178,9 +178,9 @@ describe("DatasetController", () => {
       mockDatasetService.listDatasets.mockResolvedValue(mockResponse);
 
       const result = await controller.listDatasets(
+        "test-group",
         "2",
         "50",
-        undefined,
         mockReq,
       );
 

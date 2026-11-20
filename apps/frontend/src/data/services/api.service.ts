@@ -101,6 +101,34 @@ class ApiService {
     this.logoutCallback = callback;
   }
 
+  /**
+   * Run the single-flight session refresh used by the 401 response
+   * interceptor, so non-axios callers (the builder's fetch-based hooks via
+   * `builderFetch`) can reuse the SAME refresh/logout flow instead of
+   * re-implementing it (or skipping it and hard-failing on an expired
+   * session). Resolves once the session is refreshed; rejects — after
+   * invoking the logout callback — when refresh fails or no refresh callback
+   * is registered.
+   */
+  async refreshSessionOnce(): Promise<void> {
+    if (!this.refreshPromise && this.refreshCallback) {
+      this.refreshPromise = this.refreshCallback().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    if (!this.refreshPromise) {
+      // No refresh mechanism registered — treat as unrecoverable.
+      this.logoutCallback?.();
+      throw new Error("Session expired");
+    }
+    try {
+      await this.refreshPromise;
+    } catch (err) {
+      this.logoutCallback?.();
+      throw err;
+    }
+  }
+
   private async request<T>(
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,

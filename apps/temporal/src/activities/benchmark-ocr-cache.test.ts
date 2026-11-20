@@ -12,6 +12,14 @@ jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
 
+const mockRead = jest.fn();
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({ read: mockRead }),
+}));
+
+const GROUP = "clh7z2xk00000356u8e3h1234";
+const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
 describe("benchmark-ocr-cache activities", () => {
   const findUnique = jest.fn();
   const upsert = jest.fn();
@@ -62,5 +70,45 @@ describe("benchmark-ocr-cache activities", () => {
     });
 
     expect(upsert).toHaveBeenCalled();
+  });
+
+  it("benchmarkPersistOcrCache reads an ocrResponseRef in the run's group", async () => {
+    upsert.mockResolvedValue(undefined);
+    mockRead.mockResolvedValue(Buffer.from(JSON.stringify({ x: 2 })));
+
+    await benchmarkPersistOcrCache({
+      sourceRunId: "run-1",
+      sampleId: "s1",
+      groupId: GROUP,
+      ocrResponseRef: {
+        documentId: "benchmark-s1",
+        blobPath: `${GROUP}/ocr/benchmark-s1/azure-response.json`,
+        storage: "blob",
+        status: "succeeded",
+      },
+    });
+
+    expect(mockRead).toHaveBeenCalledWith(
+      `${GROUP}/ocr/benchmark-s1/azure-response.json`,
+    );
+    expect(upsert).toHaveBeenCalled();
+  });
+
+  it("benchmarkPersistOcrCache refuses an ocrResponseRef from another group", async () => {
+    await expect(
+      benchmarkPersistOcrCache({
+        sourceRunId: "run-1",
+        sampleId: "s1",
+        groupId: GROUP,
+        ocrResponseRef: {
+          documentId: "benchmark-s1",
+          blobPath: `${OTHER_GROUP}/ocr/benchmark-s1/azure-response.json`,
+          storage: "blob",
+          status: "succeeded",
+        },
+      }),
+    ).rejects.toThrow(/does not belong to group/);
+    expect(mockRead).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
   });
 });

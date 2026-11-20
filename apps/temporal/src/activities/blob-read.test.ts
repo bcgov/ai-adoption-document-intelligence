@@ -20,6 +20,7 @@ describe("blobRead activity", () => {
 
     const input: BlobReadInput = {
       blobKey: "atestgroup/ocr/doc-1/segment-001.pdf",
+      groupId: "atestgroup",
     };
 
     const result = await blobRead(input);
@@ -33,6 +34,7 @@ describe("blobRead activity", () => {
 
     const input: BlobReadInput = {
       blobKey: "atestgroup/ocr/doc-1/segment-001.pdf",
+      groupId: "atestgroup",
     };
 
     await blobRead(input);
@@ -48,6 +50,7 @@ describe("blobRead activity", () => {
 
     const input: BlobReadInput = {
       blobKey: "atestgroup/ocr/doc-1/missing.pdf",
+      groupId: "atestgroup",
     };
 
     await expect(blobRead(input)).rejects.toThrow("blob not found");
@@ -59,6 +62,7 @@ describe("blobRead activity", () => {
 
     const input: BlobReadInput = {
       blobKey: "atestgroup/ocr/doc-1/empty.pdf",
+      groupId: "atestgroup",
     };
 
     const result = await blobRead(input);
@@ -73,10 +77,42 @@ describe("blobRead activity", () => {
 
     const input: BlobReadInput = {
       blobKey: "atestgroup/ocr/doc-1/binary.pdf",
+      groupId: "atestgroup",
     };
 
     const result = await blobRead(input);
 
     expect(Buffer.from(result.base64, "base64")).toEqual(binaryContent);
+  });
+
+  describe("limited to the run's group", () => {
+    const GROUP = "clh7z2xk00000356u8e3h1234";
+    const OTHER_GROUP = "clh7z2xk00000356u8e3h5678";
+
+    it("refuses a blob key from another group", async () => {
+      mockBlobRead.mockResolvedValue(Buffer.from("data"));
+
+      await expect(
+        blobRead({
+          blobKey: `${OTHER_GROUP}/ocr/doc-1/file.pdf`,
+          groupId: GROUP,
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+    });
+
+    it("refuses to read when the run has no groupId", async () => {
+      mockBlobRead.mockResolvedValue(Buffer.from("data"));
+
+      await expect(
+        blobRead({
+          blobKey: `${GROUP}/ocr/doc-1/file.pdf`,
+          groupId: "",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockBlobRead).not.toHaveBeenCalled();
+    });
   });
 });

@@ -7,6 +7,8 @@ on:
     branches: [main, develop]
     paths:
       - 'apps/temporal/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'apps/shared/**'
       - 'packages/**'
       - '.github/workflows/temporal-qa.yml'
@@ -29,12 +31,12 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies (root)
-        run: npm install --ignore-scripts --no-package-lock
+        run: npm ci --ignore-scripts
       - name: Build shared packages
         run: npm run build:packages
-      - name: Install dependencies (temporal)
-        working-directory: apps/temporal
-        run: npm install --ignore-scripts --no-package-lock
+      - name: Test blob path package
+        working-directory: packages/blob-storage-paths
+        run: npm test
       - name: Generate Prisma
         working-directory: apps/temporal
         run: npm run db:generate

@@ -10,6 +10,10 @@ import React, {
 } from "react";
 import { apiService } from "../data/services/api.service";
 import { API_BASE_URL } from "../shared/constants";
+import { Permission } from "./permissions";
+
+/** A user's role within a group, mirroring the backend's GroupRole enum. */
+export type GroupRole = "ADMIN" | "EDITOR" | "REVIEWER";
 
 /**
  * Represents a group the user belongs to.
@@ -17,7 +21,8 @@ import { API_BASE_URL } from "../shared/constants";
 export interface Group {
   id: string;
   name: string;
-  role?: "ADMIN" | "MEMBER";
+  role?: GroupRole;
+  permissions?: Permission[];
 }
 
 /**
@@ -31,6 +36,7 @@ interface MeResponse {
   isAdmin: boolean;
   expires_in: number;
   groups: Group[];
+  actorId: string;
 }
 
 /**
@@ -46,6 +52,7 @@ interface RefreshResponse {
  */
 export interface AuthUser {
   sub: string;
+  actorId: string;
   expires_at: number;
   profile: {
     name?: string;
@@ -121,6 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const expiresAt = Math.floor(Date.now() / 1000) + me.expires_in;
     return {
       sub: me.sub,
+      actorId: me.actorId,
       expires_at: expiresAt,
       profile: {
         name: me.name,

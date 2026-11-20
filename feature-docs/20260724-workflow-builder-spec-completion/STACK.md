@@ -1,0 +1,187 @@
+# The stack — how deep we are and how we get back out
+
+**Purpose:** one page that shows every layer opened since the original ask, what closes each
+one, and what order to unwind in. Update the status column; don't rewrite the history.
+
+**Verified 2026-07-25:** branch `feature/visual-workflow-builder`, **464 commits ahead of
+`develop`, 0 behind**. PR **#230** open as a draft. Gap register holds **106 entries**.
+
+---
+
+## Layer 0 — the original ask
+
+> *"I want my manual testing to be like a walk in the gallery rather than stumbling through a
+> bunch of bugs and issues and going back to fix them manually."*
+
+**Exit criterion:** Alex walks the builder and it is uneventful.
+
+**Status:** not yet met, but measurable for the first time. The 2026-07-25 walkthrough is the
+first evidence we have either way — and it came back mostly clean, with 4 real defects and 4
+broken checks.
+
+---
+
+## Layer 1 — spec completion (opened by Layer 0)
+
+The hypothesis was that the builder was under-specified. Rather than write a spec first, we
+inverted: discover what was unspecified, *then* specify only the proven territory.
+
+| Item | Status |
+|---|---|
+| Design doc (`SPEC_COMPLETION_DESIGN.md`) | ✅ |
+| Discovery plan (Phases 1–5) | ✅ |
+| Four-oracle discovery → 154 findings → **106-entry** register | ✅ |
+| Disposition gate over the 27 blocker/corroborated entries → **24 fix, 3 defer** | ✅ |
+| 10 fix batches shipped | ✅ |
+| G-104 (map-item wires), G-105 (Vite/source export) | ✅ |
+| **The walkthrough of Parts 3–9** — this layer's stated acceptance criterion | ✅ 2026-07-25 |
+| **~79 register entries never gated** (52 ungated + 14 proposed-defer + 12 proposed-won't-support) | ❌ open |
+| Batch epic — G-023 (no batch concept), G-025 (single-file intake), G-006 (map >20 threshold) | ⏸ deferred by Alex |
+
+**Exit criterion:** every register entry has a ruling, and everything ruled *fix* has shipped.
+**Blocking gap:** the ~79 ungated entries. They carry each discovery pass's *proposed*
+disposition and have never been reviewed.
+
+---
+
+## Layer 2 — opened by the walkthrough
+
+| Item | Status |
+|---|---|
+| **G-106** — should a body node see producers outside its map? | ✅ ruled: **option A** |
+| G-106 implementation | ❌ open |
+| **P-1…P-4** — four test-plan checks that cannot fail | ❌ open |
+| **D-1** — run history / replay show a fabricated `v0` | ❌ open |
+| **D-2** — creating a group gives no feedback | ❌ open |
+| **D-3** `<h4>` inside `<h2>`, **D-4** save toast drops the API's anchor | ❌ open |
+| ~15 checks not reached (9.6, 9.9a–c, 9.10x, 5.3, 5.7, 6.1, 7.5–7.8, 8.3, 8.6, 8.11–8.14) | ❌ open |
+
+**Exit criterion:** plan defects fixed, product defects fixed, remaining checks walked.
+
+---
+
+## Layer 3 — opened by discussing the walkthrough
+
+Methodology, not product. Each traces to a concrete failure rather than a preference.
+
+| Item | Status |
+|---|---|
+| Should we build a regression suite? → re-ranked to **5 coupling specs + page object** | ✅ done — 4 e2e + 1 component guard (`1d8ad3ad`) |
+| **Cross-feature obligations** into `CLAUDE.md` (+2 graph-specific into workflow docs) | ✅ done — kept local to `MANUAL_TEST_PLAN.md` "Editor invariants" (`79aed3a5`); CLAUDE.md deliberately not touched |
+| **Workflow conformance linter** + **shape-coverage report** | ✅ done — `npm run workflows:lint`; all 9 predicates audited |
+| `writing-checks` skill (falsifiability, check-vs-description labelling) | ❌ open |
+
+**Exit criterion:** the obligations are written where they fire upstream, and the linter runs
+in CI. ✅ met — wired into `backend-qa.yml` (`50157461`), documented in
+[WORKFLOW_LINTER.md](../../docs-md/workflows/WORKFLOW_LINTER.md) (`37f35509`).
+
+### Shape coverage — dispositioned
+
+The linter's first run named two "required" shapes with no shipped example. Both were
+downgraded rather than filled, because a check that BUILDS its own shape is already
+falsifiable and needs no shipped example:
+
+| Shape | Disposition |
+|---|---|
+| map whose item key is NOT ctx-declared | constructed by `tier2-coupling-invariants.spec.ts` + `loop-scope-coupling.test.ts`. **Cannot** exist in a shipped workflow: any expression referencing the item fails validation unless the key is declared, so every real map declares it. |
+| map with a real edge to its body entry | constructed by `upstream-walk.test.ts` — guards that G-106's implicit predecessor does not double-count an explicit edge. |
+
+All nine predicates were then audited: six have a known-true shipped example; two zeros are
+proven by complementary sum (declared+undeclared = 4 = every workflow with a map;
+by-edge+by-setting = 4 likewise); one by direct inspection of the inline child graph. This
+matters because the linter had already fabricated one gap from a wrong field path
+(`workflowRef.inline` vs `workflowRef.type === "inline"`) — an unaudited predicate is not
+evidence in either direction.
+
+**Why this layer exists:** the specs, plans, TDD and 25 e2e specs were all present and the
+defects shipped anyway — because every artifact was written by the same mind from the same
+understanding at the same time. All four items here target that, not the individual bugs.
+
+---
+
+## Orthogonal — the thing that grows while we work
+
+**PR #230: 464 commits, open draft.** Not reviewable by a human in any meaningful sense, and
+every day on this branch makes it worse. Independent of every layer above; must be decided
+regardless of how they resolve. Machinery exists (`STACKED_PR_SPLIT_PLAN.md`, the
+`split-branch-into-prs` skill) — the open question is land-as-is on the strength of the suites,
+or split for review.
+
+---
+
+## Unwind order
+
+Cheap-and-unblocking first, then the design decision that shapes the tests, then the tests.
+
+1. **P-1…P-4** — plan defects. Cheap; they currently misreport coverage.
+2. **G-106 implementation (A)** — determines what the tests must assert, so it precedes them.
+3. **Tier-1 coupling specs + page object** — sized to what (2) changed.
+4. **D-1** — the only walk finding with downstream consequences (replay + re-run key off it).
+5. **D-2, D-3, D-4** — small, independent.
+6. **Linter + shape coverage** — independent; pays for itself the next time the catalog moves.
+7. **CLAUDE.md obligations** — ~15 minutes, independent.
+
+*Steps 1–7 are complete.* Remaining:
+
+8. **Gate the 76 ungated register entries** — the big remaining Layer 1 gap. Triaged into
+   8 immediate rulings + a verification backlog in [DECISION_SHEET.md](DECISION_SHEET.md).
+   Note the register is materially stale (2 of 4 sampled entries were already fixed), so
+   verification precedes ruling for the `fix` proposals.
+9. **Decide PR #230.**
+10. **Walk the remaining ~15 checks**, then re-walk Parts 3–9 → closes Layer 0.
+
+Two small loose ends outside the numbered order: wire `workflows:lint` into CI, and delete the
+three `WalkTest *` workflows the walkthrough left in the dev database.
+
+---
+
+# Roadmap snapshot — 2026-07-27
+
+## Layer 0 — the browser walkthrough · **97% done**
+
+~74 checks walked across Parts 3–9 over three passes. Three remain: **7.8**
+(library port kinds), **9.9b** and **9.9c** (replay safety, unloadable version).
+
+Third pass changed the standard from "does the check pass" to **"can someone
+follow the step and see the thing"** — the gallery framing. That found two steps
+that misdescribe a working product (8.2/8.3's "Change source button" is a
+More-actions menu item) and one check that is unreachable on anything shipped
+(7.5, now tracked by the linter as `two-distinct-ctx-kinds`).
+
+## Layer 1 — the gap register · **the bulk of what remains**
+
+106 entries. **17 now carry a ruling.**
+
+| Bucket | Count | Owner |
+|---|---|---|
+| Ruled or shipped | 17 + 30 earlier | done |
+| "Do nothing" proposals awaiting a ruling | **18** | **Alex** |
+| "Fix" proposals awaiting verify-then-rule | **39** (16 measured) | Claude verifies, Alex rules |
+
+Verification is not optional: three entries this session were **already fixed**
+and would have been rebuilt (G-098, most of G-058, plus G-030/G-048 in C1).
+Measured staleness so far: 50% in the first four-entry sample, 18% across C1.
+Too variable to extrapolate — each cluster gets measured.
+
+**Next batch: the 7 confirmed-true C1 entries** (G-029, G-040, G-049, G-050,
+G-063, G-065, G-074). One shape — a reference survives the thing it points at —
+and the rename sweep that already exists is the model for all seven.
+
+## Layer 2 — the G-106 design question · **closed**
+
+## Layer 3 — how we decide what to test · **closed but for one item**
+
+Coupling specs, the workflow linter (now in CI), and the pre-test type-check all
+shipped. Outstanding: the `writing-checks` skill (falsifiability, check-vs-
+description labelling) — the item that would have prevented P-1..P-4 upstream.
+
+## Orthogonal — PR #230 · **needs a decision, and growing**
+
+**488 commits, 1087 files, +208,822 / −4,536** against `develop`. Was quoted as
+464 commits three days ago; the growth is itself the argument. Independent of
+every layer above.
+
+## Fix stream — 9 shipped this session
+
+D-5 (`09ce5b4d`) · G-072/G-096/G-097 (`514a0896`) · G-047 (`7c0ad059`) ·
+G-099 (`1998f887`) · G-067+G-077 (`8fb19d57`) · G-058 (`5b154167`)

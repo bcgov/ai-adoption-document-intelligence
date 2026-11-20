@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: deno-runner
+  labels:
+    app: deno-runner
+spec:
+  ports:
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: http
+  selector:
+    app: deno-runner
+  type: ClusterIP
+  # NO Route — this service is internal-only. Reachable as `http://deno-runner:9090`
+  # from pods in the same namespace.

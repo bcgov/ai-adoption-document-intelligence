@@ -38,6 +38,15 @@ const defaultDocument = {
 } as DocumentData;
 
 const defaultWorkflowConfig = {
+  ctx: {
+    documentId: { type: "string" },
+    groupId: { type: "string" },
+    blobKey: { type: "string" },
+    modelId: { type: "string", defaultValue: "prebuilt-layout" },
+    templateModelId: { type: "string", defaultValue: "" },
+    confidenceThreshold: { type: "number", defaultValue: 0.9 },
+    ocrResultRef: { type: "object" },
+  },
   nodes: {},
   edges: [],
   entryNodeId: "start",
@@ -48,6 +57,7 @@ describe("OcrService", () => {
   let documentService: DocumentService;
   let temporalClientService: TemporalClientService;
   let blobStorage: BlobStorageInterface;
+  let workflowService: WorkflowService;
   let moduleRef: TestingModule;
 
   beforeEach(async () => {
@@ -76,7 +86,6 @@ describe("OcrService", () => {
             updateDocument: jest.fn().mockResolvedValue({
               ...defaultDocument,
               status: DocumentStatus.ongoing_ocr,
-              workflow_id: "workflow-123",
             }),
             upsertOcrResult: jest.fn(),
             findOcrResult: jest.fn(),
@@ -85,7 +94,10 @@ describe("OcrService", () => {
         {
           provide: TemporalClientService,
           useValue: {
-            startGraphWorkflow: jest.fn().mockResolvedValue("workflow-123"),
+            startGraphWorkflow: jest.fn().mockResolvedValue({
+              workflowId: "graph-0000",
+              runId: "workflow-123",
+            }),
             getWorkflowStatus: jest.fn(),
             queryWorkflowStatus: jest.fn(),
             isWorkflowRunning: jest.fn().mockResolvedValue(false),
@@ -155,6 +167,7 @@ describe("OcrService", () => {
       TemporalClientService,
     );
     blobStorage = moduleRef.get<BlobStorageInterface>(BLOB_STORAGE);
+    workflowService = moduleRef.get<WorkflowService>(WorkflowService);
   });
 
   describe("OcrService constructor", () => {
@@ -201,6 +214,8 @@ describe("OcrService", () => {
         expect.any(String),
         expect.any(Object),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
     });
@@ -232,6 +247,8 @@ describe("OcrService", () => {
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-from-meta" }),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
     });
@@ -247,8 +264,103 @@ describe("OcrService", () => {
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-b" }),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
+    });
+
+    it("keeps the server-set context values when overrides name them", async () => {
+      await service.requestOcr("doc-3", {
+        documentId: "doc-other",
+        groupId: "group-other",
+        blobKey: "group-other/doc-other/normalized.pdf",
+        modelId: "model-other",
+      });
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx).toMatchObject({
+        documentId: "doc-3",
+        groupId: defaultDocument.group_id,
+        blobKey: defaultDocument.normalized_file_path,
+        modelId: defaultDocument.model_id,
+      });
+    });
+
+    it("applies only overrides for ctx keys the workflow declares with a default", async () => {
+      await service.requestOcr("doc-4", {
+        confidenceThreshold: 0.5,
+        ocrResultRef: { blobKey: "group-other/doc-other/ocr.json" },
+        undeclaredKey: "value",
+      });
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.confidenceThreshold).toBe(0.5);
+      expect(initialCtx).not.toHaveProperty("ocrResultRef");
+      expect(initialCtx).not.toHaveProperty("undeclaredKey");
+    });
+
+    it("applies server settings even for a ctx key the workflow declares without a default", async () => {
+      (
+        workflowService.getWorkflowVersionById as jest.Mock
+      ).mockResolvedValueOnce({
+        id: "workflow-config-123",
+        config: JSON.parse(
+          '{"ctx":{"confidenceThreshold":{"type":"number"}},"nodes":{},"edges":[],"entryNodeId":"start"}',
+        ),
+      });
+
+      await service.requestOcr("doc-6", undefined, undefined, {
+        confidenceThreshold: 0,
+      });
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.confidenceThreshold).toBe(0);
+    });
+
+    it("never lets server settings replace the values derived from the stored document", async () => {
+      await service.requestOcr("doc-7", undefined, undefined, {
+        groupId: "other-group",
+        blobKey: "other-group/ocr/doc-x/normalized.pdf",
+        documentId: "doc-x",
+        confidenceThreshold: 0,
+      });
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx).toMatchObject({
+        documentId: "doc-7",
+        groupId: defaultDocument.group_id,
+        blobKey: defaultDocument.normalized_file_path,
+        confidenceThreshold: 0,
+      });
+    });
+
+    it("ignores __proto__, constructor and prototype overrides even when the workflow declares them", async () => {
+      (
+        workflowService.getWorkflowVersionById as jest.Mock
+      ).mockResolvedValueOnce({
+        id: "workflow-config-123",
+        config: JSON.parse(
+          '{"ctx":{"__proto__":{"type":"object","defaultValue":{}},"constructor":{"type":"string","defaultValue":"a"},"prototype":{"type":"string","defaultValue":"b"},"confidenceThreshold":{"type":"number","defaultValue":0.9}},"nodes":{},"edges":[],"entryNodeId":"start"}',
+        ),
+      });
+
+      await service.requestOcr(
+        "doc-5",
+        JSON.parse(
+          '{"__proto__":{"injected":true},"constructor":"x","prototype":"y","confidenceThreshold":0.4}',
+        ),
+      );
+
+      const initialCtx = (temporalClientService.startGraphWorkflow as jest.Mock)
+        .mock.calls[0][2] as Record<string, unknown>;
+      expect(initialCtx.confidenceThreshold).toBe(0.4);
+      expect(Object.hasOwn(initialCtx, "__proto__")).toBe(false);
+      expect(Object.hasOwn(initialCtx, "constructor")).toBe(false);
+      expect(Object.hasOwn(initialCtx, "prototype")).toBe(false);
+      expect(Object.getPrototypeOf(initialCtx)).toBe(Object.prototype);
     });
 
     it("should throw a NotFoundException if no document matches that id", async () => {

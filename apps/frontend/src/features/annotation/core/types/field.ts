@@ -14,6 +14,7 @@ export interface FieldDefinition {
   fieldType: FieldType;
   fieldFormat?: string;
   formatSpec?: string;
+  description?: string;
   displayOrder: number;
 }
 

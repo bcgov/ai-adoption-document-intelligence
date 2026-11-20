@@ -126,6 +126,78 @@ describe("ClassifierService", () => {
     });
   });
 
+  describe("getClassifierNameFromOperationLocation", () => {
+    const groupId = "clh7z2xk00000356u8e3h1234";
+    const otherGroupId = "clh7z2xk00000356u8e3h5678";
+    const location = (classifierId: string) =>
+      `https://example.cognitiveservices.azure.com/documentintelligence/documentClassifiers/${classifierId}/analyzeResults/result-1?api-version=2024-11-30`;
+
+    it("returns the classifier name when the classifier belongs to the group", () => {
+      expect(
+        service.getClassifierNameFromOperationLocation(
+          location(`${groupId}__invoices`),
+          groupId,
+        ),
+      ).toBe("invoices");
+    });
+
+    it("decodes an encoded classifier id", () => {
+      expect(
+        service.getClassifierNameFromOperationLocation(
+          location(`${groupId}__my%20classifier`),
+          groupId,
+        ),
+      ).toBe("my classifier");
+    });
+
+    it("returns null when the classifier belongs to another group", () => {
+      expect(
+        service.getClassifierNameFromOperationLocation(
+          location(`${otherGroupId}__invoices`),
+          groupId,
+        ),
+      ).toBeNull();
+    });
+
+    it("returns null when the classifier id carries the group id without a name", () => {
+      expect(
+        service.getClassifierNameFromOperationLocation(
+          location(`${groupId}__`),
+          groupId,
+        ),
+      ).toBeNull();
+    });
+
+    it.each([
+      "not a url",
+      "https://example.cognitiveservices.azure.com/documentintelligence/analyzeResults/result-1",
+      "https://example.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/result-1",
+      "https://example.cognitiveservices.azure.com/documentintelligence/documentClassifiers/x/analyzeResults/r/extra",
+    ])("returns null for a location that names no classifier: %s", (loc) => {
+      expect(
+        service.getClassifierNameFromOperationLocation(loc, groupId),
+      ).toBeNull();
+    });
+
+    it("recognises the mock-mode operation location", () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      return service
+        .requestClassificationFromFile(
+          { buffer: Buffer.from("test") } as Express.Multer.File,
+          "invoices",
+          groupId,
+        )
+        .then((result) => {
+          expect(
+            service.getClassifierNameFromOperationLocation(
+              result.content,
+              groupId,
+            ),
+          ).toBe("invoices");
+        });
+    });
+  });
+
   describe("requestClassifierTraining", () => {
     it("should throw ServiceUnavailableException in mock mode", async () => {
       mockAzureService.isMockMode.mockReturnValue(true);
@@ -599,7 +671,7 @@ describe("ClassifierService", () => {
       );
       expect(result.status).toBe("202");
       expect(result.content).toContain(
-        "/documentintelligence/analyzeResults/mock-classify-operation",
+        "/documentintelligence/documentClassifiers/gid__cid/analyzeResults/mock-classify-operation",
       );
     });
 
@@ -652,7 +724,7 @@ describe("ClassifierService", () => {
       );
       expect(result.status).toBe("202");
       expect(result.content).toContain(
-        "/documentintelligence/analyzeResults/mock-classify-operation",
+        "/documentintelligence/documentClassifiers/gid__cid/analyzeResults/mock-classify-operation",
       );
     });
 

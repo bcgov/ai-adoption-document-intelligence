@@ -120,12 +120,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
    * without accessing Prisma directly.
    *
    * @param fn - An async function that receives a TransactionClient and performs database operations.
+   * @param options - Optional `timeout` (ms) for the interactive transaction. Prisma's default is 5 000 ms;
+   *   pass a longer value only when the transaction must stay open across slow non-database work.
    * @returns The result of the provided function.
    */
   async transaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: { timeout?: number },
   ): Promise<T> {
-    return this.prisma.$transaction(fn);
+    return this.prisma.$transaction(fn, options);
   }
 
   /**

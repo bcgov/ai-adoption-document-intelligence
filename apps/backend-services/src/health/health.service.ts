@@ -45,7 +45,7 @@ export class HealthService {
       errors.push(`Database: ${message}`);
       this.logger.error("Health check - database failed", {
         category: "health",
-        error: message,
+        error,
         errorCode,
         databaseUrl: process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":***@"), // Sanitize password
       });

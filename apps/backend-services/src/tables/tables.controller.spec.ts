@@ -3,14 +3,9 @@ jest.mock("@/auth/identity.helpers", () => ({
 }));
 
 import { GroupRole } from "@generated/client";
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
-import * as identityHelpers from "@/auth/identity.helpers";
 import { AddColumnDto } from "./dto/add-column.dto";
 import { LookupDto } from "./dto/lookup.dto";
 import { RowDto, RowListDto } from "./dto/row.dto";
@@ -98,15 +93,8 @@ describe("TablesController", () => {
       mockTablesService.listTables.mockResolvedValue(dbRows);
       mockTablesService.getRowCountsForGroup.mockResolvedValue(rowCounts);
 
-      const result = await controller.listTables(mockReq, "group-1");
+      const result = await controller.listTables("group-1");
 
-      expect(
-        (identityHelpers.identityCanAccessGroup as jest.Mock).mock.calls,
-      ).toHaveLength(1);
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-      );
       expect(service.listTables).toHaveBeenCalledWith("group-1");
       expect(service.getRowCountsForGroup).toHaveBeenCalledWith("group-1");
       expect(result).toHaveLength(2);
@@ -116,19 +104,16 @@ describe("TablesController", () => {
       expect(result[1].table_id).toBe("tbl_b");
     });
 
-    // 2. listTables — forbidden
-    it("propagates ForbiddenException without calling service", async () => {
-      (
-        identityHelpers.identityCanAccessGroup as jest.Mock
-      ).mockImplementationOnce(() => {
-        throw new ForbiddenException();
-      });
+    // 2. listTables — service error
+    it("propagates unexpected service errors", async () => {
+      mockTablesService.listTables.mockRejectedValue(new Error("db error"));
+      mockTablesService.getRowCountsForGroup.mockResolvedValue({});
 
-      await expect(controller.listTables(mockReq, "group-1")).rejects.toThrow(
-        ForbiddenException,
+      await expect(controller.listTables("group-1")).rejects.toThrow(
+        "db error",
       );
 
-      expect(service.listTables).not.toHaveBeenCalled();
+      expect(service.listTables).toHaveBeenCalled();
     });
   });
 
@@ -145,15 +130,10 @@ describe("TablesController", () => {
       mockTablesService.getTable.mockResolvedValue(dbRow);
 
       const result: TableDetailDto = await controller.getTable(
-        mockReq,
         "my_table",
         "group-1",
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-      );
       expect(service.getTable).toHaveBeenCalledWith("group-1", "my_table");
       expect(result.table_id).toBe("my_table");
       expect(result.columns).toHaveLength(1);
@@ -165,7 +145,7 @@ describe("TablesController", () => {
       mockTablesService.getTable.mockResolvedValue(null);
 
       await expect(
-        controller.getTable(mockReq, "missing_table", "group-1"),
+        controller.getTable("missing_table", "group-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -193,11 +173,6 @@ describe("TablesController", () => {
         body,
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.createTable).toHaveBeenCalledWith({
         actor_id: "u1",
         group_id: "group-1",
@@ -210,25 +185,17 @@ describe("TablesController", () => {
       expect(result.lookups).toEqual([]);
     });
 
-    // 6. createTable — forbidden
-    it("propagates ForbiddenException when not admin; service NOT called", async () => {
-      (
-        identityHelpers.identityCanAccessGroup as jest.Mock
-      ).mockImplementationOnce(() => {
-        throw new ForbiddenException();
-      });
-
+    // 6. createTable — service error path
+    it("propagates service errors correctly", async () => {
       const body: CreateTableDto = {
         group_id: "group-1",
         table_id: "new_table",
         label: "New Table",
       };
-
+      mockTablesService.createTable.mockRejectedValue(new Error("db error"));
       await expect(controller.createTable(mockReq, body)).rejects.toThrow(
-        ForbiddenException,
+        "db error",
       );
-
-      expect(service.createTable).not.toHaveBeenCalled();
     });
   });
 
@@ -248,11 +215,6 @@ describe("TablesController", () => {
         patch,
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.updateTableMetadata).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -272,11 +234,6 @@ describe("TablesController", () => {
 
       await controller.deleteTable(mockReq, "my_table", "group-1");
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.deleteTable).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -309,11 +266,6 @@ describe("TablesController", () => {
         colBody,
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.addColumn).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -347,26 +299,7 @@ describe("TablesController", () => {
       );
     });
 
-    // 10. addColumn — forbidden short-circuit
-    it("propagates ForbiddenException when not admin; service NOT called", async () => {
-      (
-        identityHelpers.identityCanAccessGroup as jest.Mock
-      ).mockImplementationOnce(() => {
-        throw new ForbiddenException();
-      });
-
-      const colBody: AddColumnDto = {
-        key: "col",
-        label: "Col",
-        type: "string",
-      };
-
-      await expect(
-        controller.addColumn(mockReq, "my_table", "group-1", colBody),
-      ).rejects.toThrow(ForbiddenException);
-
-      expect(service.addColumn).not.toHaveBeenCalled();
-    });
+    // 10. addColumn — no ForbiddenException test (handled by @Identity decorator)
   });
 
   // -------------------------------------------------------------------------
@@ -416,11 +349,6 @@ describe("TablesController", () => {
         lookupBody,
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.addLookup).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -441,11 +369,6 @@ describe("TablesController", () => {
 
       await controller.removeLookup(mockReq, "my_table", "byStatus", "group-1");
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-        GroupRole.ADMIN,
-      );
       expect(service.removeLookup).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -480,17 +403,12 @@ describe("TablesController", () => {
       mockTablesService.listRows.mockResolvedValue({ rows: dbRows, total: 2 });
 
       const result: RowListDto = await controller.listRows(
-        mockReq,
         "my_table",
         "group-1",
         "5",
         "20",
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-      );
       expect(service.listRows).toHaveBeenCalledWith("group-1", "my_table", {
         offset: 5,
         limit: 20,
@@ -525,10 +443,6 @@ describe("TablesController", () => {
         { data: { status: "active" } },
       );
 
-      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
-        mockReq.resolvedIdentity,
-        "group-1",
-      );
       expect(service.createRow).toHaveBeenCalledWith(
         "u1",
         "group-1",
@@ -566,7 +480,7 @@ describe("TablesController", () => {
       mockTablesService.getRow.mockResolvedValue(null);
 
       await expect(
-        controller.getRow(mockReq, "my_table", "missing-row", "group-1"),
+        controller.getRow("my_table", "missing-row", "group-1"),
       ).rejects.toThrow(NotFoundException);
 
       expect(service.getRow).toHaveBeenCalledWith(
