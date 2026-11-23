@@ -256,6 +256,8 @@ spec:
             - name: promtail-config
               mountPath: /etc/promtail
               readOnly: true
+            - name: promtail-positions
+              mountPath: /var/lib/promtail
           resources:
             requests:
               memory: "64Mi"
@@ -274,3 +276,8 @@ spec:
         - name: promtail-config
           configMap:
             name: temporal-worker-promtail
+        # Promtail's read offsets. An emptyDir outlives a promtail container restart,
+        # so the restarted container resumes where it stopped instead of re-reading
+        # every log from the start and sending it to Loki again.
+        - name: promtail-positions
+          emptyDir: {}

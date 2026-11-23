@@ -55,8 +55,8 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `temporal` | 250m | 512Mi |
-| `promtail` | 50m | 32Mi |
-| **Pod total** | **300m** | **544Mi** |
+| `promtail` | 50m | 64Mi |
+| **Pod total** | **300m** | **576Mi** |
 
 ### temporal-ui pod (1 replica, no HPA — fixed cost)
 
@@ -70,8 +70,8 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `frontend` | 50m | 128Mi |
-| `promtail` | 50m | 32Mi |
-| **Pod total** | **100m** | **160Mi** |
+| `promtail` | 50m | 64Mi |
+| **Pod total** | **100m** | **192Mi** |
 
 ### Supporting workloads (per instance, no HPA — fixed cost)
 
@@ -92,8 +92,8 @@ them understates the real cost by more than a factor of two.
 | `plg-prometheus` | 1 | 500m | 512Mi |
 | `plg-grafana` | 1 | 100m | 256Mi |
 | `plg-alertmanager` | 1 | 100m | 128Mi |
-| `plg-ches-adapter` | 2 | 140m | 256Mi |
-| **Supporting total** | **10** | **1740m** | **2664Mi** |
+| `plg-ches-adapter` | 2 | 140m | 320Mi |
+| **Supporting total** | **10** | **1740m** | **2728Mi** |
 
 ---
 
@@ -105,12 +105,12 @@ them understates the real cost by more than a factor of two.
 |---|---|---|---|
 | backend-services | 2 | 320m | 2240Mi |
 | temporal-worker | 2 | 320m | 1728Mi |
-| temporal-server | 2 (fixed) | 600m | 1088Mi |
+| temporal-server | 2 (fixed) | 600m | 1152Mi |
 | temporal-ui | 1 (fixed) | 50m | 128Mi |
-| frontend | 2 | 200m | 320Mi |
-| _Application subtotal_ | _9_ | _1490m_ | _5504Mi_ |
-| Supporting workloads (see above) | 10 (fixed) | 1740m | 2664Mi |
-| **Instance total (min)** | **19** | **3230m** | **8168Mi** |
+| frontend | 2 | 200m | 384Mi |
+| _Application subtotal_ | _9_ | _1490m_ | _5632Mi_ |
+| Supporting workloads (see above) | 10 (fixed) | 1740m | 2728Mi |
+| **Instance total (min)** | **19** | **3230m** | **8360Mi** |
 
 ### At maximum replicas (HPA ceiling)
 
@@ -118,17 +118,19 @@ them understates the real cost by more than a factor of two.
 |---|---|---|---|
 | backend-services | 3 | 480m | 3360Mi |
 | temporal-worker | 3 | 480m | 2592Mi |
-| temporal-server | 2 (fixed) | 600m | 1088Mi |
+| temporal-server | 2 (fixed) | 600m | 1152Mi |
 | temporal-ui | 1 (fixed) | 50m | 128Mi |
-| frontend | 3 | 300m | 480Mi |
-| _Application subtotal_ | _12_ | _1910m_ | _7648Mi_ |
-| Supporting workloads (see above) | 10 (fixed) | 1740m | 2664Mi |
-| **Instance total (max)** | **22** | **3650m** | **10312Mi** |
+| frontend | 3 | 300m | 576Mi |
+| _Application subtotal_ | _12_ | _1910m_ | _7808Mi_ |
+| Supporting workloads (see above) | 10 (fixed) | 1740m | 2728Mi |
+| **Instance total (max)** | **22** | **3650m** | **10536Mi** |
 
 ### How these numbers were obtained
 
 The supporting-workload figures are measured, not derived from the manifests: every
-running pod's container requests were summed in `fd34fb-prod` on 2026-08-12. The
+running pod's container requests were summed in `fd34fb-prod` on 2026-08-12. The one
+exception is the Promtail sidecar's 64Mi request in each `plg-ches-adapter` pod, which is
+taken from the manifest. The
 application rows above move with HPA state from one hour to the next; the supporting
 rows are fixed and were identical in every sample.
 
@@ -158,15 +160,15 @@ sample).
 
 | Scenario | CPU used | CPU % | Memory used | Memory % |
 |---|---|---|---|---|
-| **1 instance @ min** | **3230m** | **81%** | **8168Mi** | **50%** |
-| 1 instance @ max | 3650m | 91% | 10312Mi | 63% |
-| 2 instances @ min | 6460m | **162% — EXCEEDS CPU QUOTA** | 16336Mi | **100% — EXCEEDS MEM QUOTA** |
+| **1 instance @ min** | **3230m** | **81%** | **8360Mi** | **51%** |
+| 1 instance @ max | 3650m | 91% | 10536Mi | 64% |
+| 2 instances @ min | 6460m | **162% — EXCEEDS CPU QUOTA** | 16720Mi | **102% — EXCEEDS MEM QUOTA** |
 
 **Supported configuration: 1 instance per shared namespace.**
 
-- At **min replicas** a single instance consumes **81% CPU and 50% memory**. CPU is the
+- At **min replicas** a single instance consumes **81% CPU and 51% memory**. CPU is the
   binding constraint and always has been; memory has headroom.
-- At **max replicas** it reaches **91% CPU and 63% memory** — still inside the quota, which
+- At **max replicas** it reaches **91% CPU and 64% memory** — still inside the quota, which
   is the point of capping `maxReplicas` at 3. Under the previous ceilings (backend 5,
   worker 4, frontend 4) the same instance reached **4230m, or 106% of the quota**, and new
   pods stayed `Pending`. That is the failure this document exists to prevent.
@@ -183,7 +185,7 @@ sample).
 
 > **Deploying a second instance into the same namespace requires a quota increase**, not
 > a configuration change. Rough figures for a shared namespace intended to hold two
-> instances: **8000m CPU and 20Gi memory**. Requests go through the Platform Services
+> instances: **8000m CPU and 21Gi memory**. Requests go through the Platform Services
 > team.
 
 ---

@@ -14,24 +14,25 @@ Each application pod includes a Promtail sidecar container that:
 
 | Service | Log Source | Service Label | Log Path |
 |---------|-----------|---------------|----------|
-| backend-services | Application logs via `tee` to shared PVC | `service=backend-services` | `/var/log/app/*.log` |
-| temporal-worker | Worker logs via `tee` to shared PVC | `service=temporal-worker` | `/var/log/app/*.log` |
+| backend-services | Application logs via `tee` to emptyDir | `service=backend-services` | `/var/log/app/*.log` |
+| temporal-worker | Worker logs via `tee` to emptyDir | `service=temporal-worker` | `/var/log/app/*.log` |
 | temporal-server | Server logs via `tee` to emptyDir | `service=temporal-server` | `/var/log/app/*.log` |
 | frontend | Nginx access/error logs written directly to emptyDir | `service=frontend` | `/var/log/app/*.log` |
+| ches-adapter (PLG chart) | Adapter logs via `tee` to emptyDir | `service=ches-adapter` | `/var/log/app/*.log` |
 | postgresql | PostgreSQL logging_collector output on pgdata volume | `service=postgresql` | `/pgdata/pg16/log/*.log` |
 
 ## Resource Limits
 
-Promtail sidecars on PVC-backed services (`backend-services`, `temporal-worker`) use the following allocations:
+Every Promtail sidecar (backend-services, temporal-worker, temporal-server, frontend, and the PLG chart's ches-adapter) uses the same allocation:
 
 | Resource | Request | Limit |
 |----------|---------|-------|
 | Memory | 64Mi | 128Mi |
 | CPU | 50m | 100m |
 
-The memory limit is set to 128Mi to prevent OOMKills caused by Loki backpressure. When Loki is under memory pressure it slows ingest responses, causing Promtail to buffer pending log batches in-heap. A 64Mi limit was insufficient in practice and caused CrashLoopBackOff on both `backend-services` and `temporal-worker` pods.
+128Mi is the smallest limit that leaves Promtail room to work. Promtail is a Go program, and Go lets its heap grow to about twice the live heap before it collects garbage. A sidecar here holds about 20 MiB live, so its heap peaks around 40–45 MiB in normal running. The Go runtime, goroutine stacks and the Promtail binary's own code pages, which the kernel charges to the container, come on top of that. Under a 64Mi limit that total reaches the limit. The kernel then makes room by evicting Promtail's code pages, which slows Promtail until its pushes to Loki time out, batches are dropped, and the container is OOMKilled. Loki backpressure raises the peak further: when Loki slows its ingest responses, Promtail holds the pending batches in its heap.
 
-To adjust resource limits, modify the Promtail container resource specifications in the relevant deployment manifests under `deployments/openshift/kustomize/base/`.
+To adjust resource limits, modify the Promtail container resource specifications in the relevant deployment manifests under `deployments/openshift/kustomize/base/`, or in `deployments/openshift/helm/plg/templates/ches-adapter-deployment.yaml` for the ches-adapter.
 
 ## Configuration
 
@@ -41,6 +42,7 @@ Each service has its own Promtail ConfigMap containing the Promtail configuratio
 - `temporal-worker-promtail` - temporal-worker Promtail config
 - `temporal-server-promtail` - temporal-server Promtail config
 - `frontend-promtail` - frontend Promtail config
+- `<instance>-plg-ches-adapter-promtail` - ches-adapter Promtail config (PLG Helm chart)
 - `postgresql-promtail` - PostgreSQL Promtail config
 
 ### Promtail Configuration Structure
@@ -48,7 +50,7 @@ Each service has its own Promtail ConfigMap containing the Promtail configuratio
 Each ConfigMap contains a `promtail.yaml` with:
 
 - **server**: HTTP and gRPC listen ports disabled (set to 0) since only log forwarding is needed
-- **positions**: Tracks read positions in `/tmp/positions.yaml` within the container
+- **positions**: Tracks how far Promtail has read each log in `/var/lib/promtail/positions.yaml`, on a per-pod `emptyDir` named `promtail-positions`. The volume outlives a Promtail container restart, so the restarted container resumes where it stopped. A file in the container's own filesystem (such as `/tmp`) is discarded with the container; Promtail would then read every log from the beginning and send it to Loki again, stamped with the restart time.
 - **clients**: Points to the Loki push API endpoint using in-namespace service DNS
 - **scrape_configs**: Defines the job name, service label, and log file path glob pattern
 
