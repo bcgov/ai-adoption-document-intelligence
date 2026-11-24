@@ -42,7 +42,23 @@ interface Row {
   description: string;
   value: string | null;
   alreadyExists: boolean;
+  confidence: number;
 }
+
+/*
+ * The number only says whether the suggestion could point at words on the
+ * page. 0.5 means it named a value that is not there. 0 means the field
+ * was left blank. 0.95 means those words are on the page.
+ */
+const scoreLine = (row: Row): string => {
+  if (row.confidence === 0.5) {
+    return "Score 0.5. The suggestion names words that are not on the page.";
+  }
+  if (row.value === null) {
+    return "Score 0. The field was left blank.";
+  }
+  return "Score 0.95. The words are on the page.";
+};
 
 const toRow = (suggestion: SuggestedField, index: number): Row => ({
   id: `${index}-${suggestion.field_key}`,
@@ -52,6 +68,7 @@ const toRow = (suggestion: SuggestedField, index: number): Row => ({
   description: suggestion.description,
   value: suggestion.value,
   alreadyExists: suggestion.already_exists,
+  confidence: suggestion.confidence,
 });
 
 export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
@@ -125,7 +142,12 @@ export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
     );
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Suggest fields">
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Suggest fields"
+      size="lg"
+    >
       <Stack gap="md">
         <Text size="sm" c="dimmed">
           Pick a document whose OCR has finished. The fields are suggested from
@@ -160,34 +182,37 @@ export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
         )}
         {isSuggestingFields && <Loader size="sm" />}
         {rows.map((row, index) => (
-          <Group
-            key={row.id}
-            data-testid={`suggested-field-${index}`}
-            align="flex-end"
-            wrap="nowrap"
-          >
-            <Checkbox
-              label="Include"
-              checked={row.include}
-              onChange={(event) =>
-                updateRow(row.id, { include: event.currentTarget.checked })
-              }
-            />
-            <TextInput
-              label="Key"
-              value={row.fieldKey}
-              onChange={(event) =>
-                updateRow(row.id, { fieldKey: event.currentTarget.value })
-              }
-            />
-            <Select
-              label="Type"
-              data={typeOptions}
-              value={row.fieldType}
-              onChange={(value) => {
-                if (value) updateRow(row.id, { fieldType: value as FieldType });
-              }}
-            />
+          <Stack key={row.id} data-testid={`suggested-field-${index}`} gap="xs">
+            <Group align="flex-end" wrap="wrap">
+              <Checkbox
+                label="Include"
+                checked={row.include}
+                onChange={(event) =>
+                  updateRow(row.id, { include: event.currentTarget.checked })
+                }
+              />
+              <TextInput
+                label="Key"
+                value={row.fieldKey}
+                onChange={(event) =>
+                  updateRow(row.id, { fieldKey: event.currentTarget.value })
+                }
+              />
+              <Select
+                label="Type"
+                data={typeOptions}
+                value={row.fieldType}
+                onChange={(value) => {
+                  if (value)
+                    updateRow(row.id, { fieldType: value as FieldType });
+                }}
+              />
+              {row.alreadyExists && (
+                <Badge size="sm" variant="light">
+                  Exists
+                </Badge>
+              )}
+            </Group>
             <TextInput
               label="Description"
               value={row.description}
@@ -195,15 +220,13 @@ export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
                 updateRow(row.id, { description: event.currentTarget.value })
               }
             />
-            <Text size="sm" c="dimmed">
+            <Text size="sm">
               {row.value ?? "Not filled in on this document"}
             </Text>
-            {row.alreadyExists && (
-              <Badge size="sm" variant="light">
-                Exists
-              </Badge>
-            )}
-          </Group>
+            <Text size="sm" c="dimmed">
+              {scoreLine(row)}
+            </Text>
+          </Stack>
         ))}
         <Group justify="flex-end">
           <Button variant="subtle" onClick={handleClose}>

@@ -60,3 +60,9 @@ OAuth 2.0 sequence showing:
 - Proactive token refresh and 401 interceptor
 - API key authentication alternative
 - Logout and session termination
+
+## Suggest fields {#suggest-fields}
+
+What happens when someone clicks Suggest fields. The words go to a language model in Canada, the model sends words back, and the app writes the score.
+
+[What happens when you click Suggest](./suggest-fields.md)
