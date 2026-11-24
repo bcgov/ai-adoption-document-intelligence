@@ -632,7 +632,9 @@ export class DocumentController {
         `Failed to read normalized PDF for document ${documentId}: ${getErrorMessage(error)}`,
       );
       this.logger.error(`Stack: ${getErrorStack(error)}`);
-      throw new InternalServerErrorException("An unexpected error occurred");
+      throw new NotFoundException(
+        `Normalized PDF is not available for document: ${documentId}`,
+      );
     }
 
     res.setHeader("Content-Type", "application/pdf");
@@ -690,7 +692,9 @@ export class DocumentController {
         `Failed to read thumbnail for document ${documentId}: ${getErrorMessage(error)}`,
       );
       this.logger.error(`Stack: ${getErrorStack(error)}`);
-      throw new InternalServerErrorException("An unexpected error occurred");
+      throw new NotFoundException(
+        `Failed to read thumbnail for document ${documentId}`,
+      );
     }
 
     res.setHeader("Content-Type", "image/webp");

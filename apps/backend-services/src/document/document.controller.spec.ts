@@ -697,7 +697,7 @@ describe("DocumentController", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should throw InternalServerErrorException when the blob read fails", async () => {
+    it("should throw NotFoundException when the blob read fails", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
         normalized_file_path: "cuid/ocr/normalized.pdf",
@@ -708,10 +708,10 @@ describe("DocumentController", () => {
       const res: any = { setHeader: jest.fn(), send: jest.fn() };
       await expect(
         controller.viewDocument("1", res, mockReq as any),
-      ).rejects.toThrow(InternalServerErrorException);
+      ).rejects.toThrow(NotFoundException);
       await expect(
         controller.viewDocument("1", res, mockReq as any),
-      ).rejects.toThrow("An unexpected error occurred");
+      ).rejects.toThrow("Normalized PDF is not available for document: 1");
     });
 
     it("should throw ForbiddenException if user is not a group member", async () => {
@@ -963,12 +963,12 @@ describe("DocumentController", () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it("throws InternalServerErrorException when thumbnail blob is not in storage", async () => {
+    it("throws NotFoundException when thumbnail blob is not in storage", async () => {
       documentService.findDocument.mockResolvedValue(mockDoc as any);
       blobStorage.read.mockRejectedValue(new Error("blob not found"));
       await expect(
         controller.getDocumentThumbnail("doc-1", {} as any, mockReq as any),
-      ).rejects.toThrow(InternalServerErrorException);
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
