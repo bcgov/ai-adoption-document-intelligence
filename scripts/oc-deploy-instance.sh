@@ -198,6 +198,10 @@ AZURE_DOC_INTELLIGENCE_MODELS=$(optional_cfg AZURE_DOC_INTELLIGENCE_MODELS prebu
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=$(require_cfg AZURE_DOCUMENT_INTELLIGENCE_API_KEY)
 
 AZURE_OPENAI_ENDPOINT=$(optional_cfg AZURE_OPENAI_ENDPOINT "")
+MISTRAL_DOC_AI_AZURE_ENDPOINT=$(optional_cfg MISTRAL_DOC_AI_AZURE_ENDPOINT "")
+MISTRAL_DOC_AI_AZURE_KEY=$(optional_cfg MISTRAL_DOC_AI_AZURE_KEY "")
+AZURE_CU_ENDPOINT=$(optional_cfg AZURE_CU_ENDPOINT "")
+AZURE_CU_KEY=$(optional_cfg AZURE_CU_KEY "")
 AZURE_OPENAI_DEPLOYMENT=$(optional_cfg AZURE_OPENAI_DEPLOYMENT "")
 AZURE_OPENAI_API_VERSION=$(optional_cfg AZURE_OPENAI_API_VERSION 2024-02-15-preview)
 ENRICHMENT_REDACT_PII=$(optional_cfg ENRICHMENT_REDACT_PII false)
@@ -327,6 +331,8 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --throttle-auth-refresh-limit "${THROTTLE_AUTH_REFRESH_LIMIT}" \
   --db-pool-max "${DB_POOL_MAX}" \
   --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT}" \
+  --mistral-doc-ai-azure-endpoint "${MISTRAL_DOC_AI_AZURE_ENDPOINT}" \
+  --azure-cu-endpoint "${AZURE_CU_ENDPOINT}" \
   --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT}" \
   --azure-openai-api-version "${AZURE_OPENAI_API_VERSION}" \
   --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
@@ -405,6 +411,8 @@ WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
 echo "[INFO] Applying temporal worker secret ${WORKER_SECRET}..."
 oc create secret generic "${WORKER_SECRET}" \
   --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+  --from-literal="MISTRAL_DOC_AI_AZURE_KEY=${MISTRAL_DOC_AI_AZURE_KEY}" \
+  --from-literal="AZURE_CU_KEY=${AZURE_CU_KEY}" \
   --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \

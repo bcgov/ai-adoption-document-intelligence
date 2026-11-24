@@ -337,7 +337,7 @@ async function main(): Promise<void> {
     (submitResp.headers["operation-location"] as string | undefined) ??
     (submitResp.headers["Operation-Location"] as string | undefined);
   const pollUrl = opLocation
-    ? cuAnalyzeResultUrlFromOperation(opLocation)
+    ? cuAnalyzeResultUrlFromOperation(opLocation, endpoint)
     : cuAnalyzeResultUrlFromId(submitResp.data?.id ?? "");
 
   let resultBody: CuAnalyzeOperation | null = null;

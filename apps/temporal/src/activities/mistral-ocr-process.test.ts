@@ -22,7 +22,6 @@ import {
   type MistralOcrProcessParams,
   mistralOcrProcess,
   resolveMistralAzureDeploymentId,
-  resolveMistralOcrModelId,
 } from "./mistral-ocr-process";
 
 const DOC_ID = "doc-mistral-test";
@@ -90,24 +89,6 @@ function amountTemplate(groupId: string): TemplateRow {
   };
 }
 
-describe("resolveMistralOcrModelId", () => {
-  it("returns stored id when it is a Mistral OCR model", () => {
-    expect(resolveMistralOcrModelId("mistral-ocr-latest")).toBe(
-      "mistral-ocr-latest",
-    );
-    expect(resolveMistralOcrModelId("Mistral-OCR-2505")).toBe(
-      "Mistral-OCR-2505",
-    );
-  });
-
-  it("falls back to default for Azure-style ids", () => {
-    expect(resolveMistralOcrModelId("prebuilt-layout")).toBe(
-      "mistral-ocr-latest",
-    );
-    expect(resolveMistralOcrModelId(undefined)).toBe("mistral-ocr-latest");
-  });
-});
-
 describe("resolveMistralAzureDeploymentId", () => {
   it("returns stored id when it is a Foundry Mistral Document AI deployment id", () => {
     expect(resolveMistralAzureDeploymentId("mistral-document-ai-2512")).toBe(
@@ -118,9 +99,9 @@ describe("resolveMistralAzureDeploymentId", () => {
     );
   });
 
-  it("accepts mistral-ocr-* ids (shared lineage with public deployment)", () => {
+  it("uses the Hub deployment for public Mistral model ids", () => {
     expect(resolveMistralAzureDeploymentId("mistral-ocr-latest")).toBe(
-      "mistral-ocr-latest",
+      "mistral-document-ai-2512",
     );
   });
 
@@ -169,7 +150,7 @@ describe("mistralOcrProcess", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     ocrBodies.clear();
-    process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "true" };
+    process.env = { ...originalEnv, MOCK_MISTRAL_AZURE_OCR: "true" };
     mockBlobRead.mockResolvedValue(Buffer.from("%PDF-1.4"));
     mockBlobWrite.mockImplementation(async (key: string, body: Buffer) => {
       ocrBodies.set(key, body);
@@ -213,29 +194,30 @@ describe("mistralOcrProcess", () => {
     expect(Object.keys(result)).toEqual(expect.arrayContaining(declared ?? []));
   });
 
-  it("returns mock OCRResult when MOCK_MISTRAL_OCR is true", async () => {
+  it("returns mock OCRResult when MOCK_MISTRAL_AZURE_OCR is true", async () => {
     const { ocrResult: ref } = await mistralOcrProcess({
       fileData: baseFile,
       documentId: DOC_ID,
     });
     const ocrResult = ocrFromRef(ref);
     expect(ocrResult.success).toBe(true);
-    expect(ocrResult.extractedText).toContain("mock ocr");
+    expect(ocrResult.extractedText).toContain("mock foundry ocr");
     expect(axiosPost).not.toHaveBeenCalled();
   });
 
-  it("calls Mistral API when not mock and sends annotation format when template resolves", async () => {
+  it("uses the Hub for the default workflow and sends the annotation format", async () => {
     process.env = {
       ...originalEnv,
-      MOCK_MISTRAL_OCR: "false",
-      MISTRAL_API_KEY: "test-key",
+      MOCK_MISTRAL_AZURE_OCR: "false",
+      MISTRAL_DOC_AI_AZURE_ENDPOINT: "https://hub.example/tenant",
+      MISTRAL_DOC_AI_AZURE_KEY: "test-key",
     };
 
     templateRows = [amountTemplate(GROUP)];
 
     axiosPost.mockResolvedValue({
       data: {
-        model: "mistral-ocr-latest",
+        model: "mistral-document-ai-2512",
         pages: [
           {
             index: 0,
@@ -248,32 +230,44 @@ describe("mistralOcrProcess", () => {
     });
 
     const { ocrResult: ref } = await mistralOcrProcess({
-      fileData: baseFile,
+      fileData: { ...baseFile, modelId: "mistral-ocr-latest" },
       documentId: DOC_ID,
       groupId: GROUP,
       templateModelId: "tm-1",
     });
 
-    expect(axiosPost).toHaveBeenCalled();
+    expect(axiosPost).toHaveBeenCalledTimes(1);
+    expect(axiosPost.mock.calls[0][0]).toBe(
+      "https://hub.example/tenant/providers/mistral/azure/ocr",
+    );
     const callBody = axiosPost.mock.calls[0][1] as Record<string, unknown>;
     expect(callBody.document_annotation_format).toBeDefined();
-    expect(axiosPost.mock.calls[0][2]?.headers).not.toHaveProperty("api-key");
+    expect(callBody.model).toBe("mistral-document-ai-2512");
+    expect(callBody.confidence_scores_granularity).toBeUndefined();
+    expect(axiosPost.mock.calls[0][2]?.headers).toHaveProperty(
+      "api-key",
+      "test-key",
+    );
     expect(ocrFromRef(ref).pages.length).toBeGreaterThan(0);
   });
 
   it("throws when API key missing and not mock", async () => {
-    process.env = { ...originalEnv, MOCK_MISTRAL_OCR: "false" };
-    delete process.env.MISTRAL_API_KEY;
+    process.env = {
+      ...originalEnv,
+      MOCK_MISTRAL_AZURE_OCR: "false",
+      MISTRAL_DOC_AI_AZURE_ENDPOINT: "https://hub.example/tenant",
+    };
+    delete process.env.MISTRAL_DOC_AI_AZURE_KEY;
 
     await expect(
       mistralOcrProcess({ fileData: baseFile, documentId: DOC_ID }),
-    ).rejects.toThrow("MISTRAL_API_KEY");
+    ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_KEY");
   });
 
   describe("group scope", () => {
     const okResponse = {
       data: {
-        model: "mistral-ocr-latest",
+        model: "mistral-document-ai-2512",
         pages: [
           {
             index: 0,
@@ -288,8 +282,9 @@ describe("mistralOcrProcess", () => {
     beforeEach(() => {
       process.env = {
         ...originalEnv,
-        MOCK_MISTRAL_OCR: "false",
-        MISTRAL_API_KEY: "test-key",
+        MOCK_MISTRAL_AZURE_OCR: "false",
+        MISTRAL_DOC_AI_AZURE_ENDPOINT: "https://hub.example/tenant",
+        MISTRAL_DOC_AI_AZURE_KEY: "test-key",
       };
       axiosPost.mockResolvedValue(okResponse);
     });
@@ -347,19 +342,17 @@ describe("mistralOcrProcess", () => {
     });
   });
 
-  describe("variant: azure (Foundry)", () => {
+  describe("Hub transport", () => {
     it("returns mock result when MOCK_MISTRAL_AZURE_OCR is true", async () => {
       process.env = { ...originalEnv, MOCK_MISTRAL_AZURE_OCR: "true" };
       const { ocrResult: ref, ocrResponse } = await mistralOcrProcess({
         fileData: baseFile,
         documentId: DOC_ID,
-        variant: "azure",
       });
       const ocrResult = ocrFromRef(ref);
       expect(ocrResult.success).toBe(true);
       expect(ocrResult.extractedText).toContain("mock foundry ocr");
       expect(ocrResult.modelId).toBe("mistral-document-ai-2512");
-      // Mock fixture exercises the bbox population path so polygons are non-empty.
       expect(ocrResult.pages[0].words[0].polygon.length).toBe(8);
       expect(ocrResponse).toBeDefined();
       const rawBody = ocrBodies.get(ocrResponse.blobPath);
@@ -369,6 +362,44 @@ describe("mistralOcrProcess", () => {
       );
       expect(mockBlobWrite).toHaveBeenCalledTimes(2);
       expect(axiosPost).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      "native",
+      "azure",
+    ])("routes a persisted %s variant through the Hub", async (variant) => {
+      process.env = {
+        ...originalEnv,
+        MOCK_MISTRAL_AZURE_OCR: "false",
+        MISTRAL_DOC_AI_AZURE_ENDPOINT: "https://hub.example/tenant",
+        MISTRAL_DOC_AI_AZURE_KEY: "test-key",
+      };
+      axiosPost.mockResolvedValue({
+        data: {
+          model: "mistral-document-ai-2512",
+          pages: [
+            {
+              index: 0,
+              markdown: "ok",
+              dimensions: { width: 10, height: 10, dpi: 72 },
+            },
+          ],
+          usage_info: { pages_processed: 1 },
+        },
+      });
+      const persistedParams = {
+        fileData: { ...baseFile, modelId: "mistral-ocr-latest" },
+        documentId: DOC_ID,
+        groupId: GROUP,
+        variant,
+      };
+      await mistralOcrProcess(persistedParams);
+      expect(axiosPost.mock.calls[0][0]).toBe(
+        "https://hub.example/tenant/providers/mistral/azure/ocr",
+      );
+      expect(axiosPost.mock.calls[0][1]).toMatchObject({
+        model: "mistral-document-ai-2512",
+      });
     });
 
     it("calls the Foundry endpoint with Bearer auth and the Mistral body (no confidence_scores_granularity)", async () => {
@@ -400,7 +431,6 @@ describe("mistralOcrProcess", () => {
         fileData: baseFile,
         documentId: DOC_ID,
         groupId: GROUP,
-        variant: "azure",
         templateModelId: "tm-1",
         documentAnnotationPrompt: "Extract values from this form.",
         fieldDescriptions: { amount: "The total amount in dollars" },
@@ -501,7 +531,6 @@ describe("mistralOcrProcess", () => {
         fileData: baseFile,
         documentId: DOC_ID,
         groupId: GROUP,
-        variant: "azure",
         templateModelId: "tm-1",
         documentAnnotationPrompt: "extract",
         fieldDescriptions: {},
@@ -531,7 +560,6 @@ describe("mistralOcrProcess", () => {
         mistralOcrProcess({
           fileData: baseFile,
           documentId: DOC_ID,
-          variant: "azure",
         }),
       ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_ENDPOINT");
     });
@@ -549,7 +577,6 @@ describe("mistralOcrProcess", () => {
         mistralOcrProcess({
           fileData: baseFile,
           documentId: DOC_ID,
-          variant: "azure",
         }),
       ).rejects.toThrow("MISTRAL_DOC_AI_AZURE_KEY");
     });

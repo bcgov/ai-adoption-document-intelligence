@@ -218,3 +218,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
 - Updated the migration runbook to use existing tests and benchmark UI/APIs.
+
+## [2026-11-24] ingest | Mistral AI Hub routing
+
+- Linked extraction routing to the canonical Mistral configuration guide.
+
+## [2026-11-24] ingest | Content Understanding AI Hub routing
+
+- Linked the extraction topic to the CU configuration and analyzer guide.

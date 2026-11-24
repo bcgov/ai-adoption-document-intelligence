@@ -1,8 +1,8 @@
 # AI Hub migration
 
-Move Document Intelligence, Azure Mistral Document AI and Azure OpenAI traffic
+Move Document Intelligence, Azure Mistral Document AI, Content Understanding and Azure OpenAI traffic
 from developer APIM to the `sdpr-invoice-automation` AI Landing Zone **TEST**
-tenant. Azure Content Understanding is deferred. Database and storage services
+tenant. Database and storage services
 are unchanged. Successful TEST-tenant checks are not a production promotion gate.
 
 ## Existing environment keys, new values
@@ -16,6 +16,8 @@ Use this tenant root without a service suffix.
 | `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Tenant APIM subscription key | Both |
 | `MISTRAL_DOC_AI_AZURE_ENDPOINT` | B | Worker |
 | `MISTRAL_DOC_AI_AZURE_KEY` | Tenant APIM subscription key | Worker |
+| `AZURE_CU_ENDPOINT` | B | Worker |
+| `AZURE_CU_KEY` | Tenant APIM subscription key | Worker |
 | `AZURE_OPENAI_ENDPOINT` | B | Both |
 | `AZURE_OPENAI_API_KEY` | Tenant APIM subscription key | Both |
 | `AZURE_OPENAI_DEPLOYMENT` | `gpt-5.6-sol` | Both |
@@ -23,17 +25,17 @@ Use this tenant root without a service suffix.
 
 Operators update local runtime settings, normally the root `.env`, or the existing
 OpenShift `[instance-]backend-services-config` / `-secrets` and
-`[instance-]temporal-worker-config` / `-secrets`. Confirm the worker's Mistral
-wiring separately. Restart both runtimes after replacing values. No environment
-files or deployment configuration are changed by this migration patch.
+`[instance-]temporal-worker-config` / `-secrets`. The deployment workflow reads
+the Mistral and CU endpoints and keys from GitHub Actions secrets of the same names.
+Restart both runtimes after replacing values.
 Do not change database, MinIO/blob storage or `AZURE_STORAGE_*` values.
 
 `AZURE_OPENAI_*` serves the agent, enrichment, format suggestions, benchmark
 recommendations and both vision extractors. Select Azure for the agent.
 Workflow ctx deployment parameters override the environment: historical E04/E05
 versions pin `gpt-5.4`. Publish new versions selecting `gpt-5.6-sol` rather than
-rewriting historical versions. Azure Mistral uses `mistral-document-ai-2512`;
-the native Mistral transport is unchanged.
+rewriting historical versions. All Mistral workflows use the Hub and default to
+`mistral-document-ai-2512`; old native model IDs resolve to that deployment.
 
 ## Compatibility and test wiring
 
@@ -42,7 +44,12 @@ the native Mistral transport is unchanged.
   validated, and backend operation polling preserves the tenant prefix.
 - Azure Mistral adds APIM's `api-key` header alongside its existing authorization
   header. Existing Azure OpenAI clients already use tenant-scoped Chat Completions.
-- E01/E02/E04/E05 templates bind to `ocrResponseRef`, `ocrResultRef` and
+- CU sends `api-key` to APIM and polls the Hub-rewritten operation URL without
+  duplicating the tenant path. Custom analyzers require model defaults to be
+  configured on the tenant's CU account; see the [CU guide](../workflows/03-content-understanding-OCR.md).
+- Publish a new E03 workflow version to use the updated result-reference
+  bindings; already-published versions retain their existing graph.
+- E01/E02/E03/E04/E05 templates bind to `ocrResponseRef`, `ocrResultRef` and
   `cleanedResultRef`, the keys returned to benchmark evaluation. Synchronous
   providers persist mapped/raw outputs as refs. Existing tests assert the actual
   extracted fields through those refs; they do not count empty predictions as
@@ -55,24 +62,24 @@ Run offline regression and installed-SDK contract tests first:
 
 ```bash
 # apps/temporal; CI=true skips local Temporal integration cases
-CI=true npx jest --runInBand --testPathPattern='(azure-analyze-result-id|di-sdk-hub-contract|activities/(submit-to-azure-ocr|poll-ocr-results|mistral-ocr-process)|ocr-providers/|experiment-(01|02|04|05))'
+CI=true npx jest --runInBand --testPathPattern='(azure-analyze-result-id|di-sdk-hub-contract|activities/(submit-to-azure-ocr|poll-ocr-results|mistral-ocr-process)|ocr-providers/|experiment-(01|02|03|04|05))'
 # apps/backend-services
 npx jest --runInBand --testPathPatterns='(azure.service.spec|provider-resolver|template-model-ocr.service.spec)'
 ```
 
-With an approved local database/Temporal stack, run the existing E01/E02/E04/E05
+With an approved local database/Temporal stack, run the existing E01/E02/E03/E04/E05
 integration tests without `CI=true`. Those tests mock paid transports; they
 validate workflow wiring, not live connectivity. Do not run database-resetting
 test setup against shared data.
 
 For live validation, use the existing benchmark UI/APIs and
-[extraction experiments](../EXTRACTION_EXPERIMENTS.md), not the all-experiment
-command (which includes deferred CU). Disable the existing provider mocks and
+[extraction experiments](../EXTRACTION_EXPERIMENTS.md), selecting the required
+providers individually. Disable the existing provider mocks and
 set `DOCUMENT_INTELLIGENCE_MODE=live`. Use three approved, non-sensitive,
 single-page images with frozen ground truth. Keep the dataset version, split,
 evaluator rules and pass thresholds identical across providers. Publish test
 workflow versions with canonical refs and one activity attempt; run one sample
-at a time. DI and Mistral each require one inference submission per sample;
+at a time. DI, Mistral and CU each require one inference submission per sample;
 direct requires one and hybrid requires two. Do not create paid old-provider
 baselines or retrain/copy models for this check.
 

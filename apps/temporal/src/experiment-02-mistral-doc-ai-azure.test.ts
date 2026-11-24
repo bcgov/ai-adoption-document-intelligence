@@ -187,14 +187,11 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
   });
 
   describe("scope rules from the brief", () => {
-    it("uses the merged Mistral activity with the azure (Foundry) variant — not the native public-API transport", () => {
+    it("uses the Mistral activity for the Hub deployment", () => {
       const graph = loadTemplate();
       const types = activityTypes(graph);
       expect(types).toContain("mistralOcr.process");
       expect(types).not.toContain("mistralAzureOcr.process");
-      const node = graph.nodes?.mistralAzureOcr as ActivityNode | undefined;
-      const params = (node?.parameters ?? {}) as { variant?: string };
-      expect(params.variant).toBe("azure");
     });
 
     it("does not use the Azure DI submit/poll/extract chain (this is a sync provider)", () => {
