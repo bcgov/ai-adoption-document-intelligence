@@ -164,10 +164,14 @@ overlay_load=$(generate_instance_overlay \
   --sso-realm "${SSO_REALM}" \
   --sso-client-id "${SSO_CLIENT_ID}" \
   --document-intelligence-mode mock \
-  --mock-azure-ocr true)
+  --mock-azure-ocr true \
+  --mistral-doc-ai-azure-endpoint "https://hub.example/tenant" \
+  --azure-cu-endpoint "https://hub.example/tenant")
 kusto_load=$(cat "${overlay_load}/kustomization.yml")
 assert_contains "Backend patch sets DOCUMENT_INTELLIGENCE_MODE mock" 'DOCUMENT_INTELLIGENCE_MODE: "mock"' "${kusto_load}"
 assert_contains "Worker patch sets MOCK_AZURE_OCR true" 'MOCK_AZURE_OCR: "true"' "${kusto_load}"
+assert_contains "Worker patch sets Mistral Hub endpoint" 'MISTRAL_DOC_AI_AZURE_ENDPOINT: "https://hub.example/tenant"' "${kusto_load}"
+assert_contains "Worker patch sets CU Hub endpoint" 'AZURE_CU_ENDPOINT: "https://hub.example/tenant"' "${kusto_load}"
 cleanup_generated_overlay "${overlay_load}"
 echo ""
 

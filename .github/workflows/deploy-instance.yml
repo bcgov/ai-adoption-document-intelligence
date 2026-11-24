@@ -418,6 +418,8 @@ jobs:
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
           AZURE_DOC_INTELLIGENCE_MODELS: ${{ secrets.AZURE_DOC_INTELLIGENCE_MODELS }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          MISTRAL_DOC_AI_AZURE_ENDPOINT: ${{ secrets.MISTRAL_DOC_AI_AZURE_ENDPOINT }}
+          AZURE_CU_ENDPOINT: ${{ secrets.AZURE_CU_ENDPOINT }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
           AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
           ENRICHMENT_REDACT_PII: ${{ secrets.ENRICHMENT_REDACT_PII }}
@@ -480,6 +482,8 @@ jobs:
             --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}" \
             --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS:-prebuilt-layout}" \
             --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
+            --mistral-doc-ai-azure-endpoint "${MISTRAL_DOC_AI_AZURE_ENDPOINT:-}" \
+            --azure-cu-endpoint "${AZURE_CU_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
             --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
             --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}")
@@ -508,6 +512,8 @@ jobs:
           AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
           AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          MISTRAL_DOC_AI_AZURE_KEY: ${{ secrets.MISTRAL_DOC_AI_AZURE_KEY }}
+          AZURE_CU_KEY: ${{ secrets.AZURE_CU_KEY }}
         run: |
           set -euo pipefail
           source scripts/lib/oc-retry.sh
@@ -559,6 +565,8 @@ jobs:
           WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
           oc create secret generic "$WORKER_SECRET" \
             --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="MISTRAL_DOC_AI_AZURE_KEY=${MISTRAL_DOC_AI_AZURE_KEY}" \
+            --from-literal="AZURE_CU_KEY=${AZURE_CU_KEY}" \
             --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
@@ -847,4 +855,3 @@ jobs:
 
           echo "Failed services: ${FAILED_SERVICES[*]}"
           bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
-

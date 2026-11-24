@@ -246,7 +246,11 @@ describe("TemplateModelOcrService", () => {
       mockHttpService.post.mockReturnValueOnce(
         of({
           status: 202,
-          headers: { "apim-request-id": "test-request-id" },
+          headers: {
+            "apim-request-id": "different-correlation",
+            "operation-location":
+              "https://test.api.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-request-id",
+          },
           data: null,
           statusText: "Accepted",
           config: {} as never,
@@ -344,7 +348,10 @@ describe("TemplateModelOcrService", () => {
       mockHttpService.post.mockReturnValueOnce(
         of({
           status: 202,
-          headers: { "apim-request-id": "test-id" },
+          headers: {
+            "operation-location":
+              "https://test.api.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-id",
+          },
           data: null,
           statusText: "Accepted",
           config: {} as never,
@@ -386,7 +393,10 @@ describe("TemplateModelOcrService", () => {
       mockHttpService.post.mockReturnValueOnce(
         of({
           status: 202,
-          headers: { "apim-request-id": "test-id" },
+          headers: {
+            "operation-location":
+              "https://test.api.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-id",
+          },
           data: null,
           statusText: "Accepted",
           config: {} as never,
@@ -432,7 +442,10 @@ describe("TemplateModelOcrService", () => {
       mockHttpService.post.mockReturnValueOnce(
         of({
           status: 202,
-          headers: { "apim-request-id": "test-id" },
+          headers: {
+            "operation-location":
+              "https://test.api.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-id",
+          },
           data: null,
           statusText: "Accepted",
           config: {} as never,
@@ -476,7 +489,10 @@ describe("TemplateModelOcrService", () => {
       mockHttpService.post.mockReturnValueOnce(
         of({
           status: 202,
-          headers: { "apim-request-id": "test-id" },
+          headers: {
+            "operation-location":
+              "https://test.api.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-id",
+          },
           data: null,
           statusText: "Accepted",
           config: {} as never,

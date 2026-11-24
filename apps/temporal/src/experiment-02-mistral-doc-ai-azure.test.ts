@@ -36,11 +36,13 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
+  SEED_GROUP_ID,
   seedTestDocument,
   stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
+import { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 import {
   disconnectPrismaClient,
   getPrismaClient,
@@ -55,6 +57,7 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
+import { readOcrPayloadBlobInGroup } from "./ocr-payload-ref";
 import type { MistralOcrApiResponse } from "./ocr-providers/mistral/mistral-ocr-types";
 import { mistralOcrResponseToOcrResult } from "./ocr-providers/mistral/mistral-to-ocr-result";
 
@@ -139,6 +142,7 @@ function mistralResponseWithConfidence(
         },
       },
     ],
+    document_annotation: JSON.stringify({ name: "Synthetic Example" }),
     usage_info: { pages_processed: 1 },
   };
 }
@@ -183,14 +187,11 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
   });
 
   describe("scope rules from the brief", () => {
-    it("uses the merged Mistral activity with the azure (Foundry) variant — not the native public-API transport", () => {
+    it("uses the Mistral activity for the Hub deployment", () => {
       const graph = loadTemplate();
       const types = activityTypes(graph);
       expect(types).toContain("mistralOcr.process");
       expect(types).not.toContain("mistralAzureOcr.process");
-      const node = graph.nodes?.mistralAzureOcr as ActivityNode | undefined;
-      const params = (node?.parameters ?? {}) as { variant?: string };
-      expect(params.variant).toBe("azure");
     });
 
     it("does not use the Azure DI submit/poll/extract chain (this is a sync provider)", () => {
@@ -287,8 +288,8 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
       expect(outputPorts).toContain("ocrResult");
       expect(outputPorts).toContain("ocrResponse");
       // ctx must declare both keys.
-      expect(graph.ctx?.ocrResult).toBeDefined();
-      expect(graph.ctx?.ocrResponse).toBeDefined();
+      expect(graph.ctx?.ocrResultRef).toBeDefined();
+      expect(graph.ctx?.ocrResponseRef).toBeDefined();
     });
 
     it("Foundry activity carries the iteration kit's prompt + per-field descriptions + numericFieldsNullable on its parameters", () => {
@@ -481,14 +482,28 @@ describeRuntime(
         });
 
         expect(result.status).toBe("completed");
+        expect(result.refs).toMatchObject({
+          ocrResponseRef: { storage: "blob" },
+          ocrResultRef: { storage: "blob" },
+          cleanedResultRef: { storage: "blob" },
+        });
+        const { predictionData } = await benchmarkFlattenPredictionFromRefs({
+          groupId: SEED_GROUP_ID,
+          ...result.refs,
+        });
+        expect(predictionData).toMatchObject({ name: "Synthetic Example" });
         expect(ctx.requiresReview).toBe(false);
         expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
 
-        // T6: the raw Foundry response flows to ctx.ocrResponse so the
-        // benchmark sample workflow's persistOcrCache step can write it.
-        const ocrResponse = ctx.ocrResponse as { model?: string } | undefined;
-        expect(ocrResponse).toBeDefined();
-        expect(ocrResponse?.model).toBe("mistral-document-ai-2512");
+        expect(result.refs?.ocrResponseRef).toBeDefined();
+        if (!result.refs?.ocrResponseRef)
+          throw new Error("Missing raw OCR response ref");
+        const ocrResponse =
+          await readOcrPayloadBlobInGroup<MistralOcrApiResponse>(
+            result.refs.ocrResponseRef,
+            SEED_GROUP_ID,
+          );
+        expect(ocrResponse.model).toBe("mistral-document-ai-2512");
 
         const prisma = getPrismaClient();
         const persisted = await prisma.ocrResult.findUnique({

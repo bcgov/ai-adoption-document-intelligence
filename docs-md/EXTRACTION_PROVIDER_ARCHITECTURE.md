@@ -6,14 +6,14 @@ OCR/extraction engines plug into the system through Temporal **activities** regi
 
 Two engines are wired today:
 
-| | Azure DI (template models) | Mistral (public API) |
+| | Azure DI (template models) | Mistral (AI Hub) |
 |---|---|---|
 | Lifecycle | 3 activities: `azureOcr.submit` / `poll` / `extract` | 1 activity: `mistralOcr.process` |
 | API style | Async (poll-based, via SDK long-running operation) | Sync HTTP POST |
-| Auth | `api-key` header (`@azure-rest/ai-document-intelligence` SDK) | `Bearer <key>` (axios) |
-| Endpoint | `process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` (today routed through APIM) | Hardcoded `https://api.mistral.ai/v1/ocr` |
+| Auth | `api-key` header (`@azure-rest/ai-document-intelligence` SDK) | APIM `api-key` and authorization headers (axios) |
+| Endpoint | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | `MISTRAL_DOC_AI_AZURE_ENDPOINT` |
 | Field schema | DB `FieldDefinition[]` → trained model fields (training-time) | DB `FieldDefinition[]` → `document_annotation_format` (request-time) |
-| Mock flag | `MOCK_AZURE_OCR=true` | `MOCK_MISTRAL_OCR=true` |
+| Mock flag | `MOCK_AZURE_OCR=true` | `MOCK_MISTRAL_AZURE_OCR=true` |
 | Result mapper | `extract-ocr-results.ts` (uses SDK response shape) | `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts` |
 | Provider folder | None (activities live under `apps/temporal/src/activities/`) | `apps/temporal/src/ocr-providers/mistral/` |
 
@@ -35,11 +35,11 @@ Each item is checked against both Azure DI and Mistral. ✅ = handled correctly 
 | 2 | Activity-type registered with timeout + retry | ✅ `azureOcr.submit/poll/extract` | ✅ `mistralOcr.process`, 10m timeout, 2 attempts |
 | 3 | Field schema → engine format | ✅ via training-time field definition (no per-call conversion) | ✅ `field-definitions-to-mistral-annotation-format.ts` |
 | 4 | Confidence values 0–1 | ✅ DI native 0–1 | ✅ from `word_confidence_scores`; falls back to `average_page_confidence_score` (default 0.95 if missing) |
-| 5 | Bounding-box coords | ✅ inches from top-left at API `2024-11-30`, populated on `OCRResult.pages[].words[].polygon` | ⚠️ Mistral mapper sets `polygon: []` for words synthesized from markdown; only word-level scores are populated. Bbox-aware downstream consumers (e.g. layout-aware VLM hybrid in E05) won't get spatial info from Mistral. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
+| 5 | Bounding-box coords | ✅ inches from top-left at API `2024-11-30`, populated on `OCRResult.pages[].words[].polygon` | ✅ Mapper uses provided bounding boxes; synthesized words without boxes have empty polygons. |
 | 6 | Page indexing convention | ✅ 1-indexed in `OCRResult.pages[].pageNumber` | ✅ same |
-| 7 | Auth & endpoint via env vars | ✅ `AZURE_DOCUMENT_INTELLIGENCE_*` vars; endpoint normalized (trailing slash stripped) | ✅ `MISTRAL_API_KEY`; URL hardcoded |
+| 7 | Auth & endpoint via env vars | ✅ `AZURE_DOCUMENT_INTELLIGENCE_*` | ✅ `MISTRAL_DOC_AI_AZURE_ENDPOINT` and `MISTRAL_DOC_AI_AZURE_KEY` |
 | 8 | Workflow graph definition | ✅ existing template-model workflows in seed | ✅ existing Mistral workflow in seed |
-| 9 | Engine-internal preprocessing | ✅ DI handles deskew/rotate/denoise; documented | ⚠️ Mistral's internal preprocessing isn't documented in the codebase. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
+| 9 | Engine-internal preprocessing | ✅ DI handles deskew/rotate/denoise; documented | See Mistral OCR 3 documentation for preprocessing handled by the model. |
 | 10 | Test coverage | ✅ unit tests for mappers + activity | ✅ unit tests for mappers + activity |
 | 11 | Benchmark integration | ✅ runs through `BenchmarkRun` flow today | ✅ runs through `BenchmarkRun` flow today |
 | 12 | Cost/usage telemetry | 🆕 Not recorded today — neither provider populates usage on `BenchmarkRun.metrics`. **Each new engine in E02–E05 records its own; revisit cross-engine normalization after E05 lands.** | 🆕 Same. |

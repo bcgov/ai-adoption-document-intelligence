@@ -81,6 +81,8 @@ generate_instance_overlay() {
   local review_session_retention_days=""
   local chat_conversation_retention_days=""
   local azure_openai_endpoint=""
+  local mistral_doc_ai_azure_endpoint=""
+  local azure_cu_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
@@ -216,6 +218,14 @@ generate_instance_overlay() {
         ;;
       --azure-openai-endpoint)
         azure_openai_endpoint="$2"
+        shift 2
+        ;;
+      --mistral-doc-ai-azure-endpoint)
+        mistral_doc_ai_azure_endpoint="$2"
+        shift 2
+        ;;
+      --azure-cu-endpoint)
+        azure_cu_endpoint="$2"
         shift 2
         ;;
       --azure-openai-deployment)
@@ -402,6 +412,8 @@ generate_instance_overlay() {
     -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
     -e "s|__CHAT_CONVERSATION_RETENTION_DAYS__|$(_sed_escape_replacement "${chat_conversation_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
+    -e "s|__MISTRAL_DOC_AI_AZURE_ENDPOINT__|$(_sed_escape_replacement "${mistral_doc_ai_azure_endpoint}")|g"
+    -e "s|__AZURE_CU_ENDPOINT__|$(_sed_escape_replacement "${azure_cu_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"

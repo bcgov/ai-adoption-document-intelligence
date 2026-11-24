@@ -6,7 +6,7 @@ const CU_AUTH_MODES = ["subscription-key", "bearer"] as const;
 // Mirrors `AzureCuAnalyzeParams` in
 // apps/temporal/src/ocr-providers/azure-content-understanding/azure-cu-analyze.ts,
 // less the values that arrive as inputs (`fileData`, `templateModelId`) and the
-// ones the engine supplies (`groupId`, `requestId`).
+// ones the engine supplies (`documentId`, `groupId`, `requestId`).
 export const azureContentUnderstandingAnalyzeParametersSchema = z.object({
   documentAnnotationPrompt: z.string().optional().meta({
     title: "Annotation prompt",

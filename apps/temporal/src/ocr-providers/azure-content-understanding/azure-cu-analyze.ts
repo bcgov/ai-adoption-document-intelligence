@@ -3,10 +3,8 @@
  *
  * CU analyze is async (POST returns 202 + Operation-Location header). The
  * activity submits one document, polls every `pollIntervalMs` until the
- * operation reports terminal status, then returns the canonical
- * {@link OCRResult} alongside the raw CU response so the benchmark sample
- * workflow's `persistOcrCache` step can write a row to
- * `benchmark_ocr_cache`.
+ * operation reports terminal status, then persists the canonical OCR result
+ * and raw CU response and returns their group-scoped references.
  *
  * The activity also takes care of analyzer deployment: when the workflow
  * supplies a `documentAnnotationPrompt` / `fieldDescriptions` /
@@ -22,6 +20,11 @@ import type { AxiosResponse } from "axios";
 import { getPrismaClient } from "../../activities/database-client";
 import { readGroupBlob } from "../../blob-storage/read-group-blob";
 import { createActivityLogger } from "../../logger";
+import {
+  type OcrPayloadRef,
+  persistOcrExtractionRefs,
+  requireDocumentId,
+} from "../../ocr-payload-ref";
 import type { OCRResult, PreparedFileData } from "../../types";
 import {
   buildCuAnalyzerDefinition,
@@ -212,6 +215,7 @@ function resolveAnalyzerId(
 
 export interface AzureCuAnalyzeParams {
   fileData: PreparedFileData;
+  documentId: string;
   groupId?: string | null;
   /** Labeling template model id; loads `field_schema` to build the CU analyzer. */
   templateModelId?: string;
@@ -247,15 +251,14 @@ export interface AzureCuAnalyzeParams {
 }
 
 export interface AzureCuAnalyzeResult {
-  /** Canonical mapped OCR result for downstream activities. */
-  ocrResult: OCRResult;
-  /** Raw CU response — sync-provider cache emission on `ctx.ocrResponse`. */
-  ocrResponse: CuAnalyzeOperation;
+  /** References to the canonical OCR result and raw CU response. */
+  ocrResult: OcrPayloadRef;
+  ocrResponse: OcrPayloadRef;
 }
 
 /**
  * Activity: Run an Azure Content Understanding analyzer on one document.
- * Returns a canonical {@link OCRResult} + the raw CU operation response.
+ * Returns references to the canonical OCR result and raw CU operation.
  */
 export async function azureCuAnalyze(
   params: AzureCuAnalyzeParams,
@@ -273,6 +276,9 @@ export async function azureCuAnalyze(
       "Azure CU analyze: groupId is required to read the document and its template model.",
     );
   }
+  const documentId = requireDocumentId(params);
+  const persist = (result: OCRResult, response: CuAnalyzeOperation) =>
+    persistOcrExtractionRefs(groupId, documentId, result, response);
   const templateModelId = params.templateModelId?.trim();
   const analyzerId = resolveAnalyzerId(
     groupId,
@@ -317,7 +323,7 @@ export async function azureCuAnalyze(
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult, ocrResponse };
+    return persist(ocrResult, ocrResponse);
   }
 
   const endpoint = readEnv("AZURE_CU_ENDPOINT");
@@ -429,13 +435,12 @@ export async function azureCuAnalyze(
           analyzerId,
           durationMs: Date.now() - startTime,
         });
-        return {
+        return persist(
           ocrResult,
-          ocrResponse:
-            body.status === "Succeeded"
-              ? body
-              : { status: "Succeeded", result: inlineResult },
-        };
+          body.status === "Succeeded"
+            ? body
+            : { status: "Succeeded", result: inlineResult },
+        );
       }
     }
   } catch (err) {
@@ -463,7 +468,7 @@ export async function azureCuAnalyze(
   }
   const pollIntervalMs = params.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const pollMaxAttempts = params.pollMaxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS;
-  const pollUrl = cuAnalyzeResultUrlFromOperation(operationLocation);
+  const pollUrl = cuAnalyzeResultUrlFromOperation(operationLocation, endpoint);
 
   let lastBody: CuAnalyzeOperation | undefined;
   for (let attempt = 0; attempt < pollMaxAttempts; attempt++) {
@@ -524,7 +529,7 @@ export async function azureCuAnalyze(
         pageCount: ocrResult.pages.length,
         durationMs: Date.now() - startTime,
       });
-      return { ocrResult, ocrResponse: body };
+      return persist(ocrResult, body);
     }
     if (status === "Failed") {
       const errMsg = body.error?.message ?? "unknown";
