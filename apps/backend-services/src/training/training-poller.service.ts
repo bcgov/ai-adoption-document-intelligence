@@ -350,6 +350,7 @@ export class TrainingPollerService {
       } catch (modelError) {
         this.logger.error(
           `Error polling operation ${operationId} for model ${modelId}: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
+          { error: modelError },
         );
 
         // Mark job as failed

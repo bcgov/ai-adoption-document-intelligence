@@ -48,4 +48,10 @@ export class SuggestedFieldDto {
       "True when the template model already has a field with this key",
   })
   already_exists!: boolean;
+
+  @ApiProperty({
+    description:
+      "How sure the suggestion is, from 0 to 1. 0.95 when the words are on the page. 0 when the field is left blank. 0.5 when the model names a value that is not on the page.",
+  })
+  confidence!: number;
 }

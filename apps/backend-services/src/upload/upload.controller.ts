@@ -219,8 +219,9 @@ export class UploadController {
         .catch((error) => {
           this.logger.error(
             `Background OCR processing failed for document ${uploadedDocument.id}: ${getErrorMessage(error)}`,
+            { error },
           );
-          this.logger.error(`Stack: ${getErrorStack(error)}`);
+          this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
         });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
@@ -239,8 +240,10 @@ export class UploadController {
         },
       };
     } catch (error) {
-      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`, {
+        error,
+      });
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       if (
         error instanceof HttpException ||

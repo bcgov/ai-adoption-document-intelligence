@@ -84,7 +84,7 @@ export class AzureBlobProviderService
       const err = error as Error;
       this.logger.error(
         `Failed to ensure container "${this.containerName}" exists: ${err.message}`,
-        { alertType: "blob_storage_container" },
+        { error, alertType: "blob_storage_container" },
       );
     }
   }

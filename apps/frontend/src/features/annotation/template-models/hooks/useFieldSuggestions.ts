@@ -10,6 +10,8 @@ export interface SuggestedField {
   value: string | null;
   page_number: number | null;
   already_exists: boolean;
+  /** 0.95 when the words are on the page. 0 when the field is blank. 0.5 when the named words are not on the page. */
+  confidence: number;
 }
 
 export const useFieldSuggestions = (templateModelId?: string) => {

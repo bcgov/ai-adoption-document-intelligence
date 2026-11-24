@@ -25,7 +25,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
@@ -114,7 +113,7 @@ async function loadTemplate(
     log.error("VLM-direct: failed to load template", {
       event: "schema_load_error",
       templateModelId,
-      error: getErrorMessage(error),
+      error,
     });
     // Rethrow genuine DB/query failures — a transient Prisma error is not a
     // missing template. The caller maps `null` to "field_schema not found",
@@ -238,6 +237,7 @@ async function callAzureOpenAiVlm(
       const detail =
         typeof body === "object" ? JSON.stringify(body) : String(body ?? "");
       log.error("VLM chat completions HTTP error", {
+        error: err,
         event: "http_error",
         deployment,
         httpStatus: String(status),
