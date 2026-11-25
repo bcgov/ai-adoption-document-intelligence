@@ -72,53 +72,64 @@ export async function analyzeWithAzureOcr(
   });
   const { apimRequestId } = submission;
 
-  if (apimRequestId !== BENCHMARK_REPLAY_REQUEST_ID && params.groupId) {
-    await updateDocumentStatus({
-      documentId: params.documentId,
-      groupId: params.groupId,
-      status: "ongoing_ocr",
-      apimRequestId,
-      requestId: params.requestId,
-    });
-  }
-
-  const polled = await pollUntilSettled<
-    Awaited<ReturnType<typeof pollOCRResults>>
-  >(
-    async () => {
-      const result = await pollOCRResults({
-        apimRequestId,
-        modelId: preparedData.modelId,
+  try {
+    if (apimRequestId !== BENCHMARK_REPLAY_REQUEST_ID && params.groupId) {
+      await updateDocumentStatus({
         documentId: params.documentId,
         groupId: params.groupId,
-        __benchmarkOcrCache: params.__benchmarkOcrCache,
+        status: "ongoing_ocr",
+        apimRequestId,
+        requestId: params.requestId,
       });
-      return result.status === "running"
-        ? { done: false }
-        : { done: true, value: result };
-    },
-    {
-      pollIntervalSeconds: params.pollIntervalSeconds,
-      maxWaitSeconds: params.maxWaitSeconds,
-      description: "Azure OCR to finish",
-    },
-  );
+    }
 
-  const extracted = await extractOCRResults({
-    apimRequestId,
-    fileName: preparedData.fileName,
-    fileType: preparedData.fileType,
-    modelId: preparedData.modelId,
-    documentId: params.documentId,
-    groupId: params.groupId,
-    ocrResponse: polled.ocrResponse,
-  });
+    const polled = await pollUntilSettled<
+      Awaited<ReturnType<typeof pollOCRResults>>
+    >(
+      async () => {
+        const result = await pollOCRResults({
+          apimRequestId,
+          modelId: preparedData.modelId,
+          documentId: params.documentId,
+          groupId: params.groupId,
+          __benchmarkOcrCache: params.__benchmarkOcrCache,
+        });
+        return result.status === "running"
+          ? { done: false }
+          : { done: true, value: result };
+      },
+      {
+        pollIntervalSeconds: params.pollIntervalSeconds,
+        maxWaitSeconds: params.maxWaitSeconds,
+        description: "Azure OCR to finish",
+      },
+    );
 
-  log.info("Azure OCR analysis complete", { event: "complete", apimRequestId });
+    const extracted = await extractOCRResults({
+      apimRequestId,
+      fileName: preparedData.fileName,
+      fileType: preparedData.fileType,
+      modelId: preparedData.modelId,
+      documentId: params.documentId,
+      groupId: params.groupId,
+      ocrResponse: polled.ocrResponse,
+    });
 
-  return {
-    ocrResult: extracted.ocrResult,
-    apimRequestId,
-    _metered_quantity: extracted._metered_quantity,
-  };
+    log.info("Azure OCR analysis complete", {
+      event: "complete",
+      apimRequestId,
+    });
+
+    return {
+      ocrResult: extracted.ocrResult,
+      apimRequestId,
+      _metered_quantity: extracted._metered_quantity,
+    };
+  } catch (error) {
+    if (error instanceof ApplicationFailure && error.nonRetryable) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw ApplicationFailure.create({ message, nonRetryable: true });
+  }
 }
