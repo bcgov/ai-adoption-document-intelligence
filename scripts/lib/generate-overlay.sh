@@ -23,6 +23,9 @@ _PROJECT_ROOT="$(cd "${_GENERATE_OVERLAY_DIR}/../.." && pwd)"
 _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instance-template"
 _MINIO_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/minio"
 _PROD_RESOURCES_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/prod-resources"
+_AZURE_LOG_MIRROR_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/azure-log-mirror"
+# Fluent Bit config shared with local Compose; copied into the azure-log-mirror component.
+_FLUENT_BIT_CONFIG_DIR="${_PROJECT_ROOT}/deployments/fluent-bit"
 
 # Escape a string for use as a sed replacement value.
 # Handles the delimiter (|), backslash, and ampersand.
@@ -94,6 +97,9 @@ generate_instance_overlay() {
   local minio_document_bucket="document-blobs"
   local with_minio="false"
   local with_prod_resources="false"
+  # Adds the Azure Log Analytics mirror sidecars; callers pass it only when every
+  # AZURE_LOGS_* setting is configured.
+  local with_azure_log_mirror="false"
   local minio_pvc_size="5Gi"
   local minio_root_user=""
   local minio_root_password=""
@@ -260,6 +266,10 @@ generate_instance_overlay() {
         with_minio="true"
         shift
         ;;
+      --with-azure-log-mirror)
+        with_azure_log_mirror="true"
+        shift
+        ;;
       --minio-endpoint)
         minio_endpoint="$2"
         shift 2
@@ -336,6 +346,17 @@ generate_instance_overlay() {
     fi
   fi
 
+  if [[ "${with_azure_log_mirror}" == "true" ]]; then
+    local mirror_file
+    for mirror_file in "${_AZURE_LOG_MIRROR_COMPONENT_DIR}/kustomization.yml" \
+      "${_FLUENT_BIT_CONFIG_DIR}/openshift.yaml" "${_FLUENT_BIT_CONFIG_DIR}/filters.lua"; do
+      if [[ ! -f "${mirror_file}" ]]; then
+        echo "[ERROR] Azure log mirror file not found: ${mirror_file}" >&2
+        return 1
+      fi
+    done
+  fi
+
   # Create a temporary directory that preserves the relative path structure
   # so that ../../base in kustomization.yml resolves correctly.
   # Structure: tmpdir/overlays/instance/ (overlay) with tmpdir/base -> symlink to real base
@@ -368,6 +389,13 @@ generate_instance_overlay() {
   if [[ "${with_prod_resources}" == "true" ]]; then
     cp -r "${_PROD_RESOURCES_COMPONENT_DIR}" "${generated_dir}/prod-resources"
     component_refs+=("./prod-resources")
+  fi
+
+  if [[ "${with_azure_log_mirror}" == "true" ]]; then
+    cp -r "${_AZURE_LOG_MIRROR_COMPONENT_DIR}" "${generated_dir}/azure-log-mirror"
+    cp "${_FLUENT_BIT_CONFIG_DIR}/openshift.yaml" "${_FLUENT_BIT_CONFIG_DIR}/filters.lua" \
+      "${generated_dir}/azure-log-mirror/"
+    component_refs+=("./azure-log-mirror")
   fi
 
   if [[ ${#component_refs[@]} -gt 0 ]]; then

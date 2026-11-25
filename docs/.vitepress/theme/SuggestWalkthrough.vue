@@ -309,7 +309,7 @@ confidence: this.suggestionConfidence(item.refs.length, resolved !== null),</pre
       .arrow { transform: rotate(90deg); min-height: 36px; }
       .sheet, .sent, .back, .cloud-card { min-height: 0; }
     }
-  
+
 
 </style>
 

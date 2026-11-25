@@ -553,6 +553,74 @@ echo ""
 cleanup_generated_overlay "${overlay_dir}"
 
 # ========================================
+# Scenario 7: Azure log mirror component opt-in
+# ========================================
+
+echo "--- Scenario 7: Azure log mirror component opt-in ---"
+echo ""
+
+echo "Test 7.1: Without --with-azure-log-mirror, no mirror component is generated"
+overlay_dir=$(generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}")
+TESTS_RUN=$((TESTS_RUN + 1))
+if [[ ! -d "${overlay_dir}/azure-log-mirror" ]]; then
+  echo "  PASS: azure-log-mirror component directory not present"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo "  FAIL: azure-log-mirror component directory should not be present"
+  TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+assert_not_contains "Without flag, kustomization does not reference the mirror" \
+  "./azure-log-mirror" "$(cat "${overlay_dir}/kustomization.yml")"
+cleanup_generated_overlay "${overlay_dir}"
+echo ""
+
+echo "Test 7.2: With --with-azure-log-mirror, the component and shared Fluent Bit files are included"
+overlay_dir=$(generate_instance_overlay \
+  --instance "${INSTANCE}" \
+  --namespace "${NAMESPACE}" \
+  --cluster-domain "${CLUSTER_DOMAIN}" \
+  --backend-image "${BACKEND_IMAGE}" \
+  --frontend-image "${FRONTEND_IMAGE}" \
+  --worker-image "${WORKER_IMAGE}" \
+  --image-tag "${IMAGE_TAG}" \
+  --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
+  --sso-realm "${SSO_REALM}" \
+  --sso-client-id "${SSO_CLIENT_ID}" \
+  --with-azure-log-mirror)
+assert_file_exists "azure-log-mirror/kustomization.yml exists" "${overlay_dir}/azure-log-mirror/kustomization.yml"
+assert_file_exists "azure-log-mirror/fluent-bit-sidecar.yml exists" "${overlay_dir}/azure-log-mirror/fluent-bit-sidecar.yml"
+assert_file_exists "openshift.yaml copied into the component" "${overlay_dir}/azure-log-mirror/openshift.yaml"
+assert_file_exists "filters.lua copied into the component" "${overlay_dir}/azure-log-mirror/filters.lua"
+assert_contains "components: ./azure-log-mirror is referenced" \
+  "  - ./azure-log-mirror" "$(cat "${overlay_dir}/kustomization.yml")"
+echo ""
+
+echo "Test 7.3: The sidecar reads the instance-scoped Secret"
+assert_contains "Secret name carries the instance" "name: ${INSTANCE}-azure-logs-secrets" \
+  "$(cat "${overlay_dir}/azure-log-mirror/fluent-bit-sidecar.yml")"
+remaining_mirror_placeholders=$(grep -rE '__[A-Z][A-Z0-9_]*__' "${overlay_dir}/azure-log-mirror/" 2>/dev/null || true)
+assert_eq "No placeholder tokens remain in the mirror component" "" "${remaining_mirror_placeholders}"
+echo ""
+
+echo "Test 7.4: The copied Fluent Bit files match the shared ones"
+assert_eq "filters.lua copied unchanged" "" \
+  "$(diff "${PROJECT_ROOT}/deployments/fluent-bit/filters.lua" "${overlay_dir}/azure-log-mirror/filters.lua" || true)"
+assert_eq "openshift.yaml copied unchanged" "" \
+  "$(diff "${PROJECT_ROOT}/deployments/fluent-bit/openshift.yaml" "${overlay_dir}/azure-log-mirror/openshift.yaml" || true)"
+cleanup_generated_overlay "${overlay_dir}"
+echo ""
+
+# ========================================
 # Different instance name test
 # ========================================
 

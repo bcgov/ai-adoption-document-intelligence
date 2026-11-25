@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-11-13
+updated: 2026-11-25
 canonical_sources:
   - docs-md/operations/
   - docs-md/operations/AI_HUB_MIGRATION_VALIDATION.md
@@ -8,6 +8,7 @@ canonical_sources:
   - docs-md/benchmarking/LOAD_TESTING.md
   - docs-md/monitoring/LOCAL_MONITORING_STACK.md
   - docs-md/monitoring/ALERTING.md
+  - docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md
   - .github/workflows/
   - deployments/
 do_not_duplicate:
@@ -30,6 +31,7 @@ Deployment and operations guidance spans OpenShift docs, scripts, GitHub Actions
 - Script usage and maintenance operations live in `scripts/README.md`.
 - Load testing guidance lives in `docs-md/benchmarking/LOAD_TESTING.md`.
 - Monitoring and alerting guidance lives in `docs-md/monitoring/LOCAL_MONITORING_STACK.md` and `docs-md/monitoring/ALERTING.md`.
+- `docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md` covers local and OpenShift Fluent Bit mirroring with Entra service-principal authentication. Shared filters/configuration live under `deployments/fluent-bit/`. The mirror is opt-in: locally through the `azure-logs` Compose profile, and on OpenShift through the `components/azure-log-mirror` Kustomize component and the CHES chart's `azureLogs.enabled`, which both deploy paths turn on only when every required `AZURE_LOGS_*` setting is configured.
 - CI/CD behavior lives in `.github/workflows/`.
 - Kubernetes, Helm, and local deployment assets live under `deployments/`.
 

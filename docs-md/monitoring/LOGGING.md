@@ -11,6 +11,16 @@ The `@ai-di/shared-logging` package provides structured NDJSON logging used by `
 - **Backend:** `AppLoggerService` wraps `createLogger("backend-services")` (see `apps/backend-services/src/logging`). Request-scoped `requestId`, `actorId`, `userId`, `sessionId`, `apiKeyId`, and `clientIp` are merged into every log via middleware and request context. The `requestId` is always generated server-side (a new UUID per request); any client-supplied `x-request-id` header is ignored so logs and audit cannot be confused by reused IDs. The `sessionId` is extracted from the Keycloak JWT `session_state` claim (via `req.user.session_state`) in the `RequestLoggingInterceptor` and stored in `AsyncLocalStorage`. For API key-authenticated requests (validated by `ApiKeyAuthGuard`), the `apiKeyId` field is set to the stored key prefix (first 8 characters) instead of `sessionId`; the two fields are mutually exclusive. The full API key value is never written to log output. The `clientIp` is extracted by the `LoggingMiddleware` using the priority: `X-Forwarded-For` (first entry) > `X-Real-IP` > `req.socket.remoteAddress`. On OpenShift, the client IP arrives via `X-Forwarded-For` due to reverse proxy/ingress; locally, `req.socket.remoteAddress` is used as fallback. For unauthenticated requests, both `sessionId` and `apiKeyId` are omitted from log output. `RequestLoggingInterceptor` (registered globally as `APP_INTERCEPTOR` in `LoggingModule`) logs each completed HTTP request as NDJSON ("Request completed" with requestId, method, path, statusCode, durationMs) in all environments. The logger also accepts a metrics hook: warn/error logs carrying an `alertType` in context increment Prometheus alert counters, which drive the alerting pipeline (see [ALERTING.md](ALERTING.md)).
 - **Temporal worker:** `createLogger("temporal-worker")` and `createActivityLogger(activityName, context)` (see `apps/temporal/src/logger.ts`). Activities that receive `requestId` in workflow input should pass it in `context` so logs can be traced by requestId across backend and worker. **SDK internal logs** (e.g. "Activity failed", "Workflow failed") are routed through the same shared logger via a custom Runtime logger and native log forwarding (`apps/temporal/src/temporal-runtime-logger.ts`), so all worker process output is NDJSON and respects `LOG_LEVEL`.
 
+## HTTP failure coverage
+
+`RequestFailureLoggingFilter` is registered globally as `APP_FILTER` to log unmatched routes (404) and guard rejections (401/403), which occur before interceptors. It emits "Request failed" at `warn` for 4xx and `error` for 5xx, then delegates to Nest's `BaseExceptionFilter` without changing the response.
+
+Requests that reach `RequestLoggingInterceptor` are marked `_loggingCompleted` to prevent duplicate filter logs. Handler exceptions use the exception's HTTP status (or 500 for an unknown error), rather than the response's not-yet-updated status. Existing probe/scrape debug-level logging is preserved.
+
+These records allow the [Azure Log Analytics mirror](AZURE_LOG_ANALYTICS_MIRROR.md) to retain HTTP failures, including failed requests whose completion entries are logged at `info`. The default application `LOG_LEVEL=info` preserves those entries.
+
+Tests for the filter include real Nest HTTP responses and deduplication with the interceptor. Run the backend logging tests with `npm test -w apps/backend-services -- --runInBand logging`.
+
 ## Testing
 
 **Stack traces:** every `error`-level entry carries a `stack`. An explicit `stack` in context wins; an `Error` passed as `error`/`err` is serialized (message in that field, trace in `stack`); otherwise the logging call site's stack is captured. `installCrashHandlers(logger)` (called in backend-services and the Temporal worker; ches-adapter has an equivalent) logs uncaught exceptions/unhandled rejections with stack via `uncaughtExceptionMonitor`, without changing Node's crash behaviour. Prefer passing the caught error (`{ error: err }`) so the original trace, not just the call site, is recorded. `npm run lint:error-logging` (`scripts/check-error-logging.js`, also a lefthook pre-commit job) fails when a `logger.error` inside a `catch` block does not pass the caught error or an explicit `stack`; run it with `--fix` to add `{ error: <caughtVar> }` automatically.
@@ -47,6 +57,8 @@ To read the file directly:
 For anything older than the last few minutes, query Loki instead.
 
 Config is in `deployments/openshift/kustomize/base/<service>/deployment.yml` — the `logs` volume, the `tee` command and the `log-rotator` sidecar. The ches-adapter carries the same three in `deployments/openshift/helm/plg/templates/ches-adapter-deployment.yaml`.
+
+Where it is configured, the [Azure Log Analytics mirror](AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) adds a Fluent Bit sidecar to those same log volumes (also frontend and Temporal server), without replacing Promtail. Its health-filtered output, with `userId`, `actorId`, `sessionId`, `apiKeyId` and `clientIp` removed, uses Entra client credentials from a dedicated OpenShift Secret.
 
 ### Probe and scrape requests are logged at `debug`
 

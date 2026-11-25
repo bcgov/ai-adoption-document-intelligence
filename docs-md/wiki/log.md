@@ -214,6 +214,14 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added routing to the canonical operator value map and migration validation runbook.
 - Kept deployment instructions and endpoint inventories out of the wiki.
 
+## [2026-11-16] ingest | Local Azure Log Analytics mirror
+
+- Added routing to the Fluent Bit mirror guide and configuration, including the boundary between host-file collection and container stdout.
+
+## [2026-11-17] ingest | OpenShift Azure log mirror
+
+- Extended the canonical mirror guide to OpenShift sidecars, instance Secret provisioning, and nginx filtering; routed shared assets to `deployments/fluent-bit/`.
+
 ## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
 
 - Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
@@ -226,3 +234,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 ## [2026-11-24] ingest | Content Understanding AI Hub routing
 
 - Linked the extraction topic to the CU configuration and analyzer guide.
+
+## [2026-11-25] ingest | Opt-in Azure log mirror without identifiers
+
+- `deployment-and-ops.md`: the mirror deploys only where every required `AZURE_LOGS_*` setting is configured, through the `components/azure-log-mirror` Kustomize component and the CHES chart's `azureLogs.enabled`; locally it has its own `azure-logs` Compose profile.
+- `sources.md`: routes the component directory.
+- The canonical guide lists what is removed from a line before it is sent.
