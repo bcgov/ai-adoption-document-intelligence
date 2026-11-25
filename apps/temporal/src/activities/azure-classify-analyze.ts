@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/workflow";
 import {
   AzureClassifyInProgressError,
   type AzureClassifyPollOutput,

@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/workflow";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResponse } from "../types";
