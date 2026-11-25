@@ -10,10 +10,10 @@ export const azurePollTimingShape = {
     description: "How often to check whether Azure has finished.",
     "x-default": 10,
   }),
-  maxWaitSeconds: z.number().int().min(30).max(3600).optional().meta({
+  maxWaitSeconds: z.number().int().min(30).max(600).optional().meta({
     title: "Maximum wait (seconds)",
     description:
-      "How long to wait for Azure before failing. Keep it under the node's step timeout (15 minutes by default).",
+      "How long to wait for Azure before failing. 10 minutes is the longest, so the step can still finish before it is stopped at 15 minutes.",
     "x-default": 600,
   }),
 };
