@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  InternalServerErrorException,
   NotFoundException,
   Param,
   Patch,
@@ -549,6 +550,7 @@ export class DocumentController {
       );
       this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
+      // Re-throw deliberate 4xx responses
       if (
         error instanceof NotFoundException ||
         error instanceof ForbiddenException
@@ -556,10 +558,8 @@ export class DocumentController {
         throw error;
       }
 
-      throw new NotFoundException(
-        getErrorMessage(error) ||
-          `Failed to retrieve OCR result for document: ${documentId}`,
-      );
+      // Unexpected errors → 500 with generic message
+      throw new InternalServerErrorException("An unexpected error occurred");
     }
   }
 
@@ -634,6 +634,7 @@ export class DocumentController {
         `Failed to read normalized PDF for document ${documentId}: ${getErrorMessage(error)}`,
         { error },
       );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw new NotFoundException(
         `Normalized PDF is not available for document: ${documentId}`,
       );
@@ -689,9 +690,13 @@ export class DocumentController {
     let fileBuffer: Buffer;
     try {
       fileBuffer = await this.blobStorage.read(thumbnailKey);
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Failed to read thumbnail for document ${documentId}: ${getErrorMessage(error)}`,
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`);
       throw new NotFoundException(
-        `Thumbnail not available for document: ${documentId}`,
+        `Failed to read thumbnail for document ${documentId}`,
       );
     }
 
@@ -781,6 +786,7 @@ export class DocumentController {
       );
       this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
+      // Re-throw deliberate 4xx responses
       if (
         error instanceof NotFoundException ||
         error instanceof ForbiddenException ||
@@ -789,9 +795,8 @@ export class DocumentController {
         throw error;
       }
 
-      throw new NotFoundException(
-        getErrorMessage(error) || `Failed to download document: ${documentId}`,
-      );
+      // Unexpected errors → 500 with generic message
+      throw new InternalServerErrorException("An unexpected error occurred");
     }
   }
 }

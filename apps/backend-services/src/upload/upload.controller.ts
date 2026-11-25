@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  InternalServerErrorException,
   NotFoundException,
   Post,
   Req,
@@ -245,17 +246,13 @@ export class UploadController {
       });
       this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
-      if (
-        error instanceof HttpException ||
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
+      // Re-throw deliberate 4xx responses (validation, auth, not found, etc.)
+      if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new BadRequestException(
-        getErrorMessage(error) || "Failed to upload document",
-      );
+      // Unexpected errors → 500 with generic message
+      throw new InternalServerErrorException("An unexpected error occurred");
     }
   }
 }
