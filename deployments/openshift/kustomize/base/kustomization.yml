@@ -6,45 +6,7 @@ resources:
 - temporal
 - frontend
 - deno-runner
-- ../../../fluent-bit
-patches:
-  - path: fluent-bit-sidecar.yml
-    target:
-      kind: Deployment
-      name: (backend-services|frontend|temporal|temporal-worker)
-  - target:
-      kind: Deployment
-      name: frontend
-    patch: |
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: frontend
-      spec:
-        template:
-          spec:
-            containers:
-              - name: fluent-bit
-                env:
-                  - name: LOG_FILTER
-                    value: nginx
-  - target:
-      kind: Deployment
-      name: temporal
-    patch: |
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: temporal
-      spec:
-        template:
-          spec:
-            containers:
-              - name: fluent-bit
-                env:
-                  - name: LOG_SERVICE
-                    value: temporal-server
-                    valueFrom: null
 commonLabels:
   env: base
+
 

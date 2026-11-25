@@ -109,18 +109,18 @@ The deploy script uses these to create the `<instance>-artifactory-pull` docker-
 
 ### Azure Log Analytics mirror
 
-OpenShift deployments include Fluent Bit log-mirror sidecars by default. Both CI and `oc-deploy-instance.sh` provision an instance-owned `<instance>-azure-logs-secrets` Secret before deploying workloads. Supply these values in GitHub environment secrets for CI, or the selected profile/instance config for manual deployments; local repo-root `.env` values are not automatically copied to OpenShift.
+OpenShift deployments add Fluent Bit log-mirror sidecars only when every setting marked required below is configured; otherwise they deploy without them. When they are configured, both CI and `oc-deploy-instance.sh` provision an instance-owned `<instance>-azure-logs-secrets` Secret before deploying workloads. Supply these values in GitHub environment secrets for CI, or the selected profile/instance config for manual deployments; local repo-root `.env` values are not automatically copied to OpenShift.
 
 | Variable | Description |
 |----------|-------------|
-| `AZURE_LOGS_TENANT_ID` | Entra tenant ID (required) |
-| `AZURE_LOGS_CLIENT_ID` | App registration client ID (required) |
-| `AZURE_LOGS_CLIENT_SECRET` | Client secret **value**, not secret ID (required) |
-| `AZURE_LOGS_DCE_URL` | HTTPS Logs ingestion endpoint (required) |
-| `AZURE_LOGS_DCR_ID` | Immutable `dcr-...` ID (required) |
+| `AZURE_LOGS_TENANT_ID` | Entra tenant ID (required for the mirror) |
+| `AZURE_LOGS_CLIENT_ID` | App registration client ID (required for the mirror) |
+| `AZURE_LOGS_CLIENT_SECRET` | Client secret **value**, not secret ID (required for the mirror) |
+| `AZURE_LOGS_DCE_URL` | HTTPS Logs ingestion endpoint (required for the mirror) |
+| `AZURE_LOGS_DCR_ID` | Immutable `dcr-...` ID (required for the mirror) |
 | `AZURE_LOGS_TABLE_NAME` | Custom table including `_CL`; defaults to `DocIntelLocal_CL` |
 
-Missing required settings fail deployment. Grant the service principal **Monitoring Metrics Publisher** on the DCR. See [Azure Log Analytics mirror](../monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) for schema, per-pod resources, egress, and verification.
+With only some of them set, the deploy runs without the mirror and logs which are missing; an invalid value (a non-HTTPS endpoint, or a DCR ID that is not `dcr-...`) fails the deploy. Grant the service principal **Monitoring Metrics Publisher** on the DCR. See [Azure Log Analytics mirror](../monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) for schema, per-pod resources, egress, and verification.
 
 ### Azure Document Intelligence
 

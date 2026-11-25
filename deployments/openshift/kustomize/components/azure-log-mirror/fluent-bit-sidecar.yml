@@ -10,8 +10,10 @@ spec:
           image: fluent/fluent-bit:4.0.3
           args: ["--config=/fluent-bit/etc/fluent-bit.yaml"]
           envFrom:
+            # Created by the deploy scripts; not a Kustomize resource, so namePrefix
+            # does not rename it.
             - secretRef:
-                name: azure-logs-secrets
+                name: __INSTANCE_NAME__-azure-logs-secrets
           env:
             - name: LOG_SERVICE
               valueFrom:

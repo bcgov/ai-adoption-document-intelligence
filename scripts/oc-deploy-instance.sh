@@ -207,16 +207,24 @@ AZURE_OPENAI_API_VERSION=$(optional_cfg AZURE_OPENAI_API_VERSION 2024-02-15-prev
 ENRICHMENT_REDACT_PII=$(optional_cfg ENRICHMENT_REDACT_PII false)
 AZURE_OPENAI_API_KEY=$(require_cfg AZURE_OPENAI_API_KEY)
 
-AZURE_LOGS_TENANT_ID=$(require_cfg AZURE_LOGS_TENANT_ID)
-AZURE_LOGS_CLIENT_ID=$(require_cfg AZURE_LOGS_CLIENT_ID)
-AZURE_LOGS_CLIENT_SECRET=$(require_cfg AZURE_LOGS_CLIENT_SECRET)
-AZURE_LOGS_DCE_URL=$(require_cfg AZURE_LOGS_DCE_URL)
-AZURE_LOGS_DCR_ID=$(require_cfg AZURE_LOGS_DCR_ID)
+AZURE_LOGS_TENANT_ID=$(optional_cfg AZURE_LOGS_TENANT_ID "")
+AZURE_LOGS_CLIENT_ID=$(optional_cfg AZURE_LOGS_CLIENT_ID "")
+AZURE_LOGS_CLIENT_SECRET=$(optional_cfg AZURE_LOGS_CLIENT_SECRET "")
+AZURE_LOGS_DCE_URL=$(optional_cfg AZURE_LOGS_DCE_URL "")
+AZURE_LOGS_DCR_ID=$(optional_cfg AZURE_LOGS_DCR_ID "")
 AZURE_LOGS_TABLE_NAME=$(optional_cfg AZURE_LOGS_TABLE_NAME DocIntelLocal_CL)
 export AZURE_LOGS_TENANT_ID AZURE_LOGS_CLIENT_ID AZURE_LOGS_CLIENT_SECRET
 export AZURE_LOGS_DCE_URL AZURE_LOGS_DCR_ID AZURE_LOGS_TABLE_NAME
 source "${SCRIPT_DIR}/lib/azure-logs-secret.sh"
-validate_azure_logs_config
+# The Azure log mirror is deployed only when every AZURE_LOGS_* setting is configured;
+# a configured but invalid value still stops the deploy.
+AZURE_LOG_MIRROR=false
+if azure_logs_mirror_configured; then
+  validate_azure_logs_config || exit 1
+  AZURE_LOG_MIRROR=true
+else
+  echo "[INFO] Azure log mirror not configured; deploying without it."
+fi
 
 AZURE_STORAGE_CONNECTION_STRING=$(require_cfg AZURE_STORAGE_CONNECTION_STRING)
 AZURE_STORAGE_ACCOUNT_NAME=$(require_cfg AZURE_STORAGE_ACCOUNT_NAME)
@@ -356,7 +364,8 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --minio-pvc-size "${MINIO_PVC_SIZE}" \
   --minio-root-user "${MINIO_ROOT_USER}" \
   --minio-root-password "${MINIO_ROOT_PASSWORD}" \
-  $(if [[ "${WITH_MINIO}" == true ]]; then echo "--with-minio"; fi))"
+  $(if [[ "${WITH_MINIO}" == true ]]; then echo "--with-minio"; fi) \
+  $(if [[ "${AZURE_LOG_MIRROR}" == true ]]; then echo "--with-azure-log-mirror"; fi))"
 
 cleanup_overlay() {
   cleanup_generated_overlay "${OVERLAY_DIR}"
@@ -374,7 +383,9 @@ if [[ "${WITH_MINIO}" == true ]]; then
 fi
 
 echo "[INFO] Applying Kustomize manifests via oc apply -k (uses oc's built-in kustomize)..."
-apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+if [[ "${AZURE_LOG_MIRROR}" == true ]]; then
+  apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+fi
 oc apply -k "${OVERLAY_DIR}" -n "${OC_NAMESPACE}"
 
 if [[ "${WITH_MINIO}" == true ]]; then
@@ -448,6 +459,7 @@ if [[ "${DEPLOY_PLG_EFFECTIVE}" == true ]]; then
     --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD}" \
     --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
     --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
+    --set "azureLogs.enabled=${AZURE_LOG_MIRROR}" \
     --set "azureLogs.secretName=${INSTANCE_NAME}-azure-logs-secrets" \
     --set "azureLogs.configMapName=${INSTANCE_NAME}-fluent-bit-config" \
     --wait --timeout 120s || echo "[WARN] PLG deployment failed or timed out (non-blocking)."

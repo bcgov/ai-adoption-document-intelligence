@@ -1,5 +1,30 @@
 #!/usr/bin/env bash
 
+# Settings the mirror cannot run without. AZURE_LOGS_TABLE_NAME has a default in both
+# deploy paths.
+AZURE_LOGS_REQUIRED_SETTINGS=(AZURE_LOGS_TENANT_ID AZURE_LOGS_CLIENT_ID
+  AZURE_LOGS_CLIENT_SECRET AZURE_LOGS_DCE_URL AZURE_LOGS_DCR_ID)
+
+# Succeeds when every required setting is present, so the mirror is deployed; otherwise
+# the instance deploys without it. A partial configuration is reported on stderr, naming
+# the missing settings (never their values), so a forgotten secret is visible.
+azure_logs_mirror_configured() {
+  local key
+  local present=() missing=()
+  for key in "${AZURE_LOGS_REQUIRED_SETTINGS[@]}"; do
+    if [[ -n "$(printenv "${key}")" ]]; then
+      present+=("${key}")
+    else
+      missing+=("${key}")
+    fi
+  done
+  [[ ${#missing[@]} -eq 0 ]] && return 0
+  if [[ ${#present[@]} -gt 0 ]]; then
+    echo "[WARN] Azure log mirror is off: ${missing[*]} not set (set: ${present[*]})." >&2
+  fi
+  return 1
+}
+
 # Validate settings without printing credentials.
 validate_azure_logs_config() {
   local key missing=false

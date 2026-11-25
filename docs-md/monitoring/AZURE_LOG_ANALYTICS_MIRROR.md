@@ -4,9 +4,11 @@ Mirrors local and OpenShift application logs to an Azure Log Analytics workspace
 
 This runs **alongside** the Loki pipeline and does not modify it — Promtail, Loki, and Grafana behave exactly as before. See [LOCAL_MONITORING_STACK.md](LOCAL_MONITORING_STACK.md).
 
+The mirror is off unless it is configured. Locally it has its own Compose profile; on OpenShift the deploy adds it only to environments where every required `AZURE_LOGS_*` setting is set. Before a kept line is sent, the fields that identify a person are removed from it (see [What gets mirrored](#what-gets-mirrored)).
+
 ```
 logs/*.log ─┬─> Promtail ──> Loki ──> Grafana                       (unfiltered, unchanged)
-            └─> Fluent Bit ──> DCE ──> DCR ──> Log Analytics        (health-filtered)
+            └─> Fluent Bit ──> DCE ──> DCR ──> Log Analytics        (health-filtered, identifiers removed)
 ```
 
 This uses `azure_logs_ingestion` with an Entra application/service principal and client secret, not the legacy workspace-ID/shared-key `azure` output. No workspace shared key is needed.
@@ -30,7 +32,7 @@ Create these once, in the subscription holding your workspace.
    | `Level` | string | `warn`, `error`, `info`, or `unknown` |
    | `StatusCode` | int | Present only on failed HTTP request records |
    | `AlertType` | string | Present when the line carries `alertType` |
-   | `RawData` | string | The original log line, ANSI stripped |
+   | `RawData` | string | The log line, ANSI stripped, without the fields removed under [What gets mirrored](#what-gets-mirrored) |
 
 3. **Data Collection Rule (DCR)** bound to that DCE and workspace, with a stream declaration
    `Custom-DocIntelLocal_CL` listing the columns above plus `EventTime` (string), and this transform:
@@ -65,11 +67,11 @@ AZURE_LOGS_TABLE_NAME=DocIntelLocal_CL
 
 Use the **secret value**, not its Azure secret ID. The tenant/client IDs belong to the Entra app; the DCR ID is the **immutable ID**, not its ARM resource path. The table name includes `_CL`, without the `Custom-` prefix: the plugin adds `Custom-` when selecting the DCR stream. The stream must therefore be named `Custom-<AZURE_LOGS_TABLE_NAME>`. The table defaults to `DocIntelLocal_CL` if omitted.
 
-Start just the mirror (no Loki, Grafana, CHES, or application dependencies are started):
+The mirror has its own `azure-logs` Compose profile. Start it on its own (no Loki, Grafana, CHES, or application dependencies are started):
 
 ```bash
 mkdir -p logs
-docker compose --profile monitoring up -d fluent-bit
+docker compose --profile azure-logs up -d fluent-bit
 docker compose logs -f fluent-bit
 ```
 
@@ -90,27 +92,35 @@ mkdir -p logs
 
 This configuration reads **host log files**, not Docker application stdout. The `app`/`temporal-worker` Compose profiles do not write those files; running those profiles alone does not collect their logs. CHES is the exception: it already writes to the shared `ches_adapter_logs` volume.
 
-The mirror is part of the `monitoring` profile, so full monitoring startup, `npm run pod:base`, and `npm run pod:all` start it too. Set the Azure variables first: missing credentials do **not** disable the container, and it cannot authenticate without them. After changing variables, recreate it with `docker compose --profile monitoring up -d --force-recreate fluent-bit`. Use `podman compose` in place of `docker compose` if that is your local runtime.
+The `monitoring` profile does not include the mirror, so full monitoring startup, `npm run pod:base`, and `npm run pod:all` leave it off. Set the Azure variables before starting it: without them Fluent Bit stops at startup (`property 'client_id' is not defined`) and Compose keeps restarting it. To run it with the rest of monitoring, add the profile: `docker compose --profile monitoring --profile azure-logs up -d`. After changing variables, recreate it with `docker compose --profile azure-logs up -d --force-recreate fluent-bit`. Use `podman compose` in place of `docker compose` if that is your local runtime.
 
 ## OpenShift deployment
 
-Mirroring is included automatically in the shared Kustomize base and every generated instance overlay. A Fluent Bit sidecar reads each pod's existing `/var/log/app` volume for backend-services, frontend, Temporal server, and Temporal worker. The PLG Helm chart adds the same sidecar to CHES when CHES notifications are deployed. Promtail and Loki are unchanged.
+Mirroring is off unless every required `AZURE_LOGS_*` setting is configured for the environment (see [Credential provisioning](#credential-provisioning)). When they are, the deploy adds the [`azure-log-mirror`](../../deployments/openshift/kustomize/components/azure-log-mirror/) Kustomize component: a Fluent Bit sidecar reads each pod's existing `/var/log/app` volume for backend-services, frontend, Temporal server, and Temporal worker. The PLG Helm chart adds the same sidecar to CHES (`azureLogs.enabled`) when CHES notifications are deployed. Promtail and Loki are unchanged.
 
-The shared assets live under [`deployments/fluent-bit/`](../../deployments/fluent-bit/). Kustomize generates `<instance>-fluent-bit-config` from `openshift.yaml` and the same `filters.lua` used locally; the CHES chart references this ConfigMap rather than keeping a separate copy. The sidecars use the pod's arbitrary non-root UID, read-only log/config mounts and root filesystem, dropped capabilities, and a writable per-pod `emptyDir` for positions and buffered chunks. No Docker socket, host paths, privileged SCC, or fixed UID is needed.
+The shared Fluent Bit files live under [`deployments/fluent-bit/`](../../deployments/fluent-bit/). `scripts/lib/generate-overlay.sh --with-azure-log-mirror` copies the component, `openshift.yaml` and the same `filters.lua` used locally into the generated overlay, where Kustomize generates `<instance>-fluent-bit-config` from them; the CHES chart references this ConfigMap rather than keeping a separate copy. The sidecars use the pod's arbitrary non-root UID, read-only log/config mounts and root filesystem, dropped capabilities, and a writable per-pod `emptyDir` for positions and buffered chunks. No Docker socket, host paths, privileged SCC, or fixed UID is needed.
 
 ### Credential provisioning
 
 Configure the same six `AZURE_LOGS_*` settings listed above in the target **GitHub environment secrets** (`dev`, `test`, or `prod`) for CI, or in the selected `deployments/openshift/config/<env>.env` / instance override for `scripts/oc-deploy-instance.sh`. The repo-root local `.env` is **not** used by the OpenShift deployment paths.
 
-Both deployment paths create/update `<instance>-azure-logs-secrets` **before** applying the workloads. `AZURE_LOGS_TABLE_NAME` defaults to `DocIntelLocal_CL`; the other five variables are required. Missing credentials fail deployment explicitly instead of silently disabling mirroring. Only Fluent Bit receives this dedicated Secret; application containers do not. `--skip-plg` skips the Helm stack, not the application's log-mirror sidecars.
+`AZURE_LOGS_TABLE_NAME` defaults to `DocIntelLocal_CL`. Whether the mirror is deployed depends on the other five:
 
-For a direct, unprefixed base deployment, provision `azure-logs-secrets` yourself with all six keys before starting the workloads; the generated ConfigMap is named `fluent-bit-config`. For a standalone CHES Helm install, supply that ConfigMap and Secret and set `azureLogs.configMapName` / `azureLogs.secretName` accordingly.
+| Settings present | Deploy |
+| --- | --- |
+| All five | Validates them (an HTTPS ingestion endpoint and a `dcr-` ID; an invalid value fails the deploy), creates or updates `<instance>-azure-logs-secrets` **before** applying the workloads, and adds the sidecars |
+| None | Deploys without the mirror |
+| Some | Deploys without the mirror, and the deploy log warns which settings are missing (names only) |
+
+Only Fluent Bit receives the dedicated Secret; application containers do not. `--skip-plg` skips the Helm stack, not the application's log-mirror sidecars. Removing the settings later removes the sidecars on the next deploy but leaves `<instance>-azure-logs-secrets` in the namespace; delete it if the credentials should go too.
+
+The base kustomization does not include the mirror; the component is built only through the overlay generator, which supplies the Fluent Bit files and the instance name. For a standalone CHES Helm install, set `azureLogs.enabled=true` and supply the ConfigMap and Secret through `azureLogs.configMapName` / `azureLogs.secretName`.
 
 The service principal still needs **Monitoring Metrics Publisher on the DCR**. Allow DNS and outbound HTTPS to `login.microsoftonline.com` and the configured ingestion endpoint in any namespace egress controls. No Azure resource or role assignment is created by these manifests.
 
 ### Operation and verification
 
-Use the normal deployment workflow/script; no separate mirror-enable flag is required. Each sidecar requests 10m CPU / 64Mi memory and limits usage to 100m / 128Mi, so account for this per replica in namespace quotas.
+Use the normal deployment workflow/script: configuring the settings is what turns the mirror on, and no separate flag is required. Each sidecar requests 10m CPU / 64Mi memory and limits usage to 100m / 128Mi, so account for this per replica in namespace quotas.
 
 ```bash
 oc logs deployment/<instance>-backend-services -c fluent-bit -n <namespace>
@@ -140,6 +150,15 @@ Filtering is deliberately aggressive: the SRE agent needs health signal, and Log
 | OpenShift `frontend` | nginx access lines with status >= 400 (`warn` for 4xx, `error` for 5xx); nginx error-log entries at warn or higher | Successful access logs (including healthy probes), notice/info logs |
 | `ches-adapter` | Everything (low volume, sits on the alert-delivery path) | Blank lines only |
 
+### What is removed before sending
+
+A kept line loses what identifies a person; Loki keeps the full line.
+
+- **Structured lines** (`backend-services`, `temporal-worker`, `temporal-server`): the request-context fields `userId`, `actorId`, `sessionId`, `apiKeyId` and `clientIp` are removed wherever they appear in the JSON. `requestId` is kept, so the full line can be found in Loki. A line that is not a single JSON object (framework text, a truncated object) keeps its text, with those fields' values replaced by `[removed]`.
+- **OpenShift `frontend` access lines** are reduced to the method, the path without its query string, and the status, for example `GET /api/documents 401`. The client and forwarded addresses, referer and user agent are not sent.
+- **OpenShift `frontend` error-log entries** lose their `client` and `referrer` fields and the query strings on `request` and `upstream`.
+- **Free text is sent as written:** error messages and stack traces, file names in worker failures, and `ches-adapter` lines (including alert recipients).
+
 `MIN_RANK` controls the structured-log threshold: `30` mirrors warn and above (lowest volume), `20` also includes every `info` line, which adds successful request records and routine startup logs at a substantial increase in ingested volume. Keep the application `LOG_LEVEL` at its default `info` (or `debug`) to retain failed request entries logged at `info`; setting it to `warn` suppresses those entries before Fluent Bit can inspect their status codes.
 
 Both log files carry ANSI colour codes from NestJS and Vite; these are stripped before sending.
@@ -166,7 +185,7 @@ The DCR transform projects the columns directly, so KQL uses unsuffixed names:
 | `Level` | `Level` | `warn`, `error`, `info`, or `unknown` |
 | `StatusCode` | `StatusCode` | Present only on failed HTTP request records |
 | `AlertType` | `AlertType` | Present when the line carries `alertType` |
-| `RawData` | `RawData` | The original log line, ANSI stripped |
+| `RawData` | `RawData` | The log line, ANSI stripped, without the fields under [What is removed before sending](#what-is-removed-before-sending) |
 
 Structured lines keep their app timestamp because the DCR transform prefers `EventTime`. Unstructured lines (NestJS bootstrap output, Vite/nginx errors) have none, so they fall back to Fluent Bit's read time.
 
@@ -230,4 +249,4 @@ bash scripts/lib/azure-logs-secret.test.sh
 bash scripts/lib/generate-overlay.test.sh
 ```
 
-These render base/generated instance manifests and CHES, exercise the actual Fluent Bit image with an arbitrary non-root UID and read-only filesystem, check structured/Vite/nginx filters and the production health endpoint, and test Secret validation/provisioning without live Azure credentials or cluster writes.
+These check that the base and the instance template deploy no mirror, that a generated overlay adds it only with `--with-azure-log-mirror` and the CHES chart only with `azureLogs.enabled`, and that the component is added and filled in correctly. They also run the actual Fluent Bit image with an arbitrary non-root UID and read-only filesystem against the structured, Vite and nginx filters (including the removals above) and the production health endpoint, and test the configured, partial and absent cases and Secret validation and provisioning, all without live Azure credentials or cluster writes.

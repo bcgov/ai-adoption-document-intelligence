@@ -17,9 +17,11 @@ spec:
       {{- include "plg.chesAdapter.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- if .Values.azureLogs.enabled }}
       annotations:
         checksum/azure-logs-config: {{ get (lookup "v1" "ConfigMap" .Release.Namespace .Values.azureLogs.configMapName) "data" | default dict | toJson | sha256sum }}
         checksum/azure-logs-secret: {{ get (lookup "v1" "Secret" .Release.Namespace .Values.azureLogs.secretName) "data" | default dict | toJson | sha256sum }}
+      {{- end }}
       labels:
         {{- include "plg.chesAdapter.labels" . | nindent 8 }}
     spec:
@@ -146,6 +148,7 @@ spec:
             limits:
               memory: "64Mi"
               cpu: "100m"
+        {{- if .Values.azureLogs.enabled }}
         - name: fluent-bit
           image: fluent/fluent-bit:4.0.3
           args: ["--config=/fluent-bit/etc/fluent-bit.yaml"]
@@ -194,13 +197,16 @@ spec:
               readOnly: true
             - name: fluent-bit-data
               mountPath: /var/lib/fluent-bit
+        {{- end }}
       volumes:
+        {{- if .Values.azureLogs.enabled }}
         - name: fluent-bit-config
           configMap:
             name: {{ .Values.azureLogs.configMapName | quote }}
         - name: fluent-bit-data
           emptyDir:
             sizeLimit: 128Mi
+        {{- end }}
         - name: logs
           emptyDir: {}
         - name: promtail-config

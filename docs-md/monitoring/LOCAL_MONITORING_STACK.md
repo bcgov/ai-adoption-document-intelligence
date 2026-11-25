@@ -6,7 +6,7 @@ The project includes an opt-in PLG (Prometheus, Loki, Grafana) monitoring stack 
 
 Generate the Prometheus alert rules (the output file is gitignored, so run this before first start and after changing `deployments/alert-thresholds.ts`), then start the monitoring stack:
 
-The monitoring profile also starts the Fluent Bit Azure mirror. Configure its `AZURE_LOGS_*` credentials first; see [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md). Missing credentials do not disable the mirror.
+The Fluent Bit Azure mirror is not part of this profile: it has its own `azure-logs` profile and runs only when you start it, after configuring its `AZURE_LOGS_*` credentials. See [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md).
 
 ```bash
 npm run generate:alert-rules
@@ -37,7 +37,7 @@ docker compose --profile monitoring logs -f
 | Loki         | http://localhost:3100   | Log aggregation                          |
 | Alertmanager | http://localhost:9093   | Alert routing, deduplication, silencing  |
 | ches-adapter | http://localhost:3003   | Alertmanager webhook → CHES email        |
-| Fluent Bit | No host port | Filtered mirror to Azure Log Analytics |
+| Fluent Bit (`azure-logs` profile) | No host port | Filtered mirror to Azure Log Analytics, off unless started |
 
 ## Default Credentials
 
@@ -65,7 +65,7 @@ These scripts tee process output to `logs/` directory files (`backend-services.l
 
 The logs appear in Grafana under the `backend-services`, `frontend`, and `temporal-worker` service labels (same as they would in OpenShift).
 
-Fluent Bit mirrors a health-filtered subset of these files to Azure Log Analytics, independently of Loki. See [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md) for service-principal authentication, schema, and local smoke testing.
+When started with the `azure-logs` profile, Fluent Bit mirrors a health-filtered subset of these files to Azure Log Analytics, independently of Loki, with user identifiers removed. See [AZURE_LOG_ANALYTICS_MIRROR.md](AZURE_LOG_ANALYTICS_MIRROR.md) for service-principal authentication, schema, and local smoke testing.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ Fluent Bit mirrors a health-filtered subset of these files to Azure Log Analytic
 
 - **Loki** (grafana/loki:3.4.0) - Receives and stores logs. Configured with filesystem storage and 30-day retention.
 - **Promtail** (grafana/promtail:3.4.0) - Tails the host process log files under `logs/` (mounted at `/var/log/host-apps`) and the ches-adapter log volume, and forwards them to Loki with `service` and `project` labels.
-- **Fluent Bit** (fluent/fluent-bit:4.0.3) - Tails those same files and sends health-filtered logs through the Azure Logs Ingestion API using Entra client credentials. Tail positions and buffered chunks persist in `fluent_bit_data`.
+- **Fluent Bit** (fluent/fluent-bit:4.0.3, opt-in `azure-logs` profile) - Tails those same files and sends health-filtered logs, with user identifiers removed, through the Azure Logs Ingestion API using Entra client credentials. Tail positions and buffered chunks persist in `fluent_bit_data`.
 - **Alertmanager** (prom/alertmanager:v0.28.1) - Receives alerts fired by Prometheus rules and routes them to the ches-adapter webhook. See [ALERTING.md](ALERTING.md).
 - **ches-adapter** - Built from `apps/ches-adapter`; translates Alertmanager webhook payloads into CHES email. Requires `CHES_*` environment variables (see `docker-compose.yml`).
 - **Prometheus** (prom/prometheus:v3.2.1) - Scrapes metrics from backend-services (`host.containers.internal:3002/metrics`) and the Temporal worker (`host.containers.internal:9091/metrics`), and evaluates alert rules from `deployments/local/prometheus/rules/`. Data is retained for 15 days.

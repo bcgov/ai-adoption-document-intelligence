@@ -234,3 +234,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 ## [2026-11-24] ingest | Content Understanding AI Hub routing
 
 - Linked the extraction topic to the CU configuration and analyzer guide.
+
+## [2026-11-25] ingest | Opt-in Azure log mirror without identifiers
+
+- `deployment-and-ops.md`: the mirror deploys only where every required `AZURE_LOGS_*` setting is configured, through the `components/azure-log-mirror` Kustomize component and the CHES chart's `azureLogs.enabled`; locally it has its own `azure-logs` Compose profile.
+- `sources.md`: routes the component directory.
+- The canonical guide lists what is removed from a line before it is sent.

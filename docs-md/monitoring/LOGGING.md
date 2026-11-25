@@ -58,7 +58,7 @@ For anything older than the last few minutes, query Loki instead.
 
 Config is in `deployments/openshift/kustomize/base/<service>/deployment.yml` — the `logs` volume, the `tee` command and the `log-rotator` sidecar. The ches-adapter carries the same three in `deployments/openshift/helm/plg/templates/ches-adapter-deployment.yaml`.
 
-The [Azure Log Analytics mirror](AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) adds a Fluent Bit sidecar to those same log volumes (also frontend and Temporal server), without replacing Promtail. Its health-filtered output uses Entra client credentials from a dedicated OpenShift Secret.
+Where it is configured, the [Azure Log Analytics mirror](AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) adds a Fluent Bit sidecar to those same log volumes (also frontend and Temporal server), without replacing Promtail. Its health-filtered output, with `userId`, `actorId`, `sessionId`, `apiKeyId` and `clientIp` removed, uses Entra client credentials from a dedicated OpenShift Secret.
 
 ### Probe and scrape requests are logged at `debug`
 

@@ -415,7 +415,15 @@ jobs:
           set -euo pipefail
           source scripts/lib/oc-retry.sh
           source scripts/lib/azure-logs-secret.sh
-          apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+          # Deployed only when every required setting exists in this environment; the
+          # later steps read AZURE_LOG_MIRROR to add the sidecars.
+          if azure_logs_mirror_configured; then
+            apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+            echo "AZURE_LOG_MIRROR=enabled" >> "$GITHUB_ENV"
+          else
+            echo "Azure log mirror is not configured for this environment; deploying without it."
+            echo "AZURE_LOG_MIRROR=disabled" >> "$GITHUB_ENV"
+          fi
 
       - name: Generate overlay and deploy
         env:
@@ -502,7 +510,8 @@ jobs:
             --azure-cu-endpoint "${AZURE_CU_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
             --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
-            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}")
+            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}" \
+            $(if [[ "${AZURE_LOG_MIRROR:-disabled}" == enabled ]]; then echo "--with-azure-log-mirror"; fi))
           echo "Overlay generated at: $OVERLAY_DIR"
           echo "::endgroup::"
 
@@ -714,6 +723,7 @@ jobs:
             --set "chesAdapter.imagePullSecret=${INSTANCE_NAME}-artifactory-pull" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
+            --set "azureLogs.enabled=$(if [[ "${AZURE_LOG_MIRROR:-disabled}" == enabled ]]; then echo true; else echo false; fi)" \
             --set "azureLogs.secretName=${INSTANCE_NAME}-azure-logs-secrets" \
             --set "azureLogs.configMapName=${INSTANCE_NAME}-fluent-bit-config" \
             --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
