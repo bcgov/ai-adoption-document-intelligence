@@ -129,6 +129,28 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: AZURE_STORAGE_ACCOUNT_KEY
+            - name: MISTRAL_DOC_AI_AZURE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: MISTRAL_DOC_AI_AZURE_ENDPOINT
+            - name: MISTRAL_DOC_AI_AZURE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: MISTRAL_DOC_AI_AZURE_KEY
+                  optional: true
+            - name: AZURE_CU_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AZURE_CU_ENDPOINT
+            - name: AZURE_CU_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-worker-secrets
+                  key: AZURE_CU_KEY
+                  optional: true
             - name: AZURE_OPENAI_ENDPOINT
               valueFrom:
                 configMapKeyRef:

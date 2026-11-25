@@ -187,9 +187,7 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
     MOCK_AZURE_OCR: process.env.MOCK_AZURE_OCR,
     AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY,
-    MOCK_MISTRAL_OCR: process.env.MOCK_MISTRAL_OCR,
     MOCK_MISTRAL_AZURE_OCR: process.env.MOCK_MISTRAL_AZURE_OCR,
-    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
     MISTRAL_DOC_AI_AZURE_ENDPOINT: process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT,
     MISTRAL_DOC_AI_AZURE_KEY: process.env.MISTRAL_DOC_AI_AZURE_KEY,
     MOCK_AZURE_OCR_RESPONSE: process.env.MOCK_AZURE_OCR_RESPONSE,
@@ -219,11 +217,8 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
   }
   if (cfg.mistral) {
     // Go through the real axios path (not the MOCK_MISTRAL_* env seams) so the
-    // given payload's confidence drives the real gate. Provide dummy creds for
-    // both transports; the interceptor matches either `/ocr` endpoint.
-    delete process.env.MOCK_MISTRAL_OCR;
+    // given payload's confidence drives the real gate.
     delete process.env.MOCK_MISTRAL_AZURE_OCR;
-    process.env.MISTRAL_API_KEY = "mock-key";
     process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT = "https://mock-foundry.local";
     process.env.MISTRAL_DOC_AI_AZURE_KEY = "mock-key";
     mock.onPost(/\/ocr(\?|$)/).reply(200, cfg.mistral);

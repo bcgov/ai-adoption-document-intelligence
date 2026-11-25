@@ -1,19 +1,11 @@
 import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
-const MISTRAL_VARIANTS = ["native", "azure"] as const;
-
 // Mirrors `MistralOcrProcessParams` in
 // apps/temporal/src/activities/mistral-ocr-process.ts, less the values that
 // arrive as inputs (`fileData`, `templateModelId`) and the ones the engine
 // supplies (`documentId`, `groupId`, `requestId`).
 export const mistralOcrProcessParametersSchema = z.object({
-  variant: z.enum(MISTRAL_VARIANTS).optional().meta({
-    title: "Service",
-    description:
-      "Mistral's own API (native) or its deployment on Azure AI Foundry (azure).",
-    "x-default": "native",
-  }),
   documentAnnotationPrompt: z.string().optional().meta({
     title: "Annotation prompt",
     description: "Instruction for the whole document, sent with the request.",
@@ -21,14 +13,13 @@ export const mistralOcrProcessParametersSchema = z.object({
   }),
   fieldDescriptions: z.record(z.string(), z.string()).optional().meta({
     title: "Field descriptions",
-    description:
-      "A description for each field, keyed by field key. Azure service only.",
+    description: "A description for each field, keyed by field key.",
     "x-widget": "json",
   }),
   numericFieldsNullable: z.boolean().optional().meta({
     title: "Blank numbers are null",
     description:
-      "Let the model return null, not 0, for a numeric field left blank. Azure service only.",
+      "Let the model return null, not 0, for a numeric field left blank.",
     "x-default": false,
   }),
   ocr3Features: z
@@ -42,7 +33,7 @@ export const mistralOcrProcessParametersSchema = z.object({
     .meta({
       title: "OCR 3 features",
       description:
-        'Mistral OCR 3 options passed through as given: tableFormat ("html"), bboxAnnotationFormat, imageMinSize and imageLimit. Azure service only.',
+        'Mistral OCR 3 options passed through as given: tableFormat ("html"), bboxAnnotationFormat, imageMinSize and imageLimit.',
       "x-widget": "json",
     }),
 });

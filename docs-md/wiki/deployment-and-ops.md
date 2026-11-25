@@ -1,8 +1,9 @@
 ---
 status: active
-updated: 2026-11-17
+updated: 2026-11-25
 canonical_sources:
   - docs-md/operations/
+  - docs-md/operations/AI_HUB_MIGRATION_VALIDATION.md
   - scripts/README.md
   - docs-md/benchmarking/LOAD_TESTING.md
   - docs-md/monitoring/LOCAL_MONITORING_STACK.md
@@ -24,6 +25,9 @@ Deployment and operations guidance spans OpenShift docs, scripts, GitHub Actions
 ## Source Map
 
 - OpenShift deployment docs live under `docs-md/operations/`.
+- AI Hub migration validation in `docs-md/operations/AI_HUB_MIGRATION_VALIDATION.md`
+  owns TEST-tenant AI endpoint replacement and small live benchmark/service checks;
+  database/storage services and historical benchmark templates stay unchanged.
 - Script usage and maintenance operations live in `scripts/README.md`.
 - Load testing guidance lives in `docs-md/benchmarking/LOAD_TESTING.md`.
 - Monitoring and alerting guidance lives in `docs-md/monitoring/LOCAL_MONITORING_STACK.md` and `docs-md/monitoring/ALERTING.md`.

@@ -54,6 +54,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 - Monitoring and alerting: `docs-md/monitoring/LOCAL_MONITORING_STACK.md`, `docs-md/monitoring/ALERTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - Local/OpenShift Azure log mirror: `docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md`, `deployments/fluent-bit/` — wiki: [Deployment and ops](deployment-and-ops.md)
 - OpenShift deployment: `docs-md/operations/` — wiki: [Deployment and ops](deployment-and-ops.md)
+- AI Hub validation: `docs-md/operations/AI_HUB_MIGRATION_VALIDATION.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - Usage metering and billing: `docs-md/architecture/USAGE_METERING_AND_BILLING.md` — wiki: [Billing](billing.md)
 
 ## Code-Adjacent Sources

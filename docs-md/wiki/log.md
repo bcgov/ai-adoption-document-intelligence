@@ -209,6 +209,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
 - `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
 
+## [2026-11-13] ingest | AI Hub TEST migration validation
+
+- Added routing to the canonical operator value map and migration validation runbook.
+- Kept deployment instructions and endpoint inventories out of the wiki.
+
 ## [2026-11-16] ingest | Local Azure Log Analytics mirror
 
 - Added routing to the Fluent Bit mirror guide and configuration, including the boundary between host-file collection and container stdout.
@@ -216,3 +221,16 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 ## [2026-11-17] ingest | OpenShift Azure log mirror
 
 - Extended the canonical mirror guide to OpenShift sidecars, instance Secret provisioning, and nginx filtering; routed shared assets to `deployments/fluent-bit/`.
+
+## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
+
+- Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
+- Updated the migration runbook to use existing tests and benchmark UI/APIs.
+
+## [2026-11-24] ingest | Mistral AI Hub routing
+
+- Linked extraction routing to the canonical Mistral configuration guide.
+
+## [2026-11-24] ingest | Content Understanding AI Hub routing
+
+- Linked the extraction topic to the CU configuration and analyzer guide.
