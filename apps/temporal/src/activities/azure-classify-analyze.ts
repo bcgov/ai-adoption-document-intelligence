@@ -31,21 +31,29 @@ export async function analyzeWithAzureClassifier(
   const { pollIntervalSeconds, maxWaitSeconds, ...submitInput } = input;
   const submitted = await azureClassifySubmit(submitInput);
 
-  return pollUntilSettled<AzureClassifyPollOutput>(
-    async () => {
-      try {
-        return { done: true, value: await azureClassifyPoll(submitted) };
-      } catch (error) {
-        if (error instanceof AzureClassifyInProgressError) {
-          return { done: false };
+  try {
+    return await pollUntilSettled<AzureClassifyPollOutput>(
+      async () => {
+        try {
+          return { done: true, value: await azureClassifyPoll(submitted) };
+        } catch (error) {
+          if (error instanceof AzureClassifyInProgressError) {
+            return { done: false };
+          }
+          throw error;
         }
-        throw error;
-      }
-    },
-    {
-      pollIntervalSeconds,
-      maxWaitSeconds,
-      description: "Azure classifier to finish",
-    },
-  );
+      },
+      {
+        pollIntervalSeconds,
+        maxWaitSeconds,
+        description: "Azure classifier to finish",
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApplicationFailure && error.nonRetryable) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw ApplicationFailure.create({ message, nonRetryable: true });
+  }
 }
