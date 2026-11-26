@@ -36,7 +36,10 @@ spec:
   egress:
     # DNS resolution — needed to resolve the platform API host and any future
     # allowlisted hosts. Restricted to the OpenShift cluster DNS namespace so
-    # :53 cannot be used as an exfil channel to arbitrary destinations.
+    # DNS cannot be used as an exfil channel to arbitrary destinations.
+    # Policy ports match the destination pod, not the Service: the dns-default
+    # Service listens on 53 but forwards to CoreDNS pods listening on 5353, so
+    # both are allowed. With 53 alone, every lookup times out.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -46,6 +49,10 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
     # Platform API callback ONLY. Dynamic-node scripts receive AI_DI_API_BASE_URL
     # (the backend-services Service) plus a group-scoped key; with
     # DYNAMIC_NODE_ALLOW_NET empty they can reach nothing else. If external hosts
@@ -67,5 +74,8 @@ spec:
 # One-time operator check on any NON-standard cluster (custom DNS topology):
 #     oc get pods -n openshift-dns -l dns.operator.openshift.io/daemonset-dns
 #     oc get ns openshift-dns -o jsonpath='{.metadata.labels}'
+# On any cluster, a lookup from the runner pod must answer at once (a hang
+# means this rule does not match the DNS pods' port):
+#     oc exec deploy/<instance>-deno-runner -- getent hosts <instance>-backend-services
 # If CoreDNS lives elsewhere, point the namespaceSelector at that namespace.
 # The backend-services pod label + port 3002 must also match the deployed Service.
