@@ -141,12 +141,14 @@ spec:
             - name: promtail-config
               mountPath: /etc/promtail
               readOnly: true
+            - name: promtail-positions
+              mountPath: /var/lib/promtail
           resources:
             requests:
-              memory: "32Mi"
+              memory: "64Mi"
               cpu: "50m"
             limits:
-              memory: "64Mi"
+              memory: "128Mi"
               cpu: "100m"
         {{- if .Values.azureLogs.enabled }}
         - name: fluent-bit
@@ -212,4 +214,9 @@ spec:
         - name: promtail-config
           configMap:
             name: {{ include "plg.chesAdapter.fullname" . }}-promtail
+        # Promtail's read offsets. An emptyDir outlives a promtail container restart,
+        # so the restarted container resumes where it stopped instead of re-reading
+        # every log from the start and sending it to Loki again.
+        - name: promtail-positions
+          emptyDir: {}
 {{- end }}
