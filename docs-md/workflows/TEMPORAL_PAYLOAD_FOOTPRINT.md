@@ -45,6 +45,7 @@ may touch Prisma/blob):
 | `readOcrPayloadBlob<T>(ref)` | Read + parse the JSON a ref points to |
 | `makeOcrPayloadRef(documentId, blobPath, status, byteLength?)` | Construct a ref |
 | `persistOcrArtifactRef(groupId, documentId, fileName, body, status?)` | Write an artifact and return its ref in one call |
+| `persistOcrExtractionRefs(groupId, documentId, ocrResult, ocrResponse)` | Persist synchronous Mistral/direct/hybrid mapped and raw outputs as blob refs for workflow results and benchmark caching |
 | `loadOcrResultFromPort(value)` / `loadOcrResponseFromPort(value)` | Accept either an inline value or a ref and return the full payload (transparent to callers) |
 | `requireDocumentId(params)` | Assert `documentId` was injected into the activity |
 
@@ -62,6 +63,12 @@ ports to the `*Ref` ctx keys. Poll conditions reference ref status
 
 On document delete, `DocumentService.deleteDocument` best-effort deletes the
 whole `{groupId}/ocr/{documentId}/` prefix.
+
+The E01/E02/E04/E05 test templates bind OCR output ports to `ocrResponseRef`,
+`ocrResultRef` and `cleanedResultRef`, the keys exported by
+`buildGraphWorkflowResult` and consumed by the existing benchmark evaluator.
+Publish new versions for existing persisted test workflows rather than
+rewriting historical versions.
 
 ## 2. Gzip payload codec
 

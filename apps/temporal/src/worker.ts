@@ -9,6 +9,7 @@
 import "./env-loader";
 
 import * as http from "node:http";
+import { installCrashHandlers } from "@ai-di/shared-logging";
 import { Connection, ScheduleClient } from "@temporalio/client";
 import type { ActivityInterceptorsFactory } from "@temporalio/worker";
 import { NativeConnection, Worker } from "@temporalio/worker";
@@ -63,7 +64,7 @@ async function checkWorkerHealth(): Promise<{
     workerLogger.error("Health check - database failed", {
       event: "health_check_failed",
       dependency: "database",
-      error: message,
+      error,
     });
   }
 
@@ -88,7 +89,7 @@ async function checkWorkerHealth(): Promise<{
     workerLogger.error("Health check - Temporal failed", {
       event: "health_check_failed",
       dependency: "temporal",
-      error: message,
+      error,
     });
   }
 
@@ -411,6 +412,8 @@ async function run() {
   metricsServer.close();
   workerLogger.info("Worker stopped", { event: "stopped" });
 }
+
+installCrashHandlers(workerLogger);
 
 run()
   .then(() => {

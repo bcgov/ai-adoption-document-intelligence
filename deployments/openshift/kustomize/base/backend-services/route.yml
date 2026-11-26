@@ -16,6 +16,10 @@ metadata:
     # components/prod-resources component, which scripts/lib/generate-overlay.sh
     # includes automatically when the target namespace ends in -prod.
     haproxy.router.openshift.io/proxy-body-size: 100m
+    # API-key callers reach the backend through this Route directly. Label and
+    # field suggestions wait on an LLM call that the backend allows 120 s
+    # (LLM_TIMEOUT_MS); the router's 30 s default would end them first.
+    haproxy.router.openshift.io/timeout: 150s
 spec:
   to:
     kind: Service

@@ -188,7 +188,7 @@ export class AgentService {
       void this.generateTitle(conversation.id, firstUserText, model).catch(
         (err: unknown) => {
           this.logger.error?.("AgentService title-gen failed", {
-            error: err instanceof Error ? err.message : String(err),
+            error: err,
           });
         },
       );

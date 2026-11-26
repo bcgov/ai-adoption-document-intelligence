@@ -224,6 +224,40 @@ export interface Logger {
   child(context: LogContext): Logger;
 }
 
+/** Frames belonging to the logging plumbing itself, never useful in a call-site stack. */
+const LOGGER_FRAME_PATTERN =
+  /packages\/logging\/(src|dist)\/(logger|index)\.(ts|js)|@ai-di\/shared-logging|app-logger\.service|temporal-runtime-logger/;
+
+/** Captures the caller's stack, excluding frames inside the logging layer. */
+function captureCallSiteStack(): string | undefined {
+  const lines = (new Error().stack ?? "").split("\n").slice(1);
+  const frames = lines.filter((l) => !LOGGER_FRAME_PATTERN.test(l));
+  return frames.length > 0 ? `Error: logged\n${frames.join("\n")}` : undefined;
+}
+
+/**
+ * Guarantees every error-level entry carries a stack trace. An explicit `stack`
+ * wins; otherwise an Error instance under `error`/`err` is serialized (message +
+ * stack); otherwise the logging call site's stack is captured.
+ */
+function withErrorStack(context: LogContext | undefined): LogContext {
+  const ctx: LogContext = { ...(context ?? {}) };
+  if (typeof ctx.stack === "string" && ctx.stack !== "") return ctx;
+  for (const key of ["error", "err"]) {
+    const value = ctx[key];
+    if (value instanceof Error) {
+      ctx[key] = value.message;
+      if (value.stack) {
+        ctx.stack = value.stack;
+        return ctx;
+      }
+    }
+  }
+  const stack = captureCallSiteStack();
+  if (stack) ctx.stack = stack;
+  return ctx;
+}
+
 function emitWithBaseMap(
   service: string,
   baseMap: Map<string, unknown>,
@@ -243,9 +277,13 @@ function emitWithBaseMap(
   const configured = getConfiguredLevel();
   if (!shouldEmit(configured, level)) return;
 
+  const effectiveContext =
+    level === "error" && !baseMap.has("stack")
+      ? withErrorStack(context)
+      : context;
   const merged = mergeRedactedMaps(
     baseMap,
-    contextToRedactedMap(context ?? {}),
+    contextToRedactedMap(effectiveContext ?? {}),
   );
   const timestamp = new Date().toISOString();
 
@@ -299,4 +337,23 @@ function createLoggerFromBaseMap(
     },
   };
   return logger;
+}
+
+/**
+ * Logs uncaught exceptions and unhandled rejections (with stack) before the
+ * process crashes. Uses `uncaughtExceptionMonitor`, so Node's default crash
+ * behaviour is unchanged. Safe to call more than once per logger; no-op outside Node.
+ *
+ * @param logger - Logger used to record the crash.
+ */
+export function installCrashHandlers(logger: Logger): void {
+  const proc = nodeProcess();
+  if (proc === undefined || typeof proc.on !== "function") return;
+  proc.on("uncaughtExceptionMonitor", (err: Error, origin: string) => {
+    logger.error("Process crashing: uncaught exception", {
+      event: "process_crash",
+      origin,
+      error: err instanceof Error ? err : new Error(String(err)),
+    });
+  });
 }

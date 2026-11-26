@@ -163,3 +163,29 @@ export async function persistOcrArtifactRef(
   );
   return makeOcrPayloadRef(documentId, blobPath, status, byteLength);
 }
+
+/**
+ * Persist mapped and raw extraction outputs in the run's group.
+ * @param groupId Injected workflow group.
+ * @param documentId Document receiving the extraction artifacts.
+ * @param ocrResult Canonical extraction result.
+ * @param ocrResponse Raw provider response for benchmark cache reuse.
+ * @returns Lightweight activity output ports, without inline OCR payloads.
+ */
+export async function persistOcrExtractionRefs(
+  groupId: string,
+  documentId: string,
+  ocrResult: OCRResult,
+  ocrResponse: unknown,
+): Promise<{ ocrResult: OcrPayloadRef; ocrResponse: OcrPayloadRef }> {
+  const [resultRef, responseRef] = await Promise.all([
+    persistOcrArtifactRef(groupId, documentId, "ocr-result.json", ocrResult),
+    persistOcrArtifactRef(
+      groupId,
+      documentId,
+      "ocr-response.json",
+      ocrResponse,
+    ),
+  ]);
+  return { ocrResult: resultRef, ocrResponse: responseRef };
+}

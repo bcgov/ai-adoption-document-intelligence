@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Opt-in Azure Log Analytics mirror (docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md).
+# scripts/lib/generate-overlay.sh adds this component only with --with-azure-log-mirror,
+# which both deploy paths pass when every AZURE_LOGS_* setting is configured. Without it
+# no Fluent Bit sidecar, ConfigMap or Secret reference is deployed.
+#
+# The generator copies the shared Fluent Bit files (deployments/fluent-bit/openshift.yaml
+# and filters.lua) in beside this file, and substitutes __INSTANCE_NAME__ in the sidecar's
+# Secret reference, so the component is only built through the generator.
+configMapGenerator:
+  - name: fluent-bit-config
+    files:
+      - fluent-bit.yaml=openshift.yaml
+      - filters.lua
+
+generatorOptions:
+  # Keep the ConfigMap name stable so the CHES Helm release can reference
+  # <instance>-fluent-bit-config.
+  disableNameSuffixHash: true
+
+patches:
+  - path: fluent-bit-sidecar.yml
+    target:
+      kind: Deployment
+      name: (backend-services|frontend|temporal|temporal-worker)
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: fluent-bit
+                env:
+                  - name: LOG_FILTER
+                    value: nginx
+  - target:
+      kind: Deployment
+      name: temporal
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: temporal
+      spec:
+        template:
+          spec:
+            containers:
+              - name: fluent-bit
+                env:
+                  - name: LOG_SERVICE
+                    value: temporal-server
+                    valueFrom: null

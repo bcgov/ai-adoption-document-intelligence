@@ -38,8 +38,10 @@ import {
   updateDocumentStatus,
   upsertOcrResult,
 } from "./activities";
+import { analyzeWithAzureClassifier } from "./activities/azure-classify-analyze";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
+import { analyzeWithAzureOcr } from "./activities/azure-ocr-analyze";
 import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
@@ -132,6 +134,15 @@ register({
   defaultTimeout: "1m",
   defaultRetry: { maximumAttempts: 3 },
   description: "Extract structured OCR data",
+});
+
+register({
+  activityType: "azureOcr.analyze",
+  activityFn: analyzeWithAzureOcr as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "15m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Extract text with Azure Document Intelligence (prepare, submit, wait, extract) in one step",
 });
 
 register({
@@ -483,6 +494,17 @@ register({
   defaultRetry: { maximumAttempts: 20 },
   description:
     "Poll Azure Document Intelligence classifier results and split document into labelled segments",
+});
+
+register({
+  activityType: "azureClassify.analyze",
+  activityFn: analyzeWithAzureClassifier as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "15m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Classify a document with an Azure Document Intelligence classifier (submit and wait) in one step",
 });
 
 // -- Azure Classifier segment utilities ------------------------------------

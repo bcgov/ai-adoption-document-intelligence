@@ -4,6 +4,11 @@ Hub doc for the extraction-experiments suite. Index of experiments + status + ho
 
 See `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` for the full spec, and `experiments/integration-checklists/` for per-experiment briefs.
 
+For AI Hub endpoint values and validation using these existing experiments, see
+[AI Hub migration](operations/AI_HUB_MIGRATION_VALIDATION.md). Content
+Understanding is deferred; preserve historical results and publish new workflow
+versions for the target GPT-5.6-sol deployment.
+
 ## Stacking — chained
 
 Each experiment branches from the **previous** experiment, so the final tip (`experiment/05-vlm-ocr-hybrid`) contains every workflow, every provider, and every seed change from E01–E05 — ready to run all 5 benchmarks against the same dataset and produce a cross-experiment comparison.
@@ -105,7 +110,7 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 | 4 | Confidence values 0–1 | ⏳ | Verify neural confidence distribution matches threshold semantics |
 | 5 | Bounding-box convention | ⏳ | DI returns inches at top-left |
 | 6 | Page indexing | ⏳ | |
-| 7 | Auth & endpoint via env vars | ⏳ | Direct, bypassing APIM (parent-spec TODO) |
+| 7 | Auth & endpoint via env vars | ⏳ | AI Hub tenant-root endpoint with APIM subscription key; see the migration runbook |
 | 8 | Workflow graph | ⏳ | Neural extraction + all post-processors |
 | 9 | Engine-internal preprocessing | ⏳ | DI handles deskew/rotate internally |
 | 10 | Test coverage | ⏳ | |
@@ -116,16 +121,16 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 1 | Map engine output to canonical `OCRResult` | ✅ | Shared mapper at `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts` (extended in E02 to populate per-word/per-line `polygon` from optional `bbox` corners — public-API path benefits too). |
-| 2 | Activity-type registration | ✅ | New `mistralAzureOcr.process` registered in all three registries (`activity-registry.ts`, `activity-types.ts`, backend allow-list). 20 m start-to-close timeout, 3 retries. Sync (single HTTP call) like the public-API Mistral path. |
-| 3 | Field schema → engine format | ✅ | Reuses `field-definitions-to-mistral-annotation-format.ts` from the public-API provider unchanged. |
-| 4 | Confidence values 0–1 | ✅ | `confidence_scores_granularity: "word"` requested; per-word scores ∈ [0,1]. Mapper falls back to `average_page_confidence_score` then `0.95`. |
+| 1 | Map engine output to canonical `OCRResult` | ✅ | Shared mapper at `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts` populates polygons from optional `bbox` corners. |
+| 2 | Activity-type registration | ✅ | E02 uses the shared `mistralOcr.process` activity and the AI Hub transport. |
+| 3 | Field schema → engine format | ✅ | Uses `field-definitions-to-mistral-annotation-format.ts`. |
+| 4 | Confidence values 0–1 | ✅ | The Hub does not accept a granularity parameter. Mapper uses returned scores, falling back to `average_page_confidence_score` then `0.95`. |
 | 5 | Bounding-box convention | ✅ | Mistral returns axis-aligned bbox corners `{top_left_x, top_left_y, bottom_right_x, bottom_right_y}` in page-pixel space; mapper converts to canonical 8-element top-left-clockwise polygon. |
 | 6 | Page indexing | ✅ | `pages[].index` is 0-indexed in the response → `pageNumber = index + 1` (1-indexed in `OCRResult`, matches Azure DI mapper). |
-| 7 | Auth & endpoint via env vars | ✅ | `MISTRAL_DOC_AI_AZURE_ENDPOINT` + `MISTRAL_DOC_AI_AZURE_KEY`. URL = `{endpoint}/providers/mistral/azure/ocr`. Auth = `Authorization: Bearer <key>` (LiteLLM-confirmed; `api-key` header is **not** the Foundry convention for this route despite the brief preamble). |
+| 7 | Auth & endpoint via env vars | ✅ | `MISTRAL_DOC_AI_AZURE_ENDPOINT` + `MISTRAL_DOC_AI_AZURE_KEY`. URL = `{endpoint}/providers/mistral/azure/ocr`. Auth = `Authorization: Bearer <key>` (LiteLLM-confirmed; the AI Hub additionally requires the `api-key` header with the tenant APIM subscription key). |
 | 8 | Workflow graph | ✅ | `experiment-02-mistral-doc-ai-azure-workflow.json` (sync chain: prepareFileData → mistralAzureOcr → cleanup → checkConfidence → reviewSwitch → humanReview/storeResults). Auto-discovered by `seedExperimentWorkflows()`. |
 | 9 | Engine-internal preprocessing | ✅ | Mistral OCR 3 explicitly handles deskew, distortion, low DPI, and background noise internally (per Mistral release notes). The existing upstream `pdf-normalization.service.ts` (PDF→image rendering, DPI normalization) stays on; no separate deskew step needed. |
-| 10 | Test coverage | ✅ | `experiment-02-mistral-doc-ai-azure.test.ts` — 19 static + 2 runtime; 4 unit tests on `mistralAzureOcrProcess` (mock + URL/auth + missing-env errors); 3 mapper tests covering bbox population. CI gate via `process.env.CI` skips runtime suite on GitHub Actions. |
+| 10 | Test coverage | ✅ | `experiment-02-mistral-doc-ai-azure.test.ts`, `activities/mistral-ocr-process.test.ts`, and mapper tests cover workflow wiring, mock transport, URL/auth, missing configuration and bbox mapping. CI skips runtime integration cases. |
 | 11 | Benchmark integration | ✅ | Auto-discovered from JSON template; `seed-experiment-02-mistral-doc-ai-azure-definition` seeded against `seed-local-samples-mix-public-v1`. Trigger via `./scripts/run-experiment-benchmarks.sh 02`. |
 | 12 | Cost/usage telemetry | ⏳ | `usage_info.pages_processed` (and `doc_size_bytes` when present) returned per-page; cross-engine normalization deferred to post-E05 follow-up. |
 
@@ -156,7 +161,7 @@ Each experiment fills in this 12-item checklist as part of its work. See `experi
 | 4 | Confidence values 0–1 | ⚠️ | VLM has no native per-field confidence. Mapper synthesises bimodal 0.95 (with source_quote) / 0.50 (without) confidence. Useful for catastrophic-failure gating; weak as a per-field accuracy proxy because gpt-5.4 emits a quote even for wrong values. |
 | 5 | Bounding-box convention | ⚠️ | None. VLM-direct returns no per-word/per-line polygons; `pages[].words[].polygon` and `keyValuePairs[].boundingRegions` are emitted as empty arrays. E05's hybrid needs to source bboxes from an OCR pre-pass if it depends on them. |
 | 6 | Page indexing | ✅ | Single canonical page; `OCRResult.pages[0].pageNumber = 1`. Multi-page support deferred (canonical dataset is single-page). |
-| 7 | Auth & endpoint via env vars | ✅ | `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_DEPLOYMENT` + `AZURE_OPENAI_API_VERSION`. URL = `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`. Auth = `api-key: <key>` header. **Pre-flight**: env file must point at the resource hosting the chosen deployment (E04 uses eastus2 `strukalex-8338-resource` for `gpt-5.4`, not the parent branch's westus default). `preflight-vlm.ts` validates env + a 1×1-PNG strict-mode round-trip before any paid call. |
+| 7 | Auth & endpoint via env vars | ✅ | `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_DEPLOYMENT` + `AZURE_OPENAI_API_VERSION`. URL = `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`. Auth = `api-key: <key>` header. **Pre-flight**: use the AI Hub tenant-root endpoint and select `gpt-5.6-sol` in a new workflow version for migration validation; historical E04 versions pin `gpt-5.4`. `preflight-vlm.ts` validates env + a 1×1-PNG strict-mode round-trip before any paid call. |
 | 8 | Workflow graph | ✅ | `experiment-04-vlm-direct-workflow.json` (sync chain: `prepareFileData → vlmDirectExtract → cleanup → checkConfidence → reviewSwitch → humanReview/storeResults`). Auto-discovered by `seedExperimentWorkflows()`. |
 | 9 | Engine-internal preprocessing | ⚠️ | Azure OpenAI's vision pipeline applies its own image preprocessing internally (resize / encoder normalisation). Operating resolution appears lower than the native form image — contributes to the digit-misread errors observed vs CU. Upstream `pdf-normalization.service.ts` is **bypassed** for E04 because the activity throws on PDF inputs (deferred to follow-up; canonical dataset is 100% JPEG). |
 | 10 | Test coverage | ✅ | `experiment-04-vlm-direct.test.ts` — 16 static + 4 fixture-aware + 2 runtime against local Temporal. CI gate via `process.env.CI`. Plus 16 unit tests on `vlm-prompt-builder` + 16 on `vlm-to-ocr-result`. |

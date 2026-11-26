@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   DocumentLock,
   DocumentStatus,
@@ -55,9 +56,14 @@ function reviewQueueInclude(lastSessionStatuses: ReviewStatus[]) {
       where: { status: { in: lastSessionStatuses } },
       include: {
         corrections: true,
+        actor: { select: { user: { select: { email: true } } } },
       },
       orderBy: { started_at: "desc" },
       take: 1,
+    },
+    flags: {
+      where: { resolved_at: null },
+      orderBy: { raised_at: "asc" },
     },
   } satisfies Prisma.DocumentInclude;
 }
@@ -381,7 +387,6 @@ export class ReviewDbService {
       flag_note?: string | null;
       rejection_reason?: RejectionReason | null;
       rejection_comment?: string | null;
-      reopened_from_status?: ReviewStatus | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
@@ -426,6 +431,7 @@ export class ReviewDbService {
       actor_id: string;
       comment?: string | null;
       rejection_reason?: RejectionReason | null;
+      review_flag_id?: string | null;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").ReviewSessionEvent> {
@@ -551,12 +557,13 @@ export class ReviewDbService {
   }
 
   /**
-   * Claims a document lock for a reviewer session in a race-safe way: a plain
-   * create wins when no row exists; if one does, it is reclaimed only by a
-   * conditional update that re-checks `expires_at` against the committed row,
-   * so a concurrent claim on the same stale lock can't also succeed.
+   * Takes the document in one write.
+   * Adds a lock when none exists, replaces a lock whose time has run out,
+   * and returns null when someone else still has it. One write matters
+   * because a failed insert inside this transaction cancels the save before
+   * a second write can replace the old lock.
    * @param data - Lock details including document_id, reviewer_id, session_id, and expires_at.
-   * @returns The claimed DocumentLock record, or null if another reviewer holds an active lock.
+   * @returns The claimed lock, or null if another reviewer still holds it.
    */
   async acquireDocumentLock(
     data: {
@@ -571,32 +578,31 @@ export class ReviewDbService {
     this.logger.debug("Acquiring document lock", {
       document_id: data.document_id,
     });
-    try {
-      return await client.documentLock.create({ data });
-    } catch (error) {
-      if (
-        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-        error.code !== "P2002"
-      ) {
-        throw error;
-      }
-    }
-    const reclaimed = await client.documentLock.updateMany({
-      where: { document_id: data.document_id, expires_at: { lte: new Date() } },
-      data: {
-        reviewer_id: data.reviewer_id,
-        session_id: data.session_id,
-        expires_at: data.expires_at,
-        acquired_at: new Date(),
-        last_heartbeat: new Date(),
-      },
-    });
-    if (reclaimed.count === 0) {
-      return null;
-    }
-    return client.documentLock.findUnique({
-      where: { document_id: data.document_id },
-    });
+    const [lock] = await client.$queryRaw<DocumentLock[]>`
+      INSERT INTO document_locks (
+        id, document_id, reviewer_id, session_id,
+        acquired_at, last_heartbeat, expires_at
+      )
+      VALUES (
+        ${randomUUID()},
+        ${data.document_id},
+        ${data.reviewer_id},
+        ${data.session_id},
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        ${data.expires_at}
+      )
+      ON CONFLICT (document_id) DO UPDATE
+      SET
+        reviewer_id = EXCLUDED.reviewer_id,
+        session_id = EXCLUDED.session_id,
+        acquired_at = CURRENT_TIMESTAMP,
+        last_heartbeat = CURRENT_TIMESTAMP,
+        expires_at = EXCLUDED.expires_at
+      WHERE document_locks.expires_at <= CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    return lock ?? null;
   }
 
   /**
@@ -660,8 +666,9 @@ export class ReviewDbService {
 
   /**
    * Finds locks whose expiry has passed, with the group and workflow context an
-   * audit event needs, and whether the locked session is a reopened handoff that
-   * should restore to its prior status if it never gets a decision.
+   * audit event needs, and whether the locked document still has any active
+   * (unresolved) flag — the signal for whether an expiring session should
+   * restore to `flagged` instead of `abandoned`.
    * @param now - The cutoff time; locks expiring at or before it are returned.
    * @returns One entry per expired lock.
    */
@@ -674,7 +681,7 @@ export class ReviewDbService {
       document_id: string;
       group_id: string;
       workflow_execution_id: string | null;
-      reopened_from_status: ReviewStatus | null;
+      hasActiveFlags: boolean;
     }>
   > {
     const client = tx ?? this.prisma;
@@ -684,9 +691,16 @@ export class ReviewDbService {
         session_id: true,
         document_id: true,
         document: {
-          select: { group_id: true, workflow_execution_id: true },
+          select: {
+            group_id: true,
+            workflow_execution_id: true,
+            flags: {
+              where: { resolved_at: null },
+              select: { id: true },
+              take: 1,
+            },
+          },
         },
-        session: { select: { reopened_from_status: true } },
       },
     });
     return locks.map((lock) => ({
@@ -694,14 +708,14 @@ export class ReviewDbService {
       document_id: lock.document_id,
       group_id: lock.document.group_id,
       workflow_execution_id: lock.document.workflow_execution_id,
-      reopened_from_status: lock.session.reopened_from_status,
+      hasActiveFlags: lock.document.flags.length > 0,
     }));
   }
 
   /**
-   * Returns in-progress sessions to `flagged`, clearing the reopened-from marker
-   * now that it has been resolved. Sessions in any other status are left alone,
-   * so a session that finished between the scan and this write keeps its outcome.
+   * Returns in-progress sessions to `flagged`. Sessions in any other status are
+   * left alone, so a session that finished between the scan and this write
+   * keeps its outcome.
    * @param sessionIds - The sessions to return to flagged.
    * @returns How many sessions were updated.
    */
@@ -712,15 +726,15 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.flagged, reopened_from_status: null },
+      data: { status: ReviewStatus.flagged },
     });
     return result.count;
   }
 
   /**
-   * Marks in-progress sessions as abandoned, clearing the reopened-from marker
-   * now that it has been resolved. Sessions in any other status are left alone,
-   * so a session that finished between the scan and this write keeps its outcome.
+   * Marks in-progress sessions as abandoned. Sessions in any other status are
+   * left alone, so a session that finished between the scan and this write
+   * keeps its outcome.
    * @param sessionIds - The sessions to abandon.
    * @returns How many sessions were updated.
    */
@@ -731,9 +745,138 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     const result = await client.reviewSession.updateMany({
       where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
-      data: { status: ReviewStatus.abandoned, reopened_from_status: null },
+      data: { status: ReviewStatus.abandoned },
     });
     return result.count;
+  }
+
+  /**
+   * Raises a new flag against a document, independently resolvable without
+   * ending the session that raised it.
+   * @param data - The document, raising session, actor, and optional note.
+   * @returns The created ReviewFlag record.
+   */
+  async createReviewFlag(
+    data: {
+      document_id: string;
+      raised_session_id: string;
+      raised_by: string;
+      note?: string | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag> {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.create({ data });
+  }
+
+  /**
+   * Finds a single flag by ID, regardless of resolution state.
+   * @param flagId - The flag ID.
+   * @returns The ReviewFlag record, or null if not found.
+   */
+  async findReviewFlag(
+    flagId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag | null> {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findUnique({ where: { id: flagId } });
+  }
+
+  /**
+   * Finds every unresolved flag on a document, oldest first.
+   * @param documentId - The document ID.
+   * @returns Array of unresolved ReviewFlag records with the raising reviewer included.
+   */
+  async findActiveFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewFlag & {
+        raisedActor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findMany({
+      where: { document_id: documentId, resolved_at: null },
+      orderBy: { raised_at: "asc" },
+      include: {
+        raisedActor: { select: { user: { select: { email: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Finds every resolved flag on a document, oldest first.
+   * @param documentId - The document ID.
+   * @returns Array of resolved ReviewFlag records with the raising and resolving reviewer included.
+   */
+  async findResolvedFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<
+      import("@generated/client").ReviewFlag & {
+        raisedActor: { user: { email: string } | null } | null;
+        resolvedActor: { user: { email: string } | null } | null;
+      }
+    >
+  > {
+    const client = tx ?? this.prisma;
+    return client.reviewFlag.findMany({
+      where: { document_id: documentId, resolved_at: { not: null } },
+      orderBy: { raised_at: "asc" },
+      include: {
+        raisedActor: { select: { user: { select: { email: true } } } },
+        resolvedActor: { select: { user: { select: { email: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Whether a document currently has any unresolved flag.
+   * @param documentId - The document ID.
+   * @returns True if at least one unresolved ReviewFlag exists for the document.
+   */
+  async hasActiveFlags(
+    documentId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const flag = await client.reviewFlag.findFirst({
+      where: { document_id: documentId, resolved_at: null },
+      select: { id: true },
+    });
+    return flag !== null;
+  }
+
+  /**
+   * Marks a flag resolved, without ending the session that resolved it.
+   * Only resolves flags that are still unresolved, so two concurrent resolve
+   * attempts on the same flag don't both succeed.
+   * @param flagId - The flag to resolve.
+   * @param sessionId - The session the reviewer was working when they resolved it.
+   * @param actorId - The reviewer resolving the flag.
+   * @returns The updated ReviewFlag, or null if it was already resolved.
+   */
+  async resolveReviewFlag(
+    flagId: string,
+    sessionId: string,
+    actorId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<import("@generated/client").ReviewFlag | null> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewFlag.updateMany({
+      where: { id: flagId, resolved_at: null },
+      data: {
+        resolved_at: new Date(),
+        resolved_by: actorId,
+        resolved_session_id: sessionId,
+      },
+    });
+    if (result.count === 0) return null;
+    return client.reviewFlag.findUnique({ where: { id: flagId } });
   }
 
   /**

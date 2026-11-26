@@ -1,4 +1,8 @@
-import type { CallHandler, ExecutionContext } from "@nestjs/common";
+import {
+  type CallHandler,
+  type ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
 import type { Request } from "express";
 import { of, throwError } from "rxjs";
 import { AppLoggerService } from "./app-logger.service";
@@ -318,6 +322,7 @@ describe("RequestLoggingInterceptor", () => {
           statusCode: 200,
         }),
       );
+      expect(req._loggingCompleted).toBe(true);
     });
 
     it("logs on error completion", (done) => {
@@ -330,8 +335,27 @@ describe("RequestLoggingInterceptor", () => {
         error: () => {
           expect(mockLogger.log).toHaveBeenCalledWith(
             "Request completed",
-            expect.objectContaining({ method: "GET" }),
+            expect.objectContaining({ method: "GET", statusCode: 500 }),
           );
+          expect(req._loggingCompleted).toBe(true);
+          done();
+        },
+      });
+    });
+
+    it("logs the thrown HTTP status before Nest sets the response status", (done) => {
+      const req = makeRequest();
+      const next: CallHandler = {
+        handle: () => throwError(() => new ForbiddenException()),
+      };
+
+      interceptor.intercept(makeContext(req), next).subscribe({
+        error: () => {
+          expect(mockLogger.log).toHaveBeenCalledWith(
+            "Request completed",
+            expect.objectContaining({ statusCode: 403 }),
+          );
+          expect(req._loggingCompleted).toBe(true);
           done();
         },
       });
@@ -346,6 +370,7 @@ describe("RequestLoggingInterceptor", () => {
       const next: CallHandler = { handle: () => of("r") };
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).not.toHaveBeenCalled();
+      expect(req._loggingCompleted).toBeUndefined();
     });
 
     it("skips logging when request has no res", () => {
@@ -354,6 +379,7 @@ describe("RequestLoggingInterceptor", () => {
       const next: CallHandler = { handle: () => of("r") };
       interceptor.intercept(ctx, next).subscribe();
       expect(mockLogger.log).not.toHaveBeenCalled();
+      expect(req._loggingCompleted).toBeUndefined();
     });
 
     it("includes durationMs when _loggingStartTime is set", () => {

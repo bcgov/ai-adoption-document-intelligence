@@ -38,11 +38,13 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
+  SEED_GROUP_ID,
   seedTestDocument,
   stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
+import { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 import {
   disconnectPrismaClient,
   getPrismaClient,
@@ -352,8 +354,8 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       const outputPorts = (node?.outputs ?? []).map((o) => o.port);
       expect(outputPorts).toContain("ocrResult");
       expect(outputPorts).toContain("ocrResponse");
-      expect(graph.ctx?.ocrResult).toBeDefined();
-      expect(graph.ctx?.ocrResponse).toBeDefined();
+      expect(graph.ctx?.ocrResultRef).toBeDefined();
+      expect(graph.ctx?.ocrResponseRef).toBeDefined();
     });
 
     it("VLM hybrid activity carries the iteration kit's prompt + per-field descriptions + numericFieldsNullable", () => {
@@ -596,6 +598,16 @@ describeRuntime(
         });
 
         expect(result.status).toBe("completed");
+        expect(result.refs).toMatchObject({
+          ocrResponseRef: { storage: "blob" },
+          ocrResultRef: { storage: "blob" },
+          cleanedResultRef: { storage: "blob" },
+        });
+        const { predictionData } = await benchmarkFlattenPredictionFromRefs({
+          groupId: SEED_GROUP_ID,
+          ...result.refs,
+        });
+        expect(predictionData).toMatchObject({ name: "John Smith" });
         expect(ctx.requiresReview).toBe(false);
         expect(ctx.averageConfidence).toBeCloseTo(0.95, 5);
 

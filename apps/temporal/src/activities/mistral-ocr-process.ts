@@ -1,12 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { readGroupBlob } from "../blob-storage/read-group-blob";
 import { createActivityLogger } from "../logger";
 import type { OcrPayloadRef } from "../ocr-payload-ref";
 import {
-  persistOcrArtifactRef,
+  persistOcrExtractionRefs,
   requireDocumentId,
   resolveGroupIdForOcr,
 } from "../ocr-payload-ref";
@@ -21,51 +20,23 @@ import type { PreparedFileData } from "../types";
 import { getPrismaClient } from "./database-client";
 
 /**
- * Mistral Document AI has two transports with an identical request/response
- * contract: the public API (`native`) and the Azure AI Foundry serverless
- * deployment (`azure`). This single activity serves both, keyed by `variant`.
- */
-export type MistralOcrVariant = "native" | "azure";
-
-/** Public Mistral Document AI OCR endpoint (native variant). */
-const MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr";
-/**
  * Path appended to the Foundry resource's services endpoint to call Mistral
- * Document AI (azure variant). Confirmed via the LiteLLM Azure-AI provider
+ * Document AI. Confirmed via the LiteLLM Azure-AI provider
  * transformation (`/providers/mistral/azure/ocr`).
  */
 const MISTRAL_AZURE_OCR_PATH = "/providers/mistral/azure/ocr";
 
-const DEFAULT_MISTRAL_MODEL = "mistral-ocr-latest";
 const DEFAULT_MISTRAL_AZURE_DEPLOYMENT_ID = "mistral-document-ai-2512";
 
 /**
- * `document.model_id` from upload is an Azure/trained id (e.g. prebuilt-layout, km-2).
- * The public Mistral OCR API only accepts Mistral model names (e.g. mistral-ocr-latest).
- * If the stored id is not a Mistral OCR model, use the default.
- */
-export function resolveMistralOcrModelId(raw: string | undefined): string {
-  const t = raw?.trim() ?? "";
-  if (t.length > 0 && t.toLowerCase().startsWith("mistral-ocr")) {
-    return t;
-  }
-  return DEFAULT_MISTRAL_MODEL;
-}
-
-/**
  * The Foundry Mistral Document AI deployment only accepts its own deployment id
- * (e.g. `mistral-document-ai-2512`). If the stored id is not a Mistral Document
- * AI deployment id (or a shared-lineage `mistral-ocr-*`), fall back to default.
+ * (e.g. `mistral-document-ai-2512`). Other document model ids use the default.
  */
 export function resolveMistralAzureDeploymentId(
   raw: string | undefined,
 ): string {
   const t = raw?.trim() ?? "";
-  if (
-    t.length > 0 &&
-    (t.toLowerCase().startsWith("mistral-document-ai") ||
-      t.toLowerCase().startsWith("mistral-ocr"))
-  ) {
+  if (t.length > 0 && t.toLowerCase().startsWith("mistral-document-ai")) {
     return t;
   }
   return DEFAULT_MISTRAL_AZURE_DEPLOYMENT_ID;
@@ -165,7 +136,7 @@ async function loadMistralTemplateForAnnotation(
       {
         event: "annotation_skip",
         templateModelId,
-        error: getErrorMessage(error),
+        error,
       },
     );
     return null;
@@ -173,54 +144,10 @@ async function loadMistralTemplateForAnnotation(
 }
 
 function buildMockResponse(
-  variant: MistralOcrVariant,
   fileData: PreparedFileData,
   resolvedModelId: string,
 ): MistralOcrApiResponse {
-  if (variant === "azure") {
-    const text = `mock foundry ocr for ${fileData.fileName}`;
-    return {
-      model: resolvedModelId,
-      pages: [
-        {
-          index: 0,
-          markdown: text,
-          dimensions: { width: 612, height: 792, dpi: 72 },
-          confidence_scores: {
-            average_page_confidence_score: 0.99,
-            minimum_page_confidence_score: 0.95,
-            word_confidence_scores: [
-              {
-                text: "mock",
-                confidence: 0.99,
-                start_index: 0,
-                bbox: {
-                  top_left_x: 0,
-                  top_left_y: 0,
-                  bottom_right_x: 40,
-                  bottom_right_y: 20,
-                },
-              },
-              {
-                text: "foundry",
-                confidence: 0.98,
-                start_index: 5,
-                bbox: {
-                  top_left_x: 45,
-                  top_left_y: 0,
-                  bottom_right_x: 110,
-                  bottom_right_y: 20,
-                },
-              },
-            ],
-          },
-        },
-      ],
-      usage_info: { pages_processed: 1 },
-    };
-  }
-
-  const text = `mock ocr for ${fileData.fileName}`;
+  const text = `mock foundry ocr for ${fileData.fileName}`;
   return {
     model: resolvedModelId,
     pages: [
@@ -232,8 +159,28 @@ function buildMockResponse(
           average_page_confidence_score: 0.99,
           minimum_page_confidence_score: 0.95,
           word_confidence_scores: [
-            { text: "mock", confidence: 0.99, start_index: 0 },
-            { text: "ocr", confidence: 0.98, start_index: 5 },
+            {
+              text: "mock",
+              confidence: 0.99,
+              start_index: 0,
+              bbox: {
+                top_left_x: 0,
+                top_left_y: 0,
+                bottom_right_x: 40,
+                bottom_right_y: 20,
+              },
+            },
+            {
+              text: "foundry",
+              confidence: 0.98,
+              start_index: 5,
+              bbox: {
+                top_left_x: 45,
+                top_left_y: 0,
+                bottom_right_x: 110,
+                bottom_right_y: 20,
+              },
+            },
           ],
         },
       },
@@ -246,26 +193,24 @@ export interface MistralOcrProcessParams {
   fileData: PreparedFileData;
   documentId: string;
   groupId?: string | null;
-  /** Transport: `native` (public API) or `azure` (Foundry). Default `native`. */
-  variant?: MistralOcrVariant;
   /** Labeling template model id; loads `field_schema` for `document_annotation_format`. */
   templateModelId?: string;
   /** Optional prompt forwarded to Mistral `document_annotation_prompt`. */
   documentAnnotationPrompt?: string;
   /**
    * Optional per-field description overlay (keyed by `field_key`) attached to
-   * the annotation JSON Schema's `description` properties. `azure` only.
+   * the annotation JSON Schema's `description` properties.
    */
   fieldDescriptions?: Record<string, string>;
   /**
    * When true, every numeric field in the JSON Schema becomes nullable
    * (`["number", "null"]`), letting Mistral return `null` for blank cells
-   * distinct from `0`. `azure` only.
+   * distinct from `0`.
    */
   numericFieldsNullable?: boolean;
   /**
    * Mistral OCR-3 feature opt-ins, passed through to the Foundry request body
-   * verbatim when set. `azure` only — the public API does not accept them.
+   * verbatim when set.
    */
   ocr3Features?: {
     /** `"html"` renders markdown tables with explicit `<td>` cell boundaries. */
@@ -288,46 +233,37 @@ export interface MistralOcrProcessResult {
    */
   ocrResult: OcrPayloadRef;
   /**
-   * Raw Mistral OCR response — emitted so the benchmark sample workflow's
+   * Raw Mistral OCR response reference — emitted so the benchmark sample workflow's
    * `persistOcrCache` step can write it to `benchmark_ocr_cache` (sync providers
    * that only emit `ocrResult` produce no cache rows otherwise).
    */
-  ocrResponse: MistralOcrApiResponse;
+  ocrResponse: OcrPayloadRef;
 }
 
 /**
  * Activity: Run Mistral Document AI OCR (synchronous) and return a canonical
- * OCR result as an {@link OcrPayloadRef} plus the raw response. A single HTTP
- * call performs OCR + `document_annotation` server-side for both transports;
- * `variant` selects the public API or the Azure Foundry deployment.
+ * OCR result and raw response as {@link OcrPayloadRef} outputs. A single HTTP
+ * call performs OCR + `document_annotation` through Azure AI Hub.
  */
 export async function mistralOcrProcess(
   params: MistralOcrProcessParams,
 ): Promise<MistralOcrProcessResult> {
-  const variant: MistralOcrVariant = params.variant ?? "native";
-  const isAzure = variant === "azure";
-  const activityName = isAzure ? "mistralAzureOcrProcess" : "mistralOcrProcess";
   const documentId = requireDocumentId(params);
   const { fileData, documentAnnotationPrompt } = params;
   const templateModelIdRaw = params.templateModelId?.trim();
-  const log = createActivityLogger(activityName, {
+  const log = createActivityLogger("mistralAzureOcrProcess", {
     ...(params.requestId && { requestId: params.requestId }),
   });
   const startTime = Date.now();
-  const useMock =
-    process.env[isAzure ? "MOCK_MISTRAL_AZURE_OCR" : "MOCK_MISTRAL_OCR"] ===
-    "true";
-  const requestId = `${isAzure ? "mistral-azure" : "mistral"}-${randomUUID()}`;
+  const useMock = process.env.MOCK_MISTRAL_AZURE_OCR === "true";
+  const requestId = `mistral-azure-${randomUUID()}`;
 
-  const resolvedModelId = isAzure
-    ? resolveMistralAzureDeploymentId(fileData.modelId)
-    : resolveMistralOcrModelId(fileData.modelId);
+  const resolvedModelId = resolveMistralAzureDeploymentId(fileData.modelId);
   if (resolvedModelId !== fileData.modelId?.trim()) {
     log.info(
       "Mistral OCR: document model_id not accepted by transport; using default",
       {
         event: "model_fallback",
-        variant,
         documentModelId: fileData.modelId,
         resolvedModelId,
       },
@@ -336,7 +272,6 @@ export async function mistralOcrProcess(
 
   log.info("Mistral OCR process start", {
     event: "start",
-    variant,
     fileName: fileData.fileName,
     fileType: fileData.fileType,
     modelId: resolvedModelId,
@@ -346,18 +281,19 @@ export async function mistralOcrProcess(
 
   const persist = async (
     ocrResult: Awaited<ReturnType<typeof mistralOcrResponseToOcrResult>>,
-  ): Promise<OcrPayloadRef> => {
+    ocrResponse: MistralOcrApiResponse,
+  ): Promise<MistralOcrProcessResult> => {
     const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
-    return persistOcrArtifactRef(
+    return persistOcrExtractionRefs(
       groupId,
       documentId,
-      "ocr-result.json",
       ocrResult,
+      ocrResponse,
     );
   };
 
   if (useMock) {
-    const ocrResponse = buildMockResponse(variant, fileData, resolvedModelId);
+    const ocrResponse = buildMockResponse(fileData, resolvedModelId);
     const ocrResult = mistralOcrResponseToOcrResult(
       ocrResponse,
       {
@@ -368,62 +304,38 @@ export async function mistralOcrProcess(
       },
       undefined,
     );
-    const ref = await persist(ocrResult);
+    const refs = await persist(ocrResult, ocrResponse);
     log.info("Mistral OCR process complete (mock)", {
       event: "complete_mock",
-      variant,
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult: ref, ocrResponse };
+    return refs;
   }
 
-  // Resolve transport credentials + URL.
-  let url: string;
-  let apiKey: string;
-  let timeoutMs: number;
-  if (isAzure) {
-    const endpoint = process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT?.trim();
-    const key = process.env.MISTRAL_DOC_AI_AZURE_KEY;
-    if (!endpoint) {
-      log.error("Mistral Azure OCR: missing endpoint", {
-        event: "error",
-        error: "missing_endpoint",
-        durationMs: Date.now() - startTime,
-      });
-      throw new Error(
-        "Mistral Azure Foundry endpoint not configured. Set MISTRAL_DOC_AI_AZURE_ENDPOINT environment variable.",
-      );
-    }
-    if (!key) {
-      log.error("Mistral Azure OCR: missing API key", {
-        event: "error",
-        error: "missing_credentials",
-        durationMs: Date.now() - startTime,
-      });
-      throw new Error(
-        "Mistral Azure Foundry API key not configured. Set MISTRAL_DOC_AI_AZURE_KEY environment variable.",
-      );
-    }
-    url = buildAzureOcrUrl(endpoint);
-    apiKey = key;
-    timeoutMs = 900_000;
-  } else {
-    const key = process.env.MISTRAL_API_KEY;
-    if (!key) {
-      log.error("Mistral OCR: missing API key", {
-        event: "error",
-        error: "missing_credentials",
-        durationMs: Date.now() - startTime,
-      });
-      throw new Error(
-        "Mistral API key not configured. Set MISTRAL_API_KEY environment variable.",
-      );
-    }
-    url = MISTRAL_OCR_URL;
-    apiKey = key;
-    timeoutMs = 600_000;
+  const endpoint = process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT?.trim();
+  const apiKey = process.env.MISTRAL_DOC_AI_AZURE_KEY?.trim();
+  if (!endpoint) {
+    log.error("Mistral Azure OCR: missing endpoint", {
+      event: "error",
+      error: "missing_endpoint",
+      durationMs: Date.now() - startTime,
+    });
+    throw new Error(
+      "Mistral Azure Foundry endpoint not configured. Set MISTRAL_DOC_AI_AZURE_ENDPOINT environment variable.",
+    );
   }
+  if (!apiKey) {
+    log.error("Mistral Azure OCR: missing API key", {
+      event: "error",
+      error: "missing_credentials",
+      durationMs: Date.now() - startTime,
+    });
+    throw new Error(
+      "Mistral Azure Foundry API key not configured. Set MISTRAL_DOC_AI_AZURE_KEY environment variable.",
+    );
+  }
+  const url = buildAzureOcrUrl(endpoint);
 
   const runGroupId = params.groupId;
   if (!runGroupId) {
@@ -441,12 +353,10 @@ export async function mistralOcrProcess(
       templateModelIdRaw,
       runGroupId,
       log,
-      isAzure
-        ? {
-            fieldDescriptions: params.fieldDescriptions,
-            numericFieldsNullable: params.numericFieldsNullable,
-          }
-        : {},
+      {
+        fieldDescriptions: params.fieldDescriptions,
+        numericFieldsNullable: params.numericFieldsNullable,
+      },
     );
     if (loaded) {
       documentAnnotationFormat = loaded.format;
@@ -463,9 +373,6 @@ export async function mistralOcrProcess(
         type: "document_url",
         document_url: documentUrl,
       },
-      // Foundry rejects `confidence_scores_granularity` with HTTP 422
-      // (`extra_forbidden`); only the public API accepts it.
-      ...(isAzure ? {} : { confidence_scores_granularity: "word" }),
     };
     if (documentAnnotationFormat) {
       requestBody.document_annotation_format = documentAnnotationFormat;
@@ -473,7 +380,7 @@ export async function mistralOcrProcess(
     if (annotationPrompt) {
       requestBody.document_annotation_prompt = annotationPrompt;
     }
-    if (isAzure && params.ocr3Features) {
+    if (params.ocr3Features) {
       const f = params.ocr3Features;
       if (f.tableFormat !== undefined) requestBody.table_format = f.tableFormat;
       if (f.bboxAnnotationFormat !== undefined)
@@ -486,9 +393,10 @@ export async function mistralOcrProcess(
     const { data } = await axios.post<MistralOcrApiResponse>(url, requestBody, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        "api-key": apiKey,
         "Content-Type": "application/json",
       },
-      timeout: timeoutMs,
+      timeout: 900_000,
       validateStatus: (status) => status === 200,
     });
 
@@ -503,25 +411,24 @@ export async function mistralOcrProcess(
       mistralFieldDefs.length > 0 ? { fieldDefs: mistralFieldDefs } : undefined,
     );
 
-    const ref = await persist(ocrResult);
+    const refs = await persist(ocrResult, data);
 
     log.info("Mistral OCR process complete", {
       event: "complete",
-      variant,
       requestId,
       pageCount: ocrResult.pages.length,
       durationMs: Date.now() - startTime,
       alertType: "mistral_ocr",
     });
 
-    return { ocrResult: ref, ocrResponse: data };
+    return refs;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const body = error.response?.data;
       log.error("Mistral OCR API error", {
+        error,
         event: "error",
-        variant,
         httpStatus: status !== undefined ? String(status) : undefined,
         body: typeof body === "object" ? body : String(body),
         alertType: "mistral_ocr",
@@ -532,8 +439,7 @@ export async function mistralOcrProcess(
     }
     log.error("Mistral OCR process error", {
       event: "error",
-      variant,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error,
       alertType: "mistral_ocr",
     });
     throw error;

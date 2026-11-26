@@ -37,23 +37,15 @@ describe("ReviewToolbar", () => {
     ).toBeInTheDocument();
   });
 
-  it("marks Flag when the session carries a note from an earlier flag", () => {
+  it("leaves Flag unmarked when there are no active flags", () => {
     render(
       <MantineProvider>
-        <ReviewToolbar {...handlers} flagNote="Date on page 1 is ambiguous" />
+        <ReviewToolbar {...handlers} activeFlagCount={0} />
       </MantineProvider>,
     );
 
-    expect(screen.getByLabelText("Flag has a note")).toBeInTheDocument();
-  });
-
-  it("leaves Flag unmarked when there is no note", () => {
-    render(
-      <MantineProvider>
-        <ReviewToolbar {...handlers} flagNote={null} />
-      </MantineProvider>,
-    );
-
-    expect(screen.queryByLabelText("Flag has a note")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("active-flag-indicator"),
+    ).not.toBeInTheDocument();
   });
 });

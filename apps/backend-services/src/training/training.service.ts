@@ -657,6 +657,7 @@ export class TrainingService {
       if (requestUrl) {
         this.logger.error(
           `Azure training request failed: ${requestMethod || "UNKNOWN"} ${requestUrl}`,
+          { error },
         );
       }
 
