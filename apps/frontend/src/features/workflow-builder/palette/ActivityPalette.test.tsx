@@ -582,4 +582,37 @@ describe("ActivityPalette — drag-from-palette payloads (Task 5)", () => {
     expect(payload).toEqual({ kind: "controlFlow", type: "switch" });
     expect(dataTransfer.effectAllowed).toBe("copy");
   });
+
+  describe("Advanced section", () => {
+    it("lists the composite Azure nodes at top level and the granular steps under Advanced", () => {
+      renderPalette();
+      expect(
+        screen.getByTestId("activity-palette-entry-azureOcr.analyze"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("activity-palette-entry-azureClassify.analyze"),
+      ).toBeInTheDocument();
+      const advanced = screen.getByTestId("activity-palette-advanced");
+      expect(advanced).toHaveTextContent("azureOcr.submit");
+      expect(advanced).toHaveTextContent("azureClassify.poll");
+      expect(advanced).not.toHaveTextContent("azureOcr.analyze");
+      expect(
+        screen.getByTestId("activity-palette-advanced-toggle"),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("expands when toggled and auto-expands on a search match", () => {
+      renderPalette();
+      const toggle = screen.getByTestId("activity-palette-advanced-toggle");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      fireEvent.click(toggle);
+      fireEvent.change(screen.getByPlaceholderText("Search activities..."), {
+        target: { value: "azureOcr.poll" },
+      });
+      expect(
+        screen.getByTestId("activity-palette-advanced-toggle"),
+      ).toHaveAttribute("aria-expanded", "true");
+    });
+  });
 });
