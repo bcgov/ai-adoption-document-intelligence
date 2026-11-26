@@ -28,7 +28,15 @@ export interface AnnotationCanvasHandle {
   getFitScale: () => number;
   /** Returns the canvas container's pixel size — useful for fit/cap calcs. */
   getCanvasSize: () => { width: number; height: number };
+  /** Zooms by `factor` around the middle of the canvas, within the wheel's limits. */
+  zoomBy: (factor: number) => void;
+  /** Returns to the fitted view. */
+  resetZoom: () => void;
 }
+
+/** User zoom limits, relative to the fitted view (1 = fit to container). */
+const MIN_USER_ZOOM = 0.5;
+const MAX_USER_ZOOM = 5;
 
 interface AnnotationCanvasProps {
   imageUrl?: string;
@@ -77,6 +85,13 @@ interface AnnotationCanvasProps {
    * can keep inline editing while hiding canvas chrome.
    */
   hideBoxes?: boolean;
+  /**
+   * When to draw each box's label text: "always" (default), or "onHover" so
+   * crowded documents stay readable; the box colours still show assignment.
+   */
+  boxLabels?: "always" | "onHover";
+  /** Called with the user zoom (1 = fit to container) whenever it changes. */
+  onZoomChange?: (zoom: number) => void;
 }
 
 export const AnnotationCanvas = forwardRef<
@@ -99,6 +114,8 @@ export const AnnotationCanvas = forwardRef<
       activeBoxId,
       renderActiveBoxOverlay,
       hideBoxes,
+      boxLabels = "always",
+      onZoomChange,
     },
     ref,
   ) => {
@@ -212,9 +229,38 @@ export const AnnotationCanvas = forwardRef<
         },
         getFitScale: () => fitScale,
         getCanvasSize: () => ({ width, height }),
+        zoomBy: (factor: number) => {
+          const nextZoom = clamp(
+            userZoom * factor,
+            MIN_USER_ZOOM,
+            MAX_USER_ZOOM,
+          );
+          const currentScale = fitScale * userZoom;
+          const nextScale = fitScale * nextZoom;
+          const centerX = width / 2;
+          const centerY = height / 2;
+          setPan(
+            clampPan(
+              {
+                x: centerX - ((centerX - pan.x) / currentScale) * nextScale,
+                y: centerY - ((centerY - pan.y) / currentScale) * nextScale,
+              },
+              nextScale,
+            ),
+          );
+          setUserZoom(nextZoom);
+        },
+        resetZoom: () => {
+          setPan(clampPan({ x: 0, y: 0 }, fitScale));
+          setUserZoom(1);
+        },
       }),
-      [fitScale, width, height, clampPan, setPan],
+      [fitScale, width, height, clamp, clampPan, setPan, pan, userZoom],
     );
+
+    useEffect(() => {
+      onZoomChange?.(userZoom);
+    }, [userZoom, onZoomChange]);
 
     // Load image and get its natural dimensions
     useEffect(() => {
@@ -242,8 +288,7 @@ export const AnnotationCanvas = forwardRef<
       const scaleBy = 1.1;
       const newUserZoom =
         e.evt.deltaY < 0 ? userZoom * scaleBy : userZoom / scaleBy;
-      // Clamp user zoom between 0.5x and 5x of fit scale
-      const clampedZoom = Math.max(0.5, Math.min(5, newUserZoom));
+      const clampedZoom = clamp(newUserZoom, MIN_USER_ZOOM, MAX_USER_ZOOM);
       setUserZoom(clampedZoom);
     };
 
@@ -431,6 +476,7 @@ export const AnnotationCanvas = forwardRef<
           {!hideBoxes && (
             <BoundingBoxLayer
               boxes={boxes}
+              boxLabels={boxLabels}
               selectedBoxId={selectedBoxId}
               hoveredBoxId={hoveredBoxId}
               onBoxClick={handleBoxClick}

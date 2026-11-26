@@ -4,7 +4,14 @@ import {
   IconRefresh,
   IconRestore,
 } from "@tabler/icons-react";
-import { type FC, type MouseEvent, useEffect, useMemo, useState } from "react";
+import {
+  type FC,
+  type MouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
@@ -18,7 +25,10 @@ import {
   Title,
   useElementSize,
 } from "../../../../ui";
-import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
+import {
+  AnnotationCanvas,
+  type AnnotationCanvasHandle,
+} from "../../core/canvas/AnnotationCanvas";
 import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
 import { ViewerToolbar } from "../../core/document-viewer/ViewerToolbar";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
@@ -28,6 +38,10 @@ import { useFieldSchema } from "../hooks/useFieldSchema";
 import { type LabelDto, useLabels } from "../hooks/useLabels";
 import { useSuggestions } from "../hooks/useSuggestions";
 import { useTemplateModelDocument } from "../hooks/useTemplateModels";
+import { mergeSuggestedAssignments } from "../utils/mergeSuggestedAssignments";
+
+/** How much one press of the zoom buttons scales the document. */
+const ZOOM_STEP = 1.25;
 
 interface LabelState {
   field_key: string;
@@ -83,6 +97,26 @@ interface AzureOcrResult {
   analyzeResult?: AnalyzeResult;
 }
 
+/**
+ * Where an element falls in its page's reading order: its offset in the OCR
+ * text, or failing that the index in its id. Ids must not be compared as
+ * text, since "p1-w10" would sort before "p1-w2".
+ */
+function readingPosition(element: OcrElement): number {
+  return element.span?.offset ?? Number(/\d+$/.exec(element.id)?.[0] ?? 0);
+}
+
+function describeSuggestionResult(filled: number, kept: number): string {
+  const fields = (count: number) => `${count} field${count === 1 ? "" : "s"}`;
+  if (filled === 0 && kept === 0) {
+    return "No suggestions were found for this document.";
+  }
+  const filledText = `Filled ${fields(filled)}.`;
+  return kept > 0
+    ? `${filledText} Left ${fields(kept)} you had already labelled as they were.`
+    : filledText;
+}
+
 export const LabelingWorkspacePage: FC = () => {
   const navigate = useNavigate();
   const { modelId, documentId } = useParams<{
@@ -127,6 +161,13 @@ export const LabelingWorkspacePage: FC = () => {
   const [wordAssignments, setWordAssignments] = useState<
     Record<string, string>
   >({});
+  // Latest assignments, for reporting what a suggestion merge changed.
+  const wordAssignmentsRef = useRef(wordAssignments);
+  useEffect(() => {
+    wordAssignmentsRef.current = wordAssignments;
+  }, [wordAssignments]);
+  const canvasHandleRef = useRef<AnnotationCanvasHandle>(null);
+  const [canvasZoom, setCanvasZoom] = useState(1);
   const [assignmentsHydrated, setAssignmentsHydrated] = useState(false);
   const [autoSuggestionApplied, setAutoSuggestionApplied] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
@@ -427,21 +468,16 @@ export const LabelingWorkspacePage: FC = () => {
   const applySuggestionsToAssignments = (
     suggestions: Array<{ field_key: string; element_ids: string[] }>,
   ) => {
-    const elementSet = new Set(ocrWords.map((element) => element.id));
-    const nextAssignments: Record<string, string> = {};
-
-    for (const suggestion of suggestions) {
-      for (const elementId of suggestion.element_ids) {
-        if (!elementSet.has(elementId)) {
-          continue;
-        }
-        if (nextAssignments[elementId]) {
-          continue;
-        }
-        nextAssignments[elementId] = suggestion.field_key;
-      }
-    }
-    setWordAssignments(nextAssignments);
+    const knownIds = new Set(ocrWords.map((element) => element.id));
+    setWordAssignments(
+      (current) =>
+        mergeSuggestedAssignments(current, suggestions, knownIds).assignments,
+    );
+    return mergeSuggestedAssignments(
+      wordAssignmentsRef.current,
+      suggestions,
+      knownIds,
+    );
   };
 
   const showSuggestionLoadError = (error: unknown) => {
@@ -458,10 +494,10 @@ export const LabelingWorkspacePage: FC = () => {
   const handleLoadSuggestions = async () => {
     try {
       const suggestions = await loadSuggestionsAsync();
-      applySuggestionsToAssignments(suggestions);
+      const { filled, kept } = applySuggestionsToAssignments(suggestions);
       notifications.show({
         title: "Suggestions loaded",
-        message: `Applied ${suggestions.length} field suggestions.`,
+        message: describeSuggestionResult(filled, kept),
         color: "blue",
       });
     } catch (error) {
@@ -518,7 +554,7 @@ export const LabelingWorkspacePage: FC = () => {
     const updates: Record<string, LabelState> = {};
     const elementsInOrder = [...ocrWords].sort((a, b) => {
       if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
-      return a.id.localeCompare(b.id);
+      return readingPosition(a) - readingPosition(b);
     });
 
     const grouped: Record<string, OcrElement[]> = {};
@@ -751,13 +787,8 @@ export const LabelingWorkspacePage: FC = () => {
       className="annotation-workspace"
       data-testid="labeling-workspace"
     >
-      <Group
-        justify="space-between"
-        wrap="nowrap"
-        gap="sm"
-        style={{ flexShrink: 0 }}
-      >
-        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+      <Stack gap="xs" style={{ flexShrink: 0 }}>
+        <Group>
           <Button
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
@@ -765,41 +796,62 @@ export const LabelingWorkspacePage: FC = () => {
           >
             Back
           </Button>
-          <Stack gap={0} style={{ minWidth: 0 }}>
-            <Title order={4} style={{ lineHeight: 1.25 }}>
+        </Group>
+        <Group justify="space-between" align="flex-end" wrap="nowrap" gap="sm">
+          <Stack
+            className="bcds-page-header__title-block"
+            style={{ gap: "var(--layout-margin-xsmall)", minWidth: 0 }}
+          >
+            <Title
+              order={4}
+              mt={0}
+              mb={0}
+              style={{ lineHeight: 1.25, overflowWrap: "anywhere" }}
+            >
               {documentName}
             </Title>
-            <Text size="xs" c="dimmed">
-              Select a field, then click OCR boxes on the document
-            </Text>
+            {isLoadingSuggestions ? (
+              <Group gap={6} wrap="nowrap" data-testid="suggestions-loading">
+                <Loader size="xs" />
+                <Text size="sm" mt={0} mb={0}>
+                  Suggesting labels. This can take up to a minute. Fields you
+                  label meanwhile are kept.
+                </Text>
+              </Group>
+            ) : (
+              <Text size="sm" c="dimmed" mt={0} mb={0}>
+                Pick a field on the right, then click the words on the document
+                that hold its value.
+              </Text>
+            )}
           </Stack>
+          <Group gap="xs" wrap="nowrap">
+            <Button
+              variant="default"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => void handleLoadSuggestions()}
+              loading={isLoadingSuggestions}
+            >
+              Load suggestions
+            </Button>
+            <Button
+              variant="default"
+              leftSection={<IconRestore size={16} />}
+              onClick={handleResetAssignments}
+              disabled={Object.keys(wordAssignments).length === 0}
+            >
+              Reset
+            </Button>
+            <Button
+              leftSection={<IconDeviceFloppy size={16} />}
+              onClick={handleSave}
+              loading={isSaving}
+            >
+              Save labels
+            </Button>
+          </Group>
         </Group>
-        <Group gap="xs" wrap="nowrap">
-          <Button
-            variant="default"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => void handleLoadSuggestions()}
-            loading={isLoadingSuggestions}
-          >
-            Load suggestions
-          </Button>
-          <Button
-            variant="default"
-            leftSection={<IconRestore size={16} />}
-            onClick={handleResetAssignments}
-            disabled={Object.keys(wordAssignments).length === 0}
-          >
-            Reset
-          </Button>
-          <Button
-            leftSection={<IconDeviceFloppy size={16} />}
-            onClick={handleSave}
-            loading={isSaving}
-          >
-            Save labels
-          </Button>
-        </Group>
-      </Group>
+      </Stack>
 
       <Group
         align="stretch"
@@ -844,13 +896,15 @@ export const LabelingWorkspacePage: FC = () => {
               gap="xs"
               style={{ position: "absolute", inset: 0, overflow: "hidden" }}
             >
-              {hasNormalizedPdf && numPages > 1 && (
-                <ViewerToolbar
-                  currentPage={currentPage}
-                  totalPages={numPages}
-                  onPageChange={setCurrentPage}
-                />
-              )}
+              <ViewerToolbar
+                currentPage={currentPage}
+                totalPages={hasNormalizedPdf ? numPages : 1}
+                onPageChange={setCurrentPage}
+                zoom={canvasZoom}
+                onZoomIn={() => canvasHandleRef.current?.zoomBy(ZOOM_STEP)}
+                onZoomOut={() => canvasHandleRef.current?.zoomBy(1 / ZOOM_STEP)}
+                onZoomReset={() => canvasHandleRef.current?.resetZoom()}
+              />
               <div
                 ref={canvasRef}
                 style={{
@@ -865,10 +919,13 @@ export const LabelingWorkspacePage: FC = () => {
                     imageUrl={canvasImageUrl}
                     width={canvasWidth}
                     height={canvasHeight}
+                    ref={canvasHandleRef}
                     boxes={wordBoxes}
                     onBoxSelect={handleWordSelect}
                     verticalAlign="top"
                     fitPadding={1}
+                    boxLabels="onHover"
+                    onZoomChange={setCanvasZoom}
                   />
                 )}
               </div>

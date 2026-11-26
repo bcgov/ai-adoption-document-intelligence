@@ -4,6 +4,12 @@ metadata:
   name: frontend
   labels:
     app: frontend
+  annotations:
+    # The browser reaches the API through this Route and the frontend's nginx
+    # (the deploy builds the frontend with VITE_API_BASE_URL=/api). Label and
+    # field suggestions wait on an LLM call that the backend allows 120 s
+    # (LLM_TIMEOUT_MS); the router's 30 s default would end them first.
+    haproxy.router.openshift.io/timeout: 150s
   # No source-IP allowlist here on purpose: base is open so ephemeral PR and
   # test/dev instances are reachable without VPN. The production-only source-IP
   # allowlist (haproxy.router.openshift.io/ip_allowlist) is applied by the

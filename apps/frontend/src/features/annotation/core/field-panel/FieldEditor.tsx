@@ -10,7 +10,7 @@ interface FieldEditorProps {
 }
 
 export const FieldEditor: FC<FieldEditorProps> = ({
-  field: _field,
+  field,
   value,
   onChange,
   readOnly,
@@ -19,9 +19,10 @@ export const FieldEditor: FC<FieldEditorProps> = ({
   // Field type validation only applies when submitting training data to Azure
   return (
     <TextInput
+      aria-label={`Value of ${field.fieldKey}`}
       value={value || ""}
       onChange={(event) => onChange?.(event.currentTarget.value)}
-      placeholder="Enter value"
+      placeholder={readOnly ? "Not labelled yet" : "Enter value"}
       size="xs"
       readOnly={readOnly}
     />

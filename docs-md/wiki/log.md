@@ -208,6 +208,12 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged while its document still has an open flag; a document can carry several flags, and Approve and Reject resolve any still open.
 - `architecture/HITL_ARCHITECTURE.md`: the Flagged tab lists documents waiting to be taken and shows their number of open flags; the reviewer-workflow and flagging use cases follow the flag model.
 
+## [2026-11-13] ingest | Label suggestions keep hand labels; route timeouts for slow models
+
+- `architecture/TEMPLATE_MODELS.md`: suggestions now fill only fields the user has not labelled, the Suggest fields window is a table that marks keys already in the schema, field values follow OCR reading order, and a latency note links the route timeouts.
+- `operations/KUSTOMIZE_INSTANCE_TEMPLATE.md`: new Route timeouts section (150 s on both base Routes and the frontend nginx `/api/` location, against the router's 30 s default).
+- `workflows/AGENT_SETUP.md`: corrected which features default to which Azure OpenAI API version.
+
 ## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
 
 - The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.

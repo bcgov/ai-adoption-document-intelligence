@@ -22,6 +22,20 @@ describe("NumberInput adapter", () => {
     );
   });
 
+  it("marks the field so its stepper buttons are hidden when hideControls is set", () => {
+    const { container, rerender } = render(
+      <NumberInput aria-label="Page" value={1} hideControls />,
+    );
+    expect(
+      container.querySelector(".bcds-number-input--no-controls"),
+    ).not.toBeNull();
+
+    rerender(<NumberInput aria-label="Page" value={1} />);
+    expect(
+      container.querySelector(".bcds-number-input--no-controls"),
+    ).toBeNull();
+  });
+
   it("calls onChange with parsed numbers", () => {
     const onChange = vi.fn();
     render(<NumberInput value={1} onChange={onChange} label="Count" />);
