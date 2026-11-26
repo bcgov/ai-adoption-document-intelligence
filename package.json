@@ -1,6 +1,6 @@
 {
 	"name": "ai-ocr-monorepo",
-	"version": "1.0.0",
+	"version": "0.1.0",
 	"private": true,
 	"description": "AI OCR Dashboard - Monorepo with backend services",
 	"workspaces": [
@@ -43,7 +43,8 @@
 		"pod:all": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d",
 		"pod:all:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
 		"pod:all:down": "podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring down",
-		"docs:build": "npm run generate:openapi && cd docs && bash build.sh",
+		"lint:error-logging": "node scripts/check-error-logging.js",
+		"docs:build": "npm run generate:openapi && npm --prefix docs run build",
 		"docs:wiki:check": "node scripts/validate-wiki.js",
 		"generate:alert-rules": "TS_NODE_TRANSPILE_ONLY=true TS_NODE_COMPILER_OPTIONS='{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' node -r ts-node/register deployments/generate-alert-rules.ts",
 		"load-test:seed": "npm run seed -w @ai-di/load-testing --",

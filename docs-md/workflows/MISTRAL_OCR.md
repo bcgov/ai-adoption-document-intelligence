@@ -8,27 +8,24 @@ For adding future providers, see [`ADDING_OCR_PROVIDERS.md`](./ADDING_OCR_PROVID
 
 - **Type string**: `mistralOcr.process`
 - **Implementation**: [`apps/temporal/src/activities/mistral-ocr-process.ts`](../../apps/temporal/src/activities/mistral-ocr-process.ts)
-- **Input**: `{ fileData: PreparedFileData; templateModelId?: string; documentAnnotationPrompt?: string }` — same `file.prepare` output as the Azure workflow; `modelId` should be a Mistral OCR model name (default `mistral-ocr-latest`). Optional **`templateModelId`**: a `TemplateModel.id` (labeling project). When set, the activity loads that model’s `field_schema` from the database and sends Mistral’s `document_annotation_format` (JSON Schema) plus optional **`documentAnnotationPrompt`** on `POST /v1/ocr`. If the template is missing or has no fields, the run continues as OCR-only (no annotation). **`documentAnnotationPrompt`** can be set on the graph node `parameters` (merged after port inputs) for a static instruction string.
+- **Input**: `{ fileData: PreparedFileData; templateModelId?: string; documentAnnotationPrompt?: string }`. The optional template ID selects a group-scoped labeling schema for structured annotation; the optional prompt provides a static instruction. `modelId` selects a `mistral-document-ai-*` deployment.
 - **Output**: `{ ocrResult: OCRResult }`
 
-The Mistral OCR HTTP API is synchronous (`POST /v1/ocr`). There is no separate poll or extract step.
+The Hub API is synchronous: `POST {endpoint}/providers/mistral/azure/ocr`. There is no separate poll or extract step.
 
 ## Configuration
 
 | Variable | Purpose |
 | -------- | ------- |
-| `MISTRAL_API_KEY` | Bearer token for `https://api.mistral.ai/v1/ocr` |
-| `MOCK_MISTRAL_OCR` | Set to `true` to return a deterministic mock `OCRResult` without calling Mistral (useful for CI and local wiring tests) |
+| `MISTRAL_DOC_AI_AZURE_ENDPOINT` | AI Hub tenant root URL |
+| `MISTRAL_DOC_AI_AZURE_KEY` | AI Hub tenant APIM subscription key |
+| `MOCK_MISTRAL_AZURE_OCR` | Set to `true` for deterministic mock OCR without a service call |
 
-Add these to the Temporal worker environment (see [`.env.sample`](../../.env.sample) at the repo root). Do not commit real API keys; set the key locally (e.g. a team member's key for development).
+Set these in the Temporal worker environment. The subscription key is sent in both the `api-key` and authorization headers. Compose passes both settings to the worker. In OpenShift, use the worker ConfigMap for the endpoint and the worker Secret for the key. Instance deployment accepts the same names; the GitHub deployment workflow reads them from Actions secrets. Do not commit keys.
 
 ## Upload / document `model_id`
 
-`GET /api/models` lists **Azure Document Intelligence** prebuilts and **trained** model ids (e.g. `prebuilt-layout`, `km-2`). Those values are stored on the document and passed into the graph as `modelId`.
-
-**Mistral’s OCR API only accepts Mistral model names** (e.g. `mistral-ocr-latest`, `mistral-ocr-2505`). The `mistralOcr.process` activity **ignores** non-Mistral ids and uses **`mistral-ocr-latest`** when `model_id` does not start with `mistral-ocr` (see `resolveMistralOcrModelId` in the activity). So you do **not** need a separate upload option for Mistral—any Azure/trained selection still runs Mistral OCR with the default model unless you pass a `mistral-ocr-*` name.
-
-To **force** a specific Mistral OCR variant, ensure the document’s `model_id` is that name (e.g. via API update) or override `modelId` in workflow context when starting OCR.
+The activity accepts `mistral-document-ai-*` deployment IDs and otherwise defaults to `mistral-document-ai-2512`, including for older public Mistral and Azure model IDs. Override `modelId` in the workflow context or document to select a different deployment. Existing `variant` values no longer select a different transport: all Mistral workflows use the Hub.
 
 ## Template model id and document metadata
 
@@ -66,7 +63,7 @@ To apply **trim / character confusion / date–number normalization** from the l
 
 ### Confidence scores
 
-The activity requests `confidence_scores_granularity: "word"` so `ocr.checkConfidence` can average per-word scores when the API returns `word_confidence_scores`. If word scores are missing, the mapper falls back to page-level averages or a single synthetic word per page.
+The Hub does not accept `confidence_scores_granularity`. If word scores are missing, the mapper falls back to page-level averages or a single synthetic word per page.
 
 ## Caching
 

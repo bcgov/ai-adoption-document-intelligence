@@ -31,11 +31,13 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
+  SEED_GROUP_ID,
   seedTestDocument,
   stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
+import { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 import {
   disconnectPrismaClient,
   getPrismaClient,
@@ -208,6 +210,31 @@ describe("Experiment 03 — Azure Content Understanding workflow template (stati
   });
 
   describe("chain wiring", () => {
+    it("binds CU and cleanup outputs to benchmark result references", () => {
+      const graph = loadTemplate();
+      const cu = graph.nodes?.azureCuAnalyze as ActivityNode | undefined;
+      const cleanup = graph.nodes?.postOcrCleanup as ActivityNode | undefined;
+      expect(cu?.outputs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            port: "ocrResult",
+            ctxKey: "ocrResultRef",
+          }),
+          expect.objectContaining({
+            port: "ocrResponse",
+            ctxKey: "ocrResponseRef",
+          }),
+        ]),
+      );
+      expect(cleanup?.outputs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            port: "cleanedResult",
+            ctxKey: "cleanedResultRef",
+          }),
+        ]),
+      );
+    });
     it("topological order matches the brief's sequence", () => {
       const graph = loadTemplate();
       const order = computeTopologicalOrder(graph);
@@ -271,8 +298,8 @@ describe("Experiment 03 — Azure Content Understanding workflow template (stati
       const outputPorts = (node?.outputs ?? []).map((o) => o.port);
       expect(outputPorts).toContain("ocrResult");
       expect(outputPorts).toContain("ocrResponse");
-      expect(graph.ctx?.ocrResult).toBeDefined();
-      expect(graph.ctx?.ocrResponse).toBeDefined();
+      expect(graph.ctx?.ocrResultRef).toBeDefined();
+      expect(graph.ctx?.ocrResponseRef).toBeDefined();
     });
 
     it("CU activity carries the iteration kit's prompt + per-field descriptions + numericFieldsNullable on its parameters", () => {
@@ -429,6 +456,16 @@ describeRuntime(
         });
 
         expect(result.status).toBe("completed");
+        expect(result.refs).toMatchObject({
+          ocrResponseRef: { storage: "blob" },
+          ocrResultRef: { storage: "blob" },
+          cleanedResultRef: { storage: "blob" },
+        });
+        const { predictionData } = await benchmarkFlattenPredictionFromRefs({
+          groupId: SEED_GROUP_ID,
+          ...result.refs,
+        });
+        expect(predictionData).toMatchObject({ applicant_oas_gis: "100" });
         expect(ctx.requiresReview).toBe(false);
         expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
 

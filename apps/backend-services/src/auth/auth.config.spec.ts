@@ -69,4 +69,16 @@ describe("auth.config", () => {
     expect(config.THROTTLE_GLOBAL_LIMIT).toBe(100);
     expect(config.API_KEY_MAX_FAILED_ATTEMPTS).toBe(20);
   });
+
+  it("should expose the global throttler config as numbers when env vars are strings", async () => {
+    process.env.THROTTLE_GLOBAL_TTL_MS = "120000";
+    process.env.THROTTLE_GLOBAL_LIMIT = "200";
+
+    const config = await import("./auth.config");
+
+    expect(typeof config.THROTTLE_GLOBAL_TTL_MS).toBe("number");
+    expect(typeof config.THROTTLE_GLOBAL_LIMIT).toBe("number");
+    expect(config.THROTTLE_GLOBAL_TTL_MS).toBe(120_000);
+    expect(config.THROTTLE_GLOBAL_LIMIT).toBe(200);
+  });
 });

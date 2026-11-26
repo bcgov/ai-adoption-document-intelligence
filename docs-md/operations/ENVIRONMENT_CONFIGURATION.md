@@ -107,6 +107,21 @@ The deploy script uses these to create the `<instance>-artifactory-pull` docker-
 | `VITE_SSO_REALM` | No | Frontend SSO realm (build arg) |
 | `VITE_SSO_CLIENT_ID` | No | Frontend SSO client ID (build arg) |
 
+### Azure Log Analytics mirror
+
+OpenShift deployments add Fluent Bit log-mirror sidecars only when every setting marked required below is configured; otherwise they deploy without them. When they are configured, both CI and `oc-deploy-instance.sh` provision an instance-owned `<instance>-azure-logs-secrets` Secret before deploying workloads. Supply these values in GitHub environment secrets for CI, or the selected profile/instance config for manual deployments; local repo-root `.env` values are not automatically copied to OpenShift.
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_LOGS_TENANT_ID` | Entra tenant ID (required for the mirror) |
+| `AZURE_LOGS_CLIENT_ID` | App registration client ID (required for the mirror) |
+| `AZURE_LOGS_CLIENT_SECRET` | Client secret **value**, not secret ID (required for the mirror) |
+| `AZURE_LOGS_DCE_URL` | HTTPS Logs ingestion endpoint (required for the mirror) |
+| `AZURE_LOGS_DCR_ID` | Immutable `dcr-...` ID (required for the mirror) |
+| `AZURE_LOGS_TABLE_NAME` | Custom table including `_CL`; defaults to `DocIntelLocal_CL` |
+
+With only some of them set, the deploy runs without the mirror and logs which are missing; an invalid value (a non-HTTPS endpoint, or a DCR ID that is not `dcr-...`) fails the deploy. Grant the service principal **Monitoring Metrics Publisher** on the DCR. See [Azure Log Analytics mirror](../monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment) for schema, per-pod resources, egress, and verification.
+
 ### Azure Document Intelligence
 
 | Variable | Secret | Description |
@@ -216,7 +231,8 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 | Variable | Description |
 |----------|-------------|
 | `VITE_APP_NAME` | Application display name |
-| `VITE_APP_VERSION` | Application version |
+| `VITE_APP_VERSION` | Release tag baked into the frontend, such as `v0.1.0`. Empty until the deployed commit contains a release tag. `1.0.0` is not a release, and the screen does not show it. |
+| `VITE_APP_COMMIT` | First 8 characters of the deployed commit. The header shows this. |
 | `VITE_ENV` | Environment identifier |
 
 ### Bootstrap (First-Time Setup)

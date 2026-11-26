@@ -1,4 +1,3 @@
-import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   Controller,
   Get,
@@ -269,7 +268,7 @@ export class AuthController {
       return res.redirect(this.authService.getFrontendUrl());
     } catch (error) {
       this.logger.error("OAuth callback handling failed:", {
-        error: getErrorMessage(error),
+        error,
       });
       const redirectUrl =
         this.authService.buildErrorRedirect("callback_failed");

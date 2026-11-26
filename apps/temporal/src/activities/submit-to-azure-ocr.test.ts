@@ -99,6 +99,8 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-123",
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-request-id-123",
       },
       body: {},
     };
@@ -145,6 +147,8 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-read",
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-read/analyzeResults/test-request-id-read",
       },
       body: {},
     };
@@ -179,6 +183,8 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id-456",
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/custom-invoice-model/analyzeResults/test-request-id-456",
       },
       body: {},
     };
@@ -209,11 +215,13 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
-  it("handles different case variations of apim-request-id header", async () => {
+  it("uses the operation result ID even when the gateway correlation ID differs", async () => {
     const mockResponse = {
       status: 202,
       headers: {
         "Apim-Request-Id": "test-request-id-789",
+        "Operation-Location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/actual-result-id?api-version=2024-11-30",
       },
       body: {},
     };
@@ -229,7 +237,7 @@ describe("submitToAzureOCR activity", () => {
 
     const result = await submitToAzureOCR({ fileData, groupId: "atestgroup" });
 
-    expect(result.apimRequestId).toBe("test-request-id-789");
+    expect(result.apimRequestId).toBe("actual-result-id");
   });
 
   it("throws error when credentials are missing", async () => {
@@ -361,7 +369,7 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
-  it("throws error when apim-request-id is missing", async () => {
+  it("rejects a response without Operation-Location rather than polling a correlation ID", async () => {
     const mockResponse = {
       status: 202,
       headers: {},
@@ -379,7 +387,7 @@ describe("submitToAzureOCR activity", () => {
 
     await expect(
       submitToAzureOCR({ fileData, groupId: "atestgroup" }),
-    ).rejects.toThrow("APIM Request ID not found in response headers");
+    ).rejects.toThrow("Azure analyze response missing Operation-Location");
   });
 
   it("rethrows SDK client errors with context", async () => {
@@ -407,6 +415,8 @@ describe("submitToAzureOCR activity", () => {
       status: 202,
       headers: {
         "apim-request-id": "test-request-id",
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-request-id",
       },
       body: {},
     };
@@ -463,7 +473,10 @@ describe("submitToAzureOCR activity", () => {
   it("reads the document from the run's group", async () => {
     mockPost.mockResolvedValue({
       status: 202,
-      headers: { "apim-request-id": "test-request-id-group" },
+      headers: {
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout/analyzeResults/test-request-id-group",
+      },
       body: {},
     });
     const fileData: PreparedFileData = {
@@ -517,7 +530,10 @@ describe("submitToAzureOCR activity", () => {
   it("runs the group's own trained model", async () => {
     mockPost.mockResolvedValue({
       status: 202,
-      headers: { "apim-request-id": "own-model-request" },
+      headers: {
+        "operation-location":
+          "https://test.cognitiveservices.azure.com/documentintelligence/documentModels/invoice-v2/analyzeResults/own-model-request",
+      },
       body: {},
     });
     const fileData: PreparedFileData = {

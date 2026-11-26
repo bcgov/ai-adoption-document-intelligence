@@ -7,8 +7,8 @@ product where you POST a JSON "analyzer" describing your schema, then
 submit documents to its analyze endpoint. CU internally:
 
 1. Performs OCR (its own ML-based layout extraction).
-2. Sends extracted content + the analyzer schema to a generative model
-   (GPT-5.2 / GPT-4.1-mini, configured at the resource level via
+2. Sends extracted content + the analyzer schema to the tenant's configured
+   generative model (configured at the resource level via
    `PATCH /contentunderstanding/defaults`).
 3. Returns structured JSON conforming to the schema, with confidence
    scores and grounding citations.
@@ -16,18 +16,36 @@ submit documents to its analyze endpoint. CU internally:
 Pricing splits content-extraction charges (OCR layer) from generative-
 model token charges (LLM layer).
 
-## Endpoint, auth, request/response shape
+## AI Hub configuration and request flow
 
-| | Public CU REST API | This experiment |
-|---|---|---|
-| Base URL | `https://<resource>.cognitiveservices.azure.com/contentunderstanding/...` | same |
-| API version | `2025-11-01` | same |
-| Auth | `Ocp-Apim-Subscription-Key: <AZURE_CU_KEY>` (default) or `Authorization: Bearer <token>` | the activity defaults to `Ocp-Apim-Subscription-Key`; `AZURE_CU_AUTH_MODE=bearer` switches to the Foundry-style header |
-| Analyzer upsert | `PUT /analyzers/{analyzerId}?api-version=2025-11-01` | same; the deploy activity skips PUT when an existing analyzer matches the desired body |
-| Analyze submit | `POST /analyzers/{analyzerId}:analyze?api-version=2025-11-01` body `{ inputs: [{ url: <data-url> }] }` → `202 + Operation-Location` | same; the activity polls `Operation-Location` every 1.5 s until terminal |
-| Analyze poll | `GET /analyzerResults/{request-id}?api-version=2025-11-01` | same |
-| **Analyzer ID constraint** | alphanumeric only | **CU rejects `-` in `analyzerId` with HTTP 400 `InvalidAnalyzerId`. We sanitise `${AZURE_CU_ANALYZER_PREFIX}-${groupId}-${templateModelId}` to lowercase alphanumeric, dropping all separators.** |
-| **Defaults pre-flight** | required before any analyzer can be deployed | `PATCH /contentunderstanding/defaults` must wire the `gpt-5.2`, `gpt-4.1-mini`, and `text-embedding-3-large` aliases to actual deployment names; without it, PUT analyzer fails with `DefaultsNotSet`. **One-time setup** at the resource level; the iteration script does NOT do this for you. |
+Set `AZURE_CU_ENDPOINT` to the AI Hub tenant root, such as
+`https://test.aihub.gov.bc.ca/sdpr-invoice-automation`, and `AZURE_CU_KEY` to
+that tenant's APIM subscription key in the Temporal worker. Compose forwards
+these settings; OpenShift uses the worker ConfigMap and Secret, while the
+instance deployment workflow reads the same names from GitHub Actions secrets.
+Restart the worker after changing them. Set `MOCK_AZURE_CU=true` only for mock
+runs. Do not commit credentials.
+
+The client sends `api-key` to APIM (alongside the selected CU authentication
+header). APIM uses its managed identity for the CU backend. Requests use API
+version `2025-11-01`, under `/contentunderstanding`: analyzer GET/PUT/DELETE,
+POST `/analyzers/{id}:analyze`, and GET `/analyzerResults/{id}`. The Hub
+returns the `Operation-Location` header on the gateway; some responses omit
+the tenant path. Polling validates the gateway and result path and applies the
+configured tenant prefix exactly once.
+
+Custom analyzers use the CU account's model defaults. Enabling the tenant in
+infrastructure does not prove those defaults have been applied. Check
+`/internal/tenant-info` and `/contentunderstanding/defaults`, and if needed
+apply the tenant's published `services.content_understanding.model_deployments`
+using a merge-patch request. The existing `scripts/setup-cu-defaults.ts`
+reads that published map before PATCH; its optional deployment overrides
+still apply. This changes shared tenant configuration, so coordinate with the
+Hub owner before running it. Prebuilt layout/read analyzers need no defaults.
+
+Analyzer IDs are sanitized to lowercase alphanumeric and include the group
+prefix. See [AI Hub CU documentation](https://bcgov.github.io/ai-hub-tracking/services.html)
+for current setup and service details.
 
 ## Analyzer JSON schema vocabulary
 
@@ -79,13 +97,13 @@ One activity is registered in all three registries (per
 workflow builder offers it as **Analyze with Content Understanding**:
 
 - **`azureContentUnderstanding.analyze`** — submits one document, polls
-  the operation, returns `{ ocrResult, ocrResponse }`. When a
+  the operation, persists the mapped result and raw response in group-scoped
+  blob storage, and returns `{ ocrResult, ocrResponse }` references. When a
   `templateModelId` is supplied, it first deploys the analyzer built from the
   template's fields (below). An explicit `analyzerId` parameter must be an
   Azure `prebuilt-*` analyzer or one of the group's own analyzers. Default
   timeout 20 min, retry policy **30 attempts × 15 s × 1.5x × 60 s cap**
-  (mirrors `mistralAzureOcr.process` because the Foundry RPM quota model
-  applies — and the LLM layer can be slower than OCR-only paths).
+  (the LLM layer can be slower than OCR-only paths).
 
 Deploying is a helper the analyze activity calls directly
 (`azureCuDeployAnalyzer` in `azure-cu-deploy-analyzer.ts`), not an activity a

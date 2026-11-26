@@ -251,6 +251,7 @@ export class GroundTruthGenerationService {
     this.processJobsInBackground(datasetId, versionId).catch((error) => {
       this.logger.error(
         `Background job processing failed for version ${versionId}: ${error.message}`,
+        { error },
       );
     });
 
@@ -514,7 +515,7 @@ export class GroundTruthGenerationService {
       );
     } catch (error) {
       const message = getErrorMessage(error);
-      this.logger.error(`Job ${jobId} failed: ${message}`);
+      this.logger.error(`Job ${jobId} failed: ${message}`, { error });
       await this.jobDb.updateJob(jobId, {
         status: GroundTruthJobStatus.failed,
         error: message,

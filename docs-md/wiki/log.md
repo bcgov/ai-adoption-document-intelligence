@@ -123,6 +123,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Created `docs-md/operations/BACKUP_RPO_RTO.md` recording the RPO, recovery window and RTO implied by PR #238's backup settings (weekly fulls, 4-hour incrementals, 2-full count retention).
 
+## [2026-09-19] ingest | Label suggestions move from rules to an LLM
+
+- `architecture/TEMPLATE_MODELS.md`: documented the `label-suggestions/` module (tagged-text rendering, the Azure OpenAI call, ref resolution), the bulk field-create and field-suggestion endpoints, the optional `FieldDefinition.description` column, and the new Field schema "Suggest fields" UI. The rule-based `suggestion.service.ts` this replaces is gone from the tree and the doc.
+- `extraction.md`: added a Design Notes bullet distinguishing label/field suggestions (one-shot, per-document) from the confusion-profile/format-suggestion feedback loops next to it.
+
 ## [2026-09-29] ingest | Frontend route permissions and the reviewer role
 
 - `auth/FRONTEND_ROUTE_PERMISSIONS.md`: new — `appRoutes` in `routes.config.tsx`, `GroupPermissionGuard`, sidebar filtering, `HomeRedirect` landing pages, and the numeric permission list `/api/auth/me` sends.
@@ -178,6 +183,15 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - The shipped workflow templates moved from `docs-md/workflows/templates/` to `packages/graph-workflow/templates/`; their doc is `workflows/WORKFLOW_TEMPLATES.md`.
 - `graph-workflows.md`: the source map names the templates' folder.
 
+## [2026-10-28] ingest | Integration tutorial page, post-gate store wording
+
+- `hitl.md`: the post-gate store writes the extracted result again; reviewer corrections stay in `field_corrections`.
+- `open-questions.md`: the From Zero to Integration tutorial is one of the published guides.
+
+## [2026-10-29] ingest | Post-gate store applies to some templates only
+
+- `hitl.md`: only templates with a post-gate store write the extracted result again; the base Standard OCR template has none.
+
 ## [2026-11-02] ingest | HITL corrections across sessions, Save, skip back to Flagged
 
 - `architecture/HITL_ARCHITECTURE.md`: Save stores corrections without ending the session; the review page and `GET /api/hitl/sessions/:id/corrections` show every correction on the document across its sessions, each with its author; skipping a session that carries a flag note returns it to Flagged.
@@ -193,3 +207,41 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged while its document still has an open flag; a document can carry several flags, and Approve and Reject resolve any still open.
 - `architecture/HITL_ARCHITECTURE.md`: the Flagged tab lists documents waiting to be taken and shows their number of open flags; the reviewer-workflow and flagging use cases follow the flag model.
+
+## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
+
+- The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
+- `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
+- `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
+
+## [2026-11-13] ingest | AI Hub TEST migration validation
+
+- Added routing to the canonical operator value map and migration validation runbook.
+- Kept deployment instructions and endpoint inventories out of the wiki.
+
+## [2026-11-16] ingest | Local Azure Log Analytics mirror
+
+- Added routing to the Fluent Bit mirror guide and configuration, including the boundary between host-file collection and container stdout.
+
+## [2026-11-17] ingest | OpenShift Azure log mirror
+
+- Extended the canonical mirror guide to OpenShift sidecars, instance Secret provisioning, and nginx filtering; routed shared assets to `deployments/fluent-bit/`.
+
+## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
+
+- Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
+- Updated the migration runbook to use existing tests and benchmark UI/APIs.
+
+## [2026-11-24] ingest | Mistral AI Hub routing
+
+- Linked extraction routing to the canonical Mistral configuration guide.
+
+## [2026-11-24] ingest | Content Understanding AI Hub routing
+
+- Linked the extraction topic to the CU configuration and analyzer guide.
+
+## [2026-11-25] ingest | Opt-in Azure log mirror without identifiers
+
+- `deployment-and-ops.md`: the mirror deploys only where every required `AZURE_LOGS_*` setting is configured, through the `components/azure-log-mirror` Kustomize component and the CHES chart's `azureLogs.enabled`; locally it has its own `azure-logs` Compose profile.
+- `sources.md`: routes the component directory.
+- The canonical guide lists what is removed from a line before it is sent.

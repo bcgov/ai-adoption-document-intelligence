@@ -103,12 +103,10 @@ export { applyReviewCriteria } from "./activities/hitl-apply-review-criteria";
 export type {
   MistralOcrProcessParams,
   MistralOcrProcessResult,
-  MistralOcrVariant,
 } from "./activities/mistral-ocr-process";
 export {
   mistralOcrProcess,
   resolveMistralAzureDeploymentId,
-  resolveMistralOcrModelId,
 } from "./activities/mistral-ocr-process";
 // Orientation normalization (mupdf + Tesseract OSD)
 export type {

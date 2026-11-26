@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
@@ -41,7 +42,7 @@ describe("UploadController", () => {
       processOcrForDocument: jest.fn().mockResolvedValue(undefined),
     } as any;
     workflowService = {
-      resolveWorkflowVersionId: jest.fn().mockResolvedValue(null),
+      resolveWorkflowVersionId: jest.fn().mockResolvedValue("wv-default"),
       getModelIdDefault: jest.fn().mockResolvedValue(null),
     } as any;
     trainingService = {
@@ -112,7 +113,7 @@ describe("UploadController", () => {
         baseDto.model_id,
         baseDto.group_id,
         baseDto.metadata,
-        undefined, // workflow_config_id
+        "wv-default", // workflow_config_id
       );
       expect(queueService.processOcrForDocument).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -121,6 +122,16 @@ describe("UploadController", () => {
           fileType: "pdf",
         }),
       );
+    });
+
+    it("rejects an upload naming no workflow with 400 and creates no document", async () => {
+      workflowService.resolveWorkflowVersionId.mockResolvedValue(null);
+
+      await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(documentService.uploadDocument).not.toHaveBeenCalled();
+      expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException if file is missing", async () => {
@@ -207,7 +218,7 @@ describe("UploadController", () => {
           "km-invoice-v2",
           groupId,
           groupDto.metadata,
-          undefined,
+          "wv-default",
         );
       });
 
@@ -232,7 +243,7 @@ describe("UploadController", () => {
           modelId,
           groupId,
           expect.anything(),
-          undefined,
+          "wv-default",
         );
       });
 
@@ -266,10 +277,10 @@ describe("UploadController", () => {
       });
     });
 
-    it("should rethrow BadRequestException if documentService throws", async () => {
+    it("should return 500 for unexpected errors from documentService", async () => {
       documentService.uploadDocument.mockRejectedValue(new Error("fail"));
       await expect(controller.uploadDocument(baseDto, mockReq)).rejects.toThrow(
-        BadRequestException,
+        InternalServerErrorException,
       );
     });
 
@@ -451,6 +462,52 @@ describe("UploadController", () => {
       };
       expect(body.code).toBe("password_protected");
       expect(body.message).toMatch(/password protected/i);
+    });
+
+    it("returns 500 with generic message for unexpected database error during upload", async () => {
+      documentService.uploadDocument.mockRejectedValue(
+        new Error("Database connection failed"),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeDefined();
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      const response = (caught as HttpException).getResponse() as {
+        message?: string;
+      };
+      expect(response.message).toBe("An unexpected error occurred");
+      expect(response.message).not.toContain("Database connection failed");
+    });
+
+    it("returns 500 for unexpected storage error during upload", async () => {
+      documentService.uploadDocument.mockRejectedValue(
+        new Error("Failed to write to blob storage"),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeDefined();
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      const response = (caught as HttpException).getResponse() as {
+        message?: string;
+      };
+      expect(response.message).toBe("An unexpected error occurred");
+      expect(response.message).not.toContain("blob storage");
     });
   });
 });

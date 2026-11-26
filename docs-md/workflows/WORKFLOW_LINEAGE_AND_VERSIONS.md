@@ -76,7 +76,7 @@ so the loss stays attributable even when the caller skipped the pre-flight.
 ## Documents & OCR
 
 - `documents.workflow_config_id` stores a **`WorkflowVersion.id`** (column name unchanged). The version's `lineage_id` names the workflow, so a document's workflow is always reached through its version.
-- **`POST /api/upload`**: accepts `workflow_slug` (with an optional `workflow_version`) or `workflow_config_id` as either a **lineage id** (resolved to its head version) or a **version id**; the server stores the resolved version id, so the FK is always valid.
+- **`POST /api/upload`**: requires either `workflow_slug` (with an optional `workflow_version`) or `workflow_config_id` as either a **lineage id** (resolved to its head version) or a **version id**; the server stores the resolved version id, so the FK is always valid. An upload naming neither is rejected with `400` before anything is stored.
 
 ## Migration
 

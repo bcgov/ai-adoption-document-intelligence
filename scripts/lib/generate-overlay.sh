@@ -23,6 +23,9 @@ _PROJECT_ROOT="$(cd "${_GENERATE_OVERLAY_DIR}/../.." && pwd)"
 _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instance-template"
 _MINIO_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/minio"
 _PROD_RESOURCES_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/prod-resources"
+_AZURE_LOG_MIRROR_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/azure-log-mirror"
+# Fluent Bit config shared with local Compose; copied into the azure-log-mirror component.
+_FLUENT_BIT_CONFIG_DIR="${_PROJECT_ROOT}/deployments/fluent-bit"
 
 # Escape a string for use as a sed replacement value.
 # Handles the delimiter (|), backslash, and ampersand.
@@ -81,6 +84,8 @@ generate_instance_overlay() {
   local review_session_retention_days=""
   local chat_conversation_retention_days=""
   local azure_openai_endpoint=""
+  local mistral_doc_ai_azure_endpoint=""
+  local azure_cu_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
   local enrichment_redact_pii="false"
@@ -92,6 +97,9 @@ generate_instance_overlay() {
   local minio_document_bucket="document-blobs"
   local with_minio="false"
   local with_prod_resources="false"
+  # Adds the Azure Log Analytics mirror sidecars; callers pass it only when every
+  # AZURE_LOGS_* setting is configured.
+  local with_azure_log_mirror="false"
   local minio_pvc_size="5Gi"
   local minio_root_user=""
   local minio_root_password=""
@@ -218,6 +226,14 @@ generate_instance_overlay() {
         azure_openai_endpoint="$2"
         shift 2
         ;;
+      --mistral-doc-ai-azure-endpoint)
+        mistral_doc_ai_azure_endpoint="$2"
+        shift 2
+        ;;
+      --azure-cu-endpoint)
+        azure_cu_endpoint="$2"
+        shift 2
+        ;;
       --azure-openai-deployment)
         azure_openai_deployment="$2"
         shift 2
@@ -248,6 +264,10 @@ generate_instance_overlay() {
         ;;
       --with-minio)
         with_minio="true"
+        shift
+        ;;
+      --with-azure-log-mirror)
+        with_azure_log_mirror="true"
         shift
         ;;
       --minio-endpoint)
@@ -326,6 +346,17 @@ generate_instance_overlay() {
     fi
   fi
 
+  if [[ "${with_azure_log_mirror}" == "true" ]]; then
+    local mirror_file
+    for mirror_file in "${_AZURE_LOG_MIRROR_COMPONENT_DIR}/kustomization.yml" \
+      "${_FLUENT_BIT_CONFIG_DIR}/openshift.yaml" "${_FLUENT_BIT_CONFIG_DIR}/filters.lua"; do
+      if [[ ! -f "${mirror_file}" ]]; then
+        echo "[ERROR] Azure log mirror file not found: ${mirror_file}" >&2
+        return 1
+      fi
+    done
+  fi
+
   # Create a temporary directory that preserves the relative path structure
   # so that ../../base in kustomization.yml resolves correctly.
   # Structure: tmpdir/overlays/instance/ (overlay) with tmpdir/base -> symlink to real base
@@ -358,6 +389,13 @@ generate_instance_overlay() {
   if [[ "${with_prod_resources}" == "true" ]]; then
     cp -r "${_PROD_RESOURCES_COMPONENT_DIR}" "${generated_dir}/prod-resources"
     component_refs+=("./prod-resources")
+  fi
+
+  if [[ "${with_azure_log_mirror}" == "true" ]]; then
+    cp -r "${_AZURE_LOG_MIRROR_COMPONENT_DIR}" "${generated_dir}/azure-log-mirror"
+    cp "${_FLUENT_BIT_CONFIG_DIR}/openshift.yaml" "${_FLUENT_BIT_CONFIG_DIR}/filters.lua" \
+      "${generated_dir}/azure-log-mirror/"
+    component_refs+=("./azure-log-mirror")
   fi
 
   if [[ ${#component_refs[@]} -gt 0 ]]; then
@@ -402,6 +440,8 @@ generate_instance_overlay() {
     -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
     -e "s|__CHAT_CONVERSATION_RETENTION_DAYS__|$(_sed_escape_replacement "${chat_conversation_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
+    -e "s|__MISTRAL_DOC_AI_AZURE_ENDPOINT__|$(_sed_escape_replacement "${mistral_doc_ai_azure_endpoint}")|g"
+    -e "s|__AZURE_CU_ENDPOINT__|$(_sed_escape_replacement "${azure_cu_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"

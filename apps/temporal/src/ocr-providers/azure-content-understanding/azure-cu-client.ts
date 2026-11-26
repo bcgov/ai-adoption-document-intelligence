@@ -7,10 +7,8 @@
  *   POST /contentunderstanding/analyzers/{analyzerId}:analyze         — submit a document
  *   GET  /contentunderstanding/analyzerResults/{request-id}           — poll long-running result
  *
- * Authentication: the documented quickstart uses `Ocp-Apim-Subscription-Key`.
- * Foundry deployments may also accept `Authorization: Bearer`. We send the
- * Ocp-Apim-Subscription-Key header by default and fall back to `Authorization: Bearer`
- * if the auth-mode flag is set, mirroring the Mistral-on-Foundry split.
+ * The Hub authenticates requests using the tenant subscription key in
+ * `api-key`; the configured CU authorization header is also retained.
  */
 
 import axios, { AxiosError, type AxiosInstance } from "axios";
@@ -102,6 +100,7 @@ export function createCuAxiosInstance(opts: CuClientOptions): AxiosInstance {
   const authMode = opts.authMode ?? "subscription-key";
   const headers = {
     "Content-Type": "application/json",
+    "api-key": opts.apiKey,
     ...buildAuthHeaders(opts.apiKey, authMode),
   };
   return axios.create({
@@ -122,20 +121,59 @@ export function cuAnalyzeUrl(analyzerId: string): string {
 
 export function cuAnalyzeResultUrlFromOperation(
   operationLocation: string,
+  endpoint: string,
 ): string {
-  // The header value is an absolute URL; for axios-with-baseURL we strip the
-  // origin so the relative path lands on the same baseURL. If the URL is
-  // already relative we return it untouched.
-  try {
-    const u = new URL(operationLocation);
-    return `${u.pathname}${u.search}`;
-  } catch {
-    return operationLocation;
+  const base = new URL(endpoint);
+  const location = new URL(operationLocation, `${base.origin}/`);
+  const tenantPath = base.pathname.replace(/\/+$/, "");
+  const resultPath = `${CU_BASE_PATH}/analyzerResults/`;
+  const tenantResultPath = `${tenantPath}${resultPath}`;
+  const pathPrefix = location.pathname.startsWith(tenantResultPath)
+    ? tenantResultPath
+    : resultPath;
+  if (
+    location.origin !== base.origin ||
+    location.username ||
+    location.password ||
+    location.hash ||
+    !location.pathname.startsWith(pathPrefix)
+  ) {
+    throw new Error(
+      "Azure CU analyze: invalid operation-location for endpoint.",
+    );
   }
+  const resultId = location.pathname.slice(pathPrefix.length);
+  if (!resultId || resultId.includes("/")) {
+    throw new Error("Azure CU analyze: invalid operation-location result ID.");
+  }
+  return `${resultPath}${resultId}${location.search}`;
 }
 
 export function cuAnalyzeResultUrlFromId(requestId: string): string {
   return `${CU_BASE_PATH}/analyzerResults/${encodeURIComponent(requestId)}?api-version=${CU_API_VERSION}`;
+}
+
+/** Read the Hub's published CU deployment map, rejecting incomplete metadata. */
+export function readCuModelDeployments(value: unknown): Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("AI Hub tenant-info has no valid CU model deployment map.");
+  }
+  const deployments: Record<string, string> = {};
+  for (const [alias, deployment] of Object.entries(value)) {
+    if (typeof deployment !== "string" || !deployment.trim()) {
+      throw new Error(
+        "AI Hub tenant-info has no valid CU model deployment map.",
+      );
+    }
+    deployments[alias] = deployment;
+  }
+  if (
+    !deployments["prebuilt-analyzer-completion"] ||
+    !deployments["prebuilt-analyzer-embedding"]
+  ) {
+    throw new Error("AI Hub tenant-info is missing required CU model aliases.");
+  }
+  return deployments;
 }
 
 /**

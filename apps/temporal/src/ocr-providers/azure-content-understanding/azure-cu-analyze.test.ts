@@ -31,9 +31,12 @@ jest.mock("../../logger", () => ({
 }));
 
 const mockBlobRead = jest.fn<(key: string) => Promise<Buffer>>();
+const ocrBodies = new Map<string, Buffer>();
+const mockBlobWrite = jest.fn<(key: string, value: Buffer) => Promise<void>>();
 jest.mock("../../blob-storage/blob-storage-client", () => ({
   getBlobStorageClient: () => ({
     read: mockBlobRead,
+    write: mockBlobWrite,
   }),
 }));
 
@@ -55,12 +58,14 @@ const mockCuPost =
       data: unknown;
     }>
   >();
+const mockCuGet =
+  jest.fn<(url: string) => Promise<{ status: number; data: unknown }>>();
 jest.mock("./azure-cu-client", () => {
   const actual =
     jest.requireActual<typeof import("./azure-cu-client")>("./azure-cu-client");
   return {
     ...actual,
-    createCuAxiosInstance: () => ({ post: mockCuPost, get: jest.fn() }),
+    createCuAxiosInstance: () => ({ post: mockCuPost, get: mockCuGet }),
   };
 });
 
@@ -154,6 +159,10 @@ describe("azureCuAnalyze group scope", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    ocrBodies.clear();
+    mockBlobWrite.mockImplementation(async (key, value) => {
+      ocrBodies.set(key, value);
+    });
     process.env = {
       ...originalEnv,
       MOCK_AZURE_CU: "false",
@@ -193,6 +202,7 @@ describe("azureCuAnalyze group scope", () => {
     templateRows = [amountTemplate(GROUP)];
 
     await azureCuAnalyze({
+      documentId: "doc-1",
       fileData: pdfFile,
       groupId: GROUP,
       templateModelId: "tm-1",
@@ -209,6 +219,7 @@ describe("azureCuAnalyze group scope", () => {
     templateRows = [amountTemplate(GROUP)];
 
     await azureCuAnalyze({
+      documentId: "doc-1",
       fileData: pdfFile,
       groupId: GROUP,
       templateModelId: "tm-1",
@@ -230,6 +241,7 @@ describe("azureCuAnalyze group scope", () => {
 
     await expect(
       azureCuAnalyze({
+        documentId: "doc-1",
         fileData: pdfFile,
         groupId: GROUP,
         templateModelId: "tm-1",
@@ -242,31 +254,91 @@ describe("azureCuAnalyze group scope", () => {
 
   it("accepts an explicit prebuilt analyzerId", async () => {
     await azureCuAnalyze({
+      documentId: "doc-1",
       fileData: pdfFile,
       groupId: GROUP,
       analyzerId: "prebuilt-documentSearch",
     });
-
     expect(mockCuPost.mock.calls[0][0]).toContain(
       "/analyzers/prebuilt-documentSearch:analyze",
     );
+  });
+
+  it.each([
+    "/tenant/contentunderstanding/analyzerResults/result-123?api-version=2025-11-01",
+    "/contentunderstanding/analyzerResults/result-123?api-version=2025-11-01",
+  ])("polls the Hub operation without duplicating the tenant path: %s", async (location) => {
+    process.env.AZURE_CU_ENDPOINT = "https://hub.example/tenant";
+    mockCuPost.mockResolvedValue({
+      status: 202,
+      headers: {
+        "operation-location": `https://hub.example${location}`,
+      },
+      data: {},
+    });
+    mockCuGet.mockResolvedValue({
+      status: 200,
+      data: { status: "Succeeded", result: { contents: [] } },
+    });
+    const result = await azureCuAnalyze({
+      documentId: "doc-1",
+      fileData: pdfFile,
+      groupId: GROUP,
+      analyzerId: "prebuilt-layout",
+    });
+    expect(mockCuGet).toHaveBeenCalledWith(
+      "/contentunderstanding/analyzerResults/result-123?api-version=2025-11-01",
+    );
+    expect(result.ocrResult.blobPath).toContain(`${GROUP}/`);
+    expect(result.ocrResponse.blobPath).toContain(`${GROUP}/`);
+    const raw = ocrBodies.get(result.ocrResponse.blobPath);
+    expect(raw).toBeDefined();
+    expect(JSON.parse(raw?.toString("utf8") ?? "{}").status).toBe("Succeeded");
+  });
+
+  it("does not poll another tenant's operation", async () => {
+    process.env.AZURE_CU_ENDPOINT = "https://hub.example/tenant";
+    mockCuPost.mockResolvedValue({
+      status: 202,
+      headers: {
+        "operation-location":
+          "https://hub.example/other/contentunderstanding/analyzerResults/result-123?api-version=2025-11-01",
+      },
+      data: {},
+    });
+    await expect(
+      azureCuAnalyze({
+        documentId: "doc-1",
+        fileData: pdfFile,
+        groupId: GROUP,
+        analyzerId: "prebuilt-layout",
+      }),
+    ).rejects.toThrow(/invalid operation-location/);
+    expect(mockCuGet).not.toHaveBeenCalled();
   });
 
   it("treats a template model from another group as not found", async () => {
     templateRows = [amountTemplate(OTHER_GROUP)];
 
     const { ocrResult } = await azureCuAnalyze({
+      documentId: "doc-1",
       fileData: pdfFile,
       groupId: GROUP,
       templateModelId: "tm-1",
     });
 
     expect(deployAnalyzerMock).not.toHaveBeenCalled();
-    expect(ocrResult.success).toBe(true);
+    const body = ocrBodies.get(ocrResult.blobPath);
+    expect(body).toBeDefined();
+    expect(JSON.parse(body?.toString("utf8") ?? "{}").success).toBe(true);
   });
 
   it("reads the document from the run's group", async () => {
-    await azureCuAnalyze({ fileData: pdfFile, groupId: GROUP });
+    await azureCuAnalyze({
+      documentId: "doc-1",
+      fileData: pdfFile,
+      groupId: GROUP,
+    });
 
     expect(mockBlobRead).toHaveBeenCalledWith(pdfFile.blobKey);
     expect(mockCuPost).toHaveBeenCalledTimes(1);
@@ -275,6 +347,7 @@ describe("azureCuAnalyze group scope", () => {
   it("refuses a document blob that belongs to another group", async () => {
     await expect(
       azureCuAnalyze({
+        documentId: "doc-1",
         fileData: {
           ...pdfFile,
           blobKey: `${OTHER_GROUP}/ocr/doc-1/original.pdf`,
@@ -290,7 +363,11 @@ describe("azureCuAnalyze group scope", () => {
     templateRows = [amountTemplate(GROUP)];
 
     await expect(
-      azureCuAnalyze({ fileData: pdfFile, templateModelId: "tm-1" }),
+      azureCuAnalyze({
+        documentId: "doc-1",
+        fileData: pdfFile,
+        templateModelId: "tm-1",
+      }),
     ).rejects.toThrow(/groupId is required/);
     expect(mockFindUnique).not.toHaveBeenCalled();
     expect(mockFindFirst).not.toHaveBeenCalled();
@@ -307,6 +384,7 @@ describe("azureCuAnalyze group scope", () => {
       templateRows = [amountTemplate(GROUP)];
 
       const result = await azureCuAnalyze({
+        documentId: "doc-1",
         fileData: pdfFile,
         groupId: GROUP,
         templateModelId: "tm-1",
@@ -326,7 +404,11 @@ describe("azureCuAnalyze group scope", () => {
         AzureContentUnderstandingAnalyzeParameters,
         Omit<
           AzureCuAnalyzeParams,
-          "fileData" | "groupId" | "templateModelId" | "requestId"
+          | "fileData"
+          | "documentId"
+          | "groupId"
+          | "templateModelId"
+          | "requestId"
         >
       > = true;
       expect(agree).toBe(true);

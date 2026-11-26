@@ -7,6 +7,8 @@ on:
     branches: [main, develop]
     paths:
       - 'apps/frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'packages/**'
       - '.github/workflows/frontend-qa.yml'
   workflow_dispatch:
@@ -28,7 +30,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install dependencies
-        run: npm install --ignore-scripts --no-package-lock
+        run: npm ci --ignore-scripts
       - name: Build graph-workflow package
         run: npm run build -w packages/graph-workflow
       # The shared graph-workflow package (validator, cache-hash, ctx-binding)
