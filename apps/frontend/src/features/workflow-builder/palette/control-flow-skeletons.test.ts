@@ -75,7 +75,7 @@ describe("buildControlFlowSkeleton", () => {
     ) as PollUntilNode;
     expect(node.id).toBe("pollUntil_1");
     expect(node.type).toBe("pollUntil");
-    expect(node.label).toBe("Wait until condition");
+    expect(node.label).toBe("Wait & Retry");
     expect(node.activityType).toBe("");
     expect(node.interval).toBe("30s");
     // The discriminated `ConditionExpression` is required at the type

@@ -82,7 +82,7 @@ describe("FlattenClassifiedDocumentsForm", () => {
     renderForm(node);
 
     expect(
-      screen.getByText(/flatten classified documents parameters/i),
+      screen.getByText(/combine classified pages parameters/i),
     ).toBeInTheDocument();
   });
 });

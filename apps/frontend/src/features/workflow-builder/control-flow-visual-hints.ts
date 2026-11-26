@@ -90,7 +90,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
   },
   pollUntil: {
     type: "pollUntil",
-    displayName: "Wait until condition",
+    displayName: "Wait & Retry",
     iconHint: "pollUntil",
     Icon: IconRefresh,
     color: nodeAccent("routing"),
