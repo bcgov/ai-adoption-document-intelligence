@@ -203,6 +203,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
 - `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
 
+## [2026-11-04] maintenance | HITL flags: Skip and lock expiry follow open flags
+
+- `hitl.md`: a skipped or lapsed session goes back to Flagged while its document still has an open flag; a document can carry several flags, and Approve and Reject resolve any still open.
+- `architecture/HITL_ARCHITECTURE.md`: the Flagged tab lists documents waiting to be taken and shows their number of open flags; the reviewer-workflow and flagging use cases follow the flag model.
+
 ## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
 
 - The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
