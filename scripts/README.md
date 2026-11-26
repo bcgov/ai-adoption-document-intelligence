@@ -97,6 +97,8 @@ Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl app
 
 See [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md).
 
+The deploy script adds the Azure log mirror only when the five required `AZURE_LOGS_*` credentials/destination settings are all configured in the selected profile or instance config (`AZURE_LOGS_TABLE_NAME` defaults to `DocIntelLocal_CL`). It then provisions `<instance>-azure-logs-secrets` and includes the Fluent Bit sidecars, even with `--skip-plg`; otherwise it deploys without them. See [Azure log mirror deployment](../docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment).
+
 ---
 
 ### oc-setup-sa.sh — Service Account Setup

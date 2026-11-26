@@ -55,9 +55,11 @@ data/datasets/*/private/**
 /plots/
 /hitl/
 
-# Generated repo wiki HTML (built by docs/build.sh at docs deploy time)
-/docs/wiki.html
-/docs/wiki-*.html
+# Docs site (VitePress): dependencies, build output, and the wiki copy made from docs-md/wiki at build time
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+/docs/wiki/
 
 # TypeScript incremental build state - machine-local, never shared
 *.tsbuildinfo

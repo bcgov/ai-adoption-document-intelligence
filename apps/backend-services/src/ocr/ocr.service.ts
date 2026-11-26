@@ -303,8 +303,11 @@ export class OcrService {
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
-      this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(
+        `Error processing document: ${getErrorMessage(error)}`,
+        { error },
+      );
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
       // The workflow never started (or failed to start); mark the document
       // failed so it doesn't stay stuck in a non-terminal status. Idempotent

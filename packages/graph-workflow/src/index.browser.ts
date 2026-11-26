@@ -46,6 +46,7 @@ export {
   synthesiseCtxKey,
   upstreamNodesWithDistance,
 } from "./auto-wire";
+export { azureAnalyzeResultId } from "./azure-analyze-result-id";
 export { computeInputHash } from "./cache/compute-input-hash";
 // Cache constants (Phase 4 — try-in-place). Browser-safe: sha256 via @noble/hashes.
 export {

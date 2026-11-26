@@ -1,8 +1,10 @@
 ---
 status: active
-updated: 2026-07-24
+updated: 2026-09-19
 canonical_sources:
   - docs-md/extraction/
+  - docs-md/workflows/MISTRAL_OCR.md
+  - docs-md/workflows/03-content-understanding-OCR.md
   - apps/temporal/src/activities/
   - apps/backend-services/src/azure/
   - apps/backend-services/src/document/
@@ -21,6 +23,8 @@ OCR and field extraction: how document bytes become structured, corrected field 
 ## Source Map
 
 - Topic docs live under `docs-md/extraction/` — start there for any specific area.
+- Mistral workflows use the AI Hub; configuration and mapping are in `docs-md/workflows/MISTRAL_OCR.md`.
+- Content Understanding also uses the Hub; configuration and analyzer setup are in `docs-md/workflows/03-content-understanding-OCR.md`.
 - OCR, correction, and enrichment run as Temporal activities in `apps/temporal/src/activities/` (registered in `apps/temporal/src/activity-registry.ts`).
 - Azure model/classifier integration lives in `apps/backend-services/src/azure/` and `apps/backend-services/src/template-model/`.
 - Confusion-profile derivation and storage live in `apps/backend-services/src/confusion-profile/`.
@@ -32,6 +36,7 @@ OCR and field extraction: how document bytes become structured, corrected field 
 - Correction is a pipeline: cleanup → character-confusion → normalize-fields → spellcheck → enrich, each an optional graph node. Confusion matrices and format specs feed those nodes. All correction activities are blob-backed (resolve an input `OcrPayloadRef`, return a new one) via `apps/temporal/src/ocr-activity-ref-utils.ts`.
 - `ocr.recoverNumericZerosFromCheckboxes` recovers numeric zeros Azure DI misread as selection marks, driven entirely by per-table node config. Because that config is form-specific, it is **not** in the generic standard workflow — it lives in form-specific variants (e.g. `standard-ocr-workflow-sdpr.json`, seeded as `seed-workflow-standard-ocr-sdpr`), wired in place on `ocrResultRef` between extract and normalize/cleanup. It is excluded from AI tool recommendation (per-form structural config). Details and finder strategies: `docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md`. That template also demonstrates the full field-level HITL gate (`hitl.applyReviewCriteria` → `document.persistReviewPlan`, replacing `ocr.checkConfidence` for routing) and a simulated ICM handoff (`data.transform` → `document.updateStatus`) — see [HITL](hitl.md) and `docs-md/architecture/HITL_REVIEW_CRITERIA.md`. Alignment notes: `docs-md/extraction/SDPR_V2_WORKFLOW_ALIGNMENT.md`.
 - Quality feedback loops (confusion profiles, format suggestions, OCR improvement pipeline) derive their inputs from HITL corrections and benchmark run mismatches — see [HITL](hitl.md) and the benchmarking docs.
+- Label suggestions and suggested fields (`apps/backend-services/src/template-model/label-suggestions/`) are not a feedback loop like the ones above: each is a single LLM call over one document's stored OCR, used to draft a field schema or a document's labels before a human saves anything. Detail: `docs-md/architecture/TEMPLATE_MODELS.md#label-suggestions`.
 
 ## Related Topics
 

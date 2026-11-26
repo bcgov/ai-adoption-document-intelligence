@@ -23,7 +23,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getErrorMessage } from "@ai-di/shared-logging";
 import type { FieldType } from "@generated/client";
 import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
@@ -32,9 +31,11 @@ import { createActivityLogger } from "../../logger";
 import {
   isOcrPayloadRef,
   type OcrPayloadRef,
+  persistOcrExtractionRefs,
   readOcrPayloadBlobInGroup,
+  requireDocumentId,
 } from "../../ocr-payload-ref";
-import type { OCRResponse, OCRResult, PreparedFileData } from "../../types";
+import type { OCRResponse, PreparedFileData } from "../../types";
 import {
   type TemplateFieldType,
   type VlmExtractionRequest,
@@ -117,7 +118,7 @@ async function loadTemplate(
     log.error("VLM-hybrid: failed to load template", {
       event: "schema_load_error",
       templateModelId,
-      error: getErrorMessage(error),
+      error,
     });
     // Rethrow genuine DB/query failures — a transient Prisma error is not a
     // missing template (the caller maps `null` to "field_schema not found").
@@ -246,6 +247,7 @@ async function callAzureOpenAiVlm(opts: CallVlmOptions): Promise<{
       const detail =
         typeof body === "object" ? JSON.stringify(body) : String(body ?? "");
       log.error("VLM-hybrid chat completions HTTP error", {
+        error: err,
         event: "http_error",
         deployment,
         httpStatus: String(status),
@@ -275,6 +277,7 @@ async function callAzureOpenAiVlm(opts: CallVlmOptions): Promise<{
 }
 
 export interface VlmHybridExtractParams {
+  documentId?: string;
   fileData: PreparedFileData;
   groupId?: string | null;
   /**
@@ -311,19 +314,18 @@ export interface VlmHybridExtractParams {
 
 export interface VlmHybridExtractResult {
   /** Canonical mapped OCR result for downstream activities. */
-  ocrResult: OCRResult;
+  ocrResult: OcrPayloadRef;
   /**
-   * Raw VLM-hybrid response — emitted on `ctx.ocrResponse` so the
+   * Raw VLM-hybrid response reference — emitted on `ctx.ocrResponseRef` so the
    * benchmark sample workflow's `persistOcrCache` step writes it to
    * `benchmark_ocr_cache` (sync-provider cache emission convention).
    */
-  ocrResponse: VlmHybridRawResponse;
+  ocrResponse: OcrPayloadRef;
 }
 
 /**
  * Activity: VLM + OCR hybrid extraction.
- * Returns a canonical {@link OCRResult} + the wrapped hybrid response
- * (DI layout + VLM payload).
+ * Returns blob references to the canonical result and wrapped hybrid response.
  */
 export async function vlmHybridExtract(
   params: VlmHybridExtractParams,
@@ -332,6 +334,7 @@ export async function vlmHybridExtract(
     ...(params.requestId && { requestId: params.requestId }),
   });
   const startTime = Date.now();
+  const documentId = requireDocumentId(params);
   const useMock = process.env.MOCK_VLM_DIRECT === "true";
   const requestId = `vlm-hybrid-${randomUUID()}`;
 
@@ -438,12 +441,18 @@ export async function vlmHybridExtract(
         layoutResponse: layoutResponse,
       },
     );
+    const refs = await persistOcrExtractionRefs(
+      groupId,
+      documentId,
+      ocrResult,
+      mockResponse,
+    );
     log.info("VLM-hybrid extract complete (mock)", {
       event: "complete_mock",
       requestId,
       durationMs: Date.now() - startTime,
     });
-    return { ocrResult, ocrResponse: mockResponse };
+    return refs;
   }
 
   const endpoint = readEnv("AZURE_OPENAI_ENDPOINT");
@@ -506,6 +515,12 @@ export async function vlmHybridExtract(
     },
   );
 
+  const refs = await persistOcrExtractionRefs(
+    groupId,
+    documentId,
+    ocrResult,
+    ocrResponse,
+  );
   log.info("VLM-hybrid extract complete", {
     event: "complete",
     requestId,
@@ -518,5 +533,5 @@ export async function vlmHybridExtract(
     ocrMarkdownChars: ocrMarkdown.length,
   });
 
-  return { ocrResult, ocrResponse };
+  return refs;
 }

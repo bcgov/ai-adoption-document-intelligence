@@ -4,6 +4,8 @@
 
 The `Deploy Instance` workflow (`.github/workflows/deploy-instance.yml`) builds images and deploys them to an OpenShift instance. A commit landing on `develop` deploys the shared test instance automatically. Production is deployed only by a manual run of the workflow from `main` with the `prod` environment selected; a push to `main` does not deploy.
 
+The test frontend header shows the deployed commit. When that commit contains a release tag, the header shows the tag as well.
+
 | Target | Started by | Instance | Namespace | GH environment | Floating tag (live) | Staged tag (build/deploy) |
 |---|---|---|---|---|---|---|
 | Test | Push to `develop` | `bcgov-di-test` | `fd34fb-test` | `test` | `bcgov-di-test` | `bcgov-di-test-<sha12>` |
@@ -162,6 +164,8 @@ Both environments should have:
 - `OPENSHIFT_SERVER` — cluster API URL (`https://api.silver.devops.gov.bc.ca:6443`)
 - `ARTIFACTORY_URL`, `ARTIFACTORY_SA_USERNAME`, `ARTIFACTORY_SA_PASSWORD`
 - Azure, SSO, and app-config secrets as referenced in the workflow
+
+The Azure log mirror is off unless configured. To turn it on for an environment, add `AZURE_LOGS_TENANT_ID`, `AZURE_LOGS_CLIENT_ID`, `AZURE_LOGS_CLIENT_SECRET`, `AZURE_LOGS_DCE_URL`, and `AZURE_LOGS_DCR_ID` to its GitHub environment; optionally set `AZURE_LOGS_TABLE_NAME` (default `DocIntelLocal_CL`). With all five set, the deploy job provisions the dedicated instance Secret and adds the Fluent Bit sidecars alongside the existing Promtail/Loki pipeline. With none or only some set, it deploys without them, and the job log names any that are missing. See [OpenShift mirror setup](../monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment).
 
 ### OpenShift service account in `fd34fb-test`
 

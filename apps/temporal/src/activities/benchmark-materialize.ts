@@ -179,7 +179,7 @@ export async function materializeDataset(
       const errorMessage = getErrorMessage(error);
       log.error("Dataset download failed", {
         event: "download_failed",
-        error: errorMessage,
+        error,
       });
 
       // Clean up on failure
@@ -293,7 +293,7 @@ export async function loadDatasetManifest(
     const errorMessage = getErrorMessage(error);
     log.error("Load dataset manifest error", {
       event: "error",
-      error: errorMessage,
+      error,
     });
     throw new Error(`Failed to load manifest: ${errorMessage}`);
   }

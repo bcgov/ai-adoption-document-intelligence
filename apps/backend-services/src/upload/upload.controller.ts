@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  InternalServerErrorException,
   NotFoundException,
   Post,
   Req,
@@ -224,8 +225,9 @@ export class UploadController {
         .catch((error) => {
           this.logger.error(
             `Background OCR processing failed for document ${uploadedDocument.id}: ${getErrorMessage(error)}`,
+            { error },
           );
-          this.logger.error(`Stack: ${getErrorStack(error)}`);
+          this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
         });
 
       this.logger.debug("=== UploadController.uploadDocument completed ===");
@@ -244,20 +246,18 @@ export class UploadController {
         },
       };
     } catch (error) {
-      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
+      this.logger.error(`Error in uploadDocument: ${getErrorMessage(error)}`, {
+        error,
+      });
+      this.logger.error(`Stack: ${getErrorStack(error)}`, { error });
 
-      if (
-        error instanceof HttpException ||
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
+      // Re-throw deliberate 4xx responses (validation, auth, not found, etc.)
+      if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new BadRequestException(
-        getErrorMessage(error) || "Failed to upload document",
-      );
+      // Unexpected errors → 500 with generic message
+      throw new InternalServerErrorException("An unexpected error occurred");
     }
   }
 }
