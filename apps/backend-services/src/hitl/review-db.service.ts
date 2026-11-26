@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   DocumentLock,
   DocumentStatus,
@@ -556,9 +557,13 @@ export class ReviewDbService {
   }
 
   /**
-   * Acquires a document lock for a reviewer session.
+   * Takes the document in one write.
+   * Adds a lock when none exists, replaces a lock whose time has run out,
+   * and returns null when someone else still has it. One write matters
+   * because a failed insert inside this transaction cancels the save before
+   * a second write can replace the old lock.
    * @param data - Lock details including document_id, reviewer_id, session_id, and expires_at.
-   * @returns The created DocumentLock record.
+   * @returns The claimed lock, or null if another reviewer still holds it.
    */
   async acquireDocumentLock(
     data: {
@@ -568,26 +573,36 @@ export class ReviewDbService {
       expires_at: Date;
     },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentLock> {
+  ): Promise<DocumentLock | null> {
     const client = tx ?? this.prisma;
     this.logger.debug("Acquiring document lock", {
       document_id: data.document_id,
     });
-    // Use upsert to reclaim any stale (expired) lock row for this document.
-    // The unique constraint on document_id means a leftover expired row would
-    // otherwise cause a P2002 violation. Callers must ensure no *active* lock
-    // exists (see findActiveLock) before invoking this method.
-    return client.documentLock.upsert({
-      where: { document_id: data.document_id },
-      update: {
-        reviewer_id: data.reviewer_id,
-        session_id: data.session_id,
-        expires_at: data.expires_at,
-        acquired_at: new Date(),
-        last_heartbeat: new Date(),
-      },
-      create: data,
-    });
+    const [lock] = await client.$queryRaw<DocumentLock[]>`
+      INSERT INTO document_locks (
+        id, document_id, reviewer_id, session_id,
+        acquired_at, last_heartbeat, expires_at
+      )
+      VALUES (
+        ${randomUUID()},
+        ${data.document_id},
+        ${data.reviewer_id},
+        ${data.session_id},
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        ${data.expires_at}
+      )
+      ON CONFLICT (document_id) DO UPDATE
+      SET
+        reviewer_id = EXCLUDED.reviewer_id,
+        session_id = EXCLUDED.session_id,
+        acquired_at = CURRENT_TIMESTAMP,
+        last_heartbeat = CURRENT_TIMESTAMP,
+        expires_at = EXCLUDED.expires_at
+      WHERE document_locks.expires_at <= CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    return lock ?? null;
   }
 
   /**
@@ -606,19 +621,23 @@ export class ReviewDbService {
   }
 
   /**
-   * Refreshes the heartbeat and expiry for a document lock.
+   * Refreshes the heartbeat and expiry for a document lock, scoped to the
+   * reviewer who holds it — an update that matches no row means either the
+   * session isn't locked or it is locked by someone else.
    * @param sessionId - The session ID whose lock heartbeat to refresh.
+   * @param reviewerId - The caller; must be the lock's current holder.
    * @param expiresAt - The new expiry time for the lock.
-   * @returns Whether the lock was found and updated.
+   * @returns Whether the lock was found, held by `reviewerId`, and updated.
    */
   async refreshLockHeartbeat(
     sessionId: string,
+    reviewerId: string,
     expiresAt: Date,
     tx?: Prisma.TransactionClient,
   ): Promise<boolean> {
     const client = tx ?? this.prisma;
     const result = await client.documentLock.updateMany({
-      where: { session_id: sessionId },
+      where: { session_id: sessionId, reviewer_id: reviewerId },
       data: {
         last_heartbeat: new Date(),
         expires_at: expiresAt,

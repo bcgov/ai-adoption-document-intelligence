@@ -42,6 +42,7 @@ const mockDocumentLock = {
   deleteMany: jest.fn(),
   updateMany: jest.fn(),
   findFirst: jest.fn(),
+  findUnique: jest.fn(),
   findMany: jest.fn(),
 };
 
@@ -58,6 +59,8 @@ const mockReviewFlag = {
   updateMany: jest.fn(),
 };
 
+const mockQueryRaw = jest.fn();
+
 const mockPrismaClient = {
   reviewSession: mockReviewSession,
   fieldCorrection: mockFieldCorrection,
@@ -66,6 +69,7 @@ const mockPrismaClient = {
   documentLock: mockDocumentLock,
   templateModel: mockTemplateModel,
   reviewFlag: mockReviewFlag,
+  $queryRaw: mockQueryRaw,
 };
 
 const mockPrismaService = {
@@ -848,41 +852,51 @@ describe("ReviewDbService", () => {
   });
 
   describe("acquireDocumentLock", () => {
-    it("should upsert and return a document lock, reclaiming stale rows", async () => {
-      const lockData = {
-        document_id: "doc-1",
-        reviewer_id: "reviewer-1",
-        session_id: "session-1",
-        expires_at: new Date("2024-01-01T01:00:00Z"),
-      };
-      const upsertedLock = { id: "lock-1", ...lockData };
-      mockDocumentLock.upsert.mockResolvedValue(upsertedLock);
+    const lockData = {
+      document_id: "doc-1",
+      reviewer_id: "reviewer-1",
+      session_id: "session-1",
+      expires_at: new Date("2024-01-01T01:00:00Z"),
+    };
+
+    it("should claim the lock in one write and return that row", async () => {
+      const claimedLock = { id: "lock-1", ...lockData };
+      mockQueryRaw.mockResolvedValue([claimedLock]);
 
       const result = await service.acquireDocumentLock(lockData);
 
-      expect(result).toEqual(upsertedLock);
-      expect(mockDocumentLock.upsert).toHaveBeenCalledWith({
-        where: { document_id: "doc-1" },
-        update: expect.objectContaining({
-          reviewer_id: "reviewer-1",
-          session_id: "session-1",
-          expires_at: lockData.expires_at,
-        }),
-        create: lockData,
-      });
+      expect(result).toEqual(claimedLock);
+      const [sql, ...values] = mockQueryRaw.mock.calls[0];
+      const statement = (sql as TemplateStringsArray).join(" ");
+      expect(statement).toContain("ON CONFLICT (document_id) DO UPDATE");
+      expect(statement).toContain(
+        "WHERE document_locks.expires_at <= CURRENT_TIMESTAMP",
+      );
+      expect(values).toEqual([
+        expect.any(String),
+        "doc-1",
+        "reviewer-1",
+        "session-1",
+        lockData.expires_at,
+      ]);
+      expect(mockDocumentLock.create).not.toHaveBeenCalled();
+      expect(mockDocumentLock.updateMany).not.toHaveBeenCalled();
     });
 
-    it("should throw if prisma upsert fails", async () => {
-      mockDocumentLock.upsert.mockRejectedValue(new Error("DB error"));
+    it("should return null when someone else still holds the lock", async () => {
+      mockQueryRaw.mockResolvedValue([]);
 
-      await expect(
-        service.acquireDocumentLock({
-          document_id: "doc-1",
-          reviewer_id: "reviewer-1",
-          session_id: "session-1",
-          expires_at: new Date(),
-        }),
-      ).rejects.toThrow("DB error");
+      const result = await service.acquireDocumentLock(lockData);
+
+      expect(result).toBeNull();
+    });
+
+    it("should throw when the write fails", async () => {
+      mockQueryRaw.mockRejectedValue(new Error("DB error"));
+
+      await expect(service.acquireDocumentLock(lockData)).rejects.toThrow(
+        "DB error",
+      );
     });
   });
 
@@ -911,11 +925,15 @@ describe("ReviewDbService", () => {
       mockDocumentLock.updateMany.mockResolvedValue({ count: 1 });
       const expiresAt = new Date("2024-01-01T02:00:00Z");
 
-      const result = await service.refreshLockHeartbeat("session-1", expiresAt);
+      const result = await service.refreshLockHeartbeat(
+        "session-1",
+        "reviewer-1",
+        expiresAt,
+      );
 
       expect(result).toBe(true);
       expect(mockDocumentLock.updateMany).toHaveBeenCalledWith({
-        where: { session_id: "session-1" },
+        where: { session_id: "session-1", reviewer_id: "reviewer-1" },
         data: {
           last_heartbeat: expect.any(Date),
           expires_at: expiresAt,
@@ -928,6 +946,19 @@ describe("ReviewDbService", () => {
 
       const result = await service.refreshLockHeartbeat(
         "missing-session",
+        "reviewer-1",
+        new Date(),
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it("should return false when the lock is held by a different reviewer", async () => {
+      mockDocumentLock.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.refreshLockHeartbeat(
+        "session-1",
+        "someone-else",
         new Date(),
       );
 
@@ -1061,10 +1092,8 @@ describe("ReviewDbService", () => {
 
     it("should use provided tx client instead of this.prisma for acquireDocumentLock", async () => {
       const lock = { id: "lock-1", document_id: "doc-1" };
-      const mockTxDocumentLock = {
-        upsert: jest.fn().mockResolvedValue(lock),
-      };
-      const mockTx = { documentLock: mockTxDocumentLock } as never;
+      const mockTxQueryRaw = jest.fn().mockResolvedValue([lock]);
+      const mockTx = { $queryRaw: mockTxQueryRaw } as never;
 
       const result = await service.acquireDocumentLock(
         {
@@ -1077,8 +1106,8 @@ describe("ReviewDbService", () => {
       );
 
       expect(result).toEqual(lock);
-      expect(mockTxDocumentLock.upsert).toHaveBeenCalled();
-      expect(mockDocumentLock.upsert).not.toHaveBeenCalled();
+      expect(mockTxQueryRaw).toHaveBeenCalled();
+      expect(mockQueryRaw).not.toHaveBeenCalled();
     });
 
     it("should use provided tx client instead of this.prisma for releaseDocumentLock", async () => {
@@ -1101,6 +1130,7 @@ describe("ReviewDbService", () => {
 
       const result = await service.refreshLockHeartbeat(
         "session-1",
+        "reviewer-1",
         new Date(),
         mockTx,
       );
