@@ -504,12 +504,12 @@ target for the display-name pass follow-on story — it is a recommendation, not
 | — | — | — | **Classify Document** | Document Handling | Default | composite entry |
 | `document.splitAndClassify` | Document Handling | Split & Classify | Split & Classify | Document Handling | Default | — |
 | `document.selectClassifiedPages` | Document Handling | Select Classified Pages | Select Classified Pages | Document Handling | Default | — |
-| `document.flattenClassifiedDocuments` | Document Handling | Flatten Classified Documents | Combine Classified Pages | Document Handling | Default | — |
+| `document.flattenClassifiedDocuments` | Document Handling | Combine Classified Pages | Combine Classified Pages | Document Handling | Default | — |
 | `document.normalizeOrientation` | Document Handling | Correct Orientation | Correct Orientation | Document Handling | Default | — |
 | `document.split` | Document Handling | Split Document | Split Document | Document Handling | Advanced | — |
 | `document.classify` | Document Handling | Classify Document | Classify Segment | Document Handling | Advanced | — |
 | `document.extractPageRange` | Document Handling | Extract Page Range | Extract Page Range | Document Handling | Advanced | — |
-| `segment.combineResult` | Document Handling | Combine Segment Result | Merge Segment Results | Document Handling | Advanced | — |
+| `segment.combineResult` | Document Handling | Merge Segment Results | Merge Segment Results | Document Handling | Advanced | — |
 | `ocr.cleanup` | OCR Cleanup & Correction | Cleanup | Clean Extracted Text | Post-processing | Advanced | Process Extracted Text |
 | `ocr.normalizeFields` | OCR Cleanup & Correction | Normalize Fields | Normalise Fields | Post-processing | Advanced | Process Extracted Text (optional) |
 | `ocr.characterConfusion` | OCR Cleanup & Correction | Character Confusion Fix | Correct Confused Characters | Post-processing | Advanced | Process Extracted Text (optional) |
@@ -518,7 +518,7 @@ target for the display-name pass follow-on story — it is a recommendation, not
 | `ocr.enrich` | OCR Quality | Enrich OCR Results | Enrich Results | Post-processing | Default | — |
 | — | — | — | **Process Extracted Text** | Post-processing | Default | composite entry |
 | `document.validateFields` | Validation | Validate Fields | Validate Fields | Validation | Default | — |
-| `data.transform` | Data Transformation | Generic Data Transform | Transform Data | Data Transformation | Default | — |
+| `data.transform` | Data Transformation | Transform Data | Transform Data | Data Transformation | Default | — |
 | `tables.lookup` | Reference Data | Reference Data Lookup | Look Up Table Value | Reference Data | Default | — |
 | `ocr.storeResults` | Storage | Store OCR Results | Save Results | Save Results | Default | — |
 | `document.updateStatus` | Storage | Update Document Status | Update Document Status | Save Results | Advanced | — |

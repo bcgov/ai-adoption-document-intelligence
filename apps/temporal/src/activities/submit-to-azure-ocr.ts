@@ -1,3 +1,4 @@
+import { azureAnalyzeResultId } from "@ai-di/graph-workflow";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
@@ -18,7 +19,7 @@ function normalizeEndpoint(url: string | undefined): string {
 
 /**
  * Activity: Submit document to Azure Document Intelligence OCR API
- * Returns serializable response data with headers including apim-request-id
+ * Returns the Operation-Location result ID in the existing apimRequestId slot.
  */
 export async function submitToAzureOCR(params: {
   fileData: PreparedFileData;
@@ -160,12 +161,6 @@ export async function submitToAzureOCR(params: {
     }
 
     const statusCode = Number(initialResponse.status);
-    const apimRequestId =
-      initialResponse.headers["apim-request-id"] ||
-      initialResponse.headers["Apim-Request-Id"] ||
-      initialResponse.headers["APIM-Request-Id"] ||
-      null;
-
     // Validate status code
     if (statusCode !== 202) {
       log.error("Submit to Azure OCR: unexpected status code", {
@@ -181,15 +176,11 @@ export async function submitToAzureOCR(params: {
       );
     }
 
-    if (!apimRequestId) {
-      log.error("Submit to Azure OCR: missing APIM Request ID", {
-        event: "error",
-        error: "missing_apim_request_id",
-        availableHeaders: Object.keys(initialResponse.headers),
-        alertType: "azure_ocr_submit",
-      });
-      throw new Error("APIM Request ID not found in response headers");
-    }
+    const apimRequestId = azureAnalyzeResultId(
+      initialResponse.headers,
+      normalizedEndpoint,
+      modelId,
+    );
 
     log.info("Submit to Azure OCR complete", {
       event: "complete",
@@ -201,7 +192,7 @@ export async function submitToAzureOCR(params: {
     // Return serializable result
     return {
       statusCode,
-      apimRequestId: apimRequestId as string,
+      apimRequestId,
       headers: initialResponse.headers as Record<string, string | string[]>,
     };
   } catch (error) {

@@ -40,7 +40,7 @@ export function FlattenClassifiedDocumentsForm({
   return (
     <Stack gap="sm">
       <Text size="sm" fw={600}>
-        Combine classified pages parameters
+        Combine Classified Pages parameters
       </Text>
       <TextInput
         label="Filter labels (optional)"

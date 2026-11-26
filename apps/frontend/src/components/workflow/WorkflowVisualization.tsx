@@ -65,7 +65,7 @@ const STEP_LABELS: Record<string, string> = {
   waitBeforePoll: "Wait",
   pollOCRResults: "Wait for OCR Result",
   extractOCRResults: "Extract OCR Result",
-  postOcrCleanup: "Clean Up",
+  postOcrCleanup: "Cleanup",
   enrichResults: "Enrich OCR Results",
   checkOcrConfidence: "Check Confidence",
   humanReview: "Require Human Review",

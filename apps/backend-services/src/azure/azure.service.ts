@@ -137,7 +137,8 @@ export class AzureService {
         `operationLocation origin "${parsed.origin}" does not match expected Azure endpoint origin "${endpointUrl.origin}"`,
       );
     }
-    if (!parsed.pathname.includes("/documentintelligence/")) {
+    const tenantPath = endpointUrl.pathname.replace(/\/+$/, "");
+    if (!parsed.pathname.startsWith(`${tenantPath}/documentintelligence/`)) {
       throw new Error(
         `operationLocation path "${parsed.pathname}" is not an allowed Azure Document Intelligence endpoint path`,
       );

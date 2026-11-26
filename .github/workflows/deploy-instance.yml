@@ -401,6 +401,30 @@ jobs:
             fi
           done
 
+      - name: Configure Azure log mirror
+        env:
+          INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
+          OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
+          AZURE_LOGS_TENANT_ID: ${{ secrets.AZURE_LOGS_TENANT_ID }}
+          AZURE_LOGS_CLIENT_ID: ${{ secrets.AZURE_LOGS_CLIENT_ID }}
+          AZURE_LOGS_CLIENT_SECRET: ${{ secrets.AZURE_LOGS_CLIENT_SECRET }}
+          AZURE_LOGS_DCE_URL: ${{ secrets.AZURE_LOGS_DCE_URL }}
+          AZURE_LOGS_DCR_ID: ${{ secrets.AZURE_LOGS_DCR_ID }}
+          AZURE_LOGS_TABLE_NAME: ${{ secrets.AZURE_LOGS_TABLE_NAME || 'DocIntelLocal_CL' }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/oc-retry.sh
+          source scripts/lib/azure-logs-secret.sh
+          # Deployed only when every required setting exists in this environment; the
+          # later steps read AZURE_LOG_MIRROR to add the sidecars.
+          if azure_logs_mirror_configured; then
+            apply_azure_logs_secret "${OC_NAMESPACE}" "${INSTANCE_NAME}"
+            echo "AZURE_LOG_MIRROR=enabled" >> "$GITHUB_ENV"
+          else
+            echo "Azure log mirror is not configured for this environment; deploying without it."
+            echo "AZURE_LOG_MIRROR=disabled" >> "$GITHUB_ENV"
+          fi
+
       - name: Generate overlay and deploy
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
@@ -418,6 +442,8 @@ jobs:
           AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
           AZURE_DOC_INTELLIGENCE_MODELS: ${{ secrets.AZURE_DOC_INTELLIGENCE_MODELS }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          MISTRAL_DOC_AI_AZURE_ENDPOINT: ${{ secrets.MISTRAL_DOC_AI_AZURE_ENDPOINT }}
+          AZURE_CU_ENDPOINT: ${{ secrets.AZURE_CU_ENDPOINT }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
           AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
           ENRICHMENT_REDACT_PII: ${{ secrets.ENRICHMENT_REDACT_PII }}
@@ -480,9 +506,12 @@ jobs:
             --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}" \
             --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS:-prebuilt-layout}" \
             --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
+            --mistral-doc-ai-azure-endpoint "${MISTRAL_DOC_AI_AZURE_ENDPOINT:-}" \
+            --azure-cu-endpoint "${AZURE_CU_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
             --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
-            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}")
+            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}" \
+            $(if [[ "${AZURE_LOG_MIRROR:-disabled}" == enabled ]]; then echo "--with-azure-log-mirror"; fi))
           echo "Overlay generated at: $OVERLAY_DIR"
           echo "::endgroup::"
 
@@ -508,6 +537,8 @@ jobs:
           AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
           AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          MISTRAL_DOC_AI_AZURE_KEY: ${{ secrets.MISTRAL_DOC_AI_AZURE_KEY }}
+          AZURE_CU_KEY: ${{ secrets.AZURE_CU_KEY }}
         run: |
           set -euo pipefail
           source scripts/lib/oc-retry.sh
@@ -559,6 +590,8 @@ jobs:
           WORKER_SECRET="${INSTANCE_NAME}-temporal-worker-secrets"
           oc create secret generic "$WORKER_SECRET" \
             --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
+            --from-literal="MISTRAL_DOC_AI_AZURE_KEY=${MISTRAL_DOC_AI_AZURE_KEY}" \
+            --from-literal="AZURE_CU_KEY=${AZURE_CU_KEY}" \
             --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
@@ -690,6 +723,9 @@ jobs:
             --set "chesAdapter.imagePullSecret=${INSTANCE_NAME}-artifactory-pull" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
+            --set "azureLogs.enabled=$(if [[ "${AZURE_LOG_MIRROR:-disabled}" == enabled ]]; then echo true; else echo false; fi)" \
+            --set "azureLogs.secretName=${INSTANCE_NAME}-azure-logs-secrets" \
+            --set "azureLogs.configMapName=${INSTANCE_NAME}-fluent-bit-config" \
             --set "alertmanager.teams.webhookUrl=${ALERTMANAGER_TEAMS_WEBHOOK_URL:-placeholder}" \
             --wait --timeout 300s
 
@@ -847,4 +883,3 @@ jobs:
 
           echo "Failed services: ${FAILED_SERVICES[*]}"
           bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete "${FAILED_SERVICES[@]}"
-

@@ -21,6 +21,7 @@ import {
   Badge,
   Box,
   Button,
+  Collapse,
   Group,
   Modal,
   ScrollArea,
@@ -28,10 +29,13 @@ import {
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconArrowMerge,
   IconArrowsSplit,
+  IconChevronDown,
+  IconChevronRight,
   IconCode,
   IconExternalLink,
   IconHandStop,
@@ -162,7 +166,7 @@ export function ActivityPalette({
       // skip the (empty) catalog category of the same name to avoid a
       // duplicate header.
       if (cat === CONTROL_FLOW_SECTION_LABEL) continue;
-      const all = grouped[cat] ?? [];
+      const all = (grouped[cat] ?? []).filter((e) => !e.advanced);
       const entries = lower
         ? all.filter(
             (e) =>
@@ -176,16 +180,96 @@ export function ActivityPalette({
     return out;
   }, [grouped, query]);
 
+  const filteredAdvancedEntries = useMemo(() => {
+    const lower = query.trim().toLowerCase();
+    const all = Object.values(grouped)
+      .flat()
+      .filter((e) => e.advanced)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    return lower
+      ? all.filter(
+          (e) =>
+            e.displayName.toLowerCase().includes(lower) ||
+            e.activityType.toLowerCase().includes(lower) ||
+            e.description.toLowerCase().includes(lower),
+        )
+      : all;
+  }, [grouped, query]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedExpanded = advancedOpen || query.trim() !== "";
+
   const totalCount = useMemo(
     () =>
       Object.values(grouped).reduce((sum, entries) => sum + entries.length, 0),
     [grouped],
   );
 
+  const renderEntry = (entry: (typeof filteredAdvancedEntries)[number]) => {
+    const hints = getActivityVisualHints(entry.activityType);
+    const Icon = hints.Icon;
+    return (
+      <Tooltip
+        key={entry.activityType}
+        label={entry.description}
+        multiline
+        w={260}
+        withArrow
+        position="right"
+        openDelay={400}
+      >
+        <Group
+          gap="xs"
+          wrap="nowrap"
+          onClick={() => onAddActivity(entry.activityType)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(
+              "application/x-workflow-palette",
+              JSON.stringify({
+                kind: "activity",
+                activityType: entry.activityType,
+              }),
+            );
+            e.dataTransfer.effectAllowed = "copy";
+          }}
+          data-testid={`activity-palette-entry-${entry.activityType}`}
+          style={{
+            cursor: "grab",
+            padding: "6px 8px",
+            borderRadius: 6,
+            borderLeftWidth: 3,
+            borderLeftStyle: "solid",
+            borderLeftColor: hints.color,
+            background: "var(--mantine-color-default-hover, #25262b)",
+          }}
+        >
+          <ActionIcon
+            variant="transparent"
+            color="gray"
+            size="sm"
+            style={{ pointerEvents: "none" }}
+            aria-hidden
+          >
+            <Icon size={16} />
+          </ActionIcon>
+          <Box style={{ minWidth: 0, flex: 1 }}>
+            <Text size="xs" fw={500} truncate>
+              {entry.displayName}
+            </Text>
+            <Text size="10px" c="dimmed" ff="monospace" truncate>
+              {entry.activityType}
+            </Text>
+          </Box>
+        </Group>
+      </Tooltip>
+    );
+  };
+
   const nothingMatchesQuery =
     filteredSourceEntries.length === 0 &&
     filteredControlFlowEntries.length === 0 &&
     filteredCategories.length === 0 &&
+    filteredAdvancedEntries.length === 0 &&
     filteredDynamicEntries.length === 0;
 
   return (
@@ -321,69 +405,40 @@ export function ActivityPalette({
                 >
                   {category}
                 </Text>
-                {entries.map((entry) => {
-                  const hints = getActivityVisualHints(entry.activityType);
-                  const Icon = hints.Icon;
-                  return (
-                    <Tooltip
-                      key={entry.activityType}
-                      label={entry.description}
-                      multiline
-                      w={260}
-                      withArrow
-                      position="right"
-                      openDelay={400}
-                    >
-                      <Group
-                        gap="xs"
-                        wrap="nowrap"
-                        onClick={() => onAddActivity(entry.activityType)}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData(
-                            "application/x-workflow-palette",
-                            JSON.stringify({
-                              kind: "activity",
-                              activityType: entry.activityType,
-                            }),
-                          );
-                          e.dataTransfer.effectAllowed = "copy";
-                        }}
-                        data-testid={`activity-palette-entry-${entry.activityType}`}
-                        style={{
-                          cursor: "grab",
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                          borderLeftWidth: 3,
-                          borderLeftStyle: "solid",
-                          borderLeftColor: hints.color,
-                          background:
-                            "var(--mantine-color-default-hover, #25262b)",
-                        }}
-                      >
-                        <ActionIcon
-                          variant="transparent"
-                          color="gray"
-                          size="sm"
-                          style={{ pointerEvents: "none" }}
-                          aria-hidden
-                        >
-                          <Icon size={16} />
-                        </ActionIcon>
-                        <Box style={{ minWidth: 0, flex: 1 }}>
-                          <Text size="xs" fw={500} truncate>
-                            {entry.displayName}
-                          </Text>
-                          <Text size="10px" c="dimmed" ff="monospace" truncate>
-                            {entry.activityType}
-                          </Text>
-                        </Box>
-                      </Group>
-                    </Tooltip>
-                  );
-                })}
+                {entries.map(renderEntry)}
               </Stack>
             ))}
+            {filteredAdvancedEntries.length > 0 && (
+              <Stack gap={4} data-testid="activity-palette-advanced">
+                <UnstyledButton
+                  onClick={() => setAdvancedOpen((o) => !o)}
+                  aria-expanded={advancedExpanded}
+                  data-testid="activity-palette-advanced-toggle"
+                >
+                  <Group gap={4} wrap="nowrap">
+                    {advancedExpanded ? (
+                      <IconChevronDown size={12} />
+                    ) : (
+                      <IconChevronRight size={12} />
+                    )}
+                    <Text
+                      size="xs"
+                      fw={600}
+                      c="dimmed"
+                      tt="uppercase"
+                      style={{ letterSpacing: 0.4 }}
+                    >
+                      Advanced
+                    </Text>
+                  </Group>
+                </UnstyledButton>
+                <Collapse in={advancedExpanded}>
+                  <Stack gap={4}>
+                    {filteredAdvancedEntries.map(renderEntry)}
+                  </Stack>
+                </Collapse>
+              </Stack>
+            )}
             {nothingMatchesQuery && (
               <Text size="xs" c="dimmed" ta="center">
                 No entries match "{query}".

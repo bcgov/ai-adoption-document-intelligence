@@ -5,7 +5,7 @@ export const segmentCombineResultParametersSchema = z.object({});
 
 export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
   activityType: "segment.combineResult",
-  displayName: "Combine Segment Result",
+  displayName: "Merge Segment Results",
   category: "Document Handling",
   description:
     "Merges segment metadata with its OCR result into a single object — used as the body-end node in a Loop.",

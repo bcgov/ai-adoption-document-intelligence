@@ -88,7 +88,12 @@ export default defineConfig({
 			{ text: "Guides", items: guides },
 			{
 				text: "Technical Documentation",
-				items: [...technical, { text: "API Reference", link: "/api-reference" }, { text: "Diagrams", link: "/diagrams" }],
+				items: [
+					...technical,
+					{ text: "API Reference", link: "/api-reference" },
+					{ text: "Diagrams", link: "/diagrams" },
+					{ text: "Suggest fields", link: "/suggest-fields" },
+				],
 			},
 			{ text: "Repo Wiki", collapsed: true, items: wikiSidebar() },
 			{ text: "Contributing", items: [{ text: "Contributing to the docs", link: "/contributing" }] },

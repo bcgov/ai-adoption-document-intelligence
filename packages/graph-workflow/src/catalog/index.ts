@@ -12,9 +12,11 @@
  */
 
 import { z } from "zod/v4";
+import { azureClassifyAnalyzeCatalogEntry } from "./activities/azure-classify-analyze";
 import { azureClassifyPollCatalogEntry } from "./activities/azure-classify-poll";
 import { azureClassifySubmitCatalogEntry } from "./activities/azure-classify-submit";
 import { azureContentUnderstandingAnalyzeCatalogEntry } from "./activities/azure-content-understanding-analyze";
+import { azureOcrAnalyzeCatalogEntry } from "./activities/azure-ocr-analyze";
 import { azureOcrExtractCatalogEntry } from "./activities/azure-ocr-extract";
 import { azureOcrPollCatalogEntry } from "./activities/azure-ocr-poll";
 import { azureOcrSubmitCatalogEntry } from "./activities/azure-ocr-submit";
@@ -123,9 +125,11 @@ const ENTRIES: ActivityCatalogEntry[] = [
   documentUpdateStatusCatalogEntry,
   documentStoreRejectionCatalogEntry,
   documentNormalizeOrientationCatalogEntry,
+  azureOcrAnalyzeCatalogEntry,
   azureOcrSubmitCatalogEntry,
   azureOcrPollCatalogEntry,
   azureOcrExtractCatalogEntry,
+  azureClassifyAnalyzeCatalogEntry,
   azureClassifySubmitCatalogEntry,
   azureClassifyPollCatalogEntry,
   mistralOcrProcessCatalogEntry,

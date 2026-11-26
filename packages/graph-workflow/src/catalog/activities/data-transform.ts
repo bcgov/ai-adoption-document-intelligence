@@ -69,7 +69,7 @@ export const dataTransformParametersSchema = z
 
 export const dataTransformCatalogEntry: ActivityCatalogEntry = {
   activityType: "data.transform",
-  displayName: "Generic Data Transform",
+  displayName: "Transform Data",
   category: "Data Transformation",
   description:
     "Generic transformer — reads inputs in JSON/XML/CSV, maps fields, and writes a new structure in JSON/XML/CSV.",

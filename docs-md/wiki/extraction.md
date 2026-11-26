@@ -3,6 +3,8 @@ status: active
 updated: 2026-09-19
 canonical_sources:
   - docs-md/extraction/
+  - docs-md/workflows/MISTRAL_OCR.md
+  - docs-md/workflows/03-content-understanding-OCR.md
   - apps/temporal/src/activities/
   - apps/backend-services/src/azure/
   - apps/backend-services/src/document/
@@ -21,6 +23,8 @@ OCR and field extraction: how document bytes become structured, corrected field 
 ## Source Map
 
 - Topic docs live under `docs-md/extraction/` — start there for any specific area.
+- Mistral workflows use the AI Hub; configuration and mapping are in `docs-md/workflows/MISTRAL_OCR.md`.
+- Content Understanding also uses the Hub; configuration and analyzer setup are in `docs-md/workflows/03-content-understanding-OCR.md`.
 - OCR, correction, and enrichment run as Temporal activities in `apps/temporal/src/activities/` (registered in `apps/temporal/src/activity-registry.ts`).
 - Azure model/classifier integration lives in `apps/backend-services/src/azure/` and `apps/backend-services/src/template-model/`.
 - Confusion-profile derivation and storage live in `apps/backend-services/src/confusion-profile/`.

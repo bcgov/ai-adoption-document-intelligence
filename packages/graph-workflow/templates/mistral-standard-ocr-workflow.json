@@ -12,7 +12,7 @@
     "fileName": { "type": "string" },
     "fileType": { "type": "string" },
     "contentType": { "type": "string" },
-    "modelId": { "type": "string", "defaultValue": "mistral-ocr-latest", "isInput": true },
+    "modelId": { "type": "string", "defaultValue": "mistral-document-ai-2512", "isInput": true },
     "templateModelId": {
       "type": "string",
       "defaultValue": "cmo8w9bsx0009loe5e1rxwhau",
@@ -162,8 +162,8 @@
           "label": "OCR Model",
           "path": "ctx.modelId.defaultValue",
           "type": "select",
-          "options": ["mistral-ocr-latest"],
-          "default": "mistral-ocr-latest"
+          "options": ["mistral-document-ai-2512"],
+          "default": "mistral-document-ai-2512"
         }
       ]
     },

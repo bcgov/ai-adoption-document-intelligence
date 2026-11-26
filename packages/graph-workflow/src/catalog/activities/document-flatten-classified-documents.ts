@@ -6,7 +6,7 @@ export const documentFlattenClassifiedDocumentsParametersSchema = z.object({});
 export const documentFlattenClassifiedDocumentsCatalogEntry: ActivityCatalogEntry =
   {
     activityType: "document.flattenClassifiedDocuments",
-    displayName: "Flatten Classified Documents",
+    displayName: "Combine Classified Pages",
     category: "Document Handling",
     description:
       "Flattens the labeledDocuments map into a single sorted array of segments, optionally filtered by label.",

@@ -15,6 +15,7 @@ interface BoundingBoxProps {
   onMouseEnter?: (id: string) => void;
   onMouseLeave?: (id: string) => void;
   rotation?: number;
+  labelMode: "always" | "onHover";
 }
 
 const BoundingBoxShape: FC<BoundingBoxProps> = ({
@@ -30,7 +31,9 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
   onMouseEnter,
   onMouseLeave,
   rotation = 0,
+  labelMode,
 }) => {
+  const showLabelText = labelMode === "always" || isHovered;
   const points: number[] = [];
   for (const point of box.polygon) {
     points.push(point.x, point.y);
@@ -84,7 +87,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
       />
 
       {/* 3) Label text */}
-      {(label || confidence !== undefined) && (
+      {showLabelText && (label || confidence !== undefined) && (
         <Group
           x={firstPoint.x}
           y={firstPoint.y - 20}
@@ -116,6 +119,8 @@ interface BoundingBoxLayerProps {
     confidence?: number;
     isActive?: boolean;
   }>;
+  /** When to draw label text; see AnnotationCanvas `boxLabels`. */
+  boxLabels?: "always" | "onHover";
   selectedBoxId: string | null;
   hoveredBoxId: string | null;
   onBoxClick?: (id: string) => void;
@@ -130,6 +135,7 @@ interface BoundingBoxLayerProps {
 
 export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
   boxes,
+  boxLabels = "always",
   selectedBoxId,
   hoveredBoxId,
   onBoxClick,
@@ -158,6 +164,7 @@ export const BoundingBoxLayer: FC<BoundingBoxLayerProps> = ({
           onMouseEnter={onBoxMouseEnter}
           onMouseLeave={onBoxMouseLeave}
           rotation={rotation}
+          labelMode={boxLabels}
         />
       ))}
     </Layer>

@@ -80,16 +80,12 @@
     },
     "ocrResponseRef": {
       "type": "object",
-      "description": "Lightweight blob reference to the raw Azure DI prebuilt-layout response (markdown content + per-line/per-word polygons). Resolved inside the hybrid extract step; the full payload is kept out of Temporal history."
+      "description": "Blob reference to the DI layout response before hybrid extraction, then to the wrapped hybrid response (DI layout + parsed VLM fields and source_quotes). The final reference is available to benchmark OCR caching."
     },
-    "ocrResult": {
+    "ocrResultRef": {
       "type": "object"
     },
-    "ocrResponse": {
-      "type": "object",
-      "description": "Wrapped hybrid response (DI layout + parsed VLM { fields, source_quotes }). Emitted alongside ocrResult so the benchmark sample workflow persistOcrCache step writes it to benchmark_ocr_cache."
-    },
-    "cleanedResult": {
+    "cleanedResultRef": {
       "type": "object"
     },
     "averageConfidence": {
@@ -234,11 +230,11 @@
       "outputs": [
         {
           "port": "ocrResult",
-          "ctxKey": "ocrResult"
+          "ctxKey": "ocrResultRef"
         },
         {
           "port": "ocrResponse",
-          "ctxKey": "ocrResponse"
+          "ctxKey": "ocrResponseRef"
         }
       ],
       "timeout": {
@@ -339,13 +335,13 @@
       "inputs": [
         {
           "port": "ocrResult",
-          "ctxKey": "ocrResult"
+          "ctxKey": "ocrResultRef"
         }
       ],
       "outputs": [
         {
           "port": "cleanedResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         }
       ],
       "timeout": {
@@ -367,7 +363,7 @@
         },
         {
           "port": "ocrResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         },
         {
           "port": "threshold",
@@ -445,7 +441,7 @@
         },
         {
           "port": "ocrResult",
-          "ctxKey": "cleanedResult"
+          "ctxKey": "cleanedResultRef"
         }
       ],
       "timeout": {

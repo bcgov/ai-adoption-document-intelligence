@@ -86,6 +86,7 @@ describe("HitlService", () => {
     ...mockDocument,
     ocr_result: mockOcrResult,
     review_sessions: [],
+    flags: [],
   };
 
   const mockReviewSession = {
@@ -141,12 +142,18 @@ describe("HitlService", () => {
       findDocumentCorrections: jest.fn(),
       findSessionEvents: jest.fn(),
       createReviewSessionEvent: jest.fn(),
-      findActiveLock: jest.fn(),
+      findActiveLock: jest.fn().mockResolvedValue(mockDocumentLock),
       acquireDocumentLock: jest.fn(),
       releaseDocumentLock: jest.fn(),
       refreshLockHeartbeat: jest.fn(),
       deleteCorrection: jest.fn(),
       findFieldDefinitionsForDocument: jest.fn().mockResolvedValue([]),
+      hasActiveFlags: jest.fn().mockResolvedValue(false),
+      findActiveFlags: jest.fn().mockResolvedValue([]),
+      findResolvedFlags: jest.fn().mockResolvedValue([]),
+      createReviewFlag: jest.fn(),
+      findReviewFlag: jest.fn(),
+      resolveReviewFlag: jest.fn(),
     };
 
     const mockAnalytics = {
@@ -247,6 +254,7 @@ describe("HitlService", () => {
         lock: null,
         workflowVersion: { lineage: { name: "Invoice intake" } },
         review_sessions: [],
+        flags: [],
       };
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         queueRow,
@@ -292,6 +300,7 @@ describe("HitlService", () => {
           {
             id: "session-1",
             actor_id: "reviewer-1",
+            actor: { user: { email: "reviewer@example.com" } },
             status: ReviewStatus.in_progress,
             completed_at: null,
             corrections: [mockFieldCorrection],
@@ -307,7 +316,7 @@ describe("HitlService", () => {
 
       expect(result.documents[0].lastSession).toEqual({
         id: "session-1",
-        reviewer_id: "reviewer-1",
+        reviewerEmail: "reviewer@example.com",
         status: ReviewStatus.in_progress,
         completed_at: null,
         corrections_count: 1,
@@ -604,6 +613,25 @@ describe("HitlService", () => {
       expect(result.id).toBe("session-1");
     });
 
+    it("should throw ConflictException when two reviewers race to start and lose the atomic claim", async () => {
+      const dto: ReviewSessionDto = {
+        documentId: "doc-1",
+      };
+
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      // Both reviewers pass this check before either has claimed the lock.
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      // The other reviewer's claim won the race.
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(null);
+
+      await expect(service.startSession(dto, "reviewer-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
     it("should throw ConflictException when different reviewer has lock", async () => {
       const dto: ReviewSessionDto = {
         documentId: "doc-1",
@@ -672,6 +700,9 @@ describe("HitlService", () => {
         status: DocumentStatus.awaiting_review,
       });
       mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock as any,
+      );
       mockReviewDbService.createReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
@@ -728,6 +759,8 @@ describe("HitlService", () => {
         },
         corrections: [],
         fieldDefinitions: mockFieldDefs,
+        activeFlags: [],
+        resolvedFlags: [],
       });
     });
 
@@ -910,36 +943,6 @@ describe("HitlService", () => {
       ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
-    });
-
-    it("should clear the reopened-from marker once a takeover saves corrections", async () => {
-      const dto: SubmitCorrectionsDto = {
-        corrections: [
-          {
-            field_key: "invoice_number",
-            original_value: "INV-123",
-            corrected_value: "INV-12345",
-            original_conf: 0.85,
-            action: CorrectionAction.CORRECTED,
-          },
-        ],
-      };
-
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
-        ...mockReviewSession,
-        reopened_from_status: ReviewStatus.flagged,
-      } as any);
-      mockReviewDbService.createFieldCorrection.mockResolvedValueOnce(
-        mockFieldCorrection,
-      );
-
-      await service.submitCorrections("session-1", dto, "reviewer-1");
-
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        { reopened_from_status: null },
-        expect.anything(),
-      );
     });
 
     it("should not touch the reopened-from marker when the session isn't a handoff", async () => {
@@ -1221,6 +1224,10 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-2",
+      });
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...mockReviewSession,
         status: ReviewStatus.rejected,
@@ -1243,11 +1250,167 @@ describe("HitlService", () => {
     });
   });
 
+  describe("approving or rejecting settles open flags", () => {
+    type SessionRow = Awaited<ReturnType<ReviewDbService["findReviewSession"]>>;
+    type OpenFlags = Awaited<ReturnType<ReviewDbService["findActiveFlags"]>>;
+    type ResolvedFlag = Awaited<
+      ReturnType<ReviewDbService["resolveReviewFlag"]>
+    >;
+
+    const openFlag = (id: string) => ({
+      id,
+      document_id: "doc-1",
+      note: `Note on ${id}`,
+      raised_at: new Date("2026-11-01T10:00:00.000Z"),
+      resolved_at: null,
+      raisedActor: { user: { email: "flagger@example.com" } },
+    });
+    const recordEvent = () =>
+      (service as unknown as { auditService: { recordEvent: jest.Mock } })
+        .auditService.recordEvent;
+
+    it("approving resolves each open flag as the approver, in the same transaction", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+        openFlag("flag-2"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockImplementation(
+        async (flagId) => ({ id: flagId }) as unknown as ResolvedFlag,
+      );
+
+      await service.approveSession("session-1", "reviewer-1");
+
+      expect(mockReviewDbService.findActiveFlags).toHaveBeenCalledWith(
+        "doc-1",
+        fakeTx,
+      );
+      for (const flagId of ["flag-1", "flag-2"]) {
+        expect(mockReviewDbService.resolveReviewFlag).toHaveBeenCalledWith(
+          flagId,
+          "session-1",
+          "reviewer-1",
+          fakeTx,
+        );
+        expect(
+          mockReviewDbService.createReviewSessionEvent,
+        ).toHaveBeenCalledWith(
+          "session-1",
+          {
+            event_type: ReviewSessionEventType.flag_resolved,
+            actor_id: "reviewer-1",
+            review_flag_id: flagId,
+          },
+          fakeTx,
+        );
+        expect(recordEvent()).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event_type: "review_flag_resolved",
+            resource_id: flagId,
+            actor_id: "reviewer-1",
+            payload: {
+              document_id: "doc-1",
+              session_id: "session-1",
+              resolved_by_decision: ReviewStatus.approved,
+            },
+          }),
+          fakeTx,
+        );
+      }
+    });
+
+    it("rejecting resolves each open flag as the reviewer who rejected", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-2",
+      });
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockResolvedValueOnce({
+        id: "flag-1",
+      } as unknown as ResolvedFlag);
+
+      await service.rejectSession(
+        "session-1",
+        { rejectionReason: RejectionReason.INPUT_QUALITY },
+        "reviewer-2",
+      );
+
+      expect(mockReviewDbService.resolveReviewFlag).toHaveBeenCalledWith(
+        "flag-1",
+        "session-1",
+        "reviewer-2",
+        fakeTx,
+      );
+      expect(recordEvent()).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "review_flag_resolved",
+          resource_id: "flag-1",
+          actor_id: "reviewer-2",
+          payload: {
+            document_id: "doc-1",
+            session_id: "session-1",
+            resolved_by_decision: ReviewStatus.rejected,
+          },
+        }),
+        fakeTx,
+      );
+    });
+
+    it("records nothing for a flag someone else resolved in the meantime", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as unknown as SessionRow,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as unknown as SessionRow);
+      mockReviewDbService.findActiveFlags.mockResolvedValueOnce([
+        openFlag("flag-1"),
+      ] as unknown as OpenFlags);
+      mockReviewDbService.resolveReviewFlag.mockResolvedValueOnce(null);
+
+      await service.approveSession("session-1", "reviewer-1");
+
+      expect(
+        mockReviewDbService.createReviewSessionEvent,
+      ).not.toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          event_type: ReviewSessionEventType.flag_resolved,
+        }),
+        fakeTx,
+      );
+      expect(recordEvent()).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event_type: "review_flag_resolved" }),
+        fakeTx,
+      );
+    });
+  });
+
   describe("skipSession", () => {
-    it("should abandon the session and release the lock", async () => {
+    it("should abandon the session and release the lock when the document has no active flags", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.hasActiveFlags.mockResolvedValueOnce(false);
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...mockReviewSession,
         status: ReviewStatus.abandoned,
@@ -1259,9 +1422,10 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
+      expect(mockReviewDbService.hasActiveFlags).toHaveBeenCalledWith("doc-1");
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
-        { status: ReviewStatus.abandoned, reopened_from_status: null },
+        { status: ReviewStatus.abandoned },
         expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
@@ -1280,16 +1444,13 @@ describe("HitlService", () => {
       });
     });
 
-    it("should restore to flagged, not abandoned, when the session was reopened from flagged and no corrections were saved", async () => {
-      const handoffSession = {
-        ...mockReviewSession,
-        reopened_from_status: ReviewStatus.flagged,
-      };
+    it("should return to flagged, not abandoned, when the document still has an active flag", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        handoffSession as any,
+        mockReviewSession as any,
       );
+      mockReviewDbService.hasActiveFlags.mockResolvedValueOnce(true);
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
-        ...handoffSession,
+        ...mockReviewSession,
         status: ReviewStatus.flagged,
       } as any);
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
@@ -1298,7 +1459,7 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
-        { status: ReviewStatus.flagged, reopened_from_status: null },
+        { status: ReviewStatus.flagged },
         expect.anything(),
       );
       expect(result).toEqual({
@@ -1306,30 +1467,6 @@ describe("HitlService", () => {
         status: ReviewStatus.flagged,
         message: "Lock released, document returned to flagged queue",
       });
-    });
-
-    it("should abandon, not restore, a reopened-from-flagged session once corrections cleared the marker", async () => {
-      const handoffSession = {
-        ...mockReviewSession,
-        reopened_from_status: null, // cleared by submitCorrections during the takeover
-      };
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        handoffSession as any,
-      );
-      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
-        ...handoffSession,
-        status: ReviewStatus.abandoned,
-      } as any);
-      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
-
-      const result = await service.skipSession("session-1", "reviewer-1");
-
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        { status: ReviewStatus.abandoned, reopened_from_status: null },
-        expect.anything(),
-      );
-      expect(result.message).toBe("Lock released, document returned to queue");
     });
 
     it("should throw ConflictException if the session is not in progress", async () => {
@@ -1354,38 +1491,10 @@ describe("HitlService", () => {
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
-
-    it("should return to flagged, not abandoned, when the session is an unresolved handoff from flagged", async () => {
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
-        ...mockReviewSession,
-        flag_note: "Needs a second look",
-        reopened_from_status: ReviewStatus.flagged,
-      } as any);
-      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
-        ...mockReviewSession,
-        status: ReviewStatus.flagged,
-        flag_note: "Needs a second look",
-        reopened_from_status: null,
-      } as any);
-      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
-
-      const result = await service.skipSession("session-1", "reviewer-1");
-
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        { status: ReviewStatus.flagged, reopened_from_status: null },
-        expect.anything(),
-      );
-      expect(result).toEqual({
-        id: "session-1",
-        status: ReviewStatus.flagged,
-        message: "Lock released, document returned to flagged queue",
-      });
-    });
   });
 
   describe("flagSession", () => {
-    it("should set status to flagged and release the lock", async () => {
+    it("should raise a new flag, link it to the flagged event, and release the lock", async () => {
       const flaggedSession = {
         ...mockReviewSession,
         status: ReviewStatus.flagged,
@@ -1394,6 +1503,13 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.createReviewFlag.mockResolvedValueOnce({
+        id: "flag-1",
+        document_id: "doc-1",
+        raised_session_id: "session-1",
+        raised_by: "reviewer-1",
+        note: null,
+      } as any);
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         flaggedSession as any,
       );
@@ -1401,6 +1517,15 @@ describe("HitlService", () => {
 
       const result = await service.flagSession("session-1", {}, "reviewer-1");
 
+      expect(mockReviewDbService.createReviewFlag).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          raised_session_id: "session-1",
+          raised_by: "reviewer-1",
+          note: null,
+        },
+        expect.anything(),
+      );
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         { status: ReviewStatus.flagged, flag_note: null },
@@ -1412,7 +1537,12 @@ describe("HitlService", () => {
       );
       expect(mockReviewDbService.createReviewSessionEvent).toHaveBeenCalledWith(
         "session-1",
-        { event_type: "flagged", actor_id: "reviewer-1", comment: null },
+        {
+          event_type: "flagged",
+          actor_id: "reviewer-1",
+          comment: null,
+          review_flag_id: "flag-1",
+        },
         expect.anything(),
       );
       expect(result).toEqual({
@@ -1422,7 +1552,7 @@ describe("HitlService", () => {
       });
     });
 
-    it("should store a trimmed flag note against the session", async () => {
+    it("should store a trimmed flag note against the session and the flag", async () => {
       const flaggedSession = {
         ...mockReviewSession,
         status: ReviewStatus.flagged,
@@ -1431,6 +1561,13 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.createReviewFlag.mockResolvedValueOnce({
+        id: "flag-1",
+        document_id: "doc-1",
+        raised_session_id: "session-1",
+        raised_by: "reviewer-1",
+        note: "waiting on legal to confirm the address",
+      } as any);
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         flaggedSession as any,
       );
@@ -1444,6 +1581,15 @@ describe("HitlService", () => {
         "reviewer-1",
       );
 
+      expect(mockReviewDbService.createReviewFlag).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          raised_session_id: "session-1",
+          raised_by: "reviewer-1",
+          note: "waiting on legal to confirm the address",
+        },
+        expect.anything(),
+      );
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
@@ -1460,6 +1606,19 @@ describe("HitlService", () => {
       await expect(
         service.flagSession("non-existent", {}, "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException if the session is already finished", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(
+        service.flagSession("session-1", {}, "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
     });
@@ -1699,10 +1858,11 @@ describe("HitlService", () => {
     it("should refresh lock and return new expiry", async () => {
       mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(true);
 
-      const result = await service.heartbeat("session-1");
+      const result = await service.heartbeat("session-1", "reviewer-1");
 
       expect(mockReviewDbService.refreshLockHeartbeat).toHaveBeenCalledWith(
         "session-1",
+        "reviewer-1",
         expect.any(Date),
       );
       expect(result.ok).toBe(true);
@@ -1712,8 +1872,22 @@ describe("HitlService", () => {
     it("should throw ConflictException when lock is expired or not found", async () => {
       mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(false);
 
-      await expect(service.heartbeat("session-1")).rejects.toThrow(
-        ConflictException,
+      await expect(
+        service.heartbeat("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should throw ConflictException when another reviewer holds the lock", async () => {
+      mockReviewDbService.refreshLockHeartbeat.mockResolvedValueOnce(false);
+
+      await expect(
+        service.heartbeat("session-1", "other-reviewer"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.refreshLockHeartbeat).toHaveBeenCalledWith(
+        "session-1",
+        "other-reviewer",
+        expect.any(Date),
       );
     });
   });
@@ -1728,6 +1902,7 @@ describe("HitlService", () => {
       const result = await service.deleteCorrection(
         "session-1",
         "correction-1",
+        "reviewer-1",
       );
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
@@ -1744,7 +1919,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
-        service.deleteCorrection("session-1", "correction-1"),
+        service.deleteCorrection("session-1", "correction-1", "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1755,7 +1930,7 @@ describe("HitlService", () => {
       mockReviewDbService.deleteCorrection.mockResolvedValueOnce(false);
 
       await expect(
-        service.deleteCorrection("session-1", "correction-1"),
+        service.deleteCorrection("session-1", "correction-1", "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1792,6 +1967,10 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "reviewer-2",
+      });
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
         approvedSession() as any,
       );
@@ -1945,6 +2124,31 @@ describe("HitlService", () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it("should throw ConflictException when two reviewers race to take over a flagged session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        completed_at: null,
+        document: { ...mockDocumentWithOcr, groundTruthJob: null },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      // Both reviewers pass this check before either has claimed the lock.
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...flaggedSession,
+        status: ReviewStatus.in_progress,
+      } as any);
+      // The other reviewer's claim won the race.
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(null);
+
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
+    });
+
     it("should let another reviewer take over a flagged session", async () => {
       const flaggedSession = {
         ...mockReviewSession,
@@ -1970,15 +2174,15 @@ describe("HitlService", () => {
       const result = await service.reopenSession("session-1", "other-reviewer");
 
       expect(result.status).toBe(ReviewStatus.in_progress);
-      // the session becomes the new reviewer's, and the flag note stays for them
+      // the session becomes the new reviewer's; the flag note stays visible,
+      // and whether it restores to flagged on skip/expiry now depends on
+      // whether the document still has an active flag, not on this field
       const [, update] = mockReviewDbService.updateReviewSession.mock.calls[0];
       expect(update).toMatchObject({
         status: ReviewStatus.in_progress,
         actor_id: "other-reviewer",
-        // a handoff from flagged restores to flagged if it never gets a
-        // decision (skip, lock expiry) and no corrections are saved
-        reopened_from_status: ReviewStatus.flagged,
       });
+      expect(update).not.toHaveProperty("reopened_from_status");
       expect(update).not.toHaveProperty("flag_note");
       expect(mockReviewDbService.createReviewSessionEvent).toHaveBeenCalledWith(
         "session-1",
@@ -2085,7 +2289,6 @@ describe("HitlService", () => {
           status: ReviewStatus.in_progress,
           completed_at: null,
           actor_id: "reviewer-1",
-          reopened_from_status: null,
         },
         expect.anything(),
       );

@@ -64,14 +64,14 @@
     "preparedFileData": {
       "type": "object"
     },
-    "ocrResult": {
+    "ocrResultRef": {
       "type": "object"
     },
-    "ocrResponse": {
+    "ocrResponseRef": {
       "type": "object",
       "description": "Raw VLM chat-completions response (with parsed { fields, source_quotes }), emitted alongside ocrResult so the benchmark sample workflow's persistOcrCache step writes it to benchmark_ocr_cache."
     },
-    "cleanedResult": {
+    "cleanedResultRef": {
       "type": "object"
     },
     "averageConfidence": {
@@ -112,8 +112,8 @@
         { "port": "azureOpenAiDeployment", "ctxKey": "azureOpenAiDeployment" }
       ],
       "outputs": [
-        { "port": "ocrResult", "ctxKey": "ocrResult" },
-        { "port": "ocrResponse", "ctxKey": "ocrResponse" }
+        { "port": "ocrResult", "ctxKey": "ocrResultRef" },
+        { "port": "ocrResponse", "ctxKey": "ocrResponseRef" }
       ],
       "timeout": { "startToClose": "20m" },
       "retry": {
@@ -209,10 +209,10 @@
       "label": "Cleanup",
       "activityType": "ocr.cleanup",
       "inputs": [
-        { "port": "ocrResult", "ctxKey": "ocrResult" }
+        { "port": "ocrResult", "ctxKey": "ocrResultRef" }
       ],
       "outputs": [
-        { "port": "cleanedResult", "ctxKey": "cleanedResult" }
+        { "port": "cleanedResult", "ctxKey": "cleanedResultRef" }
       ],
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 3 }
@@ -224,7 +224,7 @@
       "activityType": "ocr.checkConfidence",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" },
+        { "port": "ocrResult", "ctxKey": "cleanedResultRef" },
         { "port": "threshold", "ctxKey": "confidenceThreshold" }
       ],
       "outputs": [
@@ -276,7 +276,7 @@
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResult" }
+        { "port": "ocrResult", "ctxKey": "cleanedResultRef" }
       ],
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 5 }

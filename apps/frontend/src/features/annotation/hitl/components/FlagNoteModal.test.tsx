@@ -3,14 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import { MantineProvider } from "../../../../ui";
 import { FlagNoteModal } from "./FlagNoteModal";
 
-function renderModal(props: { initialNote?: string; onConfirm?: () => void }) {
+function renderModal(props: {
+  activeFlagCount?: number;
+  onConfirm?: () => void;
+}) {
   const onClose = vi.fn();
   const onConfirm = props.onConfirm ?? vi.fn();
   render(
     <MantineProvider>
       <FlagNoteModal
         opened
-        initialNote={props.initialNote ?? ""}
+        activeFlagCount={props.activeFlagCount ?? 0}
         isSubmitting={false}
         onClose={onClose}
         onConfirm={onConfirm}
@@ -21,23 +24,29 @@ function renderModal(props: { initialNote?: string; onConfirm?: () => void }) {
 }
 
 describe("FlagNoteModal", () => {
-  it("opens with the note already on the session, so a second flag can build on it", () => {
-    renderModal({ initialNote: "Date on page 1 is ambiguous" });
+  it("always opens blank, since flagging adds a new flag rather than editing one", () => {
+    renderModal({ activeFlagCount: 2 });
 
     expect(
       screen.getByRole("textbox", {
         name: "What should the next reviewer know?",
       }),
-    ).toHaveValue("Date on page 1 is ambiguous");
+    ).toHaveValue("");
   });
 
-  it("confirms with the note as edited", () => {
-    const { onConfirm } = renderModal({ initialNote: "Date is ambiguous" });
+  it("tells the reviewer how many active flags already exist on the document", () => {
+    renderModal({ activeFlagCount: 2 });
+
+    expect(screen.getByText(/already has 2 active flags/i)).toBeInTheDocument();
+  });
+
+  it("confirms with the note that was typed", () => {
+    const { onConfirm } = renderModal({});
 
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Date is ambiguous; signature missing too" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Flag document" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add flag" }));
 
     expect(onConfirm).toHaveBeenCalledWith(
       "Date is ambiguous; signature missing too",

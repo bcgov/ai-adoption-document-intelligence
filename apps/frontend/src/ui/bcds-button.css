@@ -27,3 +27,37 @@
 .bcds-react-aria-Button[data-pending] .bcds-Button-label {
   opacity: 0.7;
 }
+
+/* A pending (loading) button swaps its icon for a spinner, so a long call
+   reads as work in progress rather than as a disabled button. */
+.bcds-react-aria-Button[data-pending] {
+  cursor: progress;
+}
+
+.bcds-react-aria-Button[data-pending] .bcds-Button-icon {
+  display: none;
+}
+
+.bcds-react-aria-Button[data-pending] .bcds-Button-label::before {
+  content: "";
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bcds-button-pending-spin 0.8s linear infinite;
+}
+
+@keyframes bcds-button-pending-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bcds-react-aria-Button[data-pending] .bcds-Button-label::before {
+    animation-duration: 2.4s;
+  }
+}

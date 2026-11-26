@@ -165,6 +165,8 @@ Both environments should have:
 - `ARTIFACTORY_URL`, `ARTIFACTORY_SA_USERNAME`, `ARTIFACTORY_SA_PASSWORD`
 - Azure, SSO, and app-config secrets as referenced in the workflow
 
+The Azure log mirror is off unless configured. To turn it on for an environment, add `AZURE_LOGS_TENANT_ID`, `AZURE_LOGS_CLIENT_ID`, `AZURE_LOGS_CLIENT_SECRET`, `AZURE_LOGS_DCE_URL`, and `AZURE_LOGS_DCR_ID` to its GitHub environment; optionally set `AZURE_LOGS_TABLE_NAME` (default `DocIntelLocal_CL`). With all five set, the deploy job provisions the dedicated instance Secret and adds the Fluent Bit sidecars alongside the existing Promtail/Loki pipeline. With none or only some set, it deploys without them, and the job log names any that are missing. See [OpenShift mirror setup](../monitoring/AZURE_LOG_ANALYTICS_MIRROR.md#openshift-deployment).
+
 ### OpenShift service account in `fd34fb-test`
 
 One-time step: while logged in to the cluster with a personal account, run
