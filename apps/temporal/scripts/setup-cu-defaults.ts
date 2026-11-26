@@ -10,18 +10,16 @@
  * Idempotent — repeating the call simply overwrites defaults to the same
  * values.
  *
- * Optional env overrides:
- *   GPT_COMPLETION_DEPLOYMENT  (default: gpt-5.2)
- *   GPT_COMPLETION_MODEL_ALIAS (default: gpt-5.2)
- *   EMBEDDING_DEPLOYMENT       (default: text-embedding-3-large)
- *   GPT_MINI_DEPLOYMENT        (optional; if set, also wires
- *                               prebuilt-analyzer-completion-mini)
+ * Default mappings are read from the Hub's tenant-info endpoint. Optional
+ * GPT_COMPLETION_DEPLOYMENT, GPT_COMPLETION_MODEL_ALIAS,
+ * EMBEDDING_DEPLOYMENT and GPT_MINI_DEPLOYMENT override those mappings.
  */
 
 import "../src/env-loader";
 import {
   type CuAuthMode,
   createCuAxiosInstance,
+  readCuModelDeployments,
 } from "../src/ocr-providers/azure-content-understanding/azure-cu-client";
 
 async function main(): Promise<void> {
@@ -37,25 +35,34 @@ async function main(): Promise<void> {
     );
   }
 
-  const completionDeployment =
-    process.env.GPT_COMPLETION_DEPLOYMENT ?? "gpt-5.2";
-  const completionAlias = process.env.GPT_COMPLETION_MODEL_ALIAS ?? "gpt-5.2";
-  const embeddingDeployment =
-    process.env.EMBEDDING_DEPLOYMENT ?? "text-embedding-3-large";
+  const client = createCuAxiosInstance({ endpoint, apiKey, authMode });
+  const info = await client.get("/internal/tenant-info");
+  if (info.status !== 200) {
+    throw new Error(`AI Hub tenant-info request failed: HTTP ${info.status}`);
+  }
+  const modelDeployments = readCuModelDeployments(
+    info.data?.services?.content_understanding?.model_deployments,
+  );
+  const completionDeployment = process.env.GPT_COMPLETION_DEPLOYMENT;
+  const completionAlias = process.env.GPT_COMPLETION_MODEL_ALIAS;
+  if (completionAlias) {
+    modelDeployments[completionAlias] =
+      completionDeployment ?? modelDeployments["prebuilt-analyzer-completion"];
+  }
+  if (completionDeployment) {
+    modelDeployments["prebuilt-analyzer-completion"] = completionDeployment;
+  }
+  const embeddingDeployment = process.env.EMBEDDING_DEPLOYMENT;
+  if (embeddingDeployment) {
+    modelDeployments["text-embedding-3-large"] = embeddingDeployment;
+    modelDeployments["prebuilt-analyzer-embedding"] = embeddingDeployment;
+  }
   const miniDeployment = process.env.GPT_MINI_DEPLOYMENT;
-
-  const modelDeployments: Record<string, string> = {
-    [completionAlias]: completionDeployment,
-    "text-embedding-3-large": embeddingDeployment,
-    "prebuilt-analyzer-completion": completionDeployment,
-    "prebuilt-analyzer-embedding": embeddingDeployment,
-  };
   if (miniDeployment) {
     modelDeployments["gpt-4.1-mini"] = miniDeployment;
     modelDeployments["prebuilt-analyzer-completion-mini"] = miniDeployment;
   }
 
-  const client = createCuAxiosInstance({ endpoint, apiKey, authMode });
   const url = "/contentunderstanding/defaults?api-version=2025-11-01";
 
   console.log(`→ PATCH ${endpoint}${url}`);
@@ -63,7 +70,11 @@ async function main(): Promise<void> {
     console.log(`  ${alias.padEnd(40)} = ${deployment}`);
   }
 
-  const resp = await client.patch(url, { modelDeployments });
+  const resp = await client.patch(
+    url,
+    { modelDeployments },
+    { headers: { "Content-Type": "application/merge-patch+json" } },
+  );
   if (resp.status >= 200 && resp.status < 300) {
     console.log(`✓ CU defaults updated (HTTP ${resp.status})`);
     if (typeof resp.data === "object") {

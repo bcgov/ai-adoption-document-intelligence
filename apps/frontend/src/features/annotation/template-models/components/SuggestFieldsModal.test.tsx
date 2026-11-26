@@ -35,6 +35,7 @@ const suggestions = [
     value: "S-251234",
     page_number: 1,
     already_exists: false,
+    confidence: 0.95,
   },
   {
     field_key: "consents",
@@ -43,6 +44,7 @@ const suggestions = [
     value: "selected",
     page_number: 1,
     already_exists: true,
+    confidence: 0.95,
   },
   {
     field_key: "filing_date",
@@ -51,6 +53,16 @@ const suggestions = [
     value: null,
     page_number: null,
     already_exists: false,
+    confidence: 0,
+  },
+  {
+    field_key: "missing_name",
+    field_type: FieldType.STRING,
+    description: "A name that is not on the page",
+    value: null,
+    page_number: null,
+    already_exists: true,
+    confidence: 0.5,
   },
 ];
 
@@ -65,7 +77,7 @@ function renderModal(
     onClose: vi.fn(),
     templateModelId: "tm-1",
     documents: [{ id: "doc-1", name: "copy-1.pdf" }],
-    existingKeys: ["consents"],
+    existingKeys: ["consents", "missing_name"],
     onAddFields: vi.fn().mockResolvedValue(undefined),
     onFieldsAdded: vi.fn(),
     ...overrides,
@@ -106,7 +118,18 @@ describe("SuggestFieldsModal", () => {
     expect(rowCheckbox(0)).toBeChecked();
     expect(rowCheckbox(1)).not.toBeChecked();
     expect(
-      screen.getByText("Not filled in on this document"),
+      screen.getAllByText("Not filled in on this document").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Score 0.95. The words are on the page.").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Score 0. The field was left blank."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Score 0.5. The suggestion names words that are not on the page.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Add 2 fields" }),

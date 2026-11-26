@@ -56,7 +56,7 @@ progressive disclosure — Claude loads only what each task needs:
 **scripts/[script].sh** — actual shell commands (only if needed)
 - Before creating any script, search the repo for existing scripts,
   build tools, npm scripts, or Makefiles that already do the job
-- If an existing script exists (e.g., `docs/build.sh`, `npm run build`),
+- If an existing script exists (e.g., `npm run docs:build`, `npm run build`),
   reference it directly in Workflows instead of creating a duplicate
 - Only create a new script when no existing tool covers the need
 - When creating: start with `#!/bin/bash` and `set -e`

@@ -1,6 +1,14 @@
 # PLG Stack - Default Values
 # Override per environment via values-local.yaml, values-openshift.yaml, or --set flags.
 
+azureLogs:
+  # Fluent Bit sidecar on the CHES adapter, mirroring its logs to Azure Log Analytics.
+  # The deploy scripts turn it on only when every AZURE_LOGS_* setting is configured.
+  enabled: false
+  # Shared ConfigMap is supplied by the application's Kustomize deployment.
+  configMapName: fluent-bit-config
+  secretName: azure-logs-secrets
+
 loki:
   image:
     repository: grafana/loki

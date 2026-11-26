@@ -14,7 +14,8 @@ import {
 } from "@ai-di/graph-workflow";
 import axios from "axios";
 import type { SameShape } from "../../__testlib__/same-shape";
-import type { OCRResponse, PreparedFileData } from "../../types";
+import { readOcrPayloadBlobInGroup } from "../../ocr-payload-ref";
+import type { OCRResponse, OCRResult, PreparedFileData } from "../../types";
 import {
   type VlmHybridExtractParams,
   vlmHybridExtract,
@@ -24,9 +25,11 @@ jest.mock("axios");
 const axiosPost = axios.post as jest.MockedFunction<typeof axios.post>;
 
 const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
 jest.mock("../../blob-storage/blob-storage-client", () => ({
   getBlobStorageClient: () => ({
     read: mockBlobRead,
+    write: mockBlobWrite,
   }),
 }));
 
@@ -108,6 +111,7 @@ describe("vlmHybridExtract group scope", () => {
       AZURE_OPENAI_DEPLOYMENT: "test-deployment",
     };
     mockBlobRead.mockResolvedValue(Buffer.from("image-bytes"));
+    mockBlobWrite.mockResolvedValue(undefined);
     templateRows = [];
     mockFindUnique.mockImplementation(
       async ({ where }: { where: { id: string } }) =>
@@ -144,7 +148,8 @@ describe("vlmHybridExtract group scope", () => {
   it("loads the template model only within the run's group", async () => {
     templateRows = [amountTemplate(GROUP)];
 
-    const { ocrResult } = await vlmHybridExtract({
+    const { ocrResult, ocrResponse } = await vlmHybridExtract({
+      documentId: "doc-1",
       fileData: imageFile,
       groupId: GROUP,
       layoutResponse,
@@ -155,7 +160,25 @@ describe("vlmHybridExtract group scope", () => {
       where: { id: "tm-1", group_id: GROUP },
       include: { field_schema: { orderBy: { display_order: "asc" } } },
     });
-    expect(ocrResult.success).toBe(true);
+    expect(ocrResult).toMatchObject({ storage: "blob", documentId: "doc-1" });
+    expect(ocrResponse.blobPath).toBe(`${GROUP}/ocr/doc-1/ocr-response.json`);
+    const persisted = mockBlobWrite.mock.calls.find(
+      ([key]) => key === ocrResult.blobPath,
+    );
+    if (!persisted) throw new Error("Missing persisted OCR result");
+    mockBlobRead.mockResolvedValueOnce(persisted[1]);
+    const mapped = await readOcrPayloadBlobInGroup<OCRResult>(ocrResult, GROUP);
+    expect(mapped.success).toBe(true);
+    expect(mapped.documents?.[0].fields.amount.valueNumber).toBe(12);
+    const raw = mockBlobWrite.mock.calls.find(
+      ([key]) => key === ocrResponse.blobPath,
+    );
+    if (!raw) throw new Error("Missing persisted raw hybrid response");
+    expect(JSON.parse(raw[1].toString("utf8"))).toMatchObject({
+      parsed: { fields: { amount: 12 } },
+      layoutResponse,
+    });
+    expect(mockBlobWrite).toHaveBeenCalledTimes(2);
   });
 
   it("treats a template model from another group as not found", async () => {
@@ -163,6 +186,7 @@ describe("vlmHybridExtract group scope", () => {
 
     await expect(
       vlmHybridExtract({
+        documentId: "doc-1",
         fileData: imageFile,
         groupId: GROUP,
         layoutResponse,
@@ -176,6 +200,7 @@ describe("vlmHybridExtract group scope", () => {
     templateRows = [amountTemplate(GROUP)];
 
     await vlmHybridExtract({
+      documentId: "doc-1",
       fileData: imageFile,
       groupId: GROUP,
       layoutResponse,
@@ -191,6 +216,7 @@ describe("vlmHybridExtract group scope", () => {
 
     await expect(
       vlmHybridExtract({
+        documentId: "doc-1",
         fileData: {
           ...imageFile,
           blobKey: `${OTHER_GROUP}/ocr/doc-1/original.jpg`,
@@ -209,6 +235,7 @@ describe("vlmHybridExtract group scope", () => {
 
     await expect(
       vlmHybridExtract({
+        documentId: "doc-1",
         fileData: imageFile,
         groupId: GROUP,
         layoutResponse: {
@@ -229,6 +256,7 @@ describe("vlmHybridExtract group scope", () => {
 
     await expect(
       vlmHybridExtract({
+        documentId: "doc-1",
         fileData: imageFile,
         layoutResponse,
         templateModelId: "tm-1",
@@ -240,6 +268,20 @@ describe("vlmHybridExtract group scope", () => {
     expect(axiosPost).not.toHaveBeenCalled();
   });
 
+  it("refuses to call the provider without an injected documentId", async () => {
+    await expect(
+      vlmHybridExtract({
+        fileData: imageFile,
+        groupId: GROUP,
+        layoutResponse,
+        templateModelId: "tm-1",
+      }),
+    ).rejects.toThrow("documentId is required");
+    expect(axiosPost).not.toHaveBeenCalled();
+    expect(mockBlobRead).not.toHaveBeenCalled();
+    expect(mockBlobWrite).not.toHaveBeenCalled();
+  });
+
   describe("catalog contract", () => {
     // The engine copies result[port] into the variable each output binding
     // names, so a port the catalog declares but the activity does not return
@@ -248,6 +290,7 @@ describe("vlmHybridExtract group scope", () => {
       templateRows = [amountTemplate(GROUP)];
 
       const result = await vlmHybridExtract({
+        documentId: "doc-1",
         fileData: imageFile,
         groupId: GROUP,
         layoutResponse,
@@ -269,6 +312,7 @@ describe("vlmHybridExtract group scope", () => {
         Omit<
           VlmHybridExtractParams,
           | "fileData"
+          | "documentId"
           | "groupId"
           | "layoutResponse"
           | "templateModelId"

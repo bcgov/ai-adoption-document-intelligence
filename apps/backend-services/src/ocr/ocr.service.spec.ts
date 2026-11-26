@@ -370,6 +370,22 @@ describe("OcrService", () => {
       );
     });
 
+    it("marks the document failed when it has no workflow configuration ID", async () => {
+      (documentService.findDocument as jest.Mock).mockResolvedValueOnce({
+        ...defaultDocument,
+        workflow_config_id: null,
+      });
+
+      await expect(service.requestOcr("doc-no-workflow")).rejects.toThrow(
+        "Document doc-no-workflow missing workflow configuration ID",
+      );
+      expect(documentService.updateDocument).toHaveBeenCalledWith(
+        "doc-no-workflow",
+        { status: DocumentStatus.failed },
+      );
+      expect(temporalClientService.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
     it("should return a failed status with error if the file is not loaded properly", async () => {
       (blobStorage.read as jest.Mock).mockResolvedValueOnce(null);
       await expect(service.requestOcr("123")).resolves.toEqual({

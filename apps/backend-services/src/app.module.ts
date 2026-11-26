@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -10,6 +10,10 @@ import { AzureModule } from "@/azure/azure.module";
 import { ActivityCatalogModule } from "./activity-catalog/activity-catalog.module";
 import { ActorModule } from "./actor/actor.module";
 import { AgentModule } from "./agent/agent.module";
+import {
+  THROTTLE_GLOBAL_LIMIT,
+  THROTTLE_GLOBAL_TTL_MS,
+} from "./auth/auth.config";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BillingModule } from "./billing/billing.module";
@@ -48,18 +52,14 @@ import { WorkflowModule } from "./workflow/workflow.module";
       cache: true,
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            name: "default",
-            ttl: config.get<number>("THROTTLE_GLOBAL_TTL_MS", 60_000),
-            limit: config.get<number>("THROTTLE_GLOBAL_LIMIT", 100),
-          },
-        ],
-      }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: "default",
+          ttl: THROTTLE_GLOBAL_TTL_MS,
+          limit: THROTTLE_GLOBAL_LIMIT,
+        },
+      ],
     }),
     ActivityCatalogModule,
     ActorModule,

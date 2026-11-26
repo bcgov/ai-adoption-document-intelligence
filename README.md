@@ -394,9 +394,11 @@ npm run dev:backend      # http://localhost:3002
 npm run dev:frontend     # http://localhost:3000
 
 # Terminal 3: Temporal Worker
-cd apps/temporal && npm run dev
+npm run dev:temporal-worker
 
 ```
+
+For local log mirroring to Azure Log Analytics using an Entra app/service principal, see [Azure Log Analytics mirror](docs-md/monitoring/AZURE_LOG_ANALYTICS_MIRROR.md). The root dev scripts write the host log files consumed by the mirror.
 
 ### 6. Access the Application
 

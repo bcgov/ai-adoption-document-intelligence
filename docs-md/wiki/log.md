@@ -203,8 +203,51 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `hitl.md`: a skipped or lapsed session goes back to Flagged when it was taken over from the Flagged tab and no corrections were saved during the takeover, which replaces the flag-note rule.
 - `architecture/HITL_ARCHITECTURE.md`: the reviewer-workflow use case states the same rule.
 
+## [2026-11-04] maintenance | HITL flags: Skip and lock expiry follow open flags
+
+- `hitl.md`: a skipped or lapsed session goes back to Flagged while its document still has an open flag; a document can carry several flags, and Approve and Reject resolve any still open.
+- `architecture/HITL_ARCHITECTURE.md`: the Flagged tab lists documents waiting to be taken and shows their number of open flags; the reviewer-workflow and flagging use cases follow the flag model.
+
 ## [2026-11-13] ingest | Label suggestions keep hand labels; route timeouts for slow models
 
 - `architecture/TEMPLATE_MODELS.md`: suggestions now fill only fields the user has not labelled, the Suggest fields window is a table that marks keys already in the schema, field values follow OCR reading order, and a latency note links the route timeouts.
 - `operations/KUSTOMIZE_INSTANCE_TEMPLATE.md`: new Route timeouts section (150 s on both base Routes and the frontend nginx `/api/` location, against the router's 30 s default).
 - `workflows/AGENT_SETUP.md`: corrected which features default to which Azure OpenAI API version.
+
+## [2026-11-13] maintenance | Docs site publishes the wiki through VitePress
+
+- The documentation site moved to VitePress. `scripts/sync-docs-wiki.mjs` replaces `scripts/build-docs-wiki.js`: it copies the wiki into `docs/wiki/` when the site builds instead of rendering HTML, and the sidebar lists every page, including `billing.md` and `extraction.md`.
+- `README.md`: the publishing paragraph and maintenance rule 6 describe the copy step.
+- `open-questions.md`: `docs/` replaces `docs/_pages/` in the documentation ownership list.
+
+## [2026-11-13] ingest | AI Hub TEST migration validation
+
+- Added routing to the canonical operator value map and migration validation runbook.
+- Kept deployment instructions and endpoint inventories out of the wiki.
+
+## [2026-11-16] ingest | Local Azure Log Analytics mirror
+
+- Added routing to the Fluent Bit mirror guide and configuration, including the boundary between host-file collection and container stdout.
+
+## [2026-11-17] ingest | OpenShift Azure log mirror
+
+- Extended the canonical mirror guide to OpenShift sidecars, instance Secret provisioning, and nginx filtering; routed shared assets to `deployments/fluent-bit/`.
+
+## [2026-11-19] maintenance | Limit AI Hub changes to migration and test wiring
+
+- Kept endpoint/auth compatibility and canonical result-reference wiring; removed custom validation runners and unrelated fixes.
+- Updated the migration runbook to use existing tests and benchmark UI/APIs.
+
+## [2026-11-24] ingest | Mistral AI Hub routing
+
+- Linked extraction routing to the canonical Mistral configuration guide.
+
+## [2026-11-24] ingest | Content Understanding AI Hub routing
+
+- Linked the extraction topic to the CU configuration and analyzer guide.
+
+## [2026-11-25] ingest | Opt-in Azure log mirror without identifiers
+
+- `deployment-and-ops.md`: the mirror deploys only where every required `AZURE_LOGS_*` setting is configured, through the `components/azure-log-mirror` Kustomize component and the CHES chart's `azureLogs.enabled`; locally it has its own `azure-logs` Compose profile.
+- `sources.md`: routes the component directory.
+- The canonical guide lists what is removed from a line before it is sent.

@@ -1,5 +1,0 @@
-# GitHub Pages (Jekyll) configuration.
-# The published site is built with docs/build.sh; these settings prevent Jekyll
-# from processing internal plan/spec markdown that contains JSX-style {{ }} syntax.
-exclude:
-  - superpowers

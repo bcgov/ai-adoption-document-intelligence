@@ -424,15 +424,17 @@ export async function graphWorkflow(
     }
 
     // Failure-path status transition: a failed workflow must move the document
-    // out of `ongoing_ocr` ("Processing") into a terminal `failed` status.
-    // Without this, OCR failures (e.g. Azure rejecting a password-protected or
-    // unsupported PDF) leave the document orphaned in "Processing" forever — it
-    // never completes, and `deleteDocument` refuses to remove in-flight docs.
-    // Guarded to only transition from an in-flight status so a doc that already
-    // progressed (extracted/awaiting_review) is never clobbered. Skipped on
-    // cancellation (the doc is being torn down, and an activity call in a
-    // cancelled scope would itself fail). A status-update failure here is
-    // swallowed so it can never mask the original workflow error.
+    // out of `ongoing_ocr` ("Processing") or `extracted` into a terminal
+    // `failed` status. Without this, OCR failures (e.g. Azure rejecting a
+    // password-protected or unsupported PDF) or failures after results were
+    // stored (e.g. a node run after "store results") leave the document
+    // orphaned forever — it never completes, and `deleteDocument` refuses to
+    // remove in-flight docs. Guarded to only transition from these non-terminal
+    // statuses so a doc already in a user-facing review state (awaiting_review)
+    // is never clobbered. Skipped on cancellation (the doc is being torn down,
+    // and an activity call in a cancelled scope would itself fail). A
+    // status-update failure here is swallowed so it can never mask the
+    // original workflow error.
     if (
       !cancelled &&
       input.initialCtx.documentId &&
@@ -448,7 +450,11 @@ export async function graphWorkflow(
         const { status: currentStatus } = await failureProxy[
           "document.getStatus"
         ]({ documentId, groupId });
-        if (currentStatus === "ongoing_ocr" || currentStatus === "pre_ocr") {
+        if (
+          currentStatus === "ongoing_ocr" ||
+          currentStatus === "pre_ocr" ||
+          currentStatus === "extracted"
+        ) {
           await failureProxy["document.updateStatus"]({
             documentId,
             groupId,

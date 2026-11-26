@@ -45,7 +45,23 @@ interface Row {
   fieldType: FieldType;
   description: string;
   value: string | null;
+  confidence: number;
 }
+
+/*
+ * The number only says whether the suggestion could point at words on the
+ * page. 0.5 means it named a value that is not there. 0 means the field
+ * was left blank. 0.95 means those words are on the page.
+ */
+const scoreLine = (row: Row): string => {
+  if (row.confidence === 0.5) {
+    return "Score 0.5. The suggestion names words that are not on the page.";
+  }
+  if (row.value === null) {
+    return "Score 0. The field was left blank.";
+  }
+  return "Score 0.95. The words are on the page.";
+};
 
 const toRow = (suggestion: SuggestedField, index: number): Row => ({
   id: `${index}-${suggestion.field_key}`,
@@ -54,6 +70,7 @@ const toRow = (suggestion: SuggestedField, index: number): Row => ({
   fieldType: suggestion.field_type,
   description: suggestion.description,
   value: suggestion.value,
+  confidence: suggestion.confidence,
 });
 
 export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
@@ -308,13 +325,18 @@ export const SuggestFieldsModal: FC<SuggestFieldsModalProps> = ({
                         />
                       </DataTable.Td>
                       <DataTable.Td>
-                        <Text
-                          size="sm"
-                          c={row.value === null ? "dimmed" : undefined}
-                          style={{ overflowWrap: "anywhere" }}
-                        >
-                          {row.value ?? "Not filled in on this document"}
-                        </Text>
+                        <Stack gap={4}>
+                          <Text
+                            size="sm"
+                            c={row.value === null ? "dimmed" : undefined}
+                            style={{ overflowWrap: "anywhere" }}
+                          >
+                            {row.value ?? "Not filled in on this document"}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {scoreLine(row)}
+                          </Text>
+                        </Stack>
                       </DataTable.Td>
                     </DataTable.Tr>
                   ))}

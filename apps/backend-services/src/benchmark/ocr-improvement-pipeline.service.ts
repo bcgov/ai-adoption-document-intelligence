@@ -482,7 +482,10 @@ export class OcrImprovementPipelineService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(`OCR improvement pipeline generate failed: ${message}`);
+      this.logger.error(
+        `OCR improvement pipeline generate failed: ${message}`,
+        { error },
+      );
       logEntries.push({
         step: "error",
         timestamp: new Date().toISOString(),

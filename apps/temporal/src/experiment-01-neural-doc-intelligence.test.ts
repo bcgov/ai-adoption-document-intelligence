@@ -38,11 +38,13 @@ import {
   buildRealActivities,
   installPaidApiMocks,
   makeWorkflowInput,
+  SEED_GROUP_ID,
   seedTestDocument,
   stageSampleImage,
   TEMPORAL_ADDRESS,
   TEMPORAL_NAMESPACE,
 } from "./__testlib__/integration-harness";
+import { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 import {
   disconnectPrismaClient,
   getPrismaClient,
@@ -463,6 +465,16 @@ describeRuntime(
         });
 
         expect(result.status).toBe("completed");
+        expect(result.refs).toMatchObject({
+          ocrResponseRef: { storage: "blob" },
+          ocrResultRef: { storage: "blob" },
+          cleanedResultRef: { storage: "blob" },
+        });
+        const { predictionData } = await benchmarkFlattenPredictionFromRefs({
+          groupId: SEED_GROUP_ID,
+          ...result.refs,
+        });
+        expect(predictionData).toMatchObject({ applicant_oas_gis: 100 });
         expect(ctx.requiresReview).toBe(false);
         expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
 
